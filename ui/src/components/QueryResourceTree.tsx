@@ -19,7 +19,8 @@ import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom, laneOrderAtom, groupFsmFiltersAtom } from '@/atoms/timeline';
+import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
@@ -40,6 +41,7 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
   const { entities, resource_tree: resourceTree } = queryBundle;
   const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
+  const [laneOrder, setLaneOrder] = useAtom(laneOrderAtom);
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
@@ -51,9 +53,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [startTimeMsAtom, startTimeMs],
   ]);
 
+  const groupFsmFilters = useAtomValue(groupFsmFiltersAtom);
+
   const rootItem = useMemo(
-    () => transformResourceTree(entities, resourceTree),
-    [resourceTree, entities]
+    () => transformResourceTree(entities, resourceTree, laneOrder),
+    [resourceTree, entities, laneOrder]
   );
 
   const highlightedItemIds = useHighlightedItemIds(rootItem);
@@ -65,6 +69,31 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+
+  const handleReorder = useCallback(
+    (parentId: string | null, fromId: string, toId: string) => {
+      if (!parentId) return;
+      // Find the parent's current children order.
+      const findChildren = (item: TreeTableItem): TreeTableItem[] | undefined => {
+        if (item.id === parentId) return item.children;
+        for (const child of item.children ?? []) {
+          const found = findChildren(child);
+          if (found) return found;
+        }
+        return undefined;
+      };
+      const children = findChildren(rootItem);
+      if (!children) return;
+      const ids = children.map(c => c.id);
+      const fromIdx = ids.indexOf(fromId);
+      const toIdx = ids.indexOf(toId);
+      if (fromIdx === -1 || toIdx === -1) return;
+      ids.splice(fromIdx, 1);
+      ids.splice(toIdx, 0, fromId);
+      setLaneOrder(prev => new Map(prev).set(parentId, ids));
+    },
+    [rootItem, setLaneOrder]
+  );
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -92,15 +121,17 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       rootResourceGroupId,
       durationSeconds,
       rootResourceType,
+      groupFsmFilters.get(rootResourceGroupId!),
     ],
     queryFn: () => {
+      const rootFsmFilter = rootResourceGroupId ? groupFsmFilters.get(rootResourceGroupId) : undefined;
       const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType,
             long_entities_threshold_s: null,
-            entity_filter: { entity_type_name: null },
+            entity_filter: { entity_type_name: rootFsmFilter ?? null },
             app_params: { operator_id: null },
             config: {
               num_bins: getAdaptiveNumBins(),
@@ -127,9 +158,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item }: { item: TreeTableItem; level: number }) => (
+        render: ({ item, isExpanded }: { item: TreeTableItem; level: number; isExpanded: boolean }) => (
           <ResourceColumn
             item={item}
+            isExpanded={isExpanded}
             selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
             onTypeChange={(itemId, newType) => {
               setSelectedTypes(prev => new Map(prev).set(itemId, newType));
@@ -137,6 +169,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                 setRootResourceType(newType);
               }
             }}
+            entities={entities}
           />
         ),
       },
@@ -154,9 +187,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
-        render: ({ item }: { item: TreeTableItem }) => (
+        render: ({ item, isExpanded }: { item: TreeTableItem; isExpanded: boolean }) => (
           <UsageColumn
             item={item}
+            isExpanded={isExpanded}
             engineId={engineId}
             queryBundle={queryBundle}
             selectedTypes={selectedTypes}
@@ -187,6 +221,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           initialSelectedItemId={rootItem.id}
           columnWidths={[275, 'auto']}
           onExpandChange={onExpandChange}
+          onReorder={handleReorder}
           highlightedItemIds={highlightedItemIds}
         />
       </div>

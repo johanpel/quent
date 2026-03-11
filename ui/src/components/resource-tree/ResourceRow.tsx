@@ -1,10 +1,21 @@
+import { useAtom } from 'jotai';
 import { Resource } from '~quent/types/Resource';
+import { FsmTypeSelector } from './FsmTypeSelector';
+import { groupFsmFiltersAtom } from '@/atoms/timeline';
 
 interface ResourceRowProps {
   resource: Resource;
+  id: string;
+  availableFsmTypes?: string[];
 }
 
-export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => {
+export const ResourceRow = ({ resource, id, availableFsmTypes }: ResourceRowProps): React.ReactNode => {
+  const [fsmFilters, setFsmFilters] = useAtom(groupFsmFiltersAtom);
+
+  const handleFsmChange = (_itemId: string, fsmType: string | null) => {
+    setFsmFilters(prev => new Map(prev).set(id, fsmType));
+  };
+
   return (
     <div>
       <div>
@@ -15,7 +26,18 @@ export const ResourceRow = ({ resource }: ResourceRowProps): React.ReactNode => 
             : ''}
         </span>
       </div>
-      <div className="text-xs text-muted-foreground">{resource.id}</div>
+      {availableFsmTypes && availableFsmTypes.length === 1 && (
+        <div className="text-xs text-muted-foreground mt-1">{availableFsmTypes[0]}</div>
+      )}
+      {availableFsmTypes && availableFsmTypes.length > 1 && (
+        <FsmTypeSelector
+          id={id}
+          selectedFsm={fsmFilters.has(id) ? (fsmFilters.get(id) ?? null) : null}
+          availableFsmTypes={availableFsmTypes}
+          onFsmChange={handleFsmChange}
+          className="mt-1"
+        />
+      )}
     </div>
   );
 };

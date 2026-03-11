@@ -4,10 +4,11 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
-import { isTimelineHoveredAtom, hoveredTimelineIdAtom } from '@/atoms/timeline';
+import { isTimelineHoveredAtom, hoveredTimelineIdAtom, groupFsmFiltersAtom } from '@/atoms/timeline';
 
 type UsageColumnProps = {
   item: TreeTableItem;
+  isExpanded: boolean;
   engineId: string;
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
@@ -17,6 +18,7 @@ type UsageColumnProps = {
 
 export function UsageColumn({
   item,
+  isExpanded,
   engineId,
   queryBundle,
   selectedTypes,
@@ -25,6 +27,14 @@ export function UsageColumn({
 }: UsageColumnProps): React.ReactNode {
   const isHovered = useAtomValue(isTimelineHoveredAtom(item.id));
   const setHoveredId = useSetAtom(hoveredTimelineIdAtom);
+  const groupFsmFilters = useAtomValue(groupFsmFiltersAtom);
+
+  const isGroup = item.type === EntityTypeKey.ResourceGroup;
+
+  // Expanded groups don't draw a timeline — their children do.
+  if (isGroup && isExpanded) {
+    return null;
+  }
 
   const entity = item?.entity ?? {};
   const entityTypeName = 'type_name' in entity ? (entity.type_name as string) : undefined;
@@ -36,7 +46,18 @@ export function UsageColumn({
   const resourceTypeDecl = resourceTypeName
     ? queryBundle.entities.resource_types[resourceTypeName]
     : undefined;
-  const fsmTypeName = resourceTypeDecl?.used_by?.[0];
+  // Use per-item FSM filter from atom for both groups and leaf resources.
+  const usedBy = resourceTypeDecl?.used_by;
+  const perItemFsm = groupFsmFilters.get(item.id);
+  // Validate: if stored FSM is not in current used_by, reset to null (all).
+  const validPerItemFsm = perItemFsm != null && !usedBy?.includes(perItemFsm)
+    ? null
+    : (perItemFsm ?? null);
+  // Single FSM usage: auto-select it. Multiple: use per-item filter.
+  const singleFsm = usedBy?.length === 1 ? usedBy[0] : undefined;
+  const fsmTypeName = singleFsm
+    ? singleFsm
+    : (validPerItemFsm ?? undefined);
   const capacities = resourceTypeDecl?.capacities;
   return (
     <div

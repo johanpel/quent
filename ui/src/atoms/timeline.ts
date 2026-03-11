@@ -47,3 +47,13 @@ export const visibleEntriesAtom = atom<Record<string, TimelineRequest<OperatorFi
 
 /** When true, hides task annotation marks on timeline charts */
 export const hideTasksAtom = atom(false);
+
+/** Custom lane ordering: maps parent ID → ordered child IDs */
+export const laneOrderAtom = atom<Map<string, string[]>>(new Map());
+
+/**
+ * Per-resource-group FSM type filter.
+ * Key = item ID, value = selected FSM type name (null = all FSMs).
+ * Missing key = default to first `used_by` entry.
+ */
+export const groupFsmFiltersAtom = atom<Map<string, string | null>>(new Map());

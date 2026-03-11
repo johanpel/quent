@@ -88,7 +88,7 @@ const AccordionContent = React.forwardRef<
     )}
     {...props}
   >
-    <div className="pb-1 pt-0">{children}</div>
+    <div className="pb-0 pt-0">{children}</div>
   </AccordionPrimitive.Content>
 ));
 AccordionContent.displayName = AccordionPrimitive.Content.displayName;
@@ -139,6 +139,7 @@ const TreeNode = ({
   defaultLeafIcon,
   renderItem,
   onExpandChange,
+  onReorder,
   highlightedItemIds,
   level = 0,
 }: {
@@ -150,6 +151,7 @@ const TreeNode = ({
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  onReorder?: (parentId: string | null, fromId: string, toId: string) => void;
   highlightedItemIds?: Set<string>;
   level?: number;
 }) => {
@@ -182,7 +184,7 @@ const TreeNode = ({
           className={cn(
             treeVariants(),
             isSelected && selectedTreeVariants(),
-            isHighlighted && 'bg-primary/10'
+            isHighlighted && 'bg-primary/20 ring-1 ring-inset ring-primary/40'
           )}
           onClick={() => {
             handleSelectChange(item);
@@ -221,6 +223,8 @@ const TreeNode = ({
             defaultNodeIcon={defaultNodeIcon}
             renderItem={renderItem}
             onExpandChange={onExpandChange}
+            onReorder={onReorder}
+            parentId={item.id}
             highlightedItemIds={highlightedItemIds}
             level={level + 1}
           />
@@ -268,7 +272,7 @@ const TreeLeaf = React.forwardRef<
           treeVariants(),
           className,
           isSelected && selectedTreeVariants(),
-          isHighlighted && 'bg-primary/10',
+          isHighlighted && 'bg-primary/20 ring-1 ring-inset ring-primary/40',
           item.disabled && 'opacity-50 cursor-not-allowed pointer-events-none'
         )}
         onClick={() => {
@@ -315,6 +319,8 @@ type TreeItemProps = {
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  onReorder?: (parentId: string | null, fromId: string, toId: string) => void;
+  parentId?: string | null;
   highlightedItemIds?: Set<string>;
   level?: number;
   className?: string;
@@ -332,6 +338,8 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
       defaultLeafIcon,
       renderItem,
       onExpandChange,
+      onReorder,
+      parentId,
       highlightedItemIds,
       level,
       ...props
@@ -341,11 +349,36 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
     if (!(data instanceof Array)) {
       data = [data];
     }
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
     return (
       <div ref={ref} role="tree" className={className} {...props}>
         <ul>
           {data.map(item => (
-            <li key={item.id}>
+            <li
+              key={item.id}
+              draggable={!!onReorder}
+              onDragStart={e => {
+                e.dataTransfer.setData('text/plain', item.id);
+                e.dataTransfer.effectAllowed = 'move';
+                e.stopPropagation();
+              }}
+              onDragOver={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverId(item.id);
+              }}
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOverId(null);
+                const fromId = e.dataTransfer.getData('text/plain');
+                if (fromId && fromId !== item.id) {
+                  onReorder?.(parentId ?? null, fromId, item.id);
+                }
+              }}
+              className={dragOverId === item.id ? 'border-t-2 border-accent-foreground' : ''}
+            >
               {item.children?.length ? (
                 <TreeNode
                   item={item}
@@ -357,6 +390,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
                   defaultLeafIcon={defaultLeafIcon}
                   renderItem={renderItem}
                   onExpandChange={onExpandChange}
+                  onReorder={onReorder}
                   highlightedItemIds={highlightedItemIds}
                 />
               ) : (
@@ -385,6 +419,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   initialSelectedItemId?: string;
   onSelectChange?: (item: TreeTableDataItem | undefined) => void;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
+  onReorder?: (parentId: string | null, fromId: string, toId: string) => void;
   expandAll?: boolean;
   defaultNodeIcon?: IconComponent;
   defaultLeafIcon?: IconComponent;
@@ -399,6 +434,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       initialSelectedItemId,
       onSelectChange,
       onExpandChange,
+      onReorder,
       expandAll,
       defaultLeafIcon,
       defaultNodeIcon,
@@ -460,6 +496,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
           defaultNodeIcon={defaultNodeIcon}
           renderItem={renderItem}
           onExpandChange={onExpandChange}
+          onReorder={onReorder}
           highlightedItemIds={highlightedItemIds}
           level={0}
           {...props}
@@ -474,10 +511,12 @@ export type ColumnComponent<I> = ({
   item,
   level,
   isSelected,
+  isExpanded,
 }: {
   item: I;
   level: number;
   isSelected: boolean;
+  isExpanded: boolean;
 }) => React.ReactNode;
 
 export type Column<I> = {
@@ -620,8 +659,9 @@ export function TreeTable<I extends TreeTableDataItem>({
     [renderItemTotalWidth, gridTemplateColumns]
   );
 
-  const renderItem = ({ item, level, isSelected }: TreeTableRenderItemParams) => {
+  const renderItem = ({ item, level, isSelected, isOpen }: TreeTableRenderItemParams) => {
     const extended = item as I;
+    const isExpanded = isOpen ?? false;
     const indentWidth = Math.max(
       Math.min(level * indentPerLevel, Math.max(firstColumnBodyWidth - 12, 0)),
       0
@@ -642,7 +682,7 @@ export function TreeTable<I extends TreeTableDataItem>({
                 }}
               >
                 <span className="flex-1 truncate text-left text-sm text-foreground">
-                  {column.render({ item: extended, level, isSelected })}
+                  {column.render({ item: extended, level, isSelected, isExpanded })}
                 </span>
               </div>
             );
@@ -653,7 +693,7 @@ export function TreeTable<I extends TreeTableDataItem>({
               key={column.key}
               className="text-left text-xs text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap"
             >
-              {column.render({ item: extended, level, isSelected })}
+              {column.render({ item: extended, level, isSelected, isExpanded })}
             </div>
           );
         })}
