@@ -87,7 +87,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           </span>
         )}
         {item.workerId && (
-          <span className="text-xs text-muted-foreground">Worker: {item.workerId}</span>
+          <span className="text-xs text-muted-foreground">
+            Worker: {item.workerName ?? item.workerId}
+            {item.workerName && <span className="ml-1 opacity-60">({item.workerId})</span>}
+          </span>
         )}
         {hasChildren && (
           <span className="text-xs text-muted-foreground capitalize text-left">ID: {item.id}</span>

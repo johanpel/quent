@@ -3,6 +3,7 @@ import type { TreeDataItem } from '@/components/ui/tree-view';
 export interface QueryPlanDataItem extends TreeDataItem {
   queryId?: string;
   workerId?: string;
+  workerName?: string;
   planType?: string;
 }
 

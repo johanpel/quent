@@ -46,18 +46,30 @@ const getNodeEntity = (bundle: QueryBundle<EntityRef>, id: string): DAGNode | un
 /**
  * Recursively transform a plan node into TreeView format and provide display data
  */
-const transformNodeForTreeView = (node: PlanTreeNode, plans: Plan[]): QueryPlanDataItem => {
+const transformNodeForTreeView = (
+  node: PlanTreeNode,
+  plans: Plan[],
+  bundle: QueryBundle<EntityRef>,
+): QueryPlanDataItem => {
   const plan = plans.find(plan => plan.id === node.id);
+  const worker = node.worker ? bundle.entities.workers[node.worker] : undefined;
 
   return {
     id: node.id,
     name: `Query Plan: ${node.id}`,
     queryId: node.id ?? undefined,
     workerId: node.worker ?? undefined,
+    workerName: worker?.instance_name ?? undefined,
     planType: plan?.instance_name ?? undefined,
     className: 'rounded-none',
     children: node.children?.length
-      ? node.children?.map(child => transformNodeForTreeView(child, plans))
+      ? node.children
+          .map(child => transformNodeForTreeView(child, plans, bundle))
+          .sort((a, b) => {
+            const nameA = a.workerName ?? a.planType ?? '';
+            const nameB = b.workerName ?? b.planType ?? '';
+            return nameA.localeCompare(nameB);
+          })
       : undefined,
   };
 };
@@ -73,7 +85,7 @@ export const getTreeData = (bundle: QueryBundle<EntityRef>): QueryPlanDataItem[]
   const plans = Object.values(bundle.entities.plans).filter(
     (plan): plan is Plan => plan !== undefined
   );
-  return [bundle.plan_tree].map(node => transformNodeForTreeView(node, plans));
+  return [bundle.plan_tree].map(node => transformNodeForTreeView(node, plans, bundle));
 };
 
 /**

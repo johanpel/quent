@@ -24,18 +24,18 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
   };
 
   return (
-    <div className="flex items-center gap-4 px-3 py-1 border-b border-border text-xs text-muted-foreground shrink-0">
+    <div className="flex items-center gap-4 px-3 py-1 border-b border-border text-xs text-muted-foreground shrink-0 h-8">
       {/* Operator filter */}
       <div className="flex items-center gap-1.5">
         <Filter className="h-3 w-3" />
         {operatorLabel ? (
-          <span className="inline-flex items-center gap-1 rounded-sm bg-primary/15 text-primary px-1.5 py-0.5 font-medium">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-primary text-primary-foreground px-2.5 py-1 font-bold text-sm shadow-sm">
             {operatorLabel}
             <button
               onClick={clearOperator}
-              className="rounded-sm hover:bg-primary/20 p-0.5 -mr-0.5 transition-colors"
+              className="rounded-sm hover:bg-primary-foreground/20 p-0.5 -mr-1 transition-colors"
             >
-              <X className="h-2.5 w-2.5" />
+              <X className="h-3 w-3" />
             </button>
           </span>
         ) : (
