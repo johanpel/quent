@@ -1,5 +1,4 @@
 import { formatDurationForWindow } from '@/services/formatters';
-import { getColorForKey } from '@/services/colors';
 import { cn } from '@/lib/utils';
 import { nanosToMs } from '@/lib/timeline.utils';
 
@@ -139,7 +138,7 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string }[] }) {
+function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string; color: string }[] }) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">
@@ -148,8 +147,8 @@ function ActiveMarksSection({ marks }: { marks: { label: string; stateName: stri
           <span
             className="w-2 h-2 rounded-xs shrink-0 border"
             style={{
-              backgroundColor: getColorForKey(m.stateName) + '20',
-              borderColor: getColorForKey(m.stateName) + 'cc',
+              backgroundColor: m.color + '20',
+              borderColor: m.color + 'cc',
             }}
           />
           <span className="text-muted-foreground">{m.label}</span>
@@ -173,7 +172,7 @@ function OverlayBarTooltip({
   startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string }[];
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -270,7 +269,7 @@ export function TooltipContent({
   startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string }[];
+  activeMarks?: { label: string; stateName: string; color: string }[];
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 

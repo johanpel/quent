@@ -19,9 +19,8 @@ import {
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
-  getLongEntitiesThreshold,
 } from '@/lib/timeline.utils';
-import { TimelineSeries, TimelineMark } from './types';
+import { TimelineSeries, TimelineMark, UNIT_TIMELINE_HEIGHT } from './types';
 import { EntityTypeKey } from '@/types';
 import { WHITE, withOpacity } from '@/services/colors';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
@@ -110,7 +109,6 @@ export function ResourceTimeline({
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
-      const windowSeconds = end - start;
       const config = {
         num_bins: getAdaptiveNumBins(),
         start,
@@ -122,7 +120,7 @@ export function ResourceTimeline({
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
                 config,
@@ -131,7 +129,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
                 config,
@@ -210,6 +208,8 @@ export function ResourceTimeline({
     );
   }
 
+  const isUnitCapacity = capacities != null && capacities.length > 0 && capacities.every(c => c.kind === 'Occupancy');
+
   return (
     <Suspense fallback={<TimelineSkeleton />}>
       <Timeline
@@ -219,6 +219,8 @@ export function ResourceTimeline({
         durationSeconds={durationSeconds}
         showTooltip={showTooltip}
         marks={hideTasks ? undefined : marks}
+        height={isUnitCapacity ? UNIT_TIMELINE_HEIGHT : undefined}
+        isUnitCapacity={isUnitCapacity}
       />
     </Suspense>
   );

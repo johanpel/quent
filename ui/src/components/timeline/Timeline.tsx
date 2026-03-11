@@ -7,7 +7,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { createStripePattern, getColorForKey, withOpacity } from '@/services/colors';
+import { withOpacity } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
@@ -30,6 +30,7 @@ export function Timeline({
   height = DEFAULT_TIMELINE_HEIGHT,
   showTooltip = true,
   marks,
+  isUnitCapacity = false,
 }: {
   startTime: bigint;
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
@@ -40,6 +41,8 @@ export function Timeline({
   showTooltip?: boolean;
   /** Annotation marks rendered as mark areas on the first series */
   marks?: TimelineMark[];
+  /** When true, y-axis has no top padding so 100% fills the chart */
+  isUnitCapacity?: boolean;
 }) {
   const {
     timelineMarkupColor,
@@ -62,6 +65,7 @@ export function Timeline({
     const allSeries: LineSeriesOption[] = sortedEntries.map(([name, seriesData]) => {
       const color = seriesData.color;
       const isOverlay = seriesData.isOverlay ?? false;
+      const isDimmed = seriesData.isDimmed ?? false;
 
       return {
         name,
@@ -78,13 +82,8 @@ export function Timeline({
         lineStyle: { width: 0 },
         itemStyle: { color },
         areaStyle: {
-          color: isOverlay
-            ? {
-                image: createStripePattern(color),
-                repeat: 'repeat',
-              }
-            : color,
-          opacity: 1,
+          color,
+          opacity: isDimmed ? 0.25 : 1,
         },
         z: isOverlay ? 5 : 2,
         sampling: 'lttb',
@@ -101,7 +100,7 @@ export function Timeline({
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
-        const stateColor = getColorForKey(m.stateName);
+        const stateColor = m.color;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -171,8 +170,9 @@ export function Timeline({
       {
         type: 'value',
         min: 0,
-        // Adds a 10% padding to the top of the bars
-        max: (value: { max: number }) => value.max * 1.1 || 1,
+        max: isUnitCapacity
+          ? (value: { max: number }) => value.max || 1
+          : (value: { max: number }) => value.max * 1.1 || 1,
         splitNumber: 1,
         show: true,
         axisLine: {
@@ -197,7 +197,7 @@ export function Timeline({
         gridIndex: 0,
       },
     ],
-    [gridBorderColor, timelineMarkupColor, yAxisFormatter]
+    [gridBorderColor, timelineMarkupColor, yAxisFormatter, isUnitCapacity]
   );
 
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
@@ -278,7 +278,7 @@ export function Timeline({
             });
           const activeMarks = marks
             ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName }));
+            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
           const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent

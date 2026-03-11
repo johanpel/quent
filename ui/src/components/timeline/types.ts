@@ -4,6 +4,8 @@ export type TimelineSeriesEntry = {
   values: number[];
   color: string;
   isOverlay?: boolean;
+  /** When true, this series is dimmed to make overlay series stand out. */
+  isDimmed?: boolean;
 };
 
 export type TimelineSeries = Record<string, TimelineSeriesEntry>;
@@ -12,11 +14,13 @@ export type TimelineSeries = Record<string, TimelineSeriesEntry>;
 export type TimelineMark = {
   label: string;
   stateName: string;
+  color: string;
   xStart: number;
   xEnd: number;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;
+export const UNIT_TIMELINE_HEIGHT = 40;
 
 // left/right spacing needs to be consistent across all timelines
 // so axes line up. top/bottom spacing can be overridden, but defaults still
@@ -24,8 +28,8 @@ export const DEFAULT_TIMELINE_HEIGHT = 75;
 export const TIMELINE_SPACING = {
   left: 50,
   right: 10,
-  top: 5,
-  bottom: 5,
+  top: 2,
+  bottom: 2,
 };
 
 // Timeline color constants live in useTimelineChartColors (canvas-based, theme mirrored in JS).
