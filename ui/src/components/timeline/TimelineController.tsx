@@ -369,7 +369,7 @@ export function TimelineController({
       onEvents={handleDataZoom}
       notMerge={false}
       lazyUpdate
-      opts={{ renderer: 'canvas' }}
+      opts={{ renderer: 'svg' }}
     />
   );
 }

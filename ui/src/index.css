@@ -98,6 +98,10 @@
   * {
     @apply border-border;
   }
+  /* Disable anti-aliasing on ECharts SVG paths for crisp stacked areas */
+  svg path {
+    shape-rendering: optimizeSpeed;
+  }
   body {
     @apply bg-background text-foreground overflow-hidden;
     font-feature-settings:
@@ -107,7 +111,7 @@
 }
 
 @utility shadow-glow {
-  box-shadow: 0 0 14px 2px color-mix(in srgb, var(--glow-color, transparent) 55%, transparent);
+  box-shadow: 0 0 20px 4px color-mix(in srgb, var(--glow-color, transparent) 70%, transparent);
 }
 
 @utility bg-diagonal-stripe {

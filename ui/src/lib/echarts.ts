@@ -33,8 +33,8 @@ import type {
   MarkAreaComponentOption,
 } from 'echarts/components';
 
-// Renderer - use Canvas for better performance (SVG available if needed)
-import { CanvasRenderer } from 'echarts/renderers';
+// Renderer - SVG avoids sub-pixel anti-aliasing gaps in stacked areas
+import { SVGRenderer } from 'echarts/renderers';
 
 // Register the required components
 echarts.use([
@@ -50,7 +50,7 @@ echarts.use([
   ToolboxComponent,
   MarkAreaComponent,
   // Renderer
-  CanvasRenderer,
+  SVGRenderer,
 ]);
 
 // Compose the option type from the components we use
