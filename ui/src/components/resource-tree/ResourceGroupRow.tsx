@@ -23,7 +23,6 @@ export const ResourceGroupRow = ({
   availableFsmTypes,
 }: ResourceGroupRowProps): React.ReactNode => {
   const hasMultipleChildTypes = (availableResourceTypes?.length ?? 0) > 1;
-  const hasFsmTypes = (availableFsmTypes?.length ?? 0) >= 1;
 
   const [fsmFilters, setFsmFilters] = useAtom(groupFsmFiltersAtom);
 

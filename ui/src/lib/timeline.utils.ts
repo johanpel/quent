@@ -13,10 +13,17 @@ import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { EChartsInstance } from 'echarts-for-react';
 import { connect, getInstanceByDom } from '@/lib/echarts';
 import { CHART_GROUP } from '@/components/timeline/Timeline';
-import { assignColors, WHITE, withOpacity } from '@/services/colors';
+import {
+  assignColors,
+  getColorByIndex,
+  getColorForKey,
+  WHITE,
+  withOpacity,
+} from '@/services/colors';
 import type { BinnedSpanSec } from '~quent/types/BinnedSpanSec';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
+import type { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
@@ -48,7 +55,8 @@ export function buildBinnedTimelineSeries(
   config: BinnedSpanSec,
   startTime: bigint,
   capacities?: CapacityDecl[],
-  quantitySpecs?: { [key in string]?: QuantitySpec }
+  quantitySpecs?: { [key in string]?: QuantitySpec },
+  fsmTypes?: { [key in string]?: FsmTypeDecl }
 ): {
   timestamps: number[];
   series: TimelineSeries;
@@ -81,7 +89,12 @@ export function buildBinnedTimelineSeries(
     // ResourceTimelineBinned: capacities_values (flat: capacity → values)
     const { capacities_values } = data.Binned;
     const capacityKeys = Object.keys(capacities_values).sort();
-    const colorMap = assignColors(capacityKeys);
+    // Multiple capacities: sequential palette. Single: hash-based so each
+    // resource type gets a distinct color across timelines.
+    const colorMap =
+      capacityKeys.length > 1
+        ? assignColors(capacityKeys)
+        : Object.fromEntries(capacityKeys.map(k => [k, getColorForKey(k)]));
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
@@ -93,23 +106,25 @@ export function buildBinnedTimelineSeries(
     }
   } else if ('BinnedByState' in data) {
     const { capacities_states_values } = data.BinnedByState;
-    // Collect all unique state names across all capacity types and assign
-    // colors sequentially per-FSM rather than from a global hash.
-    const allStates = new Set<string>();
-    for (const capacityStateValues of Object.values(capacities_states_values)) {
-      for (const state of Object.keys(capacityStateValues ?? {})) {
-        allStates.add(state);
+    // Build a state→index lookup from FsmTypeDecl so the same state always
+    // gets the same palette color across all timelines.
+    const stateIndexMap = new Map<string, number>();
+    if (fsmTypes) {
+      for (const decl of Object.values(fsmTypes)) {
+        if (!decl) continue;
+        for (let i = 0; i < decl.states.length; i++) {
+          stateIndexMap.set(decl.states[i]!.name, i);
+        }
       }
     }
-    const stateKeys = [...allStates].sort();
-    const colorMap = assignColors(stateKeys);
     for (const capacityType of Object.keys(capacities_states_values)) {
       const capacityStateValues = capacities_states_values[capacityType] ?? {};
       for (const [state, values] of Object.entries(capacityStateValues)) {
         const formatter = getFormatter(capacityType);
         if (values) {
+          const stateIndex = stateIndexMap.get(state);
           series[state] = {
-            color: colorMap[state],
+            color: stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(state),
             binDuration: bin_duration,
             formatter,
             values,
@@ -180,8 +195,7 @@ export function buildTimelineMarks(
 export function mergeOverlaySeries(
   baseSeries: TimelineSeries,
   overlaySeries: TimelineSeries,
-  overlayLabel: string,
-  _lightenAmount: number
+  overlayLabel: string
 ): TimelineSeries {
   // Dim all base series to push them into the background.
   const merged: TimelineSeries = {};
@@ -539,16 +553,6 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
   return undefined;
 }
 
-/** Look up the FSM type name for a leaf resource from the query entities.
- *  If exactly 1 FSM uses this resource type, return that FSM name directly.
- *  If >1 FSM types use it, return null (all FSMs). */
-function lookupFsmTypeName(item: TreeTableItem, entities: QueryEntities): string | null {
-  const typeName = item.entity && 'type_name' in item.entity ? item.entity.type_name as string : undefined;
-  const usedBy = typeName ? entities.resource_types[typeName]?.used_by : undefined;
-  if (usedBy && usedBy.length === 1) return usedBy[0]!;
-  return null;
-}
-
 /** Build TimelineRequest params for a single tree item.
  *  @param groupFsmFilters — per-item FSM filter map for resource groups.
  *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
@@ -560,25 +564,23 @@ export function buildBulkParamsForItem(
   entities: QueryEntities,
   config: TimelineConfig,
   operatorId: string | null = null,
-  groupFsmFilters?: Map<string, string | null>,
+  groupFsmFilters?: Map<string, string | null>
 ): TimelineRequest<OperatorFilter> {
   const isGroup = item.type !== EntityTypeKey.Resource;
 
-  // Single FSM usage: auto-select it for both groups and leaves.
-  // Multiple FSM usages: use per-item filter for groups, all (null) for leaves.
+  // Resolve the resource type and its used_by FSM list.
   const resourceTypeName = isGroup
-    ? (selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '')
-    : undefined;
-  const usedBy = resourceTypeName
-    ? entities.resource_types[resourceTypeName]?.used_by
-    : undefined;
+    ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
+    : item.entity && 'type_name' in item.entity
+      ? (item.entity.type_name as string)
+      : undefined;
+  const usedBy = resourceTypeName ? entities.resource_types[resourceTypeName]?.used_by : undefined;
+  // Single FSM usage: auto-select it. Multiple: use per-item filter.
   let fsmTypeName: string | null;
   if (usedBy?.length === 1) {
     fsmTypeName = usedBy[0]!;
-  } else if (isGroup) {
-    fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
   } else {
-    fsmTypeName = lookupFsmTypeName(item, entities);
+    fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
   }
 
   if (isGroup) {
@@ -617,12 +619,19 @@ export function collectVisibleEntries(
   entities: QueryEntities,
   config: TimelineConfig,
   operatorId: string | null = null,
-  groupFsmFilters?: Map<string, string | null>,
+  groupFsmFilters?: Map<string, string | null>
 ): Record<string, TimelineRequest<OperatorFilter>> {
   const result: Record<string, TimelineRequest<OperatorFilter>> = {};
 
   function walk(item: TreeTableItem) {
-    result[item.id] = buildBulkParamsForItem(item, selectedTypes, entities, config, operatorId, groupFsmFilters);
+    result[item.id] = buildBulkParamsForItem(
+      item,
+      selectedTypes,
+      entities,
+      config,
+      operatorId,
+      groupFsmFilters
+    );
 
     if (item.children && expandedIds.has(item.id)) {
       for (const child of item.children) {

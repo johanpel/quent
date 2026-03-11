@@ -138,7 +138,11 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({ marks }: { marks: { label: string; stateName: string; color: string }[] }) {
+function ActiveMarksSection({
+  marks,
+}: {
+  marks: { label: string; stateName: string; color: string }[];
+}) {
   if (marks.length === 0) return null;
   return (
     <div className="mt-1 pt-1 border-t border-border">

@@ -1,6 +1,14 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
 import { StatValue } from '@/services/query-plan/types';
 
+/** Format a number with thin-space thousand separators (SI style). */
+function formatStatNumber(n: number): string {
+  const s = String(n);
+  const [integer, fraction] = s.split('.');
+  const grouped = integer!.replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009');
+  return fraction != null ? `${grouped}.${fraction}` : grouped;
+}
+
 export interface OperatorStatisticsPopupProps {
   children: React.ReactNode;
   data: Array<{ key: string; value: StatValue }>;
@@ -52,7 +60,9 @@ export const OperatorStatisticsPopup = ({
                   ) : (
                     <div className="flex items-center justify-between">
                       <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
-                      <span className="text-muted-foreground ml-1 font-mono">{String(value)}</span>
+                      <span className="text-muted-foreground ml-1 font-mono">
+                        {typeof value === 'number' ? formatStatNumber(value) : String(value)}
+                      </span>
                     </div>
                   )}
                 </div>

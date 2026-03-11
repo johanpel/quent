@@ -49,7 +49,7 @@ const getNodeEntity = (bundle: QueryBundle<EntityRef>, id: string): DAGNode | un
 const transformNodeForTreeView = (
   node: PlanTreeNode,
   plans: Plan[],
-  bundle: QueryBundle<EntityRef>,
+  bundle: QueryBundle<EntityRef>
 ): QueryPlanDataItem => {
   const plan = plans.find(plan => plan.id === node.id);
   const worker = node.worker ? bundle.entities.workers[node.worker] : undefined;

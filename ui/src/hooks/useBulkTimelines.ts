@@ -69,7 +69,16 @@ export function useBulkTimelines({
   );
 
   const baseVisibleEntries = useMemo(
-    () => collectVisibleEntries([rootItem], expandedIds, selectedTypes, entities, bulkConfig, null, groupFsmFilters),
+    () =>
+      collectVisibleEntries(
+        [rootItem],
+        expandedIds,
+        selectedTypes,
+        entities,
+        bulkConfig,
+        null,
+        groupFsmFilters
+      ),
     [rootItem, expandedIds, selectedTypes, entities, bulkConfig, groupFsmFilters]
   );
   useEffect(() => {
@@ -134,7 +143,14 @@ export function useBulkTimelines({
 
       const newBaseEntries: Record<string, TimelineRequest<OperatorFilter>> = {};
       for (const child of item.children) {
-        const params = buildBulkParamsForItem(child, selectedTypes, entities, expandConfig, null, groupFsmFilters);
+        const params = buildBulkParamsForItem(
+          child,
+          selectedTypes,
+          entities,
+          expandConfig,
+          null,
+          groupFsmFilters
+        );
         const resourceTypeName = getResourceTypeName(params);
         const key = timelineCacheKey(child.id, resourceTypeName);
         if (!store.get(timelineDataAtom(key))) {
@@ -193,7 +209,17 @@ export function useBulkTimelines({
         // Individual ResourceTimeline components will fall back to self-fetch
       }
     },
-    [rootItem, store, selectedTypes, entities, queryClient, engineId, queryId, operatorId, groupFsmFilters]
+    [
+      rootItem,
+      store,
+      selectedTypes,
+      entities,
+      queryClient,
+      engineId,
+      queryId,
+      operatorId,
+      groupFsmFilters,
+    ]
   );
 
   return { handleZoomChange, handleExpand } as const;

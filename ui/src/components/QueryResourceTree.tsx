@@ -19,7 +19,13 @@ import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom, laneOrderAtom, groupFsmFiltersAtom } from '@/atoms/timeline';
+import {
+  zoomRangeAtom,
+  debouncedZoomRangeAtom,
+  startTimeMsAtom,
+  laneOrderAtom,
+  groupFsmFiltersAtom,
+} from '@/atoms/timeline';
 import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
 
@@ -124,7 +130,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
       groupFsmFilters.get(rootResourceGroupId!),
     ],
     queryFn: () => {
-      const rootFsmFilter = rootResourceGroupId ? groupFsmFilters.get(rootResourceGroupId) : undefined;
+      const rootFsmFilter = rootResourceGroupId
+        ? groupFsmFilters.get(rootResourceGroupId)
+        : undefined;
       const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: {
           ResourceGroup: {
@@ -158,7 +166,14 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         label: 'Resource',
         widthIndex: 0,
         isFirst: true,
-        render: ({ item, isExpanded }: { item: TreeTableItem; level: number; isExpanded: boolean }) => (
+        render: ({
+          item,
+          isExpanded,
+        }: {
+          item: TreeTableItem;
+          level: number;
+          isExpanded: boolean;
+        }) => (
           <ResourceColumn
             item={item}
             isExpanded={isExpanded}

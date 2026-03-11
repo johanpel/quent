@@ -30,15 +30,15 @@ export const PALETTES = {
   ],
   /** Tol qualitative colorblind-friendly palette */
   extended: [
-    '#666666', // Grey
-    '#CC6677', // Rose
-    '#DDCC77', // Sand
-    '#88AA55', // Muted Lime
-    '#88CCEE', // Cyan
-    '#332288', // Indigo
     '#44AA99', // Teal
+    '#CC6677', // Rose
+    '#332288', // Indigo
+    '#DDCC77', // Sand
     '#AA4499', // Purple
+    '#88CCEE', // Cyan
     '#882255', // Wine
+    '#88AA55', // Muted Lime
+    '#666666', // Grey
   ],
 } as const;
 
@@ -82,14 +82,16 @@ function hashString(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-// Cache: key -> palette index (purely deterministic from hash)
+// Cache: key -> palette index
 const colorAssignments = new Map<string, number>();
+// Track which palette indices are taken
+const usedIndices = new Set<number>();
 
 /**
  * Get a deterministic color for a given key.
- * Uses a hash of the key to select a palette color. The mapping is purely
- * hash-based so identical keys always produce the same color regardless
- * of call order.
+ * Uses a hash to pick a starting index, then probes forward to avoid
+ * collisions so different keys get different colors (until the palette
+ * is exhausted, after which duplicates are allowed).
  */
 export function getColorForKey(key: string): ChartColor {
   const palette = getActivePalette();
@@ -98,8 +100,22 @@ export function getColorForKey(key: string): ChartColor {
     return palette[colorAssignments.get(key)!];
   }
 
-  const index = hashString(key) % palette.length;
+  const hashIndex = hashString(key) % palette.length;
+
+  // If palette is full, just use the hash index
+  if (usedIndices.size >= palette.length) {
+    colorAssignments.set(key, hashIndex);
+    return palette[hashIndex];
+  }
+
+  // Probe forward from hash index to find an unused slot
+  let index = hashIndex;
+  while (usedIndices.has(index)) {
+    index = (index + 1) % palette.length;
+  }
+
   colorAssignments.set(key, index);
+  usedIndices.add(index);
   return palette[index];
 }
 

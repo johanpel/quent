@@ -4,7 +4,11 @@ import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
-import { isTimelineHoveredAtom, hoveredTimelineIdAtom, groupFsmFiltersAtom } from '@/atoms/timeline';
+import {
+  isTimelineHoveredAtom,
+  hoveredTimelineIdAtom,
+  groupFsmFiltersAtom,
+} from '@/atoms/timeline';
 
 type UsageColumnProps = {
   item: TreeTableItem;
@@ -50,14 +54,11 @@ export function UsageColumn({
   const usedBy = resourceTypeDecl?.used_by;
   const perItemFsm = groupFsmFilters.get(item.id);
   // Validate: if stored FSM is not in current used_by, reset to null (all).
-  const validPerItemFsm = perItemFsm != null && !usedBy?.includes(perItemFsm)
-    ? null
-    : (perItemFsm ?? null);
+  const validPerItemFsm =
+    perItemFsm != null && !usedBy?.includes(perItemFsm) ? null : (perItemFsm ?? null);
   // Single FSM usage: auto-select it. Multiple: use per-item filter.
   const singleFsm = usedBy?.length === 1 ? usedBy[0] : undefined;
-  const fsmTypeName = singleFsm
-    ? singleFsm
-    : (validPerItemFsm ?? undefined);
+  const fsmTypeName = singleFsm ? singleFsm : (validPerItemFsm ?? undefined);
   const capacities = resourceTypeDecl?.capacities;
   return (
     <div
@@ -78,6 +79,7 @@ export function UsageColumn({
         showTooltip={isHovered}
         capacities={capacities}
         quantitySpecs={queryBundle.quantity_specs}
+        fsmTypes={queryBundle.entities.fsm_types}
       />
     </div>
   );

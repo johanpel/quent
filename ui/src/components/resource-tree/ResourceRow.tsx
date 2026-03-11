@@ -9,7 +9,11 @@ interface ResourceRowProps {
   availableFsmTypes?: string[];
 }
 
-export const ResourceRow = ({ resource, id, availableFsmTypes }: ResourceRowProps): React.ReactNode => {
+export const ResourceRow = ({
+  resource,
+  id,
+  availableFsmTypes,
+}: ResourceRowProps): React.ReactNode => {
   const [fsmFilters, setFsmFilters] = useAtom(groupFsmFiltersAtom);
 
   const handleFsmChange = (_itemId: string, fsmType: string | null) => {

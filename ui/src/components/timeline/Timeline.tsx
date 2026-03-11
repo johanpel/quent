@@ -183,10 +183,13 @@ export function Timeline({
         splitLine: { show: false },
         axisLabel: {
           show: true,
-          margin: 8,
+          inside: true,
+          margin: 0,
+          verticalAlign: 'top',
+          padding: [2, 0, 0, 2],
           fontSize: 10,
           color: timelineMarkupColor,
-          formatter: yAxisFormatter,
+          formatter: (v: number, index: number) => (index === 0 ? '' : yAxisFormatter(v)),
         },
       },
       {

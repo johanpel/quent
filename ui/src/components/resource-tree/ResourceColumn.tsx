@@ -37,8 +37,11 @@ export function ResourceColumn({
     );
   }
 
-  const entityTypeName = item.entity && 'type_name' in item.entity ? item.entity.type_name as string : undefined;
-  const leafResourceTypeDecl = entityTypeName ? entities?.resource_types[entityTypeName] : undefined;
+  const entityTypeName =
+    item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
+  const leafResourceTypeDecl = entityTypeName
+    ? entities?.resource_types[entityTypeName]
+    : undefined;
   const resourceTypeDecl = entities?.resource_types[selectedType];
   const availableFsmTypes = isGroup ? resourceTypeDecl?.used_by : leafResourceTypeDecl?.used_by;
 

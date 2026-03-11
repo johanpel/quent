@@ -29,7 +29,7 @@ import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { CapacityDecl } from '~quent/types/CapacityDecl';
 import type { QuantitySpec } from '~quent/types/QuantitySpec';
-import { useTimelineChartColors } from './useTimelineChartColors';
+import type { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
 
 const Timeline = lazy(() => import('./Timeline').then(mod => ({ default: mod.Timeline })));
 
@@ -48,6 +48,7 @@ type ResourceTimelineProps = {
   preloadedData?: SingleTimelineResponse;
   capacities?: CapacityDecl[];
   quantitySpecs?: { [key in string]?: QuantitySpec };
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
 };
 
 const EMPTY_TIMELINE_SERIES: TimelineSeries = {
@@ -71,6 +72,7 @@ export function ResourceTimeline({
   showTooltip = true,
   capacities,
   quantitySpecs,
+  fsmTypes,
 }: ResourceTimelineProps) {
   const deferredReady = useDeferredReady();
   const zoomRange = useAtomValue(debouncedZoomRangeAtom);
@@ -89,7 +91,6 @@ export function ResourceTimeline({
   const operatorCacheKey = timelineCacheKey(resourceId, cacheResourceTypeName, operatorId);
   const operatorTimelineData = useAtomValue(timelineDataAtom(operatorCacheKey));
   const overlayPreloadedData = operatorId ? operatorTimelineData : undefined;
-  const { overlayLighten } = useTimelineChartColors();
 
   const {
     data: fetchedData,
@@ -158,7 +159,8 @@ export function ResourceTimeline({
       data.config,
       startTime,
       capacities,
-      quantitySpecs
+      quantitySpecs,
+      fsmTypes
     );
     const longFsms = getLongFsms(data.data);
     const timelineMarks = buildTimelineMarks(longFsms, startTime);
@@ -173,11 +175,12 @@ export function ResourceTimeline({
           overlayPreloadedData.config,
           startTime,
           capacities,
-          quantitySpecs
+          quantitySpecs,
+          fsmTypes
         );
         return {
           timestamps: base.timestamps,
-          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel, overlayLighten),
+          series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
           marks: timelineMarks,
         };
       }
@@ -191,9 +194,9 @@ export function ResourceTimeline({
     overlayPreloadedData,
     startTime,
     operatorLabel,
-    overlayLighten,
     capacities,
     quantitySpecs,
+    fsmTypes,
   ]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {
@@ -208,7 +211,8 @@ export function ResourceTimeline({
     );
   }
 
-  const isUnitCapacity = capacities != null && capacities.length > 0 && capacities.every(c => c.kind === 'Occupancy');
+  const isUnitCapacity =
+    capacities != null && capacities.length > 0 && capacities.every(c => c.kind === 'Occupancy');
 
   return (
     <Suspense fallback={<TimelineSkeleton />}>
