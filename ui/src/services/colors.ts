@@ -28,13 +28,25 @@ export const PALETTES = {
     '#9a60b4', // Purple
     '#ea7ccc', // Pink
   ],
+  /** Tol qualitative colorblind-friendly palette */
+  extended: [
+    '#666666', // Grey
+    '#CC6677', // Rose
+    '#DDCC77', // Sand
+    '#88AA55', // Muted Lime
+    '#88CCEE', // Cyan
+    '#332288', // Indigo
+    '#44AA99', // Teal
+    '#AA4499', // Purple
+    '#882255', // Wine
+  ],
 } as const;
 
 export type PaletteName = keyof typeof PALETTES;
 export type ChartColor = string;
 
 // Current active palette
-let activePalette: PaletteName = 'echarts';
+let activePalette: PaletteName = 'extended';
 
 /**
  * Get the currently active palette.
@@ -70,43 +82,24 @@ function hashString(str: string): number {
   return hash >>> 0; // Convert to unsigned 32-bit integer
 }
 
-// Track color assignments: key -> palette index
+// Cache: key -> palette index (purely deterministic from hash)
 const colorAssignments = new Map<string, number>();
-// Track which palette indices are in use
-const usedIndices = new Set<number>();
 
 /**
  * Get a deterministic color for a given key.
- * Uses a hash of the key to select a color, with collision handling to ensure
- * all colors are used before any color is assigned to multiple keys.
+ * Uses a hash of the key to select a palette color. The mapping is purely
+ * hash-based so identical keys always produce the same color regardless
+ * of call order.
  */
 export function getColorForKey(key: string): ChartColor {
   const palette = getActivePalette();
 
-  // Return cached assignment if exists
   if (colorAssignments.has(key)) {
     return palette[colorAssignments.get(key)!];
   }
 
-  // Get hash-based starting index
-  const hashIndex = hashString(key) % palette.length;
-
-  // If all colors are used, just use the hash index (allow duplicates)
-  if (usedIndices.size >= palette.length) {
-    colorAssignments.set(key, hashIndex);
-    return palette[hashIndex];
-  }
-
-  // Find an available index, starting from hash index and probing forward
-  let index = hashIndex;
-  while (usedIndices.has(index)) {
-    index = (index + 1) % palette.length;
-  }
-
-  // Assign and mark as used
+  const index = hashString(key) % palette.length;
   colorAssignments.set(key, index);
-  usedIndices.add(index);
-
   return palette[index];
 }
 
@@ -148,7 +141,6 @@ export function withOpacity(hex: string, opacity: number): string {
  */
 export function resetColorAssignments(): void {
   colorAssignments.clear();
-  usedIndices.clear();
 }
 
 /**
