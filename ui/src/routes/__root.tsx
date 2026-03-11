@@ -31,7 +31,7 @@ function RootComponent() {
             <div className="w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-primary">
-                  PACHA <span className="font-extralight">UI</span>
+                  Quent <span className="font-extralight">UI</span>
                 </h1>
               </div>
               <div className="flex-1 flex items-center justify-center">
