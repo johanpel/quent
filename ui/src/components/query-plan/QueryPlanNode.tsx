@@ -2,7 +2,7 @@ import { memo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, hoveredStatAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, hoveredStatAtom, hoveredOperatorTypeAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
@@ -126,9 +126,12 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
   const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
   const hoveredStat = useAtomValue(hoveredStatAtom);
+  const hoveredOpType = useAtomValue(hoveredOperatorTypeAtom);
   const operatorId = data.metadata?.rawNode?.id ?? '';
+  const operatorTypeName = data.metadata?.rawNode?.operator_type_name ?? data.operationType;
   const isSelected = selectedNodeIds.has(operatorId);
   const isHovered = hoveredOperatorId === operatorId && operatorId !== '';
+  const isTypeHovered = hoveredOpType !== null && hoveredOpType.toLowerCase() === operatorTypeName.toLowerCase();
   const hasSelection = selectedNodeIds.size > 0;
   const isDimmed = hasSelection && !isSelected;
 
@@ -164,11 +167,15 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     <div
       className={`${nodeVariants({
         operationType: resolveOperationType(data.operationType),
-        selected: isSelected || isHovered,
-      })} ${isSelected ? 'border-3 scale-110' : ''} ${isHovered && !isSelected ? 'ring-2 ring-primary/50' : ''}`}
+        selected: isSelected || isHovered || isTypeHovered,
+      })} ${isSelected ? 'border-3 scale-110' : ''} ${(isHovered || isTypeHovered) && !isSelected ? 'ring-2 ring-primary/50' : ''}`}
       style={{
         zIndex: 10,
-        opacity: heatmapStyle?.opacity ?? (isDimmed && !isHovered ? 0.3 : 1),
+        opacity: heatmapStyle?.opacity
+          ?? (hoveredOpType !== null && !isTypeHovered ? 0.25
+          : (hoveredOperatorId !== null && !isHovered ? 0.25
+          : (isDimmed && !isHovered ? 0.3
+          : 1))),
         transition: 'opacity 0.15s, transform 0.15s, background-color 0.15s, border-color 0.15s',
         ...(heatmapStyle?.backgroundColor ? { backgroundColor: heatmapStyle.backgroundColor, borderColor: heatmapStyle.borderColor } : {}),
       }}

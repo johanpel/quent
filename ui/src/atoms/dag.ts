@@ -35,3 +35,6 @@ export interface HoveredStatInfo {
   max: number;
 }
 export const hoveredStatAtom = atom<HoveredStatInfo | null>(null);
+
+/** Operator type name being hovered in the table — highlights all DAG nodes of that type */
+export const hoveredOperatorTypeAtom = atom<string | null>(null);

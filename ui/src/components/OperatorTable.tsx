@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, type HoveredStatInfo } from '@/atoms/dag';
+import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, hoveredOperatorTypeAtom, type HoveredStatInfo } from '@/atoms/dag';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
@@ -61,19 +61,33 @@ function isBytesStat(name: string): boolean {
   return name.includes('_bytes') || name.endsWith('_byte') || name.startsWith('bytes_');
 }
 
+function isCountStat(name: string): boolean {
+  return name.includes('_rows') || name.endsWith('_row') || name.startsWith('rows_')
+    || name.includes('_batches') || name.endsWith('_batch') || name.startsWith('batches_');
+}
+
+function formatRows(n: number | null): string {
+  if (n === null) return '-';
+  return formatWithPrefix(n, '', 'Si', 2);
+}
+
+function formatNumericStat(n: number | null, statName: string): string {
+  if (n === null) return '-';
+  if (isBytesStat(statName)) return formatBytes(n);
+  if (isCountStat(statName)) return formatRows(n);
+  return formatNumber(n);
+}
+
 function formatStatValue(value: StatValue, statName: string): string {
   if (value === null || value === undefined) return '-';
-  if (typeof value === 'number') {
-    return isBytesStat(statName) ? formatBytes(value) : formatNumber(value);
-  }
+  if (typeof value === 'number') return formatNumericStat(value, statName);
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (Array.isArray(value)) return value.join(', ');
   return String(value);
 }
 
 function formatStatNumber(n: number | null, statName: string): string {
-  if (n === null) return '-';
-  return isBytesStat(statName) ? formatBytes(n) : formatNumber(n);
+  return formatNumericStat(n, statName);
 }
 
 function isNumericValue(v: StatValue): v is number {
@@ -172,6 +186,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
+  const setHoveredOperatorType = useSetAtom(hoveredOperatorTypeAtom);
   const { entities } = queryBundle;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
@@ -749,13 +764,21 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                         )}
                         rowSpan={spans[col]!}
                         style={(gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? { borderLeftWidth: 8, borderLeftColor: operatorTypeColor(gk.id), backgroundColor: `color-mix(in srgb, ${operatorTypeColor(gk.id)} 15%, transparent)` } : undefined}
-                        onMouseEnter={gk.key === 'operator' && firstOpId ? () => {
-                          if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
-                            setSelectedPlanId(firstOpPlanId);
+                        onMouseEnter={
+                          gk.key === 'operator' && firstOpId ? () => {
+                            if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
+                              setSelectedPlanId(firstOpPlanId);
+                            }
+                            setHoveredOperatorId(firstOpId);
                           }
-                          setHoveredOperatorId(firstOpId);
-                        } : undefined}
-                        onMouseLeave={gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(prev => prev === firstOpId ? null : prev) : undefined}
+                          : (gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? () => setHoveredOperatorType(gk.id)
+                          : undefined
+                        }
+                        onMouseLeave={
+                          gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(prev => prev === firstOpId ? null : prev)
+                          : (gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? () => setHoveredOperatorType(null)
+                          : undefined
+                        }
                       >
                         {gk.label}
                       </td>
