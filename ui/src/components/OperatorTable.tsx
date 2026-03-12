@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, hoveredOperatorTypeAtom, type HoveredStatInfo } from '@/atoms/dag';
+import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, hoveredOperatorTypeAtom, highlightedNodeIdsAtom, type HoveredStatInfo } from '@/atoms/dag';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
@@ -17,6 +17,7 @@ interface FlatRow {
   workerPlanId: string;
   workerPlanLabel: string;
   planId: string;
+  planLevel: string;
   parentPlanLevel: string;
   parentOperatorType: string;
   parentOperatorName: string;
@@ -115,7 +116,7 @@ function rowGroupKey(row: FlatRow, enabledIndices: IndexKey[]): string {
       case 'parent_operator_type': return row.parentOperatorType;
       case 'parent_operator': return row.parentOperatorName;
       case 'operator_type': return row.operatorType;
-      case 'operator': return row.operatorName;
+      case 'operator': return row.operatorId;
     }
   }).join('\0');
 }
@@ -127,7 +128,7 @@ function getGroupKeys(row: FlatRow, enabledIndices: IndexKey[]): GroupKeyEntry[]
       case 'parent_operator_type': return { key: idx, id: row.parentOperatorType, label: row.parentOperatorType };
       case 'parent_operator': return { key: idx, id: row.parentOperatorName, label: row.parentOperatorName };
       case 'operator_type': return { key: idx, id: row.operatorType, label: row.operatorType };
-      case 'operator': return { key: idx, id: row.operatorName, label: row.operatorName };
+      case 'operator': return { key: idx, id: row.operatorId, label: row.operatorName };
     }
   });
 }
@@ -187,6 +188,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
   const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
   const setHoveredOperatorType = useSetAtom(hoveredOperatorTypeAtom);
+  const setHighlightedNodeIds = useSetAtom(highlightedNodeIdsAtom);
   const { entities } = queryBundle;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
@@ -293,13 +295,19 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       for (const op of ops) {
         const operatorName = op.instance_name ?? op.id;
         const operatorType = op.operator_type_name ?? '-';
-        const parentOpId = op.parent_operator_ids?.[0];
-        const parentOp = parentOpId ? entities.operators[parentOpId] : undefined;
-        const parentPlan = parentOp?.plan_id ? entities.plans[parentOp.plan_id] : undefined;
-        const parentPlanLevel = parentPlan?.instance_name ?? '-';
-        const parentOperatorType = parentOp?.operator_type_name ?? '-';
-        const parentOperatorName = parentOp?.instance_name ?? parentOpId ?? '-';
-        const base = { workerPlanId, workerPlanLabel, planId: plan.id, parentPlanLevel, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
+        const parentOps = (op.parent_operator_ids ?? [])
+          .map(id => entities.operators[id])
+          .filter((p): p is NonNullable<typeof p> => p != null);
+        const parentPlanLevel = parentOps.length > 0
+          ? [...new Set(parentOps.map(p => p.plan_id ? entities.plans[p.plan_id]?.instance_name ?? '-' : '-'))].join(', ')
+          : '-';
+        const parentOperatorType = parentOps.length > 0
+          ? [...new Set(parentOps.map(p => p.operator_type_name ?? '-'))].join(', ')
+          : '-';
+        const parentOperatorName = parentOps.length > 0
+          ? parentOps.map(p => p.instance_name ?? p.id).join(', ')
+          : '-';
+        const base = { workerPlanId, workerPlanLabel, planId: plan.id, planLevel: planPart, parentPlanLevel, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
 
         const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
         rows.push({ ...base, statisticName: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null });
@@ -335,6 +343,30 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     }
     return { name: statName, values, min, max };
   }, [statsByOperator]);
+
+  // Map parent operator type → set of child operator IDs (for highlighting children on parent type hover)
+  const childIdsByParentType = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of flatRows) {
+      if (row.parentOperatorType === '-') continue;
+      let set = map.get(row.parentOperatorType);
+      if (!set) { set = new Set(); map.set(row.parentOperatorType, set); }
+      set.add(row.operatorId);
+    }
+    return map;
+  }, [flatRows]);
+
+  // Map parent operator name → set of child operator IDs (for highlighting children on parent instance hover)
+  const childIdsByParentName = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const row of flatRows) {
+      if (row.parentOperatorName === '-') continue;
+      let set = map.get(row.parentOperatorName);
+      if (!set) { set = new Set(); map.set(row.parentOperatorName, set); }
+      set.add(row.operatorId);
+    }
+    return map;
+  }, [flatRows]);
 
   // Detect if any rows have parent operators; hide parent indices if not
   const hasParentOperators = useMemo(() => flatRows.some(r => r.parentOperatorType !== '-'), [flatRows]);
@@ -583,20 +615,26 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     }
     return 'Parent';
   }, [flatRows]);
+  const currentPlanLevelLabel = useMemo(() => {
+    for (const row of flatRows) {
+      if (row.planLevel !== '-') return row.planLevel;
+    }
+    return 'Current';
+  }, [flatRows]);
   const indexLabels: Record<IndexKey, React.ReactNode> = {
     worker_plan: 'Worker / Plan',
-    parent_operator_type: <><code className="font-mono text-data">{parentPlanLevelLabel}</code> Operator Type</>,
-    parent_operator: <><code className="font-mono text-data">{parentPlanLevelLabel}</code> Operator Instance</>,
-    operator_type: 'Operator Type',
-    operator: 'Operator Instance',
+    parent_operator_type: <><code className="font-mono text-data">{parentPlanLevelLabel}</code><br />Operator Type</>,
+    parent_operator: <><code className="font-mono text-data">{parentPlanLevelLabel}</code><br />Operator Instance</>,
+    operator_type: <><code className="font-mono text-data">{currentPlanLevelLabel}</code><br />Operator Type</>,
+    operator: <><code className="font-mono text-data">{currentPlanLevelLabel}</code><br />Operator Instance</>,
   };
 
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="shrink-0 flex items-center border-b border-border bg-card">
-        {/* Group-by section */}
-        <div className="flex items-center gap-2 px-3 py-1.5 border-r border-border">
+      <div className="shrink-0 flex flex-col border-b border-border bg-card">
+        {/* Group-by / Show row */}
+        <div className="flex items-center gap-2 px-3 py-1.5">
           <span className="text-xs text-muted-foreground shrink-0">Group by:</span>
           {visibleIndexOrder.map(key => (
             <button
@@ -637,9 +675,9 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
             </>
           )}
         </div>
-        {/* Column selection section */}
+        {/* Column selection row */}
         <div
-          className="relative flex-1 min-w-0 flex items-center gap-1 px-3 py-1.5 group/cols"
+          className="relative flex items-center gap-1 px-3 py-1.5 border-t border-border/50 group/cols"
         >
           <span className="text-xs text-muted-foreground shrink-0 mr-1">Columns:</span>
           <button onClick={selectAllStats} className="text-xs text-primary hover:underline shrink-0">All</button>
@@ -771,12 +809,15 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                             }
                             setHoveredOperatorId(firstOpId);
                           }
-                          : (gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? () => setHoveredOperatorType(gk.id)
+                          : gk.key === 'parent_operator_type' ? () => setHighlightedNodeIds(childIdsByParentType.get(gk.id) ?? null)
+                          : gk.key === 'parent_operator' ? () => setHighlightedNodeIds(childIdsByParentName.get(gk.id) ?? null)
+                          : gk.key === 'operator_type' ? () => setHoveredOperatorType(gk.id)
                           : undefined
                         }
                         onMouseLeave={
                           gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(prev => prev === firstOpId ? null : prev)
-                          : (gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? () => setHoveredOperatorType(null)
+                          : (gk.key === 'parent_operator_type' || gk.key === 'parent_operator') ? () => setHighlightedNodeIds(null)
+                          : gk.key === 'operator_type' ? () => setHoveredOperatorType(null)
                           : undefined
                         }
                       >

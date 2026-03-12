@@ -364,10 +364,18 @@ impl<T: Debug> Plan<T> {
 }
 
 // Create the following logical plan:
+//
 // Scan -> Project \                        Scan -> Project \
-//                  -> Join -> Aggregate                    -> Join -> Aggregate -> Filter -> Udf \
-// Scan -> Project /                        Scan -> Project /                                     -> Join -> Filter -> Udf -> Aggregate -> Sort -> Limit -> Output
-//                                                                                Scan -> Project /
+//                  -> Join -> Aggregate                    -> Join -> Aggregate \
+// Scan -> Project /                        Scan -> Project /                    \
+//                                                                                -> Join -> Aggregate -> Filter -> Udf \
+//                                          Scan -> Project \                    /                                       \
+//                                                          -> Join -> Aggregate                                         -> Join -> Filter -> Udf \
+//                                          Scan -> Project /                                                                                     \
+//                                                                                                                  Scan -> Project \               \
+//                                                                                                                                   -> Join ---------> Join -> Filter -> Udf -> Aggregate -> Sort -> Limit -> Output
+//                                                                                                                  Scan -> Project /
+//
 // Each Scan -> Project lowers to: FileSystemScan -> GpuDecode
 fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
@@ -404,21 +412,33 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     let agg_right = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
     dag.add_edge(join_right, agg_right, Edge::new("out", "in"));
 
-    // Final join combining pre-aggregated sides
-    let join_final = add_join(&mut dag, agg_left, agg_right);
+    // Third branch: join scans E2 and F, then pre-aggregate
+    let project_e2 = add_scan_project_branch(&mut dag);
+    let project_f = add_scan_project_branch(&mut dag);
+    let join_third = add_join(&mut dag, project_e2, project_f);
+    let agg_third = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_third, agg_third, Edge::new("out", "in"));
 
-    let aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
-    dag.add_edge(join_final, aggregate, Edge::new("out", "in"));
+    // Combine left+right, then join with third branch
+    let join_lr = add_join(&mut dag, agg_left, agg_right);
+    let agg_lr = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_lr, agg_lr, Edge::new("out", "in"));
 
-    let filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
-    dag.add_edge(aggregate, filter, Edge::new("out", "in"));
+    let filter_lr = dag.add_node(Operator::new(Logical::Filter, vec![]));
+    dag.add_edge(agg_lr, filter_lr, Edge::new("out", "in"));
 
-    let udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
-    dag.add_edge(filter, udf, Edge::new("out", "in"));
+    let udf_lr = dag.add_node(Operator::new(Logical::Udf, vec![]));
+    dag.add_edge(filter_lr, udf_lr, Edge::new("out", "in"));
 
-    // Late-stage dimension table lookup join
-    let project_e = add_scan_project_branch(&mut dag);
-    let join_lookup = add_join(&mut dag, udf, project_e);
+    let join_all = add_join(&mut dag, udf_lr, agg_third);
+
+    // Mid-stage dimension lookup with concurrent scan branch
+    let project_g = add_scan_project_branch(&mut dag);
+    let project_h = add_scan_project_branch(&mut dag);
+    let join_dim = add_join(&mut dag, project_g, project_h);
+
+    // Late-stage join: combine main pipeline with dimension lookup
+    let join_lookup = add_join(&mut dag, join_all, join_dim);
 
     // Post-join processing before final sort
     let post_filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
@@ -911,7 +931,7 @@ impl Worker {
         // operator ID to simulate data skew across input tables.
         let mut input_batches = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
-            let skew = (operator.id.as_bytes()[0] % 5) as u64 + 1; // 1-5x scale
+            let skew = (operator.id.as_bytes()[0] % 10) as u64 + 1; // 1-10x scale
             let base_bytes = rng().random_range(32..128) * 1024 * 1024;
             let batch_bytes = base_bytes * skew;
             let batch_rows = rng().random_range(8192..65536) * skew;

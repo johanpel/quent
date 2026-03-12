@@ -38,3 +38,6 @@ export const hoveredStatAtom = atom<HoveredStatInfo | null>(null);
 
 /** Operator type name being hovered in the table — highlights all DAG nodes of that type */
 export const hoveredOperatorTypeAtom = atom<string | null>(null);
+
+/** Set of node IDs to highlight (e.g. children of a hovered parent operator type) */
+export const highlightedNodeIdsAtom = atom<Set<string> | null>(null);
