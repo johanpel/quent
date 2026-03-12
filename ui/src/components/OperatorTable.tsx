@@ -226,11 +226,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     });
   }, []);
 
-  const activeIndices = useMemo(
-    () => indexOrder.filter(k => enabledIndices[k]),
-    [indexOrder, enabledIndices],
-  );
-  const isAggregating = activeIndices.length < indexOrder.length;
 
   const siblingPlanIds = useMemo(() => {
     const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
@@ -291,6 +286,18 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     }
     return rows;
   }, [entities, siblingPlanIds]);
+
+  // Detect if any rows have parent operators; hide parent indices if not
+  const hasParentOperators = useMemo(() => flatRows.some(r => r.parentOperatorType !== '-'), [flatRows]);
+  const visibleIndexOrder = useMemo(
+    () => hasParentOperators ? indexOrder : indexOrder.filter(k => k !== 'parent_operator_type' && k !== 'parent_operator'),
+    [indexOrder, hasParentOperators],
+  );
+  const activeIndices = useMemo(
+    () => visibleIndexOrder.filter(k => enabledIndices[k]),
+    [visibleIndexOrder, enabledIndices],
+  );
+  const isAggregating = activeIndices.length < visibleIndexOrder.length;
 
   const allStatNames = useMemo(() => {
     const seen = new Set<string>();
@@ -507,7 +514,13 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [hoveredOperatorId, sortedRows]);
 
   const hasSelection = selectedNodeIds.size > 0;
-  const indexLabels: Record<IndexKey, string> = { worker_plan: 'Worker / Plan', parent_operator_type: 'Parent Op Type', parent_operator: 'Parent Operator', operator_type: 'Operator Type', operator: 'Operator Instance' };
+  const indexLabels: Record<IndexKey, React.ReactNode> = {
+    worker_plan: 'Worker / Plan',
+    parent_operator_type: 'Parent Operator Type',
+    parent_operator: 'Parent Operator Instance',
+    operator_type: 'Operator Type',
+    operator: 'Operator Instance',
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -516,7 +529,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
         {/* Group-by section */}
         <div className="flex items-center gap-2 px-3 py-1.5 border-r border-border">
           <span className="text-xs text-muted-foreground shrink-0">Group by:</span>
-          {indexOrder.map(key => (
+          {visibleIndexOrder.map(key => (
             <button
               key={key}
               draggable
@@ -575,10 +588,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                   key={stat}
                   onClick={() => toggleStat(stat)}
                   className={cn(
-                    'text-xs px-1.5 py-0 rounded border transition-colors whitespace-nowrap shrink-0',
+                    'text-xs font-mono px-1.5 py-0 rounded border transition-colors whitespace-nowrap shrink-0',
                     checked
-                      ? 'bg-primary/10 border-primary/40 text-primary'
-                      : 'bg-muted/50 border-border text-muted-foreground',
+                      ? 'bg-primary/10 border-primary/40 text-data'
+                      : 'bg-muted/50 border-border text-data/60',
                   )}
                 >
                   {stat}
@@ -601,10 +614,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                   key={stat}
                   onClick={() => toggleStat(stat)}
                   className={cn(
-                    'text-xs px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap',
+                    'text-xs font-mono px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap',
                     checked
-                      ? 'bg-primary/10 border-primary/40 text-primary'
-                      : 'bg-muted/50 border-border text-muted-foreground',
+                      ? 'bg-primary/10 border-primary/40 text-data'
+                      : 'bg-muted/50 border-border text-data/60',
                   )}
                 >
                   {stat}
@@ -634,7 +647,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                   onDragEnd={handleStatDragEnd}
                   onClick={() => handleSort(stat)}
                   className={cn(
-                    'text-right px-3 py-2 font-medium text-muted-foreground whitespace-nowrap cursor-pointer select-none hover:text-foreground',
+                    'text-right px-3 py-2 font-medium font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
                     draggedStat === stat && 'opacity-50',
                     sortColumn === stat && 'text-foreground',
                   )}
