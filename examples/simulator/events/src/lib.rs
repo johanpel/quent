@@ -16,10 +16,17 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Computing {
         pub use_thread: Uuid,
+        /// Working memory for the task (scratch buffers, hash tables, etc.),
+        /// separate from the batch's own memory footprint tracked by DataBatch::InHostMemory.
         pub use_host_memory: Uuid,
         pub use_host_memory_bytes: u64,
         /// Nil when not using GPU.
         pub use_gpu_compute: Uuid,
+        /// GPU working memory (scratch buffers, intermediate results, etc.),
+        /// separate from the batch's own GPU footprint tracked by DataBatch::InGpuMemory.
+        /// Nil when not using GPU.
+        pub use_gpu_memory: Uuid,
+        pub use_gpu_memory_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -30,8 +37,8 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Loading {
         pub use_thread: Uuid,
-        pub use_fs_to_host_mem: Uuid,
-        pub use_fs_to_host_mem_bytes: u64,
+        /// Working memory for materialization, separate from the batch's own
+        /// memory footprint tracked by DataBatch::InHostMemory.
         pub use_host_memory: Uuid,
         pub use_host_memory_bytes: u64,
     }
@@ -39,8 +46,6 @@ pub mod task {
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct Spilling {
         pub use_thread: Uuid,
-        pub use_host_mem_to_fs: Uuid,
-        pub use_host_mem_to_fs_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -72,14 +77,14 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct InStorage {
-        pub use_filesystem: Uuid,
-        pub use_filesystem_bytes: u64,
+        pub use_storage: Uuid,
+        pub use_storage_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct LoadingToHostMemory {
-        pub use_fs_to_host_mem: Uuid,
-        pub use_fs_to_host_mem_bytes: u64,
+        pub use_storage_to_host: Uuid,
+        pub use_storage_to_host_bytes: u64,
     }
 
     #[derive(Debug, Default, Deserialize, Serialize)]
@@ -108,8 +113,8 @@ pub mod data_batch {
 
     #[derive(Debug, Default, Deserialize, Serialize)]
     pub struct SpillingToStorage {
-        pub use_host_mem_to_fs: Uuid,
-        pub use_host_mem_to_fs_bytes: u64,
+        pub use_host_to_storage: Uuid,
+        pub use_host_to_storage_bytes: u64,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
