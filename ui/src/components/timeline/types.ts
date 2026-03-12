@@ -17,6 +17,10 @@ export type TimelineMark = {
   color: string;
   xStart: number;
   xEnd: number;
+  /** When true, this mark is dimmed (e.g. not part of the selected operator's long entities). */
+  isDimmed?: boolean;
+  /** Operator instance name when this mark belongs to a selected operator's long entities. */
+  operatorName?: string;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;

@@ -15,6 +15,7 @@ import { useMemo, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
+  getLongEntitiesThreshold,
   getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
@@ -115,13 +116,15 @@ export function ResourceTimeline({
         start,
         end,
       };
+      const hasUnitCapacity = capacities?.some(c => c.name === 'unit') ?? false;
+      const longEntitiesThreshold = hasUnitCapacity ? getLongEntitiesThreshold(end - start) : null;
       const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: isGroup
           ? {
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: null,
+                long_entities_threshold_s: longEntitiesThreshold,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
                 config,
@@ -130,7 +133,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: null,
+                long_entities_threshold_s: longEntitiesThreshold,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
                 config,
@@ -165,7 +168,7 @@ export function ResourceTimeline({
     const longFsms = getLongFsms(data.data);
     const filterSet =
       resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
-    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet);
+    const timelineMarks = buildTimelineMarks(longFsms, startTime, filterSet, fsmTypes);
 
     if (overlayPreloadedData && operatorLabel) {
       const baseSpan = getTimelineConfig(data).span;
@@ -180,10 +183,21 @@ export function ResourceTimeline({
           quantitySpecs,
           fsmTypes
         );
+        // Dim long entity marks not present in the operator's long entities.
+        const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
+        const dimmedMarks = timelineMarks?.map(m => {
+          const baseFsm = longFsms.find(f => (f.instance_name || f.id) === m.label);
+          const inOperator = baseFsm ? opLongFsmIds.has(baseFsm.id) : false;
+          return {
+            ...m,
+            isDimmed: !inOperator,
+            operatorName: inOperator ? operatorLabel ?? undefined : undefined,
+          };
+        });
         return {
           timestamps: base.timestamps,
           series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
-          marks: timelineMarks,
+          marks: dimmedMarks,
         };
       }
     }

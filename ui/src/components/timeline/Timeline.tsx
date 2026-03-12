@@ -96,11 +96,24 @@ export function Timeline({
 
     const markCount = marks?.length ?? 0;
     maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
+    // Use visible time range from timestamps for width estimation.
+    // When zoomed in, timestamps reflect the visible window, not the
+    // full duration, so mark labels scale correctly.
+    const visibleMs =
+      timestamps.length >= 2
+        ? timestamps[timestamps.length - 1]! - timestamps[0]!
+        : durationSeconds * 1000;
 
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
         const stateColor = m.color;
+        const dimmed = m.isDimmed ?? false;
+        const dimOpacity = 0.15;
+        // Estimate label width from mark's time fraction of the visible window.
+        // Assume ~700px usable chart width after axis spacing.
+        const markFraction = visibleMs > 0 ? (m.xEnd - m.xStart) / visibleMs : 0;
+        const estimatedWidth = Math.max(10, Math.floor(markFraction * 700) - 8);
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -110,15 +123,18 @@ export function Timeline({
             {
               value: [m.xStart, 1],
               label: {
-                show: true,
-                formatter: () => m.label,
-                position: [0, -5],
-                fontSize: 9,
-                fontWeight: 500,
+                show: !dimmed,
+                formatter: () => `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
+                position: [0, -2],
+                fontSize: 8,
+                fontWeight: 600,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 1),
-                borderRadius: 1,
-                padding: [1, 2],
+                backgroundColor: withOpacity(stateColor, 0.85),
+                borderRadius: 2,
+                padding: [1, 3],
+                overflow: 'truncate',
+                ellipsis: '…',
+                width: estimatedWidth,
               },
             },
             [m.xEnd, 1],
@@ -128,11 +144,11 @@ export function Timeline({
           label: { show: false },
           symbolSize: 0,
           lineStyle: {
-            width: 1,
-            color: withOpacity(stateColor, markAreaBorderOpacity),
+            width: dimmed ? 0.5 : 1.5,
+            color: withOpacity(stateColor, dimmed ? dimOpacity : 0.8),
           },
           areaStyle: {
-            color: withOpacity(stateColor, markAreaFillOpacity),
+            color: withOpacity(stateColor, dimmed ? dimOpacity : 1),
             opacity: 1,
           },
           tooltip: { show: false },
@@ -158,7 +174,7 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor]);
+  }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor, durationSeconds]);
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];

@@ -168,11 +168,23 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
   startTime: bigint,
-  resourceIdsForFilter?: Set<string> | null
+  resourceIdsForFilter?: Set<string> | null,
+  fsmTypes?: { [key in string]?: FsmTypeDecl }
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
   const startTimeMs = nanosToMs(startTime);
+
+  // Build same state→index lookup as buildBinnedTimelineSeries so colors match.
+  const stateIndexMap = new Map<string, number>();
+  if (fsmTypes) {
+    for (const decl of Object.values(fsmTypes)) {
+      if (!decl) continue;
+      for (let i = 0; i < decl.states.length; i++) {
+        stateIndexMap.set(decl.states[i]!.name, i);
+      }
+    }
+  }
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
@@ -188,7 +200,9 @@ export function buildTimelineMarks(
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
-        return { label, stateName: transition.name, color: '', xStart, xEnd };
+        const stateIndex = stateIndexMap.get(transition.name);
+        const color = stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(transition.name);
+        return { label, stateName: transition.name, color, xStart, xEnd };
       })
       .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });
@@ -604,13 +618,17 @@ export function buildBulkParamsForItem(
     fsmTypeName = groupFsmFilters?.has(item.id) ? (groupFsmFilters.get(item.id) ?? null) : null;
   }
 
+  const resourceTypeDecl = resourceTypeName ? entities.resource_types[resourceTypeName] : undefined;
+  const hasUnitCapacity = resourceTypeDecl?.capacities.some(c => c.name === 'unit') ?? false;
+  const longEntitiesThreshold = hasUnitCapacity ? getLongEntitiesThreshold(config.end - config.start) : null;
+
   if (isGroup) {
     const groupResourceTypeName = resourceTypeName || '';
     return {
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: groupResourceTypeName,
-        long_entities_threshold_s: null,
+        long_entities_threshold_s: longEntitiesThreshold,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
         config,
@@ -621,7 +639,7 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: null,
+      long_entities_threshold_s: longEntitiesThreshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
       config,
