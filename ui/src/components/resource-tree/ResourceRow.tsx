@@ -21,17 +21,13 @@ export const ResourceRow = ({
   };
 
   return (
-    <div>
-      <div>
-        <span className="text-xs font-bold">
-          {resource.instance_name}{' '}
-          {resource.type_name !== resource.instance_name && resource.type_name
-            ? `(${resource.type_name})`
-            : ''}
-        </span>
-      </div>
+    <div className="flex items-baseline gap-x-2 gap-y-0 flex-wrap">
+      <span className="text-xs font-bold">{resource.instance_name}</span>
+      {resource.type_name !== resource.instance_name && resource.type_name && (
+        <span className="text-[10px] text-muted-foreground">{resource.type_name}</span>
+      )}
       {availableFsmTypes && availableFsmTypes.length === 1 && (
-        <div className="text-xs text-muted-foreground mt-1">{availableFsmTypes[0]}</div>
+        <span className="text-[10px] text-muted-foreground">FSM: {availableFsmTypes[0]}</span>
       )}
       {availableFsmTypes && availableFsmTypes.length > 1 && (
         <FsmTypeSelector
@@ -39,7 +35,6 @@ export const ResourceRow = ({
           selectedFsm={fsmFilters.has(id) ? (fsmFilters.get(id) ?? null) : null}
           availableFsmTypes={availableFsmTypes}
           onFsmChange={handleFsmChange}
-          className="mt-1"
         />
       )}
     </div>

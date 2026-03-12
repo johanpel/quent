@@ -45,7 +45,7 @@ const AccordionTrigger = React.forwardRef<
     isOpen?: boolean;
   }
 >(({ className, children, level = 0, isOpen, ...props }, ref) => {
-  const chevronLeft = 10 + level * 20;
+  const chevronLeft = 6 + level * 10;
 
   const chevronAttr = isOpen ? 'true' : 'false';
   const chevronTransform = isOpen ? 'translateY(-50%) rotate(90deg)' : 'translateY(-50%)';
@@ -60,7 +60,7 @@ const AccordionTrigger = React.forwardRef<
         )}
         {...props}
       >
-        <div className="w-2.5 shrink-0" />
+        <div className="w-1.5 shrink-0" />
         <ChevronRight
           className="h-4 w-4 shrink-0 transition-transform duration-200 chevron-icon absolute top-1/2 text-muted-foreground"
           data-open={chevronAttr}
@@ -284,7 +284,7 @@ const TreeLeaf = React.forwardRef<
       >
         {renderItem ? (
           <>
-            <div className="w-2.5 shrink-0" />
+            <div className="w-1.5 shrink-0" />
             <div className="w-6 shrink-0" />
             <div className="flex-1 min-w-0 overflow-hidden">
               {renderItem({
@@ -624,10 +624,10 @@ export function TreeTable<I extends TreeTableDataItem>({
     return next;
   }, [currentColumnWidths, baseContainerWidth, totalFixedWidth, hasAutoColumns]);
 
-  const leftSpacing = 10;
-  const chevronSpace = 24;
+  const leftSpacing = 6;
+  const chevronSpace = 20;
   const totalLeftSpacing = leftSpacing + chevronSpace;
-  const indentPerLevel = 20;
+  const indentPerLevel = 10;
   const finalDividerInset = 8;
 
   const firstColWidth = displayColumnWidths[0];

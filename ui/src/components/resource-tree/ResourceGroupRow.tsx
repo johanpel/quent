@@ -31,21 +31,20 @@ export const ResourceGroupRow = ({
   };
 
   return (
-    <div>
-      <div>
-        <span className="text-xs font-bold">{group.instance_name}</span>
-      </div>
-      {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes && (
+    <div className="flex items-baseline gap-x-2 gap-y-0 flex-wrap">
+      <span className="text-xs font-bold">{group.instance_name}</span>
+      {hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes ? (
         <ResourceTypeSelector
           id={id}
           selectedType={selectedType}
           availableResourceTypes={availableResourceTypes}
           onTypeChange={onTypeChange}
-          className="mt-1"
         />
-      )}
+      ) : selectedType ? (
+        <span className="text-[10px] text-muted-foreground">{selectedType}</span>
+      ) : null}
       {availableFsmTypes && availableFsmTypes.length === 1 && (
-        <div className="text-xs text-muted-foreground mt-1">{availableFsmTypes[0]}</div>
+        <span className="text-[10px] text-muted-foreground">FSM: {availableFsmTypes[0]}</span>
       )}
       {availableFsmTypes && availableFsmTypes.length > 1 && (
         <FsmTypeSelector
@@ -53,7 +52,6 @@ export const ResourceGroupRow = ({
           selectedFsm={fsmFilters.has(id) ? (fsmFilters.get(id) ?? null) : null}
           availableFsmTypes={availableFsmTypes}
           onFsmChange={handleFsmChange}
-          className="mt-1"
         />
       )}
     </div>
