@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { formatWithPrefix } from '@/services/formatters';
 import { operatorTypeColor } from '@/services/colors';
 
-type IndexKey = 'worker_plan' | 'operator_type' | 'operator';
+type IndexKey = 'worker_plan' | 'parent_operator_type' | 'parent_operator' | 'operator_type' | 'operator';
 type AggMode = 'value' | 'sum' | 'mean';
 type SortDir = 'asc' | 'desc';
 
@@ -17,6 +17,8 @@ interface FlatRow {
   workerPlanId: string;
   workerPlanLabel: string;
   planId: string;
+  parentOperatorType: string;
+  parentOperatorName: string;
   operatorType: string;
   operatorName: string;
   operatorId: string;
@@ -95,6 +97,8 @@ function rowGroupKey(row: FlatRow, enabledIndices: IndexKey[]): string {
   return enabledIndices.map(idx => {
     switch (idx) {
       case 'worker_plan': return row.workerPlanId;
+      case 'parent_operator_type': return row.parentOperatorType;
+      case 'parent_operator': return row.parentOperatorName;
       case 'operator_type': return row.operatorType;
       case 'operator': return row.operatorName;
     }
@@ -105,6 +109,8 @@ function getGroupKeys(row: FlatRow, enabledIndices: IndexKey[]): GroupKeyEntry[]
   return enabledIndices.map(idx => {
     switch (idx) {
       case 'worker_plan': return { key: idx, id: row.workerPlanId, label: row.workerPlanLabel };
+      case 'parent_operator_type': return { key: idx, id: row.parentOperatorType, label: row.parentOperatorType };
+      case 'parent_operator': return { key: idx, id: row.parentOperatorName, label: row.parentOperatorName };
       case 'operator_type': return { key: idx, id: row.operatorType, label: row.operatorType };
       case 'operator': return { key: idx, id: row.operatorName, label: row.operatorName };
     }
@@ -160,14 +166,17 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const { entities } = queryBundle;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
-  const [indexOrder, setIndexOrder] = useState<IndexKey[]>(['worker_plan', 'operator_type', 'operator']);
+  const [indexOrder, setIndexOrder] = useState<IndexKey[]>(['worker_plan', 'parent_operator_type', 'parent_operator', 'operator_type', 'operator']);
   const [enabledIndices, setEnabledIndices] = useState<Record<IndexKey, boolean>>({
     worker_plan: true,
+    parent_operator_type: false,
+    parent_operator: false,
     operator_type: true,
     operator: true,
   });
   const [draggedIndex, setDraggedIndex] = useState<IndexKey | null>(null);
   const [selectedStats, setSelectedStats] = useState<Set<string> | null>(null);
+  const defaultStatsInitialized = useRef(false);
   const [statOrder, setStatOrder] = useState<string[] | null>(null);
   const [aggMode, setAggMode] = useState<AggMode>('sum');
 
@@ -266,7 +275,11 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       for (const op of ops) {
         const operatorName = op.instance_name ?? op.id;
         const operatorType = op.operator_type_name ?? '-';
-        const base = { workerPlanId, workerPlanLabel, planId: plan.id, operatorType, operatorName, operatorId: op.id };
+        const parentOpId = op.parent_operator_ids?.[0];
+        const parentOp = parentOpId ? entities.operators[parentOpId] : undefined;
+        const parentOperatorType = parentOp?.operator_type_name ?? '-';
+        const parentOperatorName = parentOp?.instance_name ?? parentOpId ?? '-';
+        const base = { workerPlanId, workerPlanLabel, planId: plan.id, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
 
         const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
         rows.push({ ...base, statisticName: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null });
@@ -290,6 +303,20 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     }
     return names;
   }, [flatRows]);
+
+  // Initialize default column selection: duration_s, input_*, output_*
+  useEffect(() => {
+    if (defaultStatsInitialized.current || allStatNames.length === 0) return;
+    defaultStatsInitialized.current = true;
+    const defaultNames = allStatNames.filter(s => s === 'duration_s' || s.startsWith('input_') || s.startsWith('output_'));
+    const defaults = new Set(defaultNames);
+    if (defaults.size > 0) {
+      setSelectedStats(defaults);
+      // Put default columns first in the ordering
+      const rest = allStatNames.filter(s => !defaults.has(s));
+      setStatOrder([...defaultNames, ...rest]);
+    }
+  }, [allStatNames]);
 
   const orderedStatNames = useMemo(() => {
     if (!statOrder) return allStatNames;
@@ -480,7 +507,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [hoveredOperatorId, sortedRows]);
 
   const hasSelection = selectedNodeIds.size > 0;
-  const indexLabels: Record<IndexKey, string> = { worker_plan: 'Worker / Plan', operator_type: 'Operator Type', operator: 'Operator Instance' };
+  const indexLabels: Record<IndexKey, string> = { worker_plan: 'Worker / Plan', parent_operator_type: 'Parent Op Type', parent_operator: 'Parent Operator', operator_type: 'Operator Type', operator: 'Operator Instance' };
 
   return (
     <div className="flex flex-col h-full">
@@ -535,8 +562,13 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           <span className="text-xs text-muted-foreground shrink-0 mr-1">Columns:</span>
           <button onClick={selectAllStats} className="text-xs text-primary hover:underline shrink-0">All</button>
           <button onClick={selectNoStats} className="text-xs text-primary hover:underline shrink-0">None</button>
-          <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-1 flex-wrap max-h-[26px]">
-            {allStatNames.map(stat => {
+          <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-1">
+            {[...orderedStatNames].sort((a, b) => {
+              const aChecked = selectedStats ? selectedStats.has(a) : true;
+              const bChecked = selectedStats ? selectedStats.has(b) : true;
+              if (aChecked !== bChecked) return aChecked ? -1 : 1;
+              return 0;
+            }).map(stat => {
               const checked = selectedStats ? selectedStats.has(stat) : true;
               return (
                 <button
@@ -554,9 +586,15 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               );
             })}
           </div>
+          <span className="shrink-0 text-xs text-muted-foreground cursor-default">&hellip;&#x25BE;</span>
           {/* Dropdown on hover when items overflow */}
           <div className="absolute left-0 top-full z-20 w-full bg-card border border-border rounded-b shadow-lg p-2 hidden group-hover/cols:flex flex-wrap gap-1">
-            {allStatNames.map(stat => {
+            {[...orderedStatNames].sort((a, b) => {
+              const aChecked = selectedStats ? selectedStats.has(a) : true;
+              const bChecked = selectedStats ? selectedStats.has(b) : true;
+              if (aChecked !== bChecked) return aChecked ? -1 : 1;
+              return 0;
+            }).map(stat => {
               const checked = selectedStats ? selectedStats.has(stat) : true;
               return (
                 <button
@@ -579,7 +617,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
       {/* Table */}
       <div className="flex-1 min-h-0 overflow-auto">
-        <table className="w-full text-sm border-collapse">
+        <table className="text-sm border-collapse">
           <thead className="sticky top-0 bg-card z-10">
             <tr className="border-b border-border">
               {activeIndices.map(key => (
@@ -640,7 +678,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                           gk.key === 'operator' && 'font-medium',
                         )}
                         rowSpan={spans[col]!}
-                        style={gk.key === 'operator_type' ? { borderLeftWidth: 8, borderLeftColor: operatorTypeColor(row.operatorType), backgroundColor: `color-mix(in srgb, ${operatorTypeColor(row.operatorType)} 15%, transparent)` } : undefined}
+                        style={(gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? { borderLeftWidth: 8, borderLeftColor: operatorTypeColor(gk.id), backgroundColor: `color-mix(in srgb, ${operatorTypeColor(gk.id)} 15%, transparent)` } : undefined}
                         onMouseEnter={gk.key === 'operator' && firstOpId ? () => {
                           if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
                             setSelectedPlanId(firstOpPlanId);
