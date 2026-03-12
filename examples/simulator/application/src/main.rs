@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     time::Duration,
 };
 
@@ -233,17 +233,48 @@ struct WorkItem<'a> {
     input_batches: Vec<Batch>,
     /// Senders for the operator's outgoing edges in the DAG.
     output_senders: Vec<&'a Sender<Batch>>,
+    /// For JoinPartition: senders to other workers' JoinLocal inputs.
+    shuffle_senders: Vec<&'a Sender<Batch>>,
     /// Task index for naming.
     task_index: u64,
 }
 
-/// Returns true if this operator kind is a barrier — it must wait for all
-/// upstream batches before processing.
-fn is_barrier(kind: Physical) -> bool {
-    matches!(
-        kind,
-        Physical::JoinPartition | Physical::Aggregate | Physical::Sort
-    )
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum InputBehavior {
+    /// Produces batches from nothing (FileSystemScan).
+    Source,
+    /// Processes one batch at a time.
+    Streaming,
+    /// Collects all input before processing (JoinLocal, Sort).
+    Barrier,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum OutputBehavior {
+    /// Sends output immediately during compute.
+    Streaming,
+    /// Buffers output, sends after task completion (Aggregate, Sort).
+    Deferred,
+    /// Consumes without producing (Output).
+    Sink,
+}
+
+impl Physical {
+    fn input_behavior(self) -> InputBehavior {
+        match self {
+            Physical::FileSystemScan => InputBehavior::Source,
+            Physical::JoinLocal | Physical::Sort => InputBehavior::Barrier,
+            _ => InputBehavior::Streaming,
+        }
+    }
+
+    fn output_behavior(self) -> OutputBehavior {
+        match self {
+            Physical::Output => OutputBehavior::Sink,
+            Physical::Aggregate | Physical::Sort => OutputBehavior::Deferred,
+            _ => OutputBehavior::Streaming,
+        }
+    }
 }
 
 struct Plan<T>
@@ -841,13 +872,16 @@ impl Worker {
     }
 
     /// Process a single work item dispatched by the scheduler.
+    /// Returns output batches that barrier operators deferred until after
+    /// the task completes, so the caller can send them after marking the
+    /// operator as completed.
     fn process_work_item(
         &self,
         context: &SimulatorContext,
         engine: &Engine,
         work: &WorkItem,
         thread: Uuid,
-    ) {
+    ) -> Vec<Batch> {
         let obs = context.task_observer();
         let batch_obs = context.data_batch_observer();
         let operator = work.operator;
@@ -929,7 +963,7 @@ impl Worker {
 
         // Determine operator behavior based on kind.
         let use_gpu = operator.kind != Physical::FileSystemScan && !self.gpus.is_empty();
-        let send = operator.kind == Physical::JoinPartition;
+
 
         // Track working memory on the appropriate resource.
         // GPU operators use GPU memory for their scratch space; CPU-only
@@ -939,43 +973,47 @@ impl Worker {
                 .fetch_add(working_memory_bytes, Ordering::Relaxed);
         }
 
-        // Spill when host memory exceeds threshold and operator supports it.
+        // Spill when the memory tier holding the batches exceeds its threshold.
+        // Only spill batches that are actually in the pressured tier.
         let host_pressure =
             self.host_memory_used.load(Ordering::Relaxed) as f64 / HOST_MEMORY_CAPACITY as f64;
-        let spill = host_pressure > HOST_MEMORY_SPILL_THRESHOLD;
+        let spill_host = host_pressure > HOST_MEMORY_SPILL_THRESHOLD;
 
         obs.task_allocating_memory(task_id, task::Allocating { use_thread: thread });
         sleep_fixed(2);
 
-        // Spill batches to storage under pressure.
-        if spill {
-            obs.task_spilling(task_id, task::Spilling { use_thread: thread });
-            // Release memory and spill to storage.
-            for batch in &mut input_batches {
-                if let Some(gi) = batch.gpu_index {
-                    saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
-                    batch.gpu_index = None;
-                } else if !batch.in_storage {
+        // Spill host-resident batches to storage under host memory pressure.
+        if spill_host {
+            let host_batches: Vec<usize> = input_batches
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| b.gpu_index.is_none() && !b.in_storage)
+                .map(|(i, _)| i)
+                .collect();
+            if !host_batches.is_empty() {
+                obs.task_spilling(task_id, task::Spilling { use_thread: thread });
+                for &i in &host_batches {
+                    let batch = &mut input_batches[i];
                     saturating_sub(&self.host_memory_used, batch.bytes);
+                    batch.in_storage = true;
+                    batch_obs.spilling_to_storage(
+                        batch.id,
+                        data_batch::SpillingToStorage {
+                            use_host_to_storage: self.host_to_storage,
+                            use_host_to_storage_bytes: batch.bytes,
+                        },
+                    );
+                    sleep_proportional(batch.bytes);
+                    batch_obs.in_storage(
+                        batch.id,
+                        data_batch::InStorage {
+                            use_storage: self.storage,
+                            use_storage_bytes: batch.bytes,
+                        },
+                    );
                 }
-                batch.in_storage = true;
-                batch_obs.spilling_to_storage(
-                    batch.id,
-                    data_batch::SpillingToStorage {
-                        use_host_to_storage: self.host_to_storage,
-                        use_host_to_storage_bytes: batch.bytes,
-                    },
-                );
-                sleep_proportional(batch.bytes);
-                batch_obs.in_storage(
-                    batch.id,
-                    data_batch::InStorage {
-                        use_storage: self.storage,
-                        use_storage_bytes: batch.bytes,
-                    },
-                );
+                sleep_sometimes_slow(batch_bytes);
             }
-            sleep_sometimes_slow(batch_bytes);
         }
 
         // Loading (scan already loaded above; this is for materialization).
@@ -1008,7 +1046,7 @@ impl Worker {
         // For barrier operators (many batches), skip bulk transfer —
         // the operator streams through data with bounded GPU working memory.
         if let Some(gpu) = gpu
-            && !is_barrier(operator.kind)
+            && operator.kind.input_behavior() != InputBehavior::Barrier
         {
             for batch in &mut input_batches {
                 if batch.gpu_index.is_none() {
@@ -1182,7 +1220,10 @@ impl Worker {
             saturating_sub(&self.host_memory_used, working_memory_bytes);
         }
 
-        // Produce output batches and send downstream.
+        // Produce output batches. Operators that defer output buffer them
+        // and send after task_exit so downstream operators don't start early.
+        let mut deferred_sends: Vec<Batch> = Vec::new();
+        let is_deferred = operator.kind.output_behavior() == OutputBehavior::Deferred;
         match operator.kind {
             Physical::FileSystemScan | Physical::GpuDecode => {
                 // Scan and decode pass through batches as-is.
@@ -1247,7 +1288,7 @@ impl Worker {
             _ => {
                 // For barrier operators that use GPU, output goes to the
                 // selected GPU even though input wasn't bulk-transferred.
-                let last_gpu_index: Option<usize> = if is_barrier(operator.kind) {
+                let last_gpu_index: Option<usize> = if operator.kind.input_behavior() == InputBehavior::Barrier {
                     gpu_index
                 } else {
                     input_batches.last().and_then(|b| b.gpu_index)
@@ -1275,6 +1316,7 @@ impl Worker {
                             let keep = rng().random_range(60..80);
                             (in_batch.bytes * keep / 100, in_batch.rows * keep / 100)
                         }
+                        Physical::JoinPartition => (in_batch.bytes, in_batch.rows),
                         Physical::Udf => (in_batch.bytes, in_batch.rows),
                         Physical::Limit => {
                             let emitted_so_far = operator.rows_out.load(Ordering::Relaxed);
@@ -1309,28 +1351,24 @@ impl Worker {
                     let chunk_rows = output_rows / num_chunks;
 
                     for _chunk in 0..num_chunks {
-                        operator.batches_out.fetch_add(1, Ordering::Relaxed);
+                        // For JoinPartition, hash-partition the output:
+                        // split into N parts (one per worker) instead of
+                        // broadcasting the full chunk to everyone.
+                        let num_partitions = if operator.kind == Physical::JoinPartition {
+                            (1 + work.shuffle_senders.len()) as u64
+                        } else {
+                            1
+                        };
+                        let part_bytes = chunk_bytes / num_partitions.max(1);
+                        let part_rows = chunk_rows / num_partitions.max(1);
+
+                        operator.batches_out.fetch_add(num_partitions, Ordering::Relaxed);
                         operator.bytes_out.fetch_add(chunk_bytes, Ordering::Relaxed);
                         operator.rows_out.fetch_add(chunk_rows, Ordering::Relaxed);
 
-                        // Network shuffle per output chunk.
-                        if send {
-                            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
-                            for other in other_workers {
-                                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
-                                obs.task_sending(
-                                    task_id,
-                                    task::Sending {
-                                        use_thread: thread,
-                                        use_link: link,
-                                        use_link_bytes: chunk_bytes,
-                                    },
-                                );
-                                sleep_proportional(chunk_bytes);
-                            }
-                        }
-
-                        for sender in &work.output_senders {
+                        // Helper closure: create a batch, place in memory,
+                        // handle spills, and return it.
+                        let make_batch = |b: u64, r: u64| -> Batch {
                             let copy_id = Uuid::now_v7();
                             batch_obs.init(
                                 copy_id,
@@ -1339,86 +1377,131 @@ impl Worker {
                                 },
                             );
 
-                            // Place on GPU or host, then spill if needed.
                             let mut copy_gpu_index = last_gpu_index;
                             if let Some(gi) = copy_gpu_index {
                                 let gpu = &self.gpus[gi];
-                                gpu.memory_used.fetch_add(chunk_bytes, Ordering::Relaxed);
+                                gpu.memory_used.fetch_add(b, Ordering::Relaxed);
                                 batch_obs.in_gpu_memory(
                                     copy_id,
                                     data_batch::InGpuMemory {
                                         use_gpu_memory: gpu.memory,
-                                        use_gpu_memory_bytes: chunk_bytes,
+                                        use_gpu_memory_bytes: b,
                                     },
                                 );
-                                let gpu_pressure = gpu.memory_used.load(Ordering::Relaxed) as f64
+                                let gpu_pressure = gpu.memory_used.load(Ordering::Relaxed)
+                                    as f64
                                     / GPU_MEMORY_CAPACITY as f64;
                                 if gpu_pressure > GPU_MEMORY_SPILL_THRESHOLD {
-                                    saturating_sub(&gpu.memory_used, chunk_bytes);
+                                    saturating_sub(&gpu.memory_used, b);
                                     self.host_memory_used
-                                        .fetch_add(chunk_bytes, Ordering::Relaxed);
+                                        .fetch_add(b, Ordering::Relaxed);
                                     batch_obs.spilling_to_host_memory(
                                         copy_id,
                                         data_batch::SpillingToHostMemory {
                                             use_gpu_to_host_mem: gpu.gpu_to_host_mem,
-                                            use_gpu_to_host_mem_bytes: chunk_bytes,
+                                            use_gpu_to_host_mem_bytes: b,
                                         },
                                     );
-                                    sleep_proportional(chunk_bytes);
+                                    sleep_proportional(b);
                                     batch_obs.in_host_memory(
                                         copy_id,
                                         data_batch::InHostMemory {
                                             use_host_memory: self.host_memory,
-                                            use_host_memory_bytes: chunk_bytes,
+                                            use_host_memory_bytes: b,
                                         },
                                     );
                                     copy_gpu_index = None;
                                 }
                             } else {
                                 self.host_memory_used
-                                    .fetch_add(chunk_bytes, Ordering::Relaxed);
+                                    .fetch_add(b, Ordering::Relaxed);
                                 batch_obs.in_host_memory(
                                     copy_id,
                                     data_batch::InHostMemory {
                                         use_host_memory: self.host_memory,
-                                        use_host_memory_bytes: chunk_bytes,
+                                        use_host_memory_bytes: b,
                                     },
                                 );
                             }
 
-                            // Spill host→storage if over threshold.
                             let mut copy_in_storage = false;
                             if copy_gpu_index.is_none() {
-                                let hp = self.host_memory_used.load(Ordering::Relaxed) as f64
+                                let hp = self.host_memory_used.load(Ordering::Relaxed)
+                                    as f64
                                     / HOST_MEMORY_CAPACITY as f64;
                                 if hp > HOST_MEMORY_SPILL_THRESHOLD {
-                                    saturating_sub(&self.host_memory_used, chunk_bytes);
+                                    saturating_sub(&self.host_memory_used, b);
                                     batch_obs.spilling_to_storage(
                                         copy_id,
                                         data_batch::SpillingToStorage {
                                             use_host_to_storage: self.host_to_storage,
-                                            use_host_to_storage_bytes: chunk_bytes,
+                                            use_host_to_storage_bytes: b,
                                         },
                                     );
-                                    sleep_proportional(chunk_bytes);
+                                    sleep_proportional(b);
                                     batch_obs.in_storage(
                                         copy_id,
                                         data_batch::InStorage {
                                             use_storage: self.storage,
-                                            use_storage_bytes: chunk_bytes,
+                                            use_storage_bytes: b,
                                         },
                                     );
                                     copy_in_storage = true;
                                 }
                             }
 
-                            let _ = sender.send(Batch {
+                            Batch {
                                 id: copy_id,
-                                bytes: chunk_bytes,
-                                rows: chunk_rows,
+                                bytes: b,
+                                rows: r,
                                 gpu_index: copy_gpu_index,
                                 in_storage: copy_in_storage,
-                            });
+                            }
+                        };
+
+                        if operator.kind == Physical::JoinPartition {
+                            // Local partition: send to this worker's JoinLocal.
+                            let local_batch = make_batch(part_bytes, part_rows);
+                            for sender in &work.output_senders {
+                                let _ = sender.send(local_batch.clone());
+                            }
+
+                            // Remote partitions: one per shuffle sender with
+                            // network transfer events.
+                            for (i, sender) in work.shuffle_senders.iter().enumerate() {
+                                let other_workers: Vec<_> = engine
+                                    .workers
+                                    .keys()
+                                    .filter(|w| **w != self.id)
+                                    .collect();
+                                if let Some(&other) = other_workers.get(i) {
+                                    let link = *engine
+                                        .network_links
+                                        .get(&(self.id, *other))
+                                        .unwrap();
+                                    obs.task_sending(
+                                        task_id,
+                                        task::Sending {
+                                            use_thread: thread,
+                                            use_link: link,
+                                            use_link_bytes: part_bytes,
+                                        },
+                                    );
+                                    sleep_proportional(part_bytes);
+                                }
+                                let remote_batch = make_batch(part_bytes, part_rows);
+                                let _ = sender.send(remote_batch);
+                            }
+                        } else {
+                            // Non-JoinPartition: send full chunk to all outputs.
+                            for sender in &work.output_senders {
+                                let out_batch = make_batch(chunk_bytes, chunk_rows);
+                                if is_deferred {
+                                    deferred_sends.push(out_batch);
+                                } else {
+                                    let _ = sender.send(out_batch);
+                                }
+                            }
                         }
                     }
                 }
@@ -1427,6 +1510,8 @@ impl Worker {
 
         obs.task_exit(task_id);
         operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
+
+        deferred_sends
     }
 
     fn execute_logical_plan(
@@ -1436,6 +1521,16 @@ impl Worker {
         l_plan: &Plan<Logical>,
         num_tasks: usize,
         log_progress: bool,
+        // Per-JoinPartition counters (indexed by topo position) tracking how
+        // many workers have completed each shuffle stage. JoinLocal waits
+        // until all workers have finished the upstream JoinPartition.
+        shuffle_counters: &[AtomicUsize],
+        num_workers: usize,
+        // Index of this worker in the workers vec.
+        worker_index: usize,
+        // shuffle_channels[join_stage][target_worker] = (Sender, Receiver)
+        // Used to send batches from JoinPartition to other workers' JoinLocal.
+        shuffle_channels: &[Vec<(Sender<Batch>, Receiver<Batch>)>],
     ) {
         let physical_plan = simulate_planning(l_plan);
         physical_plan.declare(context, Some(self.id));
@@ -1508,9 +1603,23 @@ impl Worker {
                     let thread_id = *thread_id;
                     s.spawn(move || {
                         while let Ok(work) = work_rx.recv() {
-                            self.process_work_item(context, engine, &work, thread_id);
+                            let deferred = self.process_work_item(context, engine, &work, thread_id);
                             completed[&work.operator_node].fetch_add(1, Ordering::Release);
                             in_flight.fetch_sub(1, Ordering::Release);
+                            // Send barrier operator output after completion is
+                            // recorded, so the scheduler sees the operator as
+                            // done before downstream operators receive batches.
+                            for batch in deferred {
+                                // Local downstream channels.
+                                for sender in &work.output_senders {
+                                    let _ = sender.send(batch.clone());
+                                }
+                                // Cross-worker shuffle channels (JoinPartition
+                                // sends to other workers' JoinLocal inputs).
+                                for sender in &work.shuffle_senders {
+                                    let _ = sender.send(batch.clone());
+                                }
+                            }
 
                             // Accumulate port stats on DAG edges using
                             // actual batch values from the operator's
@@ -1576,9 +1685,62 @@ impl Worker {
                     // batches before dispatching a single work item.
                     let mut barrier_buffers: HashMap<NodeIndex, Vec<Batch>> = nodes
                         .iter()
-                        .filter(|&&n| is_barrier(plan.dag[n].kind))
+                        .filter(|&&n| plan.dag[n].kind.input_behavior() == InputBehavior::Barrier)
                         .map(|&n| (n, Vec::new()))
                         .collect();
+
+                    // Map each JoinPartition node to its shuffle counter
+                    // index (based on position among JoinPartitions in topo
+                    // order). JoinLocal nodes map to the same index as their
+                    // upstream JoinPartition.
+                    let mut partition_counter_idx: HashMap<NodeIndex, usize> = HashMap::new();
+                    let mut counter_idx = 0;
+                    for &n in &nodes {
+                        if plan.dag[n].kind == Physical::JoinPartition {
+                            partition_counter_idx.insert(n, counter_idx);
+                            counter_idx += 1;
+                        }
+                    }
+                    // Map JoinLocal → same counter as its upstream JoinPartition.
+                    let mut local_counter_idx: HashMap<NodeIndex, usize> = HashMap::new();
+                    for &n in &nodes {
+                        if plan.dag[n].kind == Physical::JoinLocal {
+                            for edge in plan.dag.edges_directed(n, Direction::Incoming) {
+                                if let Some(&idx) = partition_counter_idx.get(&edge.source()) {
+                                    local_counter_idx.insert(n, idx);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // Track which JoinPartition counters this worker has
+                    // already incremented (to avoid double-counting).
+                    let mut partition_incremented: HashMap<NodeIndex, bool> = HashMap::new();
+
+                    // Build per-JoinPartition shuffle senders (to other
+                    // workers) and per-JoinLocal shuffle receivers (from
+                    // other workers).
+                    let partition_shuffle_senders: HashMap<NodeIndex, Vec<&Sender<Batch>>> =
+                        partition_counter_idx
+                            .iter()
+                            .map(|(&node, &idx)| {
+                                let senders: Vec<&Sender<Batch>> = shuffle_channels[idx]
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|&(wi, _)| wi != worker_index)
+                                    .map(|(_, (tx, _))| tx)
+                                    .collect();
+                                (node, senders)
+                            })
+                            .collect();
+                    let local_shuffle_receivers: HashMap<NodeIndex, &Receiver<Batch>> =
+                        local_counter_idx
+                            .iter()
+                            .map(|(&node, &idx)| {
+                                let rx = &shuffle_channels[idx][worker_index].1;
+                                (node, rx)
+                            })
+                            .collect();
 
                     // Process in reverse topological order (output first,
                     // scans last) so demand propagates backward.
@@ -1602,6 +1764,29 @@ impl Worker {
                             }
                         }
 
+                        // Auto-add demand for streaming operators that
+                        // have batches waiting but no demand. This ensures
+                        // all input is processed before the operator can
+                        // be marked effectively done. Skip when Limit has
+                        // triggered early termination.
+                        if !limit_done {
+                            for &node_idx in &nodes {
+                                let op = &plan.dag[node_idx];
+                                if op.kind.input_behavior() == InputBehavior::Streaming
+                                    && demand[&node_idx] == 0
+                                {
+                                    if let Some(rxs) = operator_inputs.get(&node_idx) {
+                                        let pending: usize =
+                                            rxs.iter().map(|rx| rx.len()).sum();
+                                        if pending > 0 {
+                                            *demand.get_mut(&node_idx).unwrap() += pending;
+                                            made_progress = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // Forward pass (topological order): compute which
                         // nodes are effectively done — all dispatched work
                         // completed and no more input will ever arrive.
@@ -1611,18 +1796,30 @@ impl Worker {
                             let disp = dispatched[&node_idx];
                             let no_inflight = comp == disp;
                             let has_dispatched = disp > 0;
-                            let no_demand = demand[&node_idx] == 0;
                             let upstream_done = plan
                                 .dag
                                 .edges_directed(node_idx, Direction::Incoming)
                                 .all(|e| *effectively_done.get(&e.source()).unwrap_or(&false));
                             // Done if: dispatched at least once, all
-                            // dispatched work completed, and either no
-                            // demand left or all upstream is done (no
-                            // more input will arrive).
+                            // dispatched work completed, and all upstream
+                            // is done (no more input will arrive).
+                            // For source operators, upstream_done is
+                            // vacuously true (no incoming edges).
                             let done =
-                                has_dispatched && no_inflight && (no_demand || upstream_done);
+                                has_dispatched && no_inflight && upstream_done;
                             effectively_done.insert(node_idx, done);
+
+                            // When a JoinPartition becomes effectively done,
+                            // increment its shuffle counter so other workers
+                            // know this worker has finished the shuffle.
+                            if done
+                                && partition_counter_idx.contains_key(&node_idx)
+                                && !partition_incremented.contains_key(&node_idx)
+                            {
+                                let idx = partition_counter_idx[&node_idx];
+                                shuffle_counters[idx].fetch_add(1, Ordering::Release);
+                                partition_incremented.insert(node_idx, true);
+                            }
                         }
 
                         for &node_idx in &reverse_topo {
@@ -1634,7 +1831,7 @@ impl Worker {
                             let op = &plan.dag[node_idx];
                             let outputs = &operator_outputs[&node_idx];
 
-                            if op.kind == Physical::FileSystemScan {
+                            if op.kind.input_behavior() == InputBehavior::Source {
                                 // Don't over-dispatch scans.
                                 if dispatched[&node_idx] >= max_per_scan {
                                     *demand.get_mut(&node_idx).unwrap() = 0;
@@ -1647,12 +1844,13 @@ impl Worker {
                                     operator: op,
                                     input_batches: vec![],
                                     output_senders: outputs.clone(),
+                                    shuffle_senders: vec![],
                                     task_index: idx,
                                 });
                                 *demand.get_mut(&node_idx).unwrap() -= 1;
                                 *dispatched.get_mut(&node_idx).unwrap() += 1;
                                 made_progress = true;
-                            } else if is_barrier(op.kind) {
+                            } else if op.kind.input_behavior() == InputBehavior::Barrier {
                                 // Barrier operator: collect batches into
                                 // buffer and dispatch only when all upstream
                                 // operators have completed.
@@ -1675,21 +1873,64 @@ impl Worker {
                                     .iter()
                                     .all(|&src| *effectively_done.get(&src).unwrap_or(&false));
 
-                                if upstream_done {
+                                // For JoinLocal, also wait until all workers
+                                // have finished the upstream JoinPartition.
+                                let shuffle_done = if let Some(&idx) = local_counter_idx.get(&node_idx) {
+                                    shuffle_counters[idx].load(Ordering::Acquire) >= num_workers
+                                } else {
+                                    true
+                                };
+
+                                if upstream_done && shuffle_done {
+                                    // For JoinLocal, also drain batches from
+                                    // other workers' shuffle channels.
+                                    if let Some(rx) = local_shuffle_receivers.get(&node_idx) {
+                                        while let Ok(batch) = rx.try_recv() {
+                                            barrier_buffers
+                                                .get_mut(&node_idx)
+                                                .unwrap()
+                                                .push(batch);
+                                        }
+                                    }
+
                                     let buffer = barrier_buffers.get_mut(&node_idx).unwrap();
                                     if !buffer.is_empty() {
                                         let batches = std::mem::take(buffer);
-                                        let idx = task_counter.fetch_add(1, Ordering::Relaxed);
-                                        in_flight.fetch_add(1, Ordering::Acquire);
-                                        let _ = work_tx.send(WorkItem {
-                                            operator_node: node_idx,
-                                            operator: op,
-                                            input_batches: batches,
-                                            output_senders: outputs.clone(),
-                                            task_index: idx,
-                                        });
+                                        let shuffle_tx = partition_shuffle_senders
+                                            .get(&node_idx)
+                                            .cloned()
+                                            .unwrap_or_default();
+
+                                        // Streaming-output barriers (e.g. JoinLocal)
+                                        // can process batches in parallel across
+                                        // threads. Split the buffer into chunks.
+                                        let num_tasks = if op.kind.output_behavior() == OutputBehavior::Streaming {
+                                            self.threads.len().min(batches.len())
+                                        } else {
+                                            1
+                                        };
+                                        let chunk_size = batches.len().div_ceil(num_tasks.max(1));
+                                        let chunks: Vec<Vec<Batch>> = batches
+                                            .into_iter()
+                                            .collect::<Vec<_>>()
+                                            .chunks(chunk_size)
+                                            .map(|c| c.to_vec())
+                                            .collect();
+
+                                        for chunk in chunks {
+                                            let idx = task_counter.fetch_add(1, Ordering::Relaxed);
+                                            in_flight.fetch_add(1, Ordering::Acquire);
+                                            let _ = work_tx.send(WorkItem {
+                                                operator_node: node_idx,
+                                                operator: op,
+                                                input_batches: chunk,
+                                                output_senders: outputs.clone(),
+                                                shuffle_senders: shuffle_tx.clone(),
+                                                task_index: idx,
+                                            });
+                                            *dispatched.get_mut(&node_idx).unwrap() += 1;
+                                        }
                                         *demand.get_mut(&node_idx).unwrap() = 0;
-                                        *dispatched.get_mut(&node_idx).unwrap() += 1;
                                         made_progress = true;
                                     }
                                 } else {
@@ -1708,26 +1949,59 @@ impl Worker {
                             } else {
                                 // Pipeline operator: dispatch one task per batch.
                                 let inputs = &operator_inputs[&node_idx];
+
+                                // For operators with multiple inputs, only
+                                // dispatch when every input has at least one
+                                // batch ready OR its source is done (channel
+                                // drained). This prevents one fast path
+                                // (e.g. a scan) from running far ahead of a
+                                // slow path (e.g. a long join pipeline).
+                                let all_inputs_ready = if inputs.len() > 1 {
+                                    let incoming_nodes: Vec<NodeIndex> = plan
+                                        .dag
+                                        .edges_directed(node_idx, Direction::Incoming)
+                                        .map(|e| e.source())
+                                        .collect();
+                                    incoming_nodes.iter().zip(inputs.iter()).all(
+                                        |(&src, rx)| {
+                                            !rx.is_empty()
+                                                || *effectively_done
+                                                    .get(&src)
+                                                    .unwrap_or(&false)
+                                        },
+                                    )
+                                } else {
+                                    true
+                                };
+
                                 let mut got_batch = false;
-                                for rx in inputs {
-                                    if let Ok(batch) = rx.try_recv() {
-                                        let idx = task_counter.fetch_add(1, Ordering::Relaxed);
-                                        in_flight.fetch_add(1, Ordering::Acquire);
-                                        let _ = work_tx.send(WorkItem {
-                                            operator_node: node_idx,
-                                            operator: op,
-                                            input_batches: vec![batch],
-                                            output_senders: outputs.clone(),
-                                            task_index: idx,
-                                        });
-                                        *demand.get_mut(&node_idx).unwrap() -= 1;
-                                        *dispatched.get_mut(&node_idx).unwrap() += 1;
-                                        if node_idx == output_node {
-                                            output_dispatched += 1;
+                                if all_inputs_ready {
+                                    for rx in inputs {
+                                        if let Ok(batch) = rx.try_recv() {
+                                            let idx =
+                                                task_counter.fetch_add(1, Ordering::Relaxed);
+                                            in_flight.fetch_add(1, Ordering::Acquire);
+                                            let shuffle_tx = partition_shuffle_senders
+                                                .get(&node_idx)
+                                                .cloned()
+                                                .unwrap_or_default();
+                                            let _ = work_tx.send(WorkItem {
+                                                operator_node: node_idx,
+                                                operator: op,
+                                                input_batches: vec![batch],
+                                                output_senders: outputs.clone(),
+                                                shuffle_senders: shuffle_tx,
+                                                task_index: idx,
+                                            });
+                                            *demand.get_mut(&node_idx).unwrap() -= 1;
+                                            *dispatched.get_mut(&node_idx).unwrap() += 1;
+                                            if node_idx == output_node {
+                                                output_dispatched += 1;
+                                            }
+                                            got_batch = true;
+                                            made_progress = true;
+                                            break;
                                         }
-                                        got_batch = true;
-                                        made_progress = true;
-                                        break;
                                     }
                                 }
 
@@ -2188,10 +2462,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             query_obs.executing(query_id);
 
             let workers: Vec<_> = engine.workers.values().collect();
+            // Count JoinPartition operators in the logical plan to size
+            // the shuffle counters. Each logical Join lowers to one
+            // JoinPartition, so count Join nodes.
+            let num_joins = l_plan
+                .dag
+                .node_indices()
+                .filter(|&n| l_plan.dag[n].kind == Logical::Join)
+                .count();
+            let shuffle_counters: Vec<AtomicUsize> =
+                (0..num_joins).map(|_| AtomicUsize::new(0)).collect();
+            let num_workers = workers.len();
+            // Create cross-worker shuffle channels:
+            // shuffle_channels[join_stage][target_worker] = (Sender, Receiver)
+            let shuffle_channels: Vec<Vec<(Sender<Batch>, Receiver<Batch>)>> = (0..num_joins)
+                .map(|_| {
+                    (0..num_workers)
+                        .map(|_| crossbeam_channel::unbounded())
+                        .collect()
+                })
+                .collect();
             std::thread::scope(|s| {
                 let context = &context;
                 let engine = &engine;
                 let l_plan = &l_plan;
+                let shuffle_counters = &shuffle_counters[..];
+                let shuffle_channels = &shuffle_channels;
+                let num_workers = workers.len();
                 for (i, worker) in workers.iter().enumerate() {
                     let log_progress = i == 0;
                     s.spawn(move || {
@@ -2201,6 +2498,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             l_plan,
                             args.num_tasks,
                             log_progress,
+                            shuffle_counters,
+                            num_workers,
+                            i,
+                            shuffle_channels,
                         );
                     });
                 }
