@@ -293,3 +293,28 @@ export function darkenColor(hex: string, amount: number): string {
 
 export const BLACK = '#000000';
 export const WHITE = '#ffffff';
+
+// --- Operator type colors (canonical mapping matching DAG node CVA variants) ---
+
+const OPERATOR_TYPE_COLORS: Record<string, string> = {
+  source: 'var(--color-blue-500)',
+  scan: 'var(--color-blue-500)',
+  filesystemscan: 'var(--color-blue-500)',
+  join: 'var(--color-purple-500)',
+  joinlocal: 'var(--color-purple-500)',
+  joinpartition: 'var(--color-purple-500)',
+  aggregate: 'var(--color-green-500)',
+  exchange: 'var(--color-orange-500)',
+  output: 'var(--color-red-500)',
+  stage: 'var(--color-indigo-600)',
+  local: 'var(--color-amber-500)',
+  project: 'var(--color-teal-500)',
+  filter: 'var(--color-cyan-500)',
+  sort: 'var(--color-violet-500)',
+  limit: 'var(--color-pink-500)',
+  union: 'var(--color-emerald-500)',
+};
+
+export function operatorTypeColor(type: string): string {
+  return OPERATOR_TYPE_COLORS[type.toLowerCase()] ?? 'var(--color-gray-500)';
+}

@@ -5,6 +5,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { OperatorTable } from '@/components/OperatorTable';
 
 export const Route = createFileRoute('/profile/engine/$engineId/query/$queryId/')({
   component: QueryIndex,
@@ -23,9 +24,7 @@ function QueryIndex() {
       <div className="shrink-0 border-b px-4 py-1">
         <TabsList>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="tab2" disabled>
-            Tab 2
-          </TabsTrigger>
+          <TabsTrigger value="operators">Operators</TabsTrigger>
         </TabsList>
       </div>
       <TabsContent value="timeline" className="flex-1 min-h-0 mt-0">
@@ -33,10 +32,8 @@ function QueryIndex() {
           <QueryResourceTree engineId={engineId} queryBundle={queryBundle} />
         </div>
       </TabsContent>
-      <TabsContent value="tab2" className="flex-1 min-h-0 mt-0">
-        <div className="flex items-center justify-center w-full h-full text-muted-foreground">
-          Coming soon
-        </div>
+      <TabsContent value="operators" className="flex-1 min-h-0 mt-0">
+        <OperatorTable queryBundle={queryBundle} />
       </TabsContent>
     </Tabs>
   );

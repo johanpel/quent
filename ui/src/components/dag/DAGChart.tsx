@@ -16,7 +16,10 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, selectedOperatorLabelAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, type HoveredOperatorInfo } from '@/atoms/dag';
+import type { StatValue } from '@/services/query-plan/types';
+import { formatWithPrefix } from '@/services/formatters';
+import { operatorTypeColor } from '@/services/colors';
 
 const elk = new ELK();
 
@@ -94,11 +97,13 @@ const FlowLayout = ({
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<QueryPlanNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const { fitView } = useReactFlow();
+  const { fitView, setCenter, getZoom, getViewport } = useReactFlow();
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
+  const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
   const hasUserInteracted = useRef(false);
+  const mouseInside = useRef(false);
 
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
@@ -141,10 +146,11 @@ const FlowLayout = ({
       source: edge.source,
       target: edge.target,
       type: 'smoothstep',
+      style: { strokeWidth: 2 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        width: 20,
-        height: 20,
+        width: 24,
+        height: 24,
       },
     }));
 
@@ -178,6 +184,35 @@ const FlowLayout = ({
     return () => observer.disconnect();
   }, [containerRef, fitView, nodes.length]);
 
+  // Pan to hovered node only when triggered from outside (table hover)
+  // and only if the node is not already visible in the viewport.
+  useEffect(() => {
+    if (!hoveredOperatorId || mouseInside.current) return;
+    const node = nodes.find(n => n.id === hoveredOperatorId);
+    if (!node) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const nw = node.measured?.width ?? 200;
+    const nh = node.measured?.height ?? 60;
+    const { x: vx, y: vy, zoom } = getViewport();
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+
+    // Node bounds in screen space
+    const screenLeft = node.position.x * zoom + vx;
+    const screenTop = node.position.y * zoom + vy;
+    const screenRight = screenLeft + nw * zoom;
+    const screenBottom = screenTop + nh * zoom;
+
+    const isVisible = screenLeft >= 0 && screenTop >= 0 && screenRight <= cw && screenBottom <= ch;
+    if (isVisible) return;
+
+    const cx = node.position.x + nw / 2;
+    const cy = node.position.y + nh / 2;
+    setCenter(cx, cy, { zoom: getZoom(), duration: 200 });
+  }, [hoveredOperatorId, nodes, setCenter, getZoom, getViewport, containerRef]);
+
   // Calculate and apply layout
   useLayoutEffect(() => {
     hasUserInteracted.current = false;
@@ -204,6 +239,8 @@ const FlowLayout = ({
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
       onMoveStart={handleMoveStart}
+      onMouseEnter={() => { mouseInside.current = true; }}
+      onMouseLeave={() => { mouseInside.current = false; }}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       fitView
@@ -211,7 +248,8 @@ const FlowLayout = ({
       maxZoom={2}
       defaultEdgeOptions={{
         type: 'smoothstep',
-        markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20 },
+        style: { strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 24, height: 24 },
       }}
     >
       <Background />
@@ -219,13 +257,55 @@ const FlowLayout = ({
   );
 };
 
+function isBytesStat(name: string): boolean {
+  return name.includes('_bytes') || name.endsWith('_byte') || name.startsWith('bytes_');
+}
+
+function formatStatValue(value: StatValue, key: string): string {
+  if (typeof value === 'number') {
+    if (isBytesStat(key)) return formatWithPrefix(value, 'B', 'Iec', 2);
+    return formatWithPrefix(value, '', 'Si', 2);
+  }
+  if (Array.isArray(value)) return value.join(', ');
+  return String(value);
+}
+
+const OperatorStatsOverlay = ({ info }: { info: HoveredOperatorInfo }) => (
+  <div className="absolute top-2 right-2 z-50 w-72 bg-card border border-border rounded-md shadow-lg p-3 pointer-events-none">
+    <div className="flex items-center justify-between">
+      <span className="font-semibold text-sm">{info.label}</span>
+      <span
+        className="text-xs text-white px-1.5 py-0.5 rounded"
+        style={{ backgroundColor: operatorTypeColor(info.operationType) }}
+      >
+        {info.operationType}
+      </span>
+    </div>
+    <div className="text-xs text-muted-foreground font-mono truncate">{info.nodeId}</div>
+    {info.stats.length > 0 && (
+      <div className="mt-1 border-t pt-1.5">
+        <div className="flex flex-col gap-1">
+          {info.stats.map(({ key, value }) => (
+            <div key={key} className="text-xs flex items-center justify-between">
+              <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
+              <span className="text-muted-foreground ml-1 font-mono">{formatStatValue(value, key)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 export const DAGChart = ({ data, height = '100%' }: DAGProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const hoveredInfo = useAtomValue(hoveredOperatorInfoAtom);
   return (
-    <div ref={containerRef} style={{ width: '100%', height }}>
+    <div ref={containerRef} style={{ width: '100%', height }} className="relative">
       <ReactFlowProvider>
         <FlowLayout data={data} containerRef={containerRef} />
       </ReactFlowProvider>
+      {hoveredInfo && <OperatorStatsOverlay info={hoveredInfo} />}
     </div>
   );
 };

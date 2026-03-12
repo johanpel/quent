@@ -1,10 +1,9 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
-import { useAtomValue } from 'jotai';
-import { selectedNodeIdsAtom } from '@/atoms/dag';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
-import { OperatorStatisticsPopup } from './OperatorStatisticsPopup';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
 export interface QueryPlanNodeData extends Record<string, unknown> {
@@ -17,7 +16,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
 }
 
 const nodeVariants = cva(
-  'px-4 py-2 rounded-md border-1 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
+  'px-4 py-2 rounded-md border-2 min-w-[180px] max-w-[250px] transition-colors cursor-pointer text-foreground',
   {
     variants: {
       operationType: {
@@ -62,24 +61,24 @@ const nodeVariants = cva(
       {
         operationType: ['source', 'scan', 'filesystemscan'],
         selected: true,
-        class: 'bg-blue-100/30',
+        class: 'bg-blue-500/60 hover:bg-blue-500/70',
       },
       {
         operationType: ['join', 'joinlocal', 'joinpartition'],
         selected: true,
-        class: 'bg-purple-100/30',
+        class: 'bg-purple-500/60 hover:bg-purple-500/70',
       },
-      { operationType: 'aggregate', selected: true, class: 'bg-green-100/30' },
-      { operationType: 'exchange', selected: true, class: 'bg-orange-100/30' },
-      { operationType: 'output', selected: true, class: 'bg-red-100/30' },
-      { operationType: 'stage', selected: true, class: 'bg-indigo-100/30' },
-      { operationType: 'local', selected: true, class: 'bg-amber-100/30' },
-      { operationType: 'project', selected: true, class: 'bg-teal-100/30' },
-      { operationType: 'filter', selected: true, class: 'bg-cyan-100/30' },
-      { operationType: 'sort', selected: true, class: 'bg-violet-100/30' },
-      { operationType: 'limit', selected: true, class: 'bg-pink-100/30' },
-      { operationType: 'union', selected: true, class: 'bg-emerald-100/30' },
-      { operationType: 'other', selected: true, class: 'bg-gray-100/30' },
+      { operationType: 'aggregate', selected: true, class: 'bg-green-500/60 hover:bg-green-500/70' },
+      { operationType: 'exchange', selected: true, class: 'bg-orange-500/60 hover:bg-orange-500/70' },
+      { operationType: 'output', selected: true, class: 'bg-red-500/60 hover:bg-red-500/70' },
+      { operationType: 'stage', selected: true, class: 'bg-indigo-500/60 hover:bg-indigo-500/70' },
+      { operationType: 'local', selected: true, class: 'bg-amber-500/60 hover:bg-amber-500/70' },
+      { operationType: 'project', selected: true, class: 'bg-teal-500/60 hover:bg-teal-500/70' },
+      { operationType: 'filter', selected: true, class: 'bg-cyan-500/60 hover:bg-cyan-500/70' },
+      { operationType: 'sort', selected: true, class: 'bg-violet-500/60 hover:bg-violet-500/70' },
+      { operationType: 'limit', selected: true, class: 'bg-pink-500/60 hover:bg-pink-500/70' },
+      { operationType: 'union', selected: true, class: 'bg-emerald-500/60 hover:bg-emerald-500/70' },
+      { operationType: 'other', selected: true, class: 'bg-gray-500/60 hover:bg-gray-500/70' },
     ],
     defaultVariants: {
       operationType: 'other',
@@ -116,22 +115,46 @@ function resolveOperationType(type: string): OperationType {
 
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const isSelected = selectedNodeIds.has(data.metadata?.rawNode?.id ?? '');
+  const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
+  const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
+  const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
+  const operatorId = data.metadata?.rawNode?.id ?? '';
+  const isSelected = selectedNodeIds.has(operatorId);
+  const isHovered = hoveredOperatorId === operatorId && operatorId !== '';
   const hasSelection = selectedNodeIds.size > 0;
   const isDimmed = hasSelection && !isSelected;
+
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+
+  const onMouseEnter = useCallback(() => {
+    if (operatorId) {
+      setHoveredOperatorId(operatorId);
+      setHoveredOperatorInfo({
+        nodeId: data.nodeId,
+        label: data.label,
+        operationType: data.metadata?.rawNode?.operator_type_name ?? data.operationType,
+        stats: statistics,
+      });
+    }
+  }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId, data.label, data.operationType, statistics]);
+  const onMouseLeave = useCallback(() => {
+    setHoveredOperatorId(prev => prev === operatorId ? null : prev);
+    setHoveredOperatorInfo(prev => prev?.nodeId === data.nodeId ? null : prev);
+  }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId]);
 
   const nodeContent = (
     <div
       className={`${nodeVariants({
         operationType: resolveOperationType(data.operationType),
-        selected: isSelected,
-      })} ${isSelected ? 'border-2 scale-110' : ''}`}
+        selected: isSelected || isHovered,
+      })} ${isSelected ? 'border-3 scale-110' : ''} ${isHovered && !isSelected ? 'ring-2 ring-primary/50' : ''}`}
       style={{
         zIndex: 10,
-        opacity: isDimmed ? 0.3 : 1,
+        opacity: isDimmed && !isHovered ? 0.3 : 1,
         transition: 'opacity 0.15s, transform 0.15s',
       }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {data.hasIncoming && (
         <Handle type="target" position={Position.Top} className="w-2 h-2" style={{ opacity: 0 }} />
@@ -154,16 +177,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     </div>
   );
 
-  return (
-    <OperatorStatisticsPopup
-      data={statistics}
-      nodeId={data.nodeId}
-      operatorLabel={data.label}
-      operationType={data.operationType}
-    >
-      {nodeContent}
-    </OperatorStatisticsPopup>
-  );
+  return nodeContent;
 });
 
 QueryPlanNode.displayName = 'QueryPlanNode';
