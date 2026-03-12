@@ -2,7 +2,7 @@ import { memo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom } from '@/atoms/dag';
+import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, hoveredStatAtom } from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
@@ -113,11 +113,19 @@ function resolveOperationType(type: string): OperationType {
   return (validOperationTypes.has(type) ? type : 'other') as OperationType;
 }
 
+/** Same red gradient as the table cells, but with higher alpha for node backgrounds */
+const GRADIENT_COLOR: [number, number, number] = [239, 68, 68]; // red-500
+function heatmapBg(t: number): string {
+  const alpha = 0.1 + t * 0.55; // 0.1 at low → 0.65 at high
+  return `rgba(${GRADIENT_COLOR[0]}, ${GRADIENT_COLOR[1]}, ${GRADIENT_COLOR[2]}, ${alpha.toFixed(3)})`;
+}
+
 export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
   const setHoveredOperatorInfo = useSetAtom(hoveredOperatorInfoAtom);
+  const hoveredStat = useAtomValue(hoveredStatAtom);
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isSelected = selectedNodeIds.has(operatorId);
   const isHovered = hoveredOperatorId === operatorId && operatorId !== '';
@@ -125,6 +133,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const isDimmed = hasSelection && !isSelected;
 
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+
+  // Heatmap: compute background override when a stat column is hovered
+  const heatmapStyle = hoveredStat ? (() => {
+    const v = hoveredStat.values.get(operatorId);
+    if (v === undefined) return { opacity: 0.2 };
+    const range = hoveredStat.max - hoveredStat.min;
+    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+    const color = heatmapBg(t);
+    return { backgroundColor: color, borderColor: color };
+  })() : undefined;
 
   const onMouseEnter = useCallback(() => {
     if (operatorId) {
@@ -150,8 +168,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       })} ${isSelected ? 'border-3 scale-110' : ''} ${isHovered && !isSelected ? 'ring-2 ring-primary/50' : ''}`}
       style={{
         zIndex: 10,
-        opacity: isDimmed && !isHovered ? 0.3 : 1,
-        transition: 'opacity 0.15s, transform 0.15s',
+        opacity: heatmapStyle?.opacity ?? (isDimmed && !isHovered ? 0.3 : 1),
+        transition: 'opacity 0.15s, transform 0.15s, background-color 0.15s, border-color 0.15s',
+        ...(heatmapStyle?.backgroundColor ? { backgroundColor: heatmapStyle.backgroundColor, borderColor: heatmapStyle.borderColor } : {}),
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

@@ -1,6 +1,6 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom } from '@/atoms/dag';
+import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, type HoveredStatInfo } from '@/atoms/dag';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
@@ -10,13 +10,14 @@ import { formatWithPrefix } from '@/services/formatters';
 import { operatorTypeColor } from '@/services/colors';
 
 type IndexKey = 'worker_plan' | 'parent_operator_type' | 'parent_operator' | 'operator_type' | 'operator';
-type AggMode = 'value' | 'sum' | 'mean';
+type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
 type SortDir = 'asc' | 'desc';
 
 interface FlatRow {
   workerPlanId: string;
   workerPlanLabel: string;
   planId: string;
+  parentPlanLevel: string;
   parentOperatorType: string;
   parentOperatorName: string;
   operatorType: string;
@@ -36,7 +37,7 @@ interface PivotedRow {
   groupKeys: GroupKeyEntry[];
   rowKey: string;
   values: Map<string, StatValue>;
-  aggs: Map<string, { sum: number | null; mean: number | null; count: number; isNumeric: boolean }>;
+  aggs: Map<string, { sum: number | null; mean: number | null; min: number | null; max: number | null; stdev: number | null; count: number; isNumeric: boolean }>;
   operatorIds: Set<string>;
   operatorType: string;
   /** Map from operator ID to the plan ID it belongs to */
@@ -149,7 +150,14 @@ function getSortValue(row: PivotedRow, stat: string, isAgg: boolean, aggMode: Ag
   }
   const agg = row.aggs.get(stat);
   if (!agg || !agg.isNumeric) return null;
-  return aggMode === 'sum' ? agg.sum : agg.mean;
+  switch (aggMode) {
+    case 'sum': return agg.sum;
+    case 'mean': return agg.mean;
+    case 'min': return agg.min;
+    case 'max': return agg.max;
+    case 'stdev': return agg.stdev;
+    default: return agg.sum;
+  }
 }
 
 // --- component ---
@@ -163,6 +171,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
+  const [hoveredStat, setHoveredStat] = useAtom(hoveredStatAtom);
   const { entities } = queryBundle;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
@@ -176,7 +185,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   });
   const [draggedIndex, setDraggedIndex] = useState<IndexKey | null>(null);
   const [selectedStats, setSelectedStats] = useState<Set<string> | null>(null);
-  const defaultStatsInitialized = useRef(false);
   const [statOrder, setStatOrder] = useState<string[] | null>(null);
   const [aggMode, setAggMode] = useState<AggMode>('sum');
 
@@ -272,9 +280,11 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
         const operatorType = op.operator_type_name ?? '-';
         const parentOpId = op.parent_operator_ids?.[0];
         const parentOp = parentOpId ? entities.operators[parentOpId] : undefined;
+        const parentPlan = parentOp?.plan_id ? entities.plans[parentOp.plan_id] : undefined;
+        const parentPlanLevel = parentPlan?.instance_name ?? '-';
         const parentOperatorType = parentOp?.operator_type_name ?? '-';
         const parentOperatorName = parentOp?.instance_name ?? parentOpId ?? '-';
-        const base = { workerPlanId, workerPlanLabel, planId: plan.id, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
+        const base = { workerPlanId, workerPlanLabel, planId: plan.id, parentPlanLevel, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
 
         const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
         rows.push({ ...base, statisticName: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null });
@@ -286,6 +296,30 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     }
     return rows;
   }, [entities, siblingPlanIds]);
+
+  // Pre-compute per-operator stat values for DAG heatmap on stat hover
+  const statsByOperator = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const row of flatRows) {
+      const v = typeof row.value === 'number' ? row.value : null;
+      if (v === null) continue;
+      let opMap = map.get(row.statisticName);
+      if (!opMap) { opMap = new Map(); map.set(row.statisticName, opMap); }
+      opMap.set(row.operatorId, v);
+    }
+    return map;
+  }, [flatRows]);
+
+  const buildHoveredStatInfo = useCallback((statName: string): HoveredStatInfo | null => {
+    const values = statsByOperator.get(statName);
+    if (!values || values.size === 0) return null;
+    let min = Infinity, max = -Infinity;
+    for (const v of values.values()) {
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    return { name: statName, values, min, max };
+  }, [statsByOperator]);
 
   // Detect if any rows have parent operators; hide parent indices if not
   const hasParentOperators = useMemo(() => flatRows.some(r => r.parentOperatorType !== '-'), [flatRows]);
@@ -312,16 +346,23 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [flatRows]);
 
   // Initialize default column selection: duration_s, input_*, output_*
+  // Re-run when allStatNames change (e.g. plan switch) so new stats get
+  // the same default treatment instead of falling through to "show all".
   useEffect(() => {
-    if (defaultStatsInitialized.current || allStatNames.length === 0) return;
-    defaultStatsInitialized.current = true;
-    const defaultNames = allStatNames.filter(s => s === 'duration_s' || s.startsWith('input_') || s.startsWith('output_'));
+    if (allStatNames.length === 0) return;
+    const duration = allStatNames.filter(s => s === 'duration_s');
+    const inputs = allStatNames.filter(s => s.startsWith('input_'));
+    const outputs = allStatNames.filter(s => s.startsWith('output_'));
+    const defaultNames = [...duration, ...inputs, ...outputs];
     const defaults = new Set(defaultNames);
     if (defaults.size > 0) {
       setSelectedStats(defaults);
-      // Put default columns first in the ordering
       const rest = allStatNames.filter(s => !defaults.has(s));
       setStatOrder([...defaultNames, ...rest]);
+    } else {
+      // No matching defaults — show all
+      setSelectedStats(null);
+      setStatOrder(null);
     }
   }, [allStatNames]);
 
@@ -428,13 +469,20 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
     const result: PivotedRow[] = [];
     for (const group of groups.values()) {
-      const aggs = new Map<string, { sum: number | null; mean: number | null; count: number; isNumeric: boolean }>();
+      const aggs = new Map<string, { sum: number | null; mean: number | null; min: number | null; max: number | null; stdev: number | null; count: number; isNumeric: boolean }>();
       if (isAggregating) {
         for (const [stat, bucket] of group.aggBuckets) {
           const hasNum = bucket.nums.length > 0;
           const sum = hasNum ? bucket.nums.reduce((a, b) => a + b, 0) : null;
           const mean = hasNum ? sum! / bucket.nums.length : null;
-          aggs.set(stat, { sum, mean, count: bucket.count, isNumeric: hasNum });
+          const min = hasNum ? Math.min(...bucket.nums) : null;
+          const max = hasNum ? Math.max(...bucket.nums) : null;
+          let stdev: number | null = null;
+          if (mean !== null && bucket.nums.length > 1) {
+            const variance = bucket.nums.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (bucket.nums.length - 1);
+            stdev = Math.sqrt(variance);
+          }
+          aggs.set(stat, { sum, mean, min, max, stdev, count: bucket.count, isNumeric: hasNum });
         }
       }
       result.push({
@@ -514,10 +562,16 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [hoveredOperatorId, sortedRows]);
 
   const hasSelection = selectedNodeIds.size > 0;
+  const parentPlanLevelLabel = useMemo(() => {
+    for (const row of flatRows) {
+      if (row.parentPlanLevel !== '-') return row.parentPlanLevel;
+    }
+    return 'Parent';
+  }, [flatRows]);
   const indexLabels: Record<IndexKey, React.ReactNode> = {
     worker_plan: 'Worker / Plan',
-    parent_operator_type: 'Parent Operator Type',
-    parent_operator: 'Parent Operator Instance',
+    parent_operator_type: <><code className="font-mono text-data">{parentPlanLevelLabel}</code> Operator Type</>,
+    parent_operator: <><code className="font-mono text-data">{parentPlanLevelLabel}</code> Operator Instance</>,
     operator_type: 'Operator Type',
     operator: 'Operator Instance',
   };
@@ -551,7 +605,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           {isAggregating && (
             <>
               <span className="text-xs text-muted-foreground shrink-0 ml-2">Show:</span>
-              {(['sum', 'mean'] as AggMode[]).map(mode => (
+              {(['sum', 'mean', 'min', 'max', 'stdev'] as AggMode[]).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setAggMode(mode)}
@@ -646,11 +700,14 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                   onDragOver={e => handleStatDragOver(e, stat)}
                   onDragEnd={handleStatDragEnd}
                   onClick={() => handleSort(stat)}
+                  onMouseEnter={() => setHoveredStat(buildHoveredStatInfo(stat))}
+                  onMouseLeave={() => setHoveredStat(null)}
                   className={cn(
                     'text-right px-3 py-2 font-medium font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
                     draggedStat === stat && 'opacity-50',
                     sortColumn === stat && 'text-foreground',
                   )}
+                  style={hoveredStat?.name === stat ? { boxShadow: 'inset 0 0 0 999px hsl(var(--primary) / 0.1)' } : undefined}
                 >
                   {stat}
                   {sortColumn === stat && (
@@ -708,6 +765,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                     const numVal = getSortValue(row, stat, isAggregating, aggMode);
                     const range = columnRanges.get(stat);
                     const bg = numVal !== null && range ? gradientBg(numVal, range.min, range.max) : undefined;
+                    const isStatHovered = hoveredStat?.name === stat;
+                    const colHighlight = isStatHovered ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)' : undefined;
+                    const statCellProps = {
+                      onMouseEnter: () => setHoveredStat(buildHoveredStatInfo(stat)),
+                      onMouseLeave: () => setHoveredStat(null),
+                    };
 
                     if (!isAggregating) {
                       const val = row.values.get(stat) ?? null;
@@ -715,7 +778,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                         <td
                           key={stat}
                           className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
-                          style={bg ? { backgroundColor: bg } : undefined}
+                          style={{ backgroundColor: bg, boxShadow: colHighlight }}
+                          {...statCellProps}
                         >
                           {formatStatValue(val, stat)}
                         </td>
@@ -724,17 +788,18 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                     const agg = row.aggs.get(stat);
                     if (!agg || !agg.isNumeric) {
                       return (
-                        <td key={stat} className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground">
+                        <td key={stat} className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground" style={{ boxShadow: colHighlight }} {...statCellProps}>
                           -
                         </td>
                       );
                     }
-                    const displayVal = aggMode === 'sum' ? agg.sum : agg.mean;
+                    const displayVal = agg[aggMode as Exclude<AggMode, 'value'>] ?? null;
                     return (
                       <td
                         key={stat}
                         className="px-3 py-1.5 whitespace-nowrap text-right font-mono"
-                        style={bg ? { backgroundColor: bg } : undefined}
+                        style={{ backgroundColor: bg, boxShadow: colHighlight }}
+                        {...statCellProps}
                       >
                         {formatStatNumber(displayVal, stat)}
                       </td>

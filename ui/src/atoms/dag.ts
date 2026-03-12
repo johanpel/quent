@@ -25,3 +25,13 @@ export const hoveredOperatorIdAtom = atom<string | null>(null);
 
 /** Full info for the operator being hovered in the DAG (drives the stats overlay) */
 export const hoveredOperatorInfoAtom = atom<HoveredOperatorInfo | null>(null);
+
+/** Stat column being hovered in the table — drives DAG heatmap coloring */
+export interface HoveredStatInfo {
+  name: string;
+  /** operator ID → numeric value for this stat */
+  values: Map<string, number>;
+  min: number;
+  max: number;
+}
+export const hoveredStatAtom = atom<HoveredStatInfo | null>(null);
