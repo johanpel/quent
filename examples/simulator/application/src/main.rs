@@ -80,7 +80,7 @@ fn initialize_tracing() {
 }
 
 fn sleep_fixed(micros: u64) {
-    std::thread::sleep(Duration::from_micros(micros));
+    std::thread::sleep(Duration::from_micros(micros * 4));
 }
 
 /// Atomically subtract `val` from `counter`, clamping at 0 to prevent
@@ -99,7 +99,7 @@ fn saturating_sub(counter: &AtomicU64, val: u64) {
 /// Sleep proportional to the number of bytes being processed.
 fn sleep_proportional(bytes: u64) {
     let mib = (bytes / (1024 * 1024)).max(1);
-    let micros = 5 + mib / 4;
+    let micros = 100 + mib * 8;
     std::thread::sleep(Duration::from_micros(micros));
 }
 
@@ -107,9 +107,9 @@ fn sleep_proportional(bytes: u64) {
 fn sleep_sometimes_slow(bytes: u64) {
     let mib = (bytes / (1024 * 1024)).max(1);
     std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        10 + mib
+        500 + mib * 40
     } else {
-        5 + mib / 4
+        100 + mib * 8
     }));
 }
 
@@ -366,7 +366,7 @@ impl<T: Debug> Plan<T> {
 // Create the following logical plan:
 // Scan -> Project \                        Scan -> Project \
 //                  -> Join -> Aggregate                    -> Join -> Aggregate -> Filter -> Udf \
-// Scan -> Project /                        Scan -> Project /                                     -> Join -> Sort -> Limit -> Output
+// Scan -> Project /                        Scan -> Project /                                     -> Join -> Filter -> Udf -> Aggregate -> Sort -> Limit -> Output
 //                                                                                Scan -> Project /
 // Each Scan -> Project lowers to: FileSystemScan -> GpuDecode
 fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
@@ -420,8 +420,18 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
     let project_e = add_scan_project_branch(&mut dag);
     let join_lookup = add_join(&mut dag, udf, project_e);
 
+    // Post-join processing before final sort
+    let post_filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
+    dag.add_edge(join_lookup, post_filter, Edge::new("out", "in"));
+
+    let post_udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
+    dag.add_edge(post_filter, post_udf, Edge::new("out", "in"));
+
+    let post_aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(post_udf, post_aggregate, Edge::new("out", "in"));
+
     let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(join_lookup, sort, Edge::new("out", "in"));
+    dag.add_edge(post_aggregate, sort, Edge::new("out", "in"));
 
     let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
     dag.add_edge(sort, limit, Edge::new("out", "in"));
@@ -894,7 +904,7 @@ impl Worker {
                 instance_name: format!("task-{}", work.task_index),
             },
         );
-        sleep_fixed(25);
+        sleep_fixed(50);
 
         // FileSystemScan: create a batch from storage (heavy I/O).
         // Each scan has a different size distribution derived from its
@@ -902,9 +912,9 @@ impl Worker {
         let mut input_batches = if operator.kind == Physical::FileSystemScan {
             let batch_id = Uuid::now_v7();
             let skew = (operator.id.as_bytes()[0] % 5) as u64 + 1; // 1-5x scale
-            let base_bytes = rng().random_range(8..64) * 1024 * 1024;
+            let base_bytes = rng().random_range(32..128) * 1024 * 1024;
             let batch_bytes = base_bytes * skew;
-            let batch_rows = rng().random_range(1024..16384) * skew;
+            let batch_rows = rng().random_range(8192..65536) * skew;
             batch_obs.init(
                 batch_id,
                 data_batch::Init {
@@ -1095,22 +1105,16 @@ impl Worker {
         }
 
         // Compute time scales with operator complexity and GPU availability.
-        let compute_multiplier = match operator.kind {
-            Physical::JoinLocal => 4,
-            Physical::Udf => 3,
-            Physical::Aggregate => 3,
-            Physical::GpuDecode => 2,
-            Physical::Sort => 2,
-            Physical::JoinPartition => 2,
-            _ => 1,
-        };
+        let compute_multiplier: u64 = 1;
         let gpu_multiplier: u64 = if gpu.is_some() {
             match operator.kind {
-                Physical::JoinLocal => 6,
-                Physical::Udf => 5,
-                Physical::GpuDecode => 4,
-                Physical::Sort => 3,
-                Physical::JoinPartition => 2,
+                Physical::JoinLocal => 8,   // GPU hash join kernels
+                Physical::Sort => 6,        // GPU merge sort kernels
+                Physical::Udf => 5,         // GPU UDF execution
+                Physical::GpuDecode => 4,   // GPU decompression
+                Physical::Aggregate => 4,   // GPU aggregation kernels
+                Physical::JoinPartition => 3, // GPU hashing
+                Physical::Filter => 2,      // GPU predicate eval
                 _ => 1,
             }
         } else {
