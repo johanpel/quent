@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom } from '@/atoms/dag';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryBundle } from '~quent/types/QueryBundle';
@@ -16,6 +16,7 @@ type SortDir = 'asc' | 'desc';
 interface FlatRow {
   workerPlanId: string;
   workerPlanLabel: string;
+  planId: string;
   operatorType: string;
   operatorName: string;
   operatorId: string;
@@ -36,6 +37,8 @@ interface PivotedRow {
   aggs: Map<string, { sum: number | null; mean: number | null; count: number; isNumeric: boolean }>;
   operatorIds: Set<string>;
   operatorType: string;
+  /** Map from operator ID to the plan ID it belongs to */
+  operatorPlanIds: Map<string, string>;
 }
 
 // --- formatting ---
@@ -150,7 +153,7 @@ interface OperatorTableProps {
 }
 
 export function OperatorTable({ queryBundle }: OperatorTableProps) {
-  const selectedPlanId = useAtomValue(selectedPlanIdAtom);
+  const [selectedPlanId, setSelectedPlanId] = useAtom(selectedPlanIdAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const hoveredOperatorId = useAtomValue(hoveredOperatorIdAtom);
   const setHoveredOperatorId = useSetAtom(hoveredOperatorIdAtom);
@@ -263,7 +266,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       for (const op of ops) {
         const operatorName = op.instance_name ?? op.id;
         const operatorType = op.operator_type_name ?? '-';
-        const base = { workerPlanId, workerPlanLabel, operatorType, operatorName, operatorId: op.id };
+        const base = { workerPlanId, workerPlanLabel, planId: plan.id, operatorType, operatorName, operatorId: op.id };
 
         const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
         rows.push({ ...base, statisticName: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null });
@@ -350,6 +353,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       values: Map<string, StatValue>;
       aggBuckets: Map<string, { nums: number[]; count: number }>;
       opIds: Set<string>;
+      opPlanIds: Map<string, string>;
       operatorType: string;
     };
 
@@ -365,11 +369,13 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           values: new Map(),
           aggBuckets: new Map(),
           opIds: new Set(),
+          opPlanIds: new Map(),
           operatorType: row.operatorType,
         };
         groups.set(rk, group);
       }
       group.opIds.add(row.operatorId);
+      group.opPlanIds.set(row.operatorId, row.planId);
 
       if (!isAggregating) {
         group.values.set(row.statisticName, row.value);
@@ -403,6 +409,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
         values: group.values,
         aggs,
         operatorIds: group.opIds,
+        operatorPlanIds: group.opPlanIds,
         operatorType: group.operatorType,
       });
     }
@@ -611,6 +618,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               const isDimmed = hasSelection && !isSelected && !isHoveredFromDag;
               // Pick a representative operator ID for hover (first in set)
               const firstOpId = row.operatorIds.size === 1 ? [...row.operatorIds][0] : null;
+              const firstOpPlanId = firstOpId ? row.operatorPlanIds.get(firstOpId) : undefined;
 
               return (
                 <tr
@@ -633,7 +641,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                         )}
                         rowSpan={spans[col]!}
                         style={gk.key === 'operator_type' ? { borderLeftWidth: 8, borderLeftColor: operatorTypeColor(row.operatorType), backgroundColor: `color-mix(in srgb, ${operatorTypeColor(row.operatorType)} 15%, transparent)` } : undefined}
-                        onMouseEnter={gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(firstOpId) : undefined}
+                        onMouseEnter={gk.key === 'operator' && firstOpId ? () => {
+                          if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
+                            setSelectedPlanId(firstOpPlanId);
+                          }
+                          setHoveredOperatorId(firstOpId);
+                        } : undefined}
                         onMouseLeave={gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(prev => prev === firstOpId ? null : prev) : undefined}
                       >
                         {gk.label}

@@ -63,6 +63,11 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
     initialSelectedItemId
   );
 
+  // Sync internal selection when the prop changes externally (e.g. from atom)
+  React.useEffect(() => {
+    setSelectedItemId(initialSelectedItemId);
+  }, [initialSelectedItemId]);
+
   const [draggedItem, setDraggedItem] = React.useState<T | null>(null);
 
   const handleSelectChange = React.useCallback(
@@ -238,6 +243,14 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   level?: number;
 }) {
   const [value, setValue] = React.useState(expandedItemIds.includes(item.id) ? [item.id] : []);
+
+  // Expand this node when it appears in expandedItemIds (e.g. external plan switch)
+  React.useEffect(() => {
+    if (expandedItemIds.includes(item.id)) {
+      setValue(prev => prev.includes(item.id) ? prev : [item.id]);
+    }
+  }, [expandedItemIds, item.id]);
+
   const [isDragOver, setIsDragOver] = React.useState(false);
   const hasChildren = !!item.children?.length;
   const isSelected = selectedItemId === item.id;
