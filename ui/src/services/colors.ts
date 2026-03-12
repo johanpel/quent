@@ -28,17 +28,29 @@ export const PALETTES = {
     '#9a60b4', // Purple
     '#ea7ccc', // Pink
   ],
-  /** Tol qualitative colorblind-friendly palette */
+  /** Muted qualitative palette — light mode */
   extended: [
-    '#44AA99', // Teal
-    '#CC6677', // Rose
-    '#332288', // Indigo
-    '#DDCC77', // Sand
-    '#AA4499', // Purple
-    '#88CCEE', // Cyan
-    '#882255', // Wine
-    '#88AA55', // Muted Lime
-    '#666666', // Grey
+    '#3D9485', // Teal
+    '#B85858', // Coral Red
+    '#4A68AA', // Steel Blue
+    '#B8A85E', // Sand
+    '#9466BB', // Violet
+    '#6BA8C8', // Cyan
+    '#B87A44', // Amber
+    '#6E8C44', // Muted Lime
+    '#808080', // Grey
+  ],
+  /** Qualitative palette — dark mode (muted, lower contrast) */
+  extendedDark: [
+    '#3D9485', // Teal
+    '#B85858', // Coral Red
+    '#4A68AA', // Steel Blue
+    '#B8A85E', // Sand
+    '#9466BB', // Violet
+    '#6BA8C8', // Cyan
+    '#B87A44', // Amber
+    '#6E8C44', // Muted Lime
+    '#808080', // Grey
   ],
 } as const;
 
@@ -48,10 +60,19 @@ export type ChartColor = string;
 // Current active palette
 let activePalette: PaletteName = 'extended';
 
+function isDarkMode(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+}
+
 /**
- * Get the currently active palette.
+ * Get the currently active palette, respecting light/dark mode.
+ * When the active palette is 'extended', automatically switches to
+ * 'extendedDark' in dark mode.
  */
 export function getActivePalette(): readonly string[] {
+  if (activePalette === 'extended' && isDarkMode()) {
+    return PALETTES.extendedDark;
+  }
   return PALETTES[activePalette];
 }
 

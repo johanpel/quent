@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { resetColorAssignments } from '@/services/colors';
 
 export const THEME_LIGHT = 'light';
 export const THEME_DARK = 'dark';
@@ -29,6 +30,7 @@ function syncThemeToDocument(theme: Theme) {
   if (typeof document !== 'undefined') {
     document.documentElement.classList.toggle(THEME_DARK, theme === THEME_DARK);
   }
+  resetColorAssignments();
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch {
