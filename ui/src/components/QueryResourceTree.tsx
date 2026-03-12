@@ -10,6 +10,8 @@ import { EntityRefKey } from '@/types';
 import { TreeTableItem } from './resource-tree/types';
 import { ResourceColumn } from './resource-tree/ResourceColumn';
 import { UsageColumn } from './resource-tree/UsageColumn';
+import { BarChart3 } from 'lucide-react';
+import { DEFAULT_TIMELINE_HEIGHT } from './timeline/types';
 import { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
 import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
@@ -28,11 +30,44 @@ import {
 } from '@/atoms/timeline';
 import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
+import {
+  OperatorGanttChart,
+  getWorkerIdsFromPlanTree,
+  operatorTimelineRowId,
+  operatorsWithActiveSpansForWorker,
+  workerIdFromOperatorTimelineRowId,
+} from './operator-timeline';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
   const [, entityId] = Object.entries(resourceTree.ResourceGroup.id)[0] as [EntityRefKey, string];
   return entityId;
+}
+
+/** Create the synthetic operator-timeline row for a worker. Defaults to collapsed (no children). */
+function createOperatorTimelineRow(workerId: string): TreeTableItem {
+  return {
+    id: operatorTimelineRowId(workerId),
+    type: 'operator-timeline',
+    entity: {} as TreeTableItem['entity'],
+    icon: BarChart3,
+  };
+}
+
+/**
+ * Inject an expandable "Operator timeline" row under each resource whose id matches a plan_tree worker.
+ * Injected rows default to collapsed.
+ */
+function injectOperatorTimelineRows(item: TreeTableItem, workerIds: Set<string>): TreeTableItem {
+  const transformedChildren = item.children?.map(child =>
+    injectOperatorTimelineRows(child, workerIds)
+  );
+  if (!workerIds.has(item.id)) {
+    return transformedChildren?.length ? { ...item, children: transformedChildren } : { ...item };
+  }
+  const operatorTimelineRow = createOperatorTimelineRow(item.id);
+  const children = [operatorTimelineRow, ...(transformedChildren ?? [])];
+  return { ...item, children };
 }
 
 interface QueryResourceTreeProps {
@@ -157,7 +192,24 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     placeholderData: keepPreviousData,
   });
 
-  const treeData = useMemo(() => [rootItem], [rootItem]);
+  const workerIdsFromPlanTree = useMemo(
+    () => new Set(getWorkerIdsFromPlanTree(queryBundle.plan_tree)),
+    [queryBundle.plan_tree]
+  );
+
+  const treeData = useMemo(
+    () => [injectOperatorTimelineRows(rootItem, workerIdsFromPlanTree)],
+    [rootItem, workerIdsFromPlanTree]
+  );
+
+  /** Operator entries per worker id (for expandable gantt under each worker resource). */
+  const operatorEntriesByWorker = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof operatorsWithActiveSpansForWorker>>();
+    for (const workerId of workerIdsFromPlanTree) {
+      map.set(workerId, operatorsWithActiveSpansForWorker(queryBundle, startTime, workerId));
+    }
+    return map;
+  }, [queryBundle, startTime, workerIdsFromPlanTree]);
 
   const columns = useMemo(() => {
     return [
@@ -173,20 +225,23 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           item: TreeTableItem;
           level: number;
           isExpanded: boolean;
-        }) => (
-          <ResourceColumn
-            item={item}
-            isExpanded={isExpanded}
-            selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
-            onTypeChange={(itemId, newType) => {
-              setSelectedTypes(prev => new Map(prev).set(itemId, newType));
-              if (itemId === rootItem.id) {
-                setRootResourceType(newType);
-              }
-            }}
-            entities={entities}
-          />
-        ),
+        }) =>
+          item.type === 'operator-timeline' ? (
+            <div className="flex items-center gap-2 py-2 text-foreground"></div>
+          ) : (
+            <ResourceColumn
+              item={item}
+              isExpanded={isExpanded}
+              selectedType={selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''}
+              onTypeChange={(itemId, newType) => {
+                setSelectedTypes(prev => new Map(prev).set(itemId, newType));
+                if (itemId === rootItem.id) {
+                  setRootResourceType(newType);
+                }
+              }}
+              entities={entities}
+            />
+          ),
       },
       {
         key: 'usage',
@@ -202,17 +257,32 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             />
           </div>
         ),
-        render: ({ item, isExpanded }: { item: TreeTableItem; isExpanded: boolean }) => (
-          <UsageColumn
-            item={item}
-            isExpanded={isExpanded}
-            engineId={engineId}
-            queryBundle={queryBundle}
-            selectedTypes={selectedTypes}
-            startTime={startTime}
-            durationSeconds={durationSeconds}
-          />
-        ),
+        render: ({ item, isExpanded }: { item: TreeTableItem; isExpanded: boolean }) =>
+          item.type === 'operator-timeline' ? (
+            <div className="h-full w-full" style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}>
+              <OperatorGanttChart
+                operators={
+                  workerIdFromOperatorTimelineRowId(item.id) != null
+                    ? (operatorEntriesByWorker.get(workerIdFromOperatorTimelineRowId(item.id)!) ??
+                      [])
+                    : []
+                }
+                startTime={startTime}
+                durationSeconds={durationSeconds}
+                height={DEFAULT_TIMELINE_HEIGHT * 1.2}
+              />
+            </div>
+          ) : (
+            <UsageColumn
+              item={item}
+              isExpanded={isExpanded}
+              engineId={engineId}
+              queryBundle={queryBundle}
+              selectedTypes={selectedTypes}
+              startTime={startTime}
+              durationSeconds={durationSeconds}
+            />
+          ),
       },
     ] satisfies Column<TreeTableItem>[];
   }, [
@@ -224,6 +294,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     engineId,
     queryBundle,
     handleZoomChange,
+    operatorEntriesByWorker,
   ]);
 
   return (
