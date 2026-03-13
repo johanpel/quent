@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display},
     sync::atomic::{AtomicU64, AtomicUsize, Ordering},
     time::Duration,
@@ -237,6 +237,8 @@ struct WorkItem<'a> {
     shuffle_senders: Vec<&'a Sender<Batch>>,
     /// Task index for naming.
     task_index: u64,
+    /// JoinLocal nodes that use selective (non-amplifying) join logic.
+    selective_joins: &'a HashSet<NodeIndex>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1071,15 +1073,71 @@ impl Worker {
         };
         let gpu = gpu_index.map(|i: usize| &self.gpus[i]);
 
-        // Move input batch(es) to GPU memory before compute.
-        // For pipeline operators (single batch), transfer the batch.
-        // For barrier operators (many batches), skip bulk transfer —
-        // the operator streams through data with bounded GPU working memory.
-        if let Some(gpu) = gpu
-            && operator.kind.input_behavior() != InputBehavior::Barrier
-        {
-            for batch in &mut input_batches {
-                if batch.gpu_index.is_none() {
+        // Compute time scales with operator complexity and GPU availability.
+        let compute_multiplier: u64 = 1;
+        let gpu_multiplier: u64 = if gpu.is_some() {
+            match operator.kind {
+                Physical::JoinLocal => 8,   // GPU hash join kernels
+                Physical::Sort => 6,        // GPU merge sort kernels
+                Physical::Udf => 5,         // GPU UDF execution
+                Physical::GpuDecode => 4,   // GPU decompression
+                Physical::Aggregate => 4,   // GPU aggregation kernels
+                Physical::JoinPartition => 3, // GPU hashing
+                Physical::Filter => 0,      // GPU predicate eval (trivial bitmask)
+                _ => 1,
+            }
+        } else {
+            0
+        };
+        let multiplier = compute_multiplier + gpu_multiplier;
+        // GPU working memory for scratch buffers, intermediate results, etc.
+        let gpu_working_memory_bytes = gpu.map_or(0, |_| working_memory_bytes);
+        let consumes_input = !matches!(
+            operator.kind,
+            Physical::FileSystemScan | Physical::GpuDecode | Physical::Output
+        );
+
+        let is_barrier = operator.kind.input_behavior() == InputBehavior::Barrier;
+
+        if let Some(gpu) = gpu && is_barrier {
+            // Barrier operators stream through input in GPU-memory-sized chunks.
+            // Reserve working memory for the entire barrier operation.
+            gpu.memory_used
+                .fetch_add(gpu_working_memory_bytes, Ordering::Relaxed);
+
+            let mut chunk_start = 0;
+            while chunk_start < input_batches.len() {
+                // Recalculate budget each iteration — GPU memory frees up as
+                // consumed/spilled batches are released between chunks.
+                let gpu_budget = GPU_MEMORY_CAPACITY.saturating_sub(
+                    gpu.memory_used.load(Ordering::Relaxed)
+                );
+
+                // Fill a chunk that fits within the GPU memory budget.
+                let mut chunk_bytes: u64 = 0;
+                let mut chunk_end = chunk_start;
+                while chunk_end < input_batches.len() {
+                    let next_bytes = input_batches[chunk_end].bytes;
+                    if chunk_end > chunk_start && chunk_bytes + next_bytes > gpu_budget {
+                        break; // Would exceed budget; stop (but always take at least one).
+                    }
+                    chunk_bytes += next_bytes;
+                    chunk_end += 1;
+                }
+
+                // --- Loading phase: move chunk batches to GPU ---
+                obs.task_loading(
+                    task_id,
+                    task::Loading {
+                        use_thread: thread,
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: 0,
+                    },
+                );
+                for batch in &mut input_batches[chunk_start..chunk_end] {
+                    if batch.gpu_index.is_some() {
+                        continue; // Already on GPU.
+                    }
                     // Reload from storage if needed.
                     if batch.in_storage {
                         batch_obs.loading_to_host_memory(
@@ -1121,67 +1179,145 @@ impl Worker {
                     );
                     batch.gpu_index = gpu_index;
                 }
-            }
-        }
 
-        // Compute time scales with operator complexity and GPU availability.
-        let compute_multiplier: u64 = 1;
-        let gpu_multiplier: u64 = if gpu.is_some() {
-            match operator.kind {
-                Physical::JoinLocal => 8,   // GPU hash join kernels
-                Physical::Sort => 6,        // GPU merge sort kernels
-                Physical::Udf => 5,         // GPU UDF execution
-                Physical::GpuDecode => 4,   // GPU decompression
-                Physical::Aggregate => 4,   // GPU aggregation kernels
-                Physical::JoinPartition => 3, // GPU hashing
-                Physical::Filter => 2,      // GPU predicate eval
-                _ => 1,
-            }
-        } else {
-            0
-        };
-        // GPU working memory for scratch buffers, intermediate results, etc.
-        let gpu_working_memory_bytes = gpu.map_or(0, |_| working_memory_bytes);
-        // Track GPU working memory pressure during compute.
-        if let Some(gpu) = gpu {
-            gpu.memory_used
-                .fetch_add(gpu_working_memory_bytes, Ordering::Relaxed);
-        }
-        obs.task_computing(
-            task_id,
-            task::Computing {
-                use_thread: thread,
-                use_host_memory: self.host_memory,
-                use_host_memory_bytes: if use_gpu { 0 } else { working_memory_bytes },
-                use_gpu_compute: gpu.map_or(Uuid::nil(), |g| g.compute),
-                use_gpu_memory: gpu.map_or(Uuid::nil(), |g| g.memory),
-                use_gpu_memory_bytes: gpu_working_memory_bytes,
-            },
-        );
-        // For operators that consume input (not scan/decode/output which
-        // forward or write batches directly), release each input batch's
-        // memory during compute so the decrease is gradual.
-        let multiplier = compute_multiplier + gpu_multiplier;
-        let consumes_input = !matches!(
-            operator.kind,
-            Physical::FileSystemScan | Physical::GpuDecode | Physical::Output
-        );
-        if consumes_input {
-            for batch in &input_batches {
-                sleep_proportional(batch.bytes * multiplier);
-                if let Some(gi) = batch.gpu_index {
-                    saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
-                } else if !batch.in_storage {
-                    saturating_sub(&self.host_memory_used, batch.bytes);
+                // --- Computing phase: process the chunk ---
+                obs.task_computing(
+                    task_id,
+                    task::Computing {
+                        use_thread: thread,
+                        use_host_memory: self.host_memory,
+                        use_host_memory_bytes: 0,
+                        use_gpu_compute: gpu.compute,
+                        use_gpu_memory: gpu.memory,
+                        use_gpu_memory_bytes: gpu_working_memory_bytes,
+                    },
+                );
+                if consumes_input {
+                    for batch in &input_batches[chunk_start..chunk_end] {
+                        sleep_proportional(batch.bytes * multiplier);
+                        if let Some(gi) = batch.gpu_index {
+                            saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
+                        }
+                        batch_obs.exit(batch.id);
+                    }
+                } else {
+                    sleep_proportional(chunk_bytes * multiplier);
+
+                    // --- Spilling phase: evict chunk batches from GPU ---
+                    obs.task_spilling(task_id, task::Spilling { use_thread: thread });
+                    for batch in &mut input_batches[chunk_start..chunk_end] {
+                        if batch.gpu_index.is_none() {
+                            continue;
+                        }
+                        saturating_sub(&gpu.memory_used, batch.bytes);
+                        self.host_memory_used
+                            .fetch_add(batch.bytes, Ordering::Relaxed);
+                        batch_obs.spilling_to_host_memory(
+                            batch.id,
+                            data_batch::SpillingToHostMemory {
+                                use_gpu_to_host_mem: gpu.gpu_to_host_mem,
+                                use_gpu_to_host_mem_bytes: batch.bytes,
+                            },
+                        );
+                        sleep_proportional(batch.bytes);
+                        batch_obs.in_host_memory(
+                            batch.id,
+                            data_batch::InHostMemory {
+                                use_host_memory: self.host_memory,
+                                use_host_memory_bytes: batch.bytes,
+                            },
+                        );
+                        batch.gpu_index = None;
+                    }
                 }
-                batch_obs.exit(batch.id);
+
+                chunk_start = chunk_end;
             }
-        } else {
-            sleep_proportional(total_batch_bytes * multiplier);
-        }
-        // Release GPU working memory after compute.
-        if let Some(gpu) = gpu {
+
+            // Release GPU working memory after all chunks processed.
             saturating_sub(&gpu.memory_used, gpu_working_memory_bytes);
+        } else {
+            // Non-barrier (streaming/pipeline) operators: load all batches to GPU, then compute.
+            if let Some(gpu) = gpu {
+                for batch in &mut input_batches {
+                    if batch.gpu_index.is_none() {
+                        // Reload from storage if needed.
+                        if batch.in_storage {
+                            batch_obs.loading_to_host_memory(
+                                batch.id,
+                                data_batch::LoadingToHostMemory {
+                                    use_storage_to_host: self.storage_to_host,
+                                    use_storage_to_host_bytes: batch.bytes,
+                                },
+                            );
+                            sleep_proportional(batch.bytes);
+                            self.host_memory_used
+                                .fetch_add(batch.bytes, Ordering::Relaxed);
+                            batch_obs.in_host_memory(
+                                batch.id,
+                                data_batch::InHostMemory {
+                                    use_host_memory: self.host_memory,
+                                    use_host_memory_bytes: batch.bytes,
+                                },
+                            );
+                            batch.in_storage = false;
+                        }
+                        // Transfer host → GPU.
+                        batch_obs.loading_to_gpu_memory(
+                            batch.id,
+                            data_batch::LoadingToGpuMemory {
+                                use_host_mem_to_gpu: gpu.host_mem_to_gpu,
+                                use_host_mem_to_gpu_bytes: batch.bytes,
+                            },
+                        );
+                        sleep_proportional(batch.bytes);
+                        saturating_sub(&self.host_memory_used, batch.bytes);
+                        gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
+                        batch_obs.in_gpu_memory(
+                            batch.id,
+                            data_batch::InGpuMemory {
+                                use_gpu_memory: gpu.memory,
+                                use_gpu_memory_bytes: batch.bytes,
+                            },
+                        );
+                        batch.gpu_index = gpu_index;
+                    }
+                }
+            }
+
+            // Track GPU working memory pressure during compute.
+            if let Some(gpu) = gpu {
+                gpu.memory_used
+                    .fetch_add(gpu_working_memory_bytes, Ordering::Relaxed);
+            }
+            obs.task_computing(
+                task_id,
+                task::Computing {
+                    use_thread: thread,
+                    use_host_memory: self.host_memory,
+                    use_host_memory_bytes: if use_gpu { 0 } else { working_memory_bytes },
+                    use_gpu_compute: gpu.map_or(Uuid::nil(), |g| g.compute),
+                    use_gpu_memory: gpu.map_or(Uuid::nil(), |g| g.memory),
+                    use_gpu_memory_bytes: gpu_working_memory_bytes,
+                },
+            );
+            if consumes_input {
+                for batch in &input_batches {
+                    sleep_proportional(batch.bytes * multiplier);
+                    if let Some(gi) = batch.gpu_index {
+                        saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
+                    } else if !batch.in_storage {
+                        saturating_sub(&self.host_memory_used, batch.bytes);
+                    }
+                    batch_obs.exit(batch.id);
+                }
+            } else {
+                sleep_proportional(total_batch_bytes * multiplier);
+            }
+            // Release GPU working memory after compute.
+            if let Some(gpu) = gpu {
+                saturating_sub(&gpu.memory_used, gpu_working_memory_bytes);
+            }
         }
 
         // Only spill GPU→host when GPU memory exceeds threshold.
@@ -1310,13 +1446,11 @@ impl Worker {
                 }
             }
             _ => {
-                // For barrier operators that use GPU, output goes to the
-                // selected GPU even though input wasn't bulk-transferred.
-                let last_gpu_index: Option<usize> = if operator.kind.input_behavior() == InputBehavior::Barrier {
-                    gpu_index
-                } else {
-                    input_batches.last().and_then(|b| b.gpu_index)
-                };
+                // Output batches go to the same GPU as the last input batch
+                // (or the selected GPU for barrier operators whose input
+                // batches were already evicted after chunked processing).
+                let last_gpu_index: Option<usize> =
+                    input_batches.last().and_then(|b| b.gpu_index).or(gpu_index);
                 // Track input stats (memory already released during compute).
                 for batch in &input_batches {
                     operator.batches_in.fetch_add(1, Ordering::Relaxed);
@@ -1329,8 +1463,15 @@ impl Worker {
                 for in_batch in &input_batches {
                     let (output_bytes, output_rows) = match operator.kind {
                         Physical::JoinLocal => {
-                            let factor = rng().random_range(1..4);
-                            (factor * in_batch.bytes, factor * in_batch.rows)
+                            if work.selective_joins.contains(&work.operator_node) {
+                                // Selective join: output ≈ input (dimension lookup, equi-join)
+                                let keep = rng().random_range(70..100);
+                                (in_batch.bytes * keep / 100, in_batch.rows * keep / 100)
+                            } else {
+                                // Amplifying join: many-to-many / cross join
+                                let factor = rng().random_range(2..5);
+                                (factor * in_batch.bytes, factor * in_batch.rows)
+                            }
                         }
                         Physical::Aggregate => {
                             let denom = rng().random_range(5..15);
@@ -1563,6 +1704,25 @@ impl Worker {
 
         if physical_plan.execute {
             let plan = &physical_plan;
+
+            // Determine which JoinLocal nodes are selective (non-amplifying).
+            // All JoinLocal nodes except one early branch join are selective.
+            // The early branch join (first in topo order) acts as the
+            // amplifying many-to-many join; later joins and the final
+            // dimension lookup join are selective equi-joins.
+            let join_local_nodes: Vec<NodeIndex> = nodes
+                .iter()
+                .filter(|&&n| plan.dag[n].kind == Physical::JoinLocal)
+                .copied()
+                .collect();
+            let selective_joins: HashSet<NodeIndex> = if join_local_nodes.len() > 1 {
+                // Skip the first JoinLocal in topo order (an early branch
+                // join) — it becomes the amplifying cross join.
+                join_local_nodes[1..].iter().copied().collect()
+            } else {
+                HashSet::new()
+            };
+            let selective_joins = &selective_joins;
 
             // Create a channel for each DAG edge. Batches flow from source
             // operator to target operator through these channels.
@@ -1870,6 +2030,7 @@ impl Worker {
                                     output_senders: outputs.clone(),
                                     shuffle_senders: vec![],
                                     task_index: idx,
+                                    selective_joins,
                                 });
                                 *demand.get_mut(&node_idx).unwrap() -= 1;
                                 *dispatched.get_mut(&node_idx).unwrap() += 1;
@@ -1951,6 +2112,7 @@ impl Worker {
                                                 output_senders: outputs.clone(),
                                                 shuffle_senders: shuffle_tx.clone(),
                                                 task_index: idx,
+                                                selective_joins,
                                             });
                                             *dispatched.get_mut(&node_idx).unwrap() += 1;
                                         }
@@ -2016,6 +2178,7 @@ impl Worker {
                                                 output_senders: outputs.clone(),
                                                 shuffle_senders: shuffle_tx,
                                                 task_index: idx,
+                                                selective_joins,
                                             });
                                             *demand.get_mut(&node_idx).unwrap() -= 1;
                                             *dispatched.get_mut(&node_idx).unwrap() += 1;

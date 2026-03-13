@@ -185,7 +185,7 @@ impl TaskBuilder {
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<Task> {
-        let transitions: SmallVec<[TaskTransition; 4]> = self.transitions.into_inner().into();
+        let transitions: SmallVec<[TaskTransition; 8]> = self.transitions.into_inner().into();
         // TODO(johanpel): validation goes here
         Ok(Task {
             id: self.id,
@@ -197,10 +197,9 @@ impl TaskBuilder {
 #[derive(Debug)]
 pub struct Task {
     id: Uuid,
-    // common case is to at least go through:
-    // queueing -> allocating -> computing -> exit
-    // hence space for 6 entries by default
-    transitions: SmallVec<[TaskTransition; 4]>,
+    // Streaming operators: queueing → allocating → computing → exit (4 entries).
+    // Barrier operators cycle loading → computing → spilling per chunk (many more).
+    transitions: SmallVec<[TaskTransition; 8]>,
 }
 
 impl Task {
@@ -366,6 +365,10 @@ impl FsmTypeDeclaration for Task {
             FsmTransitionDecl::Transition("allocating".to_string(), "computing".to_string()),
             FsmTransitionDecl::Transition("spilling".to_string(), "loading".to_string()),
             FsmTransitionDecl::Transition("loading".to_string(), "computing".to_string()),
+            // Barrier operators cycle: loading → computing → spilling → loading …
+            FsmTransitionDecl::Transition("computing".to_string(), "loading".to_string()),
+            FsmTransitionDecl::Transition("computing".to_string(), "spilling".to_string()),
+            FsmTransitionDecl::Transition("spilling".to_string(), "computing".to_string()),
             FsmTransitionDecl::Transition("computing".to_string(), "sending".to_string()),
             FsmTransitionDecl::Transition("computing".to_string(), "exit".to_string()),
             FsmTransitionDecl::Transition("sending".to_string(), "exit".to_string()),
