@@ -75,6 +75,9 @@ export type SelectedMarkInfo = {
 };
 export const selectedMarkAtom = atom<SelectedMarkInfo | null>(null);
 
+/** Measured pixel width of the timeline plot area (excluding axes). */
+export const timelinePlotWidthAtom = atom(700);
+
 /** Tracked entity — its FSM is overlaid across all relevant timelines */
 export type TrackedEntity = {
   entityRef: FsmEntityRef;

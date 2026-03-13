@@ -28,7 +28,8 @@ import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
-const MAX_TIMELINE_BINS = 400;
+const PIXELS_PER_BIN = 4;
+const DEFAULT_PLOT_WIDTH = 700;
 const LONG_ENTITIES_BIN_MULTIPLIER = 15;
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
@@ -37,16 +38,16 @@ export function nanosToMs(ns: bigint): number {
 }
 
 /**
- * Currently static but may be used in the future to prevent sub
- * nanosecond bin sizes
+ * Number of bins = available plot width / pixels per bin.
+ * Accepts the measured plot pixel width; falls back to a sensible default.
  */
-export function getAdaptiveNumBins(): number {
-  return MAX_TIMELINE_BINS;
+export function getAdaptiveNumBins(plotWidth: number = DEFAULT_PLOT_WIDTH): number {
+  return Math.max(1, Math.floor(plotWidth / PIXELS_PER_BIN));
 }
 
 /** Threshold for "long" entities: 10x the current bin duration in seconds. */
-export function getLongEntitiesThreshold(windowSeconds: number): number {
-  const numBins = getAdaptiveNumBins();
+export function getLongEntitiesThreshold(windowSeconds: number, plotWidth?: number): number {
+  const numBins = getAdaptiveNumBins(plotWidth);
   return LONG_ENTITIES_BIN_MULTIPLIER * (windowSeconds / numBins);
 }
 

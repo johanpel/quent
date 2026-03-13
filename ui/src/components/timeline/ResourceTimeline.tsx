@@ -8,6 +8,7 @@ import {
   timelineCacheKey,
   timelineDataAtom,
   trackedEntityAtom,
+  timelinePlotWidthAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
@@ -81,6 +82,7 @@ export function ResourceTimeline({
   const bulkInitialized = useAtomValue(bulkInitializedAtom);
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
+  const plotWidth = useAtomValue(timelinePlotWidthAtom);
 
   const trackedEntity = useAtomValue(trackedEntityAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
@@ -108,18 +110,19 @@ export function ResourceTimeline({
       fsmTypeName,
       resourceTypeName,
       zoomRange,
+      plotWidth,
     ],
     queryFn: () => {
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
       const config = {
-        num_bins: getAdaptiveNumBins(),
+        num_bins: getAdaptiveNumBins(plotWidth),
         start,
         end,
       };
       const hasUnitCapacity = capacities?.some(c => c.name === 'unit') ?? false;
-      const longEntitiesThreshold = hasUnitCapacity ? getLongEntitiesThreshold(end - start) : null;
+      const longEntitiesThreshold = hasUnitCapacity ? getLongEntitiesThreshold(end - start, plotWidth) : null;
       const request: SingleTimelineRequest<QueryFilter, OperatorFilter> = {
         entry: isGroup
           ? {

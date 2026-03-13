@@ -9,7 +9,7 @@ import { CHART_GROUP } from '@/components/timeline/Timeline';
 import { nanosToMs } from '@/lib/timeline.utils';
 import { getAdaptiveNumBins } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from '@/components/timeline/useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, timelinePlotWidthAtom } from '@/atoms/timeline';
 import { getColorForKey, withOpacity } from '@/services/colors';
 import type { OperatorActiveSpanEntry } from './types';
 import { TIMELINE_SPACING } from '@/components/timeline/types';
@@ -33,10 +33,11 @@ export function OperatorHeatmapChart({
 }: OperatorHeatmapChartProps) {
   const { gridBorderColor, gridBackgroundColor, timelineMarkupColor } = useTimelineChartColors();
   const zoomRange = useAtomValue(zoomRangeAtom);
+  const plotWidth = useAtomValue(timelinePlotWidthAtom);
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
   const visibleSpanMs = (zoomRange.end - zoomRange.start) * 1_000;
-  const numBins = getAdaptiveNumBins();
+  const numBins = getAdaptiveNumBins(plotWidth);
   const bucketMs = useMemo(
     () => bucketMsProp ?? Math.max(1, visibleSpanMs / numBins),
     [bucketMsProp, visibleSpanMs, numBins]

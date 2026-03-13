@@ -23,6 +23,7 @@ import {
   bulkInitializedAtom,
   visibleEntriesAtom,
   groupFsmFiltersAtom,
+  timelinePlotWidthAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom } from '@/atoms/dag';
 import { useBulkTimelineFetch } from './useBulkTimelineFetch';
@@ -51,6 +52,7 @@ export function useBulkTimelines({
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
   const groupFsmFilters = useAtomValue(groupFsmFiltersAtom);
+  const plotWidth = useAtomValue(timelinePlotWidthAtom);
 
   useEffect(() => {
     return () => {
@@ -61,11 +63,11 @@ export function useBulkTimelines({
   const debouncedZoomRange = useAtomValue(debouncedZoomRangeAtom);
   const bulkConfig = useMemo(
     () => ({
-      num_bins: getAdaptiveNumBins(),
+      num_bins: getAdaptiveNumBins(plotWidth),
       start: debouncedZoomRange.start,
       end: debouncedZoomRange.end,
     }),
-    [debouncedZoomRange]
+    [debouncedZoomRange, plotWidth]
   );
 
   const baseVisibleEntries = useMemo(
@@ -136,7 +138,7 @@ export function useBulkTimelines({
 
       const zoom = store.get(debouncedZoomRangeAtom);
       const expandConfig = {
-        num_bins: getAdaptiveNumBins(),
+        num_bins: getAdaptiveNumBins(store.get(timelinePlotWidthAtom)),
         start: zoom.start,
         end: zoom.end,
       };

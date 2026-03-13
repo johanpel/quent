@@ -18,7 +18,7 @@ import {
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, timelinePlotWidthAtom } from '@/atoms/timeline';
 
 const CONTROLLER_HEIGHT = 50;
 const CONTROLLER_TOP_HEADROOM_RATIO = 0.2;
@@ -49,6 +49,7 @@ export function TimelineController({
   onZoomChange,
 }: TimelineControllerProps) {
   const colors = useTimelineChartColors();
+  const plotWidth = useAtomValue(timelinePlotWidthAtom);
 
   const startTimeMillis = useMemo(() => nanosToMs(startTime), [startTime]);
 
@@ -63,12 +64,12 @@ export function TimelineController({
       const values = entries.length > 0 ? entries[0][1].values : null;
       return { timestamps: ts, seriesData: values };
     } else {
-      const numBins = getAdaptiveNumBins();
+      const numBins = getAdaptiveNumBins(plotWidth);
       const binDurationMs = (durationSeconds * 1000) / numBins;
       const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, startTime, startTimeMillis, durationSeconds]);
+  }, [timelineData, startTime, startTimeMillis, durationSeconds, plotWidth]);
 
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 

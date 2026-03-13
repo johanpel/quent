@@ -36,6 +36,7 @@ import {
   engineIdAtom,
   queryIdAtom,
   trackedEntityAtom,
+  timelinePlotWidthAtom,
 } from '@/atoms/timeline';
 import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
@@ -107,6 +108,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
   ]);
 
   const groupFsmFilters = useAtomValue(groupFsmFiltersAtom);
+  const plotWidth = useAtomValue(timelinePlotWidthAtom);
 
   const rootItem = useMemo(
     () => transformResourceTree(entities, resourceTree, laneOrder),
@@ -208,7 +210,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             entity_filter: { entity_type_name: rootFsmFilter ?? null },
             app_params: { operator_id: null },
             config: {
-              num_bins: getAdaptiveNumBins(),
+              num_bins: getAdaptiveNumBins(plotWidth),
               start: 0,
               end: durationSeconds,
             },

@@ -5,7 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
 import { withOpacity, darkenColor } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
@@ -18,7 +18,7 @@ import {
 } from './types';
 import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import { zoomRangeAtom, selectedMarkAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, selectedMarkAtom, timelinePlotWidthAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -59,6 +59,7 @@ export function Timeline({
 
   const zoomRange = useAtomValue(zoomRangeAtom);
   const [selectedMark, setSelectedMark] = useAtom(selectedMarkAtom);
+  const setPlotWidthAtom = useSetAtom(timelinePlotWidthAtom);
   const selectedMarkRef = useRef(selectedMark);
   selectedMarkRef.current = selectedMark;
   const windowMsRef = useRef(0);
@@ -422,10 +423,14 @@ export function Timeline({
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
 
-    // Measure actual plot area width for accurate mark label sizing.
+    // Measure actual plot area width for accurate mark label sizing and bin count.
     const updatePlotWidth = () => {
       const width = instance.getWidth?.() ?? 0;
-      if (width > 0) plotWidthRef.current = width - 60; // subtract grid left+right (50+10)
+      if (width > 0) {
+        const pw = width - 60; // subtract grid left+right (50+10)
+        plotWidthRef.current = pw;
+        setPlotWidthAtom(pw);
+      }
     };
     updatePlotWidth();
     instance.on('finished', updatePlotWidth);

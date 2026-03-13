@@ -96,21 +96,47 @@ fn saturating_sub(counter: &AtomicU64, val: u64) {
     }
 }
 
-/// Sleep proportional to the number of bytes being processed.
-fn sleep_proportional(bytes: u64) {
+/// Simulated bandwidth limits. Each transfer type has a realistic cap.
+const STORAGE_BANDWIDTH_MBPS: u64 = 5_000; // 5 GB/s (NVMe SSD)
+const PCIE_BANDWIDTH_MBPS: u64 = 25_000; // 25 GB/s (PCIe 4.0 x16)
+const NETWORK_BANDWIDTH_MBPS: u64 = 12_000; // 12 GB/s (100 GbE)
+const COMPUTE_BANDWIDTH_MBPS: u64 = 50_000; // 50 GB/s (memory-bound compute throughput)
+
+/// Sleep to simulate a transfer at the given bandwidth (MB/s).
+fn sleep_transfer(bytes: u64, bandwidth_mbps: u64) {
     let mib = (bytes / (1024 * 1024)).max(1);
-    let micros = 100 + mib * 8;
+    // microseconds = MiB * 1_000_000 / bandwidth_mbps
+    let micros = 50 + mib * 1_000_000 / bandwidth_mbps;
     std::thread::sleep(Duration::from_micros(micros));
 }
 
-/// Occasionally a bit slower (1% of the time), otherwise proportional.
-fn sleep_sometimes_slow(bytes: u64) {
-    let mib = (bytes / (1024 * 1024)).max(1);
-    std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        500 + mib * 40
+/// Storage I/O (NVMe SSD ~5 GB/s).
+fn sleep_storage_io(bytes: u64) {
+    sleep_transfer(bytes, STORAGE_BANDWIDTH_MBPS);
+}
+
+/// PCIe transfer: host↔GPU (~25 GB/s).
+fn sleep_pcie(bytes: u64) {
+    sleep_transfer(bytes, PCIE_BANDWIDTH_MBPS);
+}
+
+/// Network transfer (~12 GB/s).
+fn sleep_network(bytes: u64) {
+    sleep_transfer(bytes, NETWORK_BANDWIDTH_MBPS);
+}
+
+/// Compute-bound processing (~50 GB/s effective throughput).
+fn sleep_compute(bytes: u64) {
+    sleep_transfer(bytes, COMPUTE_BANDWIDTH_MBPS);
+}
+
+/// Storage I/O with occasional latency spikes (1% of the time, 4x slower).
+fn sleep_storage_io_variable(bytes: u64) {
+    if rng().random_ratio(1, 100) {
+        sleep_transfer(bytes, STORAGE_BANDWIDTH_MBPS / 4);
     } else {
-        100 + mib * 8
-    }));
+        sleep_storage_io(bytes);
+    }
 }
 
 struct Operator<T: Debug> {
@@ -952,7 +978,7 @@ impl Worker {
                     use_storage_to_host_bytes: batch_bytes,
                 },
             );
-            sleep_proportional(batch_bytes * 5);
+            sleep_storage_io(batch_bytes);
             self.host_memory_used
                 .fetch_add(batch_bytes, Ordering::Relaxed);
             batch_obs.in_host_memory(
@@ -1035,7 +1061,7 @@ impl Worker {
                             use_host_to_storage_bytes: batch.bytes,
                         },
                     );
-                    sleep_proportional(batch.bytes);
+                    sleep_storage_io(batch.bytes);
                     batch_obs.in_storage(
                         batch.id,
                         data_batch::InStorage {
@@ -1044,7 +1070,7 @@ impl Worker {
                         },
                     );
                 }
-                sleep_sometimes_slow(batch_bytes);
+                sleep_storage_io_variable(batch_bytes);
             }
         }
 
@@ -1058,7 +1084,7 @@ impl Worker {
                     use_host_memory_bytes: working_memory_bytes,
                 },
             );
-            sleep_sometimes_slow(batch_bytes);
+            sleep_storage_io_variable(batch_bytes);
         }
 
         // Pick GPU if applicable. Prefer the GPU the first batch is already on.
@@ -1147,7 +1173,7 @@ impl Worker {
                                 use_storage_to_host_bytes: batch.bytes,
                             },
                         );
-                        sleep_proportional(batch.bytes);
+                        sleep_storage_io(batch.bytes);
                         self.host_memory_used
                             .fetch_add(batch.bytes, Ordering::Relaxed);
                         batch_obs.in_host_memory(
@@ -1167,7 +1193,7 @@ impl Worker {
                             use_host_mem_to_gpu_bytes: batch.bytes,
                         },
                     );
-                    sleep_proportional(batch.bytes);
+                    sleep_pcie(batch.bytes);
                     saturating_sub(&self.host_memory_used, batch.bytes);
                     gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
                     batch_obs.in_gpu_memory(
@@ -1194,14 +1220,14 @@ impl Worker {
                 );
                 if consumes_input {
                     for batch in &input_batches[chunk_start..chunk_end] {
-                        sleep_proportional(batch.bytes * multiplier);
+                        sleep_compute(batch.bytes * multiplier);
                         if let Some(gi) = batch.gpu_index {
                             saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
                         }
                         batch_obs.exit(batch.id);
                     }
                 } else {
-                    sleep_proportional(chunk_bytes * multiplier);
+                    sleep_compute(chunk_bytes * multiplier);
 
                     // --- Spilling phase: evict chunk batches from GPU ---
                     obs.task_spilling(task_id, task::Spilling { use_thread: thread });
@@ -1219,7 +1245,7 @@ impl Worker {
                                 use_gpu_to_host_mem_bytes: batch.bytes,
                             },
                         );
-                        sleep_proportional(batch.bytes);
+                        sleep_pcie(batch.bytes);
                         batch_obs.in_host_memory(
                             batch.id,
                             data_batch::InHostMemory {
@@ -1250,7 +1276,7 @@ impl Worker {
                                     use_storage_to_host_bytes: batch.bytes,
                                 },
                             );
-                            sleep_proportional(batch.bytes);
+                            sleep_storage_io(batch.bytes);
                             self.host_memory_used
                                 .fetch_add(batch.bytes, Ordering::Relaxed);
                             batch_obs.in_host_memory(
@@ -1270,7 +1296,7 @@ impl Worker {
                                 use_host_mem_to_gpu_bytes: batch.bytes,
                             },
                         );
-                        sleep_proportional(batch.bytes);
+                        sleep_pcie(batch.bytes);
                         saturating_sub(&self.host_memory_used, batch.bytes);
                         gpu.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
                         batch_obs.in_gpu_memory(
@@ -1303,7 +1329,7 @@ impl Worker {
             );
             if consumes_input {
                 for batch in &input_batches {
-                    sleep_proportional(batch.bytes * multiplier);
+                    sleep_compute(batch.bytes * multiplier);
                     if let Some(gi) = batch.gpu_index {
                         saturating_sub(&self.gpus[gi].memory_used, batch.bytes);
                     } else if !batch.in_storage {
@@ -1312,7 +1338,7 @@ impl Worker {
                     batch_obs.exit(batch.id);
                 }
             } else {
-                sleep_proportional(total_batch_bytes * multiplier);
+                sleep_compute(total_batch_bytes * multiplier);
             }
             // Release GPU working memory after compute.
             if let Some(gpu) = gpu {
@@ -1335,7 +1361,7 @@ impl Worker {
                             use_gpu_to_host_mem_bytes: batch.bytes,
                         },
                     );
-                    sleep_proportional(batch.bytes);
+                    sleep_pcie(batch.bytes);
                     saturating_sub(&gpu.memory_used, batch.bytes);
                     self.host_memory_used
                         .fetch_add(batch.bytes, Ordering::Relaxed);
@@ -1360,7 +1386,7 @@ impl Worker {
                                 use_host_to_storage_bytes: batch.bytes,
                             },
                         );
-                        sleep_proportional(batch.bytes);
+                        sleep_storage_io(batch.bytes);
                         batch_obs.in_storage(
                             batch.id,
                             data_batch::InStorage {
@@ -1414,7 +1440,7 @@ impl Worker {
                                 use_gpu_to_host_mem_bytes: batch.bytes,
                             },
                         );
-                        sleep_proportional(batch.bytes);
+                        sleep_pcie(batch.bytes);
                         batch_obs.in_host_memory(
                             batch.id,
                             data_batch::InHostMemory {
@@ -1434,7 +1460,7 @@ impl Worker {
                             use_host_to_storage_bytes: batch.bytes,
                         },
                     );
-                    sleep_proportional(batch.bytes);
+                    sleep_storage_io(batch.bytes);
                     batch_obs.in_storage(
                         batch.id,
                         data_batch::InStorage {
@@ -1567,7 +1593,7 @@ impl Worker {
                                             use_gpu_to_host_mem_bytes: b,
                                         },
                                     );
-                                    sleep_proportional(b);
+                                    sleep_pcie(b);
                                     batch_obs.in_host_memory(
                                         copy_id,
                                         data_batch::InHostMemory {
@@ -1603,7 +1629,7 @@ impl Worker {
                                             use_host_to_storage_bytes: b,
                                         },
                                     );
-                                    sleep_proportional(b);
+                                    sleep_storage_io(b);
                                     batch_obs.in_storage(
                                         copy_id,
                                         data_batch::InStorage {
@@ -1652,7 +1678,7 @@ impl Worker {
                                             use_link_bytes: part_bytes,
                                         },
                                     );
-                                    sleep_proportional(part_bytes);
+                                    sleep_network(part_bytes);
                                 }
                                 let remote_batch = make_batch(part_bytes, part_rows);
                                 let _ = sender.send(remote_batch);
