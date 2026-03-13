@@ -8,9 +8,24 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerResult,
-    resource::{CapacityValue, ResourceTypeDecl, Usage},
-    timeline::binned::{BinnedTimelineAggregator, KeyedAggregator},
+    resource::{CapacityType, CapacityValue, ResourceTypeDecl, Usage},
+    timeline::binned::{AggregationMode, BinnedTimelineAggregator, KeyedAggregator},
 };
+
+/// Determine the aggregation mode from the resource type's capacity declarations.
+/// Rate resources sum without overlap scaling so concurrent transfers add up
+/// and short bursts are not diluted. Occupancy resources use weighted sum.
+fn aggregation_mode_for(resource_type: &ResourceTypeDecl) -> AggregationMode {
+    if resource_type
+        .capacities
+        .iter()
+        .any(|c| matches!(c.kind, CapacityType::Rate))
+    {
+        AggregationMode::Rate
+    } else {
+        AggregationMode::Sum
+    }
+}
 
 /// Calculate a value to bin-aggregate depending on the [`CapacityType`].
 fn convert_capacity(
@@ -49,8 +64,8 @@ impl<'a> ResourceTimelineBuilder<'a> {
         config: BinnedSpan,
         long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
-        // Construct the aggregator.
-        let aggregator = KeyedAggregator::new(config);
+        let mode = aggregation_mode_for(resource_type);
+        let aggregator = KeyedAggregator::with_mode(config, mode);
         Ok(Self {
             resource_type,
             aggregator,
@@ -113,7 +128,8 @@ where
         config: BinnedSpan,
         long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
-        let aggregator = KeyedAggregator::new(config);
+        let mode = aggregation_mode_for(resource_type);
+        let aggregator = KeyedAggregator::with_mode(config, mode);
 
         Ok(Self {
             resource_type,

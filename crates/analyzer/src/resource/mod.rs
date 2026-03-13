@@ -85,10 +85,16 @@ pub enum CapacityType {
 
 impl CapacityType {
     /// Interpret a value from a [`CapacityValue`] based on this [`CapacityType`].
+    ///
+    /// For [`Rate`](CapacityType::Rate) capacities, converts the total quantity
+    /// over the span into a per-second rate.
     pub fn reinterpret_capacity_value(&self, value: u64, span: SpanNanoSec) -> f64 {
         match self {
             CapacityType::Occupancy => value as f64,
-            CapacityType::Rate => value as f64 / span.duration() as f64,
+            CapacityType::Rate => {
+                let duration_secs = span.duration() as f64 / 1_000_000_000.0;
+                value as f64 / duration_secs
+            }
         }
     }
 }
