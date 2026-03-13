@@ -31,6 +31,7 @@ export function Timeline({
   showTooltip = true,
   marks,
   isUnitCapacity = false,
+  fsmTypes,
 }: {
   startTime: bigint;
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
@@ -43,6 +44,8 @@ export function Timeline({
   marks?: TimelineMark[];
   /** When true, y-axis has no top padding so 100% fills the chart */
   isUnitCapacity?: boolean;
+  /** FSM type declarations, used to color state sequences in tooltips */
+  fsmTypes?: { [key in string]?: import('~quent/types/FsmTypeDecl').FsmTypeDecl };
 }) {
   const {
     timelineMarkupColor,
@@ -304,9 +307,9 @@ export function Timeline({
                 isOverlay: series[p.seriesName]?.isOverlay ?? false,
               };
             });
-          const activeMarks = marks
-            ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
+          const activeMarks = marks?.filter(
+            m => timestamp >= m.xStart && timestamp <= m.xEnd
+          );
           const fmt = Object.values(series)[0]?.formatter;
           return renderToStaticMarkup(
             <TooltipContent
@@ -316,6 +319,7 @@ export function Timeline({
               fmt={fmt}
               windowMs={windowMsRef.current}
               activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
+              fsmTypes={fsmTypes}
             />
           );
         },
@@ -358,6 +362,7 @@ export function Timeline({
     startTime,
     series,
     marks,
+    fsmTypes,
   ]);
 
   const instanceRef = useRef<EChartsInstance | null>(null);

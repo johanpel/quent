@@ -241,6 +241,7 @@ export function ResourceTimeline({
         marks={hideTasks ? undefined : marks}
         height={isUnitCapacity ? UNIT_TIMELINE_HEIGHT : undefined}
         isUnitCapacity={isUnitCapacity}
+        fsmTypes={fsmTypes}
       />
     </Suspense>
   );

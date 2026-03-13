@@ -1,6 +1,10 @@
-import { formatDurationForWindow } from '@/services/formatters';
+import { formatDuration, formatDurationForWindow, formatWithPrefix } from '@/services/formatters';
 import { cn } from '@/lib/utils';
 import { nanosToMs } from '@/lib/timeline.utils';
+import { getColorByIndex, getColorForKey } from '@/services/colors';
+import type { TimelineMark } from './types';
+import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
+import type { FsmTypeDecl } from '~quent/types/FsmTypeDecl';
 
 interface TooltipSeries {
   color: string;
@@ -138,28 +142,142 @@ function buildBarSegments(
   return { segments, overlayPct };
 }
 
-function ActiveMarksSection({
-  marks,
+/** Build a state→color lookup from an FsmTypeDecl. */
+function buildStateColorMap(
+  fsmTypes?: { [key in string]?: FsmTypeDecl }
+): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!fsmTypes) return map;
+  for (const decl of Object.values(fsmTypes)) {
+    if (!decl) continue;
+    for (let i = 0; i < decl.states.length; i++) {
+      map.set(decl.states[i]!.name, getColorByIndex(i));
+    }
+  }
+  return map;
+}
+
+/** Render the full state sequence of an FSM, highlighting the active state. */
+function FsmStateSequence({
+  fsm,
+  activeStateName,
+  stateColorMap,
 }: {
-  marks: { label: string; stateName: string; color: string }[];
+  fsm: FiniteStateMachine;
+  activeStateName: string;
+  stateColorMap: Map<string, string>;
 }) {
-  if (marks.length === 0) return null;
+  const transitions = fsm.transitions;
   return (
     <div className="mt-1 pt-1 border-t border-border">
-      {marks.map((m, i) => (
-        <div key={i} className="flex items-center gap-1">
-          <span
-            className="w-2 h-2 rounded-xs shrink-0 border"
-            style={{
-              backgroundColor: m.color + '20',
-              borderColor: m.color + 'cc',
-            }}
-          />
-          <span className="text-muted-foreground">{m.label}</span>
-          <span className="text-foreground font-medium ml-auto">{m.stateName}</span>
-        </div>
-      ))}
+      <div className="text-muted-foreground font-medium mb-0.5">
+        {fsm.type_name}: {fsm.instance_name || fsm.id}
+      </div>
+      <div className="flex flex-col gap-px">
+        {transitions.slice(0, -1).map((t, i) => {
+          const next = transitions[i + 1];
+          const durationS = next.timestamp - t.timestamp;
+          const durationMs = durationS * 1000;
+          const isActive = t.name === activeStateName;
+          const color = stateColorMap.get(t.name) ?? getColorForKey(t.name);
+
+          // Summarize byte usages
+          const byteUsages = t.usages
+            .flatMap(u => u.capacities)
+            .filter(([name]) => name === 'bytes')
+            .map(([, val]) => (val != null ? Number(val) : 0))
+            .filter(v => v > 0);
+          const totalBytes = byteUsages.reduce((a, b) => a + b, 0);
+
+          return (
+            <div
+              key={i}
+              className={cn(
+                'flex items-center gap-1 px-0.5 rounded-xs',
+                isActive && 'bg-accent'
+              )}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span
+                className={cn(
+                  'truncate',
+                  isActive ? 'text-foreground font-semibold' : 'text-muted-foreground'
+                )}
+              >
+                {t.name}
+              </span>
+              <span className="ml-auto text-muted-foreground tabular-nums whitespace-nowrap">
+                {formatDuration(durationMs, 1)}
+              </span>
+              {totalBytes > 0 && (
+                <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                  {formatWithPrefix(totalBytes, 'B', 'Iec', 1)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+function ActiveMarksSection({
+  marks,
+  fsmTypes,
+}: {
+  marks: TimelineMark[];
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
+}) {
+  if (marks.length === 0) return null;
+
+  // Deduplicate FSMs: show one state sequence per unique FSM id.
+  const seenFsmIds = new Set<string>();
+  const fsmMarks: { fsm: FiniteStateMachine; activeStateName: string }[] = [];
+  const plainMarks: TimelineMark[] = [];
+
+  for (const m of marks) {
+    if (m.fsm && !seenFsmIds.has(m.fsm.id)) {
+      seenFsmIds.add(m.fsm.id);
+      fsmMarks.push({ fsm: m.fsm, activeStateName: m.stateName });
+    } else if (!m.fsm) {
+      plainMarks.push(m);
+    }
+  }
+
+  const stateColorMap = fsmMarks.length > 0 ? buildStateColorMap(fsmTypes) : undefined;
+
+  return (
+    <>
+      {plainMarks.length > 0 && (
+        <div className="mt-1 pt-1 border-t border-border">
+          {plainMarks.map((m, i) => (
+            <div key={i} className="flex items-center gap-1">
+              <span
+                className="w-2 h-2 rounded-xs shrink-0 border"
+                style={{
+                  backgroundColor: m.color + '20',
+                  borderColor: m.color + 'cc',
+                }}
+              />
+              <span className="text-muted-foreground">{m.label}</span>
+              <span className="text-foreground font-medium ml-auto">{m.stateName}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {fsmMarks.map(({ fsm, activeStateName }) => (
+        <FsmStateSequence
+          key={fsm.id}
+          fsm={fsm}
+          activeStateName={activeStateName}
+          stateColorMap={stateColorMap!}
+        />
+      ))}
+    </>
   );
 }
 
@@ -170,13 +288,15 @@ function OverlayBarTooltip({
   fmt,
   windowMs,
   activeMarks,
+  fsmTypes,
 }: {
   timestamp: number;
   bars: StateBar[];
   startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string; color: string }[];
+  activeMarks?: TimelineMark[];
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
 }) {
   const visibleBars = bars
     .filter(b => b.baseValue > 0 || b.overlays.some(o => o.value > 0))
@@ -255,7 +375,7 @@ function OverlayBarTooltip({
             );
           })()}
       </div>
-      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
+      {activeMarks && <ActiveMarksSection marks={activeMarks} fsmTypes={fsmTypes} />}
     </div>
   );
 }
@@ -267,13 +387,15 @@ export function TooltipContent({
   fmt = defaultFormatter,
   windowMs,
   activeMarks,
+  fsmTypes,
 }: {
   timestamp: number;
   series: TooltipSeries[];
   startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
-  activeMarks?: { label: string; stateName: string; color: string }[];
+  activeMarks?: TimelineMark[];
+  fsmTypes?: { [key in string]?: FsmTypeDecl };
 }) {
   const hasOverlays = series.some(s => s.isOverlay);
 
@@ -303,6 +425,7 @@ export function TooltipContent({
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}
+        fsmTypes={fsmTypes}
       />
     );
   }
@@ -323,7 +446,7 @@ export function TooltipContent({
           fmt={fmt}
         />
       </section>
-      {activeMarks && <ActiveMarksSection marks={activeMarks} />}
+      {activeMarks && <ActiveMarksSection marks={activeMarks} fsmTypes={fsmTypes} />}
     </div>
   );
 }

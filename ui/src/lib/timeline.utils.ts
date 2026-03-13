@@ -188,6 +188,8 @@ export function buildTimelineMarks(
 
   const marks = longFsms.flatMap(fsm => {
     const label = fsm.instance_name || fsm.id;
+    // Attach full FSM when it has a declared type, so the tooltip can show the state sequence.
+    const hasFsmDecl = fsmTypes != null && fsm.type_name in fsmTypes;
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
@@ -203,7 +205,14 @@ export function buildTimelineMarks(
         const stateIndex = stateIndexMap.get(transition.name);
         const color =
           stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(transition.name);
-        return { label, stateName: transition.name, color, xStart, xEnd };
+        return {
+          label,
+          stateName: transition.name,
+          color,
+          xStart,
+          xEnd,
+          ...(hasFsmDecl ? { fsm } : undefined),
+        };
       })
       .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
   });

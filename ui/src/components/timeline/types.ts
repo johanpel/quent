@@ -21,6 +21,8 @@ export type TimelineMark = {
   isDimmed?: boolean;
   /** Operator instance name when this mark belongs to a selected operator's long entities. */
   operatorName?: string;
+  /** Full FSM for this entity, when available. Used to show state sequence on hover. */
+  fsm?: import('~quent/types/FiniteStateMachine').FiniteStateMachine;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;
