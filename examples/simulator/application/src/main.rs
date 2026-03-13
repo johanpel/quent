@@ -96,11 +96,11 @@ fn saturating_sub(counter: &AtomicU64, val: u64) {
     }
 }
 
-/// Simulated bandwidth limits. Each transfer type has a realistic cap.
-const STORAGE_BANDWIDTH_MBPS: u64 = 5_000; // 5 GB/s (NVMe SSD)
-const PCIE_BANDWIDTH_MBPS: u64 = 25_000; // 25 GB/s (PCIe 4.0 x16)
-const NETWORK_BANDWIDTH_MBPS: u64 = 12_000; // 12 GB/s (100 GbE)
-const COMPUTE_BANDWIDTH_MBPS: u64 = 50_000; // 50 GB/s (memory-bound compute throughput)
+/// Simulated bandwidth limits — server-grade hardware.
+const STORAGE_BANDWIDTH_MBPS: u64 = 28_000; // 28 GB/s (NVMe RAID array, 4x gen4 drives)
+const PCIE_BANDWIDTH_MBPS: u64 = 63_000; // 63 GB/s (PCIe 5.0 x16)
+const NETWORK_BANDWIDTH_MBPS: u64 = 50_000; // 50 GB/s (400 GbE / InfiniBand HDR)
+const COMPUTE_BANDWIDTH_MBPS: u64 = 80_000; // 80 GB/s (memory-bound compute throughput)
 
 /// Sleep to simulate a transfer at the given bandwidth (MB/s).
 fn sleep_transfer(bytes: u64, bandwidth_mbps: u64) {
@@ -110,22 +110,22 @@ fn sleep_transfer(bytes: u64, bandwidth_mbps: u64) {
     std::thread::sleep(Duration::from_micros(micros));
 }
 
-/// Storage I/O (NVMe SSD ~5 GB/s).
+/// Storage I/O (NVMe RAID ~28 GB/s).
 fn sleep_storage_io(bytes: u64) {
     sleep_transfer(bytes, STORAGE_BANDWIDTH_MBPS);
 }
 
-/// PCIe transfer: host↔GPU (~25 GB/s).
+/// PCIe transfer: host↔GPU (~63 GB/s, PCIe 5.0 x16).
 fn sleep_pcie(bytes: u64) {
     sleep_transfer(bytes, PCIE_BANDWIDTH_MBPS);
 }
 
-/// Network transfer (~12 GB/s).
+/// Network transfer (~50 GB/s, 400 GbE / InfiniBand).
 fn sleep_network(bytes: u64) {
     sleep_transfer(bytes, NETWORK_BANDWIDTH_MBPS);
 }
 
-/// Compute-bound processing (~50 GB/s effective throughput).
+/// Compute-bound processing (~80 GB/s effective throughput).
 fn sleep_compute(bytes: u64) {
     sleep_transfer(bytes, COMPUTE_BANDWIDTH_MBPS);
 }
@@ -1959,6 +1959,9 @@ impl Worker {
                     // Total batches dispatched to Output for termination.
                     let mut output_dispatched: usize = 0;
 
+                    // Progress logging state.
+                    let mut last_log_time = std::time::Instant::now();
+
                     loop {
                         let mut made_progress = false;
 
@@ -2239,6 +2242,26 @@ impl Worker {
                             }
                         }
 
+                        // Log progress every second: per-operator completed counts.
+                        if log_progress && last_log_time.elapsed().as_millis() >= 1000 {
+                            let mut parts: Vec<String> = Vec::new();
+                            for &node_idx in &nodes {
+                                let op = &plan.dag[node_idx];
+                                let comp = completed[&node_idx].load(Ordering::Relaxed);
+                                let disp = dispatched[&node_idx] as u64;
+                                if disp > 0 && comp < disp {
+                                    parts.push(format!(
+                                        "{:?} {}/{}",
+                                        op.kind, comp, disp
+                                    ));
+                                }
+                            }
+                            if !parts.is_empty() {
+                                info!("  {}", parts.join(" | "));
+                            }
+                            last_log_time = std::time::Instant::now();
+                        }
+
                         // Terminate when all demand is satisfied AND all
                         // dispatched work has completed.
                         let all_demand_zero = demand.values().all(|&d| d == 0);
@@ -2270,8 +2293,7 @@ impl Worker {
 
         let op_obs = context.operator_observer();
         let port_obs = context.port_observer();
-        let num_nodes = nodes.len();
-        for (op_index, node_idx) in nodes.iter().enumerate() {
+        for node_idx in nodes.iter() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
 
@@ -2426,9 +2448,6 @@ impl Worker {
                 );
             }
 
-            if log_progress {
-                info!("  {}/{} {:?}", op_index + 1, num_nodes, op.kind);
-            }
         }
     }
 
@@ -2650,7 +2669,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             query_group_id,
             query_group::QueryGroupEvent {
                 engine_id: engine.id,
-                instance_name: format!("TPC-H (iteration {query_group_index})"),
+                instance_name: format!("FPC-H (run {query_group_index})"),
             },
         );
 
@@ -2666,7 +2685,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 query_id,
                 query::Init {
                     query_group_id,
-                    instance_name: format!("Q{query_index}"),
+                    instance_name: {
+                        const QUERY_NUMBERS: &[u32] = &[42, 1337, 7, 404, 256, 99, 13, 1024, 69, 314];
+                        let n = QUERY_NUMBERS[query_index % QUERY_NUMBERS.len()];
+                        format!("Q{n}")
+                    },
                 },
             );
             query_obs.planning(query_id);
