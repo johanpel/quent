@@ -4,6 +4,8 @@ import type { SingleTimelineResponse } from '~quent/types/SingleTimelineResponse
 import type { TimelineRequest } from '~quent/types/TimelineRequest';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { ZoomRange } from '@/components/timeline/TimelineController';
+import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
+import type { FsmEntityRef } from '~quent/types/FsmEntityRef';
 
 /** Build a composite cache key for per-item timeline data */
 export function timelineCacheKey(
@@ -57,3 +59,25 @@ export const laneOrderAtom = atom<Map<string, string[]>>(new Map());
  * Missing key = default to first `used_by` entry.
  */
 export const groupFsmFiltersAtom = atom<Map<string, string | null>>(new Map());
+
+/** Engine ID for the current session */
+export const engineIdAtom = atom('');
+
+/** Query ID for the current session */
+export const queryIdAtom = atom('');
+
+/** Selected mark info for the detail panel */
+export type SelectedMarkInfo = {
+  fsm: FiniteStateMachine;
+  activeStateName: string;
+  screenX: number;
+  screenY: number;
+};
+export const selectedMarkAtom = atom<SelectedMarkInfo | null>(null);
+
+/** Tracked entity — its FSM is overlaid across all relevant timelines */
+export type TrackedEntity = {
+  entityRef: FsmEntityRef;
+  fsm: FiniteStateMachine | null;
+};
+export const trackedEntityAtom = atom<TrackedEntity | null>(null);

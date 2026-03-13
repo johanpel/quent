@@ -1,7 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { X, Maximize2, Filter, Settings } from 'lucide-react';
+import { X, Maximize2, Filter, Settings, Eye } from 'lucide-react';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
-import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom } from '@/atoms/timeline';
+import { hideTasksAtom, zoomRangeAtom, debouncedZoomRangeAtom, trackedEntityAtom } from '@/atoms/timeline';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
@@ -9,6 +9,7 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
   const setSelectedNodeIds = useSetAtom(selectedNodeIdsAtom);
   const setSelectedOperatorLabel = useSetAtom(selectedOperatorLabelAtom);
   const [hideTasks, setHideTasks] = useAtom(hideTasksAtom);
+  const [trackedEntity, setTrackedEntity] = useAtom(trackedEntityAtom);
   const setZoomRange = useSetAtom(zoomRangeAtom);
   const setDebouncedZoomRange = useSetAtom(debouncedZoomRangeAtom);
 
@@ -42,6 +43,26 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
           <span>No filters</span>
         )}
       </div>
+
+      {/* Tracked entity */}
+      {trackedEntity && (
+        <div className="flex items-center gap-1.5">
+          <Eye className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-accent text-accent-foreground px-2.5 py-1 text-sm shadow-sm">
+            <span className="text-muted-foreground font-normal">{trackedEntity.entityRef.type_name}</span>
+            <span className="font-bold">{trackedEntity.entityRef.instance_name || trackedEntity.entityRef.id}</span>
+            {!trackedEntity.fsm && (
+              <span className="text-muted-foreground font-normal text-[10px]">loading…</span>
+            )}
+            <button
+              onClick={() => setTrackedEntity(null)}
+              className="rounded-sm hover:bg-accent-foreground/20 p-0.5 -mr-1 transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       <div className="flex-1" />
 

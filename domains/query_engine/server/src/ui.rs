@@ -7,6 +7,7 @@ use axum::{
 use quent_analyzer::AnalyzerResult;
 use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
 use quent_query_engine_ui as ui;
+use quent_ui::FiniteStateMachine;
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
@@ -269,6 +270,20 @@ where
     Ok(Json(response))
 }
 
+#[tracing::instrument(skip_all, err)]
+async fn entity_fsm<A>(
+    State(state): State<ServiceState<A>>,
+    Path((engine_id, query_id, entity_id)): Path<(Uuid, Uuid, Uuid)>,
+) -> ServerResult<Json<FiniteStateMachine>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    let response =
+        tokio::task::spawn_blocking(move || analyzer.entity_fsm(query_id, entity_id)).await??;
+    Ok(Json(response))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -308,5 +323,9 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route(
+            "/{engine_id}/query/{query_id}/entity/{entity_id}/fsm",
+            get(entity_fsm),
+        )
         .with_state(state)
 }

@@ -5,7 +5,7 @@ import { echarts } from '@/lib/echarts';
 import type { EChartsOption } from '@/lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useAtomValue } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
 import { withOpacity } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
@@ -18,7 +18,7 @@ import {
 } from './types';
 import { connectChart, nanosToMs } from '@/lib/timeline.utils';
 import { useTimelineChartColors } from './useTimelineChartColors';
-import { zoomRangeAtom } from '@/atoms/timeline';
+import { zoomRangeAtom, selectedMarkAtom } from '@/atoms/timeline';
 
 export const CHART_GROUP = 'timeline-sync-group';
 
@@ -57,6 +57,9 @@ export function Timeline({
   } = useTimelineChartColors();
 
   const zoomRange = useAtomValue(zoomRangeAtom);
+  const [selectedMark, setSelectedMark] = useAtom(selectedMarkAtom);
+  const selectedMarkRef = useRef(selectedMark);
+  selectedMarkRef.current = selectedMark;
   const windowMsRef = useRef(0);
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 
@@ -107,16 +110,21 @@ export function Timeline({
         ? timestamps[timestamps.length - 1]! - timestamps[0]!
         : durationSeconds * 1000;
 
+    const tickData: { xAxis: number; lineStyle: { color: string } }[] = [];
+
     for (let i = 0; i < maxMarkCountRef.current; i++) {
       const m = marks?.[i];
       if (m) {
         const stateColor = m.color;
         const dimmed = m.isDimmed ?? false;
+        const tracked = m.isTracked ?? false;
         const dimOpacity = 0.15;
         // Estimate label width from mark's time fraction of the visible window.
         // Assume ~700px usable chart width after axis spacing.
         const markFraction = visibleMs > 0 ? (m.xEnd - m.xStart) / visibleMs : 0;
         const estimatedWidth = Math.max(10, Math.floor(markFraction * 700) - 8);
+        const borderWidth = tracked ? 2.5 : dimmed ? 0.5 : 1.5;
+        const fillOpacity = tracked ? 1 : dimmed ? dimOpacity : 1;
         allSeries.push({
           name: `__mark_${i}`,
           type: 'line',
@@ -148,18 +156,27 @@ export function Timeline({
           label: { show: false },
           symbolSize: 0,
           lineStyle: {
-            width: dimmed ? 0.5 : 1.5,
+            width: borderWidth,
             color: withOpacity(stateColor, dimmed ? dimOpacity : 0.8),
+            type: tracked ? 'dashed' : 'solid',
+            ...(tracked ? { shadowBlur: 6, shadowColor: withOpacity(stateColor, 0.7) } : {}),
           },
           areaStyle: {
-            color: withOpacity(stateColor, dimmed ? dimOpacity : 1),
+            color: withOpacity(stateColor, fillOpacity),
             opacity: 1,
+            ...(tracked ? { shadowBlur: 10, shadowColor: withOpacity(stateColor, 0.5) } : {}),
           },
           tooltip: { show: false },
           silent: true,
           animation: false,
           yAxisIndex: 1,
         });
+
+        // Collect tick data for tracked entity state boundaries
+        if (tracked) {
+          tickData.push({ xAxis: m.xStart, lineStyle: { color: stateColor } });
+          tickData.push({ xAxis: m.xEnd, lineStyle: { color: stateColor } });
+        }
       } else {
         allSeries.push({
           name: `__mark_${i}`,
@@ -175,6 +192,26 @@ export function Timeline({
           yAxisIndex: 1,
         });
       }
+    }
+
+    // Add vertical tick markers for tracked entity state boundaries
+    if (tickData.length > 0) {
+      allSeries.push({
+        name: '__tracked_ticks',
+        type: 'line',
+        data: [],
+        zlevel: 2,
+        z: 10,
+        markLine: {
+          silent: true,
+          symbol: ['none', 'triangle'],
+          symbolSize: [6, 5],
+          data: tickData.map(tick => ({
+            xAxis: tick.xAxis,
+            lineStyle: { color: tick.lineStyle.color, width: 2, type: 'solid' },
+          })),
+        },
+      } as LineSeriesOption);
     }
 
     return allSeries;
@@ -291,7 +328,7 @@ export function Timeline({
         confine: true,
         appendToBody: true,
         formatter: function (hoveredSeries: unknown) {
-          if (isDraggingRef.current) return '';
+          if (isDraggingRef.current || selectedMarkRef.current) return '';
           if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
           const timestamp = Number(hoveredSeries[0].axisValue);
           const seriesValues = hoveredSeries
@@ -368,6 +405,10 @@ export function Timeline({
   const instanceRef = useRef<EChartsInstance | null>(null);
   const isDraggingRef = useRef(false);
 
+  // Store marks in a ref so click handler can access latest without re-registering
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
@@ -390,7 +431,33 @@ export function Timeline({
       },
       { capture: true, passive: true }
     );
-  }, []);
+
+    // Click handler on the raw canvas — detects clicks anywhere on mark areas
+    instance.getZr().on('click', (e: { offsetX: number; offsetY: number }) => {
+      if (isDraggingRef.current) return;
+      const currentMarks = marksRef.current;
+      if (!currentMarks || currentMarks.length === 0) return;
+
+      // Convert pixel to data coordinate (timestamp in ms)
+      const point = instance.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+      if (!point) return;
+      const timestamp = point[0] as number;
+
+      // Find the first mark with FSM data at this timestamp
+      const mark = currentMarks.find(
+        m => m.fsm && timestamp >= m.xStart && timestamp <= m.xEnd
+      );
+      if (!mark?.fsm) return;
+
+      const rect = dom.getBoundingClientRect();
+      setSelectedMark({
+        fsm: mark.fsm,
+        activeStateName: mark.stateName,
+        screenX: rect.left + e.offsetX,
+        screenY: rect.top + e.offsetY,
+      });
+    });
+  }, [setSelectedMark]);
 
   return (
     <ReactECharts

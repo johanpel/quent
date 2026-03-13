@@ -23,6 +23,8 @@ export type TimelineMark = {
   operatorName?: string;
   /** Full FSM for this entity, when available. Used to show state sequence on hover. */
   fsm?: import('~quent/types/FiniteStateMachine').FiniteStateMachine;
+  /** When true, this mark represents a tracked entity (shown with distinct visual style). */
+  isTracked?: boolean;
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 75;

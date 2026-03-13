@@ -29,7 +29,7 @@ import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { TimelineConfig } from '~quent/types/TimelineConfig';
 
 const MAX_TIMELINE_BINS = 400;
-const LONG_ENTITIES_BIN_MULTIPLIER = 30;
+const LONG_ENTITIES_BIN_MULTIPLIER = 15;
 
 /** Convert a nanosecond-precision bigint epoch to milliseconds, preserving sub-ms precision. */
 export function nanosToMs(ns: bigint): number {
@@ -169,7 +169,9 @@ export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
   startTime: bigint,
   resourceIdsForFilter?: Set<string> | null,
-  fsmTypes?: { [key in string]?: FsmTypeDecl }
+  fsmTypes?: { [key in string]?: FsmTypeDecl },
+  /** When true, only match against the first (primary) usage per transition. */
+  primaryUsageOnly?: boolean
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
@@ -193,11 +195,11 @@ export function buildTimelineMarks(
     return fsm.transitions
       .slice(0, -1)
       .map((transition, i) => {
-        if (
-          resourceIdsForFilter != null &&
-          !transition.usages?.some(u => resourceIdsForFilter.has(u.resource))
-        ) {
-          return null;
+        if (resourceIdsForFilter != null) {
+          const matchesFilter = primaryUsageOnly
+            ? transition.usages?.[0] != null && resourceIdsForFilter.has(transition.usages[0].resource)
+            : transition.usages?.some(u => resourceIdsForFilter.has(u.resource));
+          if (!matchesFilter) return null;
         }
         const next = fsm.transitions[i + 1];
         const xStart = startTimeMs + transition.timestamp * 1000;

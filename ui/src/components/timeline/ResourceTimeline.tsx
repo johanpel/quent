@@ -7,6 +7,7 @@ import {
   hideTasksAtom,
   timelineCacheKey,
   timelineDataAtom,
+  trackedEntityAtom,
 } from '@/atoms/timeline';
 import { selectedNodeIdsAtom, selectedOperatorLabelAtom } from '@/atoms/dag';
 import { useDeferredReady } from '@/hooks/useDeferredReady';
@@ -81,6 +82,7 @@ export function ResourceTimeline({
   const operatorLabel = useAtomValue(selectedOperatorLabelAtom);
   const hideTasks = useAtomValue(hideTasksAtom);
 
+  const trackedEntity = useAtomValue(trackedEntityAtom);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
   const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
 
@@ -215,6 +217,16 @@ export function ResourceTimeline({
     fsmTypes,
   ]);
 
+  // Merge tracked entity marks with existing marks (leaf resources only)
+  const finalMarks = useMemo(() => {
+    if (!trackedEntity?.fsm || resourceType !== EntityTypeKey.Resource) return marks;
+    const filterSet = new Set([resourceId]);
+    const trackedMarks = buildTimelineMarks([trackedEntity.fsm], startTime, filterSet, fsmTypes, true);
+    if (!trackedMarks || trackedMarks.length === 0) return marks;
+    const styledTrackedMarks: TimelineMark[] = trackedMarks.map(m => ({ ...m, isTracked: true }));
+    return [...(marks ?? []), ...styledTrackedMarks];
+  }, [marks, trackedEntity, startTime, resourceId, resourceType, fsmTypes]);
+
   if (!preloadedData && (!deferredReady || isLoading)) {
     return <TimelineSkeleton />;
   }
@@ -238,7 +250,7 @@ export function ResourceTimeline({
         startTime={startTime}
         durationSeconds={durationSeconds}
         showTooltip={showTooltip}
-        marks={hideTasks ? undefined : marks}
+        marks={hideTasks ? undefined : finalMarks}
         height={isUnitCapacity ? UNIT_TIMELINE_HEIGHT : undefined}
         isUnitCapacity={isUnitCapacity}
         fsmTypes={fsmTypes}

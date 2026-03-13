@@ -3,7 +3,7 @@ pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui::{QueryBundle, QueryEntities};
 use quent_ui::{
-    FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
+    FiniteStateMachine, FsmEntityRef, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::QuantitySpec,
     timeline::{
         request::{BulkTimelineRequest, EntityFilter, SingleTimelineRequest, TimelineRequest},
@@ -558,6 +558,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         Ok(BulkTimelinesResponse { entries })
     }
+
+    fn entity_fsm(&self, query_id: Uuid, entity_id: Uuid) -> AnalyzerResult<FiniteStateMachine> {
+        let epoch = self
+            .query_engine_model()
+            .query_epoch(query_id)?;
+        self.entity_to_ui_fsm(entity_id, epoch)
+    }
 }
 
 impl SimulatorUiAnalyzer {
@@ -693,7 +700,7 @@ impl SimulatorUiAnalyzer {
         entity_ids: &[Uuid],
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
-        entity_ids
+        let mut fsms: Vec<FiniteStateMachine> = entity_ids
             .iter()
             .filter_map(|&id| {
                 self.model
@@ -707,7 +714,57 @@ impl SimulatorUiAnalyzer {
                             .map(|batch| batch.try_to_ui_fsm(epoch))
                     })
             })
-            .collect()
+            .collect::<AnalyzerResult<Vec<_>>>()?;
+
+        // Enrich task FSMs with related data batch entities.
+        for fsm in &mut fsms {
+            if let Some(task) = self.model.tasks.get(&fsm.id) {
+                let operator_id = task.operator_id();
+                if operator_id.is_none() {
+                    continue;
+                }
+                let operator_id = operator_id.unwrap();
+                for i in 0..fsm.transitions.len().saturating_sub(1) {
+                    let state_start = fsm.transitions[i].timestamp;
+                    let state_end = fsm.transitions[i + 1].timestamp;
+                    let related: Vec<FsmEntityRef> = self
+                        .model
+                        .data_batches
+                        .values()
+                        .filter(|b| b.operator_id() == Some(operator_id))
+                        .filter(|b| {
+                            // Check if this batch's init timestamp falls within this state's window.
+                            b.init_timestamp()
+                                .map(|init_ts| {
+                                    let ts = quent_time::to_secs_relative(init_ts, epoch);
+                                    ts >= state_start && ts < state_end
+                                })
+                                .unwrap_or(false)
+                        })
+                        .map(|b| FsmEntityRef {
+                            id: b.id(),
+                            type_name: b.type_name().to_string(),
+                            instance_name: b.instance_name().to_string(),
+                        })
+                        .collect();
+                    fsm.transitions[i].related_entities = related;
+                }
+            }
+        }
+
+        Ok(fsms)
+    }
+
+    /// Turn a single entity id into a UI-compatible FSM.
+    fn entity_to_ui_fsm(
+        &self,
+        entity_id: Uuid,
+        epoch: TimeUnixNanoSec,
+    ) -> AnalyzerResult<FiniteStateMachine> {
+        let mut fsms = self.entities_to_ui_fsm(&[entity_id], epoch)?;
+        fsms.pop().ok_or_else(|| {
+            AnalyzerError::InvalidArgument(format!("entity {entity_id} not found"))
+        })
     }
 
     /// Convert a timeline to a UI-compatible one.

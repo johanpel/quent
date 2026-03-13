@@ -217,6 +217,13 @@ function FsmStateSequence({
                   {formatWithPrefix(totalBytes, 'B', 'Iec', 1)}
                 </span>
               )}
+              {t.related_entities && t.related_entities.length > 0 && (
+                <span className="text-accent-foreground bg-accent rounded-xs px-1 text-[10px] whitespace-nowrap">
+                  {t.related_entities.length === 1
+                    ? t.related_entities[0]!.instance_name || t.related_entities[0]!.type_name
+                    : `${t.related_entities.length} ${t.related_entities[0]!.type_name}s`}
+                </span>
+              )}
             </div>
           );
         })}

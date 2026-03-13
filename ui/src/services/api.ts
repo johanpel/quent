@@ -14,6 +14,7 @@ import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import type { EntityRef } from '~quent/types/EntityRef';
 import type { Engine } from '~quent/types/Engine';
+import type { FiniteStateMachine } from '~quent/types/FiniteStateMachine';
 
 // Use relative URL by default to leverage Vite's proxy (both dev and preview)
 // Set VITE_API_BASE_URL to override (e.g., for direct API access without proxy)
@@ -194,4 +195,14 @@ export async function fetchBulkTimelines(
       body: JSON.stringify(request),
     },
   });
+}
+
+export async function fetchEntityFsm(
+  engineId: string,
+  queryId: string,
+  entityId: string
+): Promise<FiniteStateMachine> {
+  return apiFetch<FiniteStateMachine>(
+    `/engines/${engineId}/query/${queryId}/entity/${entityId}/fsm`
+  );
 }

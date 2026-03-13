@@ -32,9 +32,12 @@ import {
   startTimeMsAtom,
   laneOrderAtom,
   groupFsmFiltersAtom,
+  engineIdAtom,
+  queryIdAtom,
 } from '@/atoms/timeline';
 import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
+import { MarkDetailPanel } from './timeline/MarkDetailPanel';
 import {
   OperatorGanttChart,
   getWorkerIdsFromPlanTree,
@@ -97,6 +100,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     [zoomRangeAtom, { start: 0, end: durationSeconds }],
     [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
     [startTimeMsAtom, startTimeMs],
+    [engineIdAtom, engineId],
+    [queryIdAtom, queryBundle.query_id],
   ]);
 
   const groupFsmFilters = useAtomValue(groupFsmFiltersAtom);
@@ -320,6 +325,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           highlightedItemIds={highlightedItemIds}
         />
       </div>
+      <MarkDetailPanel fsmTypes={entities.fsm_types} />
     </div>
   );
 }

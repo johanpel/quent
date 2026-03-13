@@ -240,6 +240,7 @@ impl Task {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
+                    related_entities: Vec::new(),
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;

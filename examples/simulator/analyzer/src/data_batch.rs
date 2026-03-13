@@ -89,37 +89,80 @@ impl Transition for DataBatchTransition {
     }
 }
 
-fn create_usages(data: &DataBatchTransitionData) -> SmallVec<[DataBatchUsage; 1]> {
+fn create_usages(
+    data: &DataBatchTransitionData,
+    prev: Option<&DataBatchTransitionData>,
+) -> SmallVec<[DataBatchUsage; 1]> {
     match data {
         DataBatchTransitionData::Init(_) => SmallVec::new(),
         DataBatchTransitionData::InStorage(data) => smallvec![DataBatchUsage {
             resource_id: data.use_storage,
             capacities: smallvec![CapacityValue::new("bytes", data.use_storage_bytes)],
         }],
-        DataBatchTransitionData::LoadingToHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_storage_to_host,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_storage_to_host_bytes)],
-        }],
+        DataBatchTransitionData::LoadingToHostMemory(data) => {
+            // During loading from storage, the batch still occupies the source storage.
+            let mut usages = smallvec![DataBatchUsage {
+                resource_id: data.use_storage_to_host,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_storage_to_host_bytes)],
+            }];
+            if let Some(DataBatchTransitionData::InStorage(src)) = prev {
+                usages.push(DataBatchUsage {
+                    resource_id: src.use_storage,
+                    capacities: smallvec![CapacityValue::new("bytes", src.use_storage_bytes)],
+                });
+            }
+            usages
+        }
         DataBatchTransitionData::InHostMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_host_memory,
             capacities: smallvec![CapacityValue::new("bytes", data.use_host_memory_bytes)],
         }],
-        DataBatchTransitionData::LoadingToGpuMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_host_mem_to_gpu,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_gpu_bytes)],
-        }],
+        DataBatchTransitionData::LoadingToGpuMemory(data) => {
+            // During loading to GPU, the batch still occupies host memory.
+            let mut usages = smallvec![DataBatchUsage {
+                resource_id: data.use_host_mem_to_gpu,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_mem_to_gpu_bytes)],
+            }];
+            if let Some(DataBatchTransitionData::InHostMemory(src)) = prev {
+                usages.push(DataBatchUsage {
+                    resource_id: src.use_host_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", src.use_host_memory_bytes)],
+                });
+            }
+            usages
+        }
         DataBatchTransitionData::InGpuMemory(data) => smallvec![DataBatchUsage {
             resource_id: data.use_gpu_memory,
             capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_memory_bytes)],
         }],
-        DataBatchTransitionData::SpillingToHostMemory(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_gpu_to_host_mem,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_host_mem_bytes)],
-        }],
-        DataBatchTransitionData::SpillingToStorage(data) => smallvec![DataBatchUsage {
-            resource_id: data.use_host_to_storage,
-            capacities: smallvec![CapacityValue::new("bytes", data.use_host_to_storage_bytes)],
-        }],
+        DataBatchTransitionData::SpillingToHostMemory(data) => {
+            // During spilling from GPU to host, the batch still occupies GPU memory.
+            let mut usages = smallvec![DataBatchUsage {
+                resource_id: data.use_gpu_to_host_mem,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_gpu_to_host_mem_bytes)],
+            }];
+            if let Some(DataBatchTransitionData::InGpuMemory(src)) = prev {
+                usages.push(DataBatchUsage {
+                    resource_id: src.use_gpu_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", src.use_gpu_memory_bytes)],
+                });
+            }
+            usages
+        }
+        DataBatchTransitionData::SpillingToStorage(data) => {
+            // During spilling from host to storage, the batch still occupies host memory.
+            let mut usages = smallvec![DataBatchUsage {
+                resource_id: data.use_host_to_storage,
+                capacities: smallvec![CapacityValue::new("bytes", data.use_host_to_storage_bytes)],
+            }];
+            if let Some(DataBatchTransitionData::InHostMemory(src)) = prev {
+                usages.push(DataBatchUsage {
+                    resource_id: src.use_host_memory,
+                    capacities: smallvec![CapacityValue::new("bytes", src.use_host_memory_bytes)],
+                });
+            }
+            usages
+        }
         DataBatchTransitionData::Exit => SmallVec::new(),
     }
 }
@@ -163,7 +206,8 @@ impl DataBatchBuilder {
             }
             DataBatchEvent::Exit => DataBatchTransitionData::Exit,
         };
-        let usages = create_usages(&data);
+        let prev = self.transitions.last().map(|t| &t.data);
+        let usages = create_usages(&data, prev);
         self.transitions.push(DataBatchTransition {
             timestamp: event.timestamp,
             data,
@@ -194,6 +238,10 @@ impl DataBatch {
         })
     }
 
+    pub fn init_timestamp(&self) -> Option<TimeUnixNanoSec> {
+        self.transitions.first().map(|t| t.timestamp)
+    }
+
     pub fn try_to_ui_fsm(&self, epoch: TimeUnixNanoSec) -> AnalyzerResult<FiniteStateMachine> {
         let transitions = self
             .transitions
@@ -214,6 +262,7 @@ impl DataBatch {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
+                    related_entities: Vec::new(),
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;
@@ -303,7 +352,7 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "loading_to_host_memory".to_string(),
-                usages: vec!["storage_to_host".to_string()],
+                usages: vec!["storage_to_host".to_string(), "storage".to_string()],
             },
             FsmStateTypeDecl {
                 name: "in_host_memory".to_string(),
@@ -311,7 +360,7 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "loading_to_gpu_memory".to_string(),
-                usages: vec!["host_mem_to_gpu".to_string()],
+                usages: vec!["host_mem_to_gpu".to_string(), "host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "in_gpu_memory".to_string(),
@@ -319,11 +368,11 @@ impl FsmTypeDeclaration for DataBatch {
             },
             FsmStateTypeDecl {
                 name: "spilling_to_host_memory".to_string(),
-                usages: vec!["gpu_to_host_mem".to_string()],
+                usages: vec!["gpu_to_host_mem".to_string(), "gpu_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "spilling_to_storage".to_string(),
-                usages: vec!["host_to_storage".to_string()],
+                usages: vec!["host_to_storage".to_string(), "host_memory".to_string()],
             },
             FsmStateTypeDecl {
                 name: "exit".to_string(),

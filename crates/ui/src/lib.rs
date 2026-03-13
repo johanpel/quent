@@ -193,6 +193,14 @@ impl From<&a::fsm::runtime::RtFsmStateUsage> for FsmUsage {
     }
 }
 
+/// A reference to an entity related to an FSM transition.
+#[derive(TS, Serialize, Clone, Debug)]
+pub struct FsmEntityRef {
+    pub id: Uuid,
+    pub type_name: String,
+    pub instance_name: String,
+}
+
 /// A transition in an FSM.
 #[derive(TS, Serialize, Clone, Debug)]
 pub struct FsmTransition {
@@ -202,6 +210,9 @@ pub struct FsmTransition {
     pub usages: Vec<FsmUsage>,
     /// The timestamp in seconds relative to an epoch.
     pub timestamp: TimeSec,
+    /// Entities related to this state.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related_entities: Vec<FsmEntityRef>,
 }
 
 impl FsmTransition {
@@ -213,6 +224,7 @@ impl FsmTransition {
             name: value.name.clone(),
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
+            related_entities: Vec::new(),
         })
     }
 }

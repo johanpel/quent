@@ -1,6 +1,7 @@
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_query_engine_ui as ui;
+use quent_ui::FiniteStateMachine;
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
@@ -62,4 +63,7 @@ pub trait UiAnalyzer {
         &self,
         request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
     ) -> AnalyzerResult<BulkTimelinesResponse>;
+
+    /// Return the FSM for a single entity.
+    fn entity_fsm(&self, query_id: Uuid, entity_id: Uuid) -> AnalyzerResult<FiniteStateMachine>;
 }

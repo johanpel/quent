@@ -127,6 +127,10 @@ where
         }
     }
 
+    pub fn last(&self) -> Option<&T> {
+        self.0.last()
+    }
+
     pub fn into_inner(self) -> Vec<T> {
         self.0
     }
