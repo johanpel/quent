@@ -1,6 +1,14 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { selectedPlanIdAtom, selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredStatAtom, hoveredOperatorTypeAtom, highlightedNodeIdsAtom, type HoveredStatInfo } from '@/atoms/dag';
+import {
+  selectedPlanIdAtom,
+  selectedNodeIdsAtom,
+  hoveredOperatorIdAtom,
+  hoveredStatAtom,
+  hoveredOperatorTypeAtom,
+  highlightedNodeIdsAtom,
+  type HoveredStatInfo,
+} from '@/atoms/dag';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils';
 import type { QueryBundle } from '~quent/types/QueryBundle';
 import type { EntityRef } from '~quent/types/EntityRef';
@@ -9,7 +17,12 @@ import { cn } from '@/lib/utils';
 import { formatWithPrefix } from '@/services/formatters';
 import { operatorTypeColor } from '@/services/colors';
 
-type IndexKey = 'worker_plan' | 'parent_operator_type' | 'parent_operator' | 'operator_type' | 'operator';
+type IndexKey =
+  | 'worker_plan'
+  | 'parent_operator_type'
+  | 'parent_operator'
+  | 'operator_type'
+  | 'operator';
 type AggMode = 'value' | 'sum' | 'mean' | 'min' | 'max' | 'stdev';
 type SortDir = 'asc' | 'desc';
 
@@ -38,7 +51,18 @@ interface PivotedRow {
   groupKeys: GroupKeyEntry[];
   rowKey: string;
   values: Map<string, StatValue>;
-  aggs: Map<string, { sum: number | null; mean: number | null; min: number | null; max: number | null; stdev: number | null; count: number; isNumeric: boolean }>;
+  aggs: Map<
+    string,
+    {
+      sum: number | null;
+      mean: number | null;
+      min: number | null;
+      max: number | null;
+      stdev: number | null;
+      count: number;
+      isNumeric: boolean;
+    }
+  >;
   operatorIds: Set<string>;
   operatorType: string;
   /** Map from operator ID to the plan ID it belongs to */
@@ -63,8 +87,14 @@ function isBytesStat(name: string): boolean {
 }
 
 function isCountStat(name: string): boolean {
-  return name.includes('_rows') || name.endsWith('_row') || name.startsWith('rows_')
-    || name.includes('_batches') || name.endsWith('_batch') || name.startsWith('batches_');
+  return (
+    name.includes('_rows') ||
+    name.endsWith('_row') ||
+    name.startsWith('rows_') ||
+    name.includes('_batches') ||
+    name.endsWith('_batch') ||
+    name.startsWith('batches_')
+  );
 }
 
 function formatRows(n: number | null): string {
@@ -110,25 +140,37 @@ function gradientBg(value: number, min: number, max: number): string | undefined
 // --- grouping helpers ---
 
 function rowGroupKey(row: FlatRow, enabledIndices: IndexKey[]): string {
-  return enabledIndices.map(idx => {
-    switch (idx) {
-      case 'worker_plan': return row.workerPlanId;
-      case 'parent_operator_type': return row.parentOperatorType;
-      case 'parent_operator': return row.parentOperatorName;
-      case 'operator_type': return row.operatorType;
-      case 'operator': return row.operatorId;
-    }
-  }).join('\0');
+  return enabledIndices
+    .map(idx => {
+      switch (idx) {
+        case 'worker_plan':
+          return row.workerPlanId;
+        case 'parent_operator_type':
+          return row.parentOperatorType;
+        case 'parent_operator':
+          return row.parentOperatorName;
+        case 'operator_type':
+          return row.operatorType;
+        case 'operator':
+          return row.operatorId;
+      }
+    })
+    .join('\0');
 }
 
 function getGroupKeys(row: FlatRow, enabledIndices: IndexKey[]): GroupKeyEntry[] {
   return enabledIndices.map(idx => {
     switch (idx) {
-      case 'worker_plan': return { key: idx, id: row.workerPlanId, label: row.workerPlanLabel };
-      case 'parent_operator_type': return { key: idx, id: row.parentOperatorType, label: row.parentOperatorType };
-      case 'parent_operator': return { key: idx, id: row.parentOperatorName, label: row.parentOperatorName };
-      case 'operator_type': return { key: idx, id: row.operatorType, label: row.operatorType };
-      case 'operator': return { key: idx, id: row.operatorId, label: row.operatorName };
+      case 'worker_plan':
+        return { key: idx, id: row.workerPlanId, label: row.workerPlanLabel };
+      case 'parent_operator_type':
+        return { key: idx, id: row.parentOperatorType, label: row.parentOperatorType };
+      case 'parent_operator':
+        return { key: idx, id: row.parentOperatorName, label: row.parentOperatorName };
+      case 'operator_type':
+        return { key: idx, id: row.operatorType, label: row.operatorType };
+      case 'operator':
+        return { key: idx, id: row.operatorId, label: row.operatorName };
     }
   });
 }
@@ -141,12 +183,13 @@ function computeRowSpans(rows: PivotedRow[]): (number | null)[][] {
   for (let col = 0; col < numCols; col++) {
     let start = 0;
     for (let i = 1; i <= rows.length; i++) {
-      const changed = i === rows.length || rows[i].groupKeys.slice(0, col + 1).some(
-        (gk, j) => gk.id !== rows[i - 1].groupKeys[j]?.id
-      );
-      const parentChanged = col > 0 && i < rows.length && rows[i].groupKeys.slice(0, col).some(
-        (gk, j) => gk.id !== rows[start].groupKeys[j]?.id
-      );
+      const changed =
+        i === rows.length ||
+        rows[i].groupKeys.slice(0, col + 1).some((gk, j) => gk.id !== rows[i - 1].groupKeys[j]?.id);
+      const parentChanged =
+        col > 0 &&
+        i < rows.length &&
+        rows[i].groupKeys.slice(0, col).some((gk, j) => gk.id !== rows[start].groupKeys[j]?.id);
       if (changed || parentChanged) {
         spans[start][col] = i - start;
         start = i;
@@ -157,7 +200,12 @@ function computeRowSpans(rows: PivotedRow[]): (number | null)[][] {
 }
 
 /** Extract the numeric sort value for a stat from a pivoted row. */
-function getSortValue(row: PivotedRow, stat: string, isAgg: boolean, aggMode: AggMode): number | null {
+function getSortValue(
+  row: PivotedRow,
+  stat: string,
+  isAgg: boolean,
+  aggMode: AggMode
+): number | null {
   if (!isAgg) {
     const v = row.values.get(stat);
     if (v === undefined) return null;
@@ -166,12 +214,18 @@ function getSortValue(row: PivotedRow, stat: string, isAgg: boolean, aggMode: Ag
   const agg = row.aggs.get(stat);
   if (!agg || !agg.isNumeric) return null;
   switch (aggMode) {
-    case 'sum': return agg.sum;
-    case 'mean': return agg.mean;
-    case 'min': return agg.min;
-    case 'max': return agg.max;
-    case 'stdev': return agg.stdev;
-    default: return agg.sum;
+    case 'sum':
+      return agg.sum;
+    case 'mean':
+      return agg.mean;
+    case 'min':
+      return agg.min;
+    case 'max':
+      return agg.max;
+    case 'stdev':
+      return agg.stdev;
+    default:
+      return agg.sum;
   }
 }
 
@@ -192,7 +246,13 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const { entities } = queryBundle;
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
-  const [indexOrder, setIndexOrder] = useState<IndexKey[]>(['worker_plan', 'parent_operator_type', 'parent_operator', 'operator_type', 'operator']);
+  const [indexOrder, setIndexOrder] = useState<IndexKey[]>([
+    'worker_plan',
+    'parent_operator_type',
+    'parent_operator',
+    'operator_type',
+    'operator',
+  ]);
   const [enabledIndices, setEnabledIndices] = useState<Record<IndexKey, boolean>>({
     worker_plan: true,
     parent_operator_type: false,
@@ -217,18 +277,21 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     setDraggedIndex(key);
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, targetKey: IndexKey) => {
-    e.preventDefault();
-    if (!draggedIndex || draggedIndex === targetKey) return;
-    setIndexOrder(prev => {
-      const next = [...prev];
-      const fromIdx = next.indexOf(draggedIndex);
-      const toIdx = next.indexOf(targetKey);
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, draggedIndex);
-      return next;
-    });
-  }, [draggedIndex]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, targetKey: IndexKey) => {
+      e.preventDefault();
+      if (!draggedIndex || draggedIndex === targetKey) return;
+      setIndexOrder(prev => {
+        const next = [...prev];
+        const fromIdx = next.indexOf(draggedIndex);
+        const toIdx = next.indexOf(targetKey);
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, draggedIndex);
+        return next;
+      });
+    },
+    [draggedIndex]
+  );
 
   const handleDragEnd = useCallback(() => {
     setDraggedIndex(null);
@@ -250,7 +313,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       return stat;
     });
   }, []);
-
 
   const siblingPlanIds = useMemo(() => {
     const selected = selectedPlanId ? entities.plans[selectedPlanId] : undefined;
@@ -298,19 +360,41 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
         const parentOps = (op.parent_operator_ids ?? [])
           .map(id => entities.operators[id])
           .filter((p): p is NonNullable<typeof p> => p != null);
-        const parentPlanLevel = parentOps.length > 0
-          ? [...new Set(parentOps.map(p => p.plan_id ? entities.plans[p.plan_id]?.instance_name ?? '-' : '-'))].join(', ')
-          : '-';
-        const parentOperatorType = parentOps.length > 0
-          ? [...new Set(parentOps.map(p => p.operator_type_name ?? '-'))].join(', ')
-          : '-';
-        const parentOperatorName = parentOps.length > 0
-          ? parentOps.map(p => p.instance_name ?? p.id).join(', ')
-          : '-';
-        const base = { workerPlanId, workerPlanLabel, planId: plan.id, planLevel: planPart, parentPlanLevel, parentOperatorType, parentOperatorName, operatorType, operatorName, operatorId: op.id };
+        const parentPlanLevel =
+          parentOps.length > 0
+            ? [
+                ...new Set(
+                  parentOps.map(p =>
+                    p.plan_id ? (entities.plans[p.plan_id]?.instance_name ?? '-') : '-'
+                  )
+                ),
+              ].join(', ')
+            : '-';
+        const parentOperatorType =
+          parentOps.length > 0
+            ? [...new Set(parentOps.map(p => p.operator_type_name ?? '-'))].join(', ')
+            : '-';
+        const parentOperatorName =
+          parentOps.length > 0 ? parentOps.map(p => p.instance_name ?? p.id).join(', ') : '-';
+        const base = {
+          workerPlanId,
+          workerPlanLabel,
+          planId: plan.id,
+          planLevel: planPart,
+          parentPlanLevel,
+          parentOperatorType,
+          parentOperatorName,
+          operatorType,
+          operatorName,
+          operatorId: op.id,
+        };
 
         const duration = op.active_span ? op.active_span.end - op.active_span.start : null;
-        rows.push({ ...base, statisticName: 'duration_s', value: duration !== null ? Number(duration.toFixed(6)) : null });
+        rows.push({
+          ...base,
+          statisticName: 'duration_s',
+          value: duration !== null ? Number(duration.toFixed(6)) : null,
+        });
 
         for (const stat of parseCustomStatistics(op)) {
           rows.push({ ...base, statisticName: stat.key, value: stat.value });
@@ -327,22 +411,29 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       const v = typeof row.value === 'number' ? row.value : null;
       if (v === null) continue;
       let opMap = map.get(row.statisticName);
-      if (!opMap) { opMap = new Map(); map.set(row.statisticName, opMap); }
+      if (!opMap) {
+        opMap = new Map();
+        map.set(row.statisticName, opMap);
+      }
       opMap.set(row.operatorId, v);
     }
     return map;
   }, [flatRows]);
 
-  const buildHoveredStatInfo = useCallback((statName: string): HoveredStatInfo | null => {
-    const values = statsByOperator.get(statName);
-    if (!values || values.size === 0) return null;
-    let min = Infinity, max = -Infinity;
-    for (const v of values.values()) {
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-    return { name: statName, values, min, max };
-  }, [statsByOperator]);
+  const buildHoveredStatInfo = useCallback(
+    (statName: string): HoveredStatInfo | null => {
+      const values = statsByOperator.get(statName);
+      if (!values || values.size === 0) return null;
+      let min = Infinity,
+        max = -Infinity;
+      for (const v of values.values()) {
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      return { name: statName, values, min, max };
+    },
+    [statsByOperator]
+  );
 
   // Map parent operator type → set of child operator IDs (for highlighting children on parent type hover)
   const childIdsByParentType = useMemo(() => {
@@ -350,7 +441,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     for (const row of flatRows) {
       if (row.parentOperatorType === '-') continue;
       let set = map.get(row.parentOperatorType);
-      if (!set) { set = new Set(); map.set(row.parentOperatorType, set); }
+      if (!set) {
+        set = new Set();
+        map.set(row.parentOperatorType, set);
+      }
       set.add(row.operatorId);
     }
     return map;
@@ -362,21 +456,30 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     for (const row of flatRows) {
       if (row.parentOperatorName === '-') continue;
       let set = map.get(row.parentOperatorName);
-      if (!set) { set = new Set(); map.set(row.parentOperatorName, set); }
+      if (!set) {
+        set = new Set();
+        map.set(row.parentOperatorName, set);
+      }
       set.add(row.operatorId);
     }
     return map;
   }, [flatRows]);
 
   // Detect if any rows have parent operators; hide parent indices if not
-  const hasParentOperators = useMemo(() => flatRows.some(r => r.parentOperatorType !== '-'), [flatRows]);
+  const hasParentOperators = useMemo(
+    () => flatRows.some(r => r.parentOperatorType !== '-'),
+    [flatRows]
+  );
   const visibleIndexOrder = useMemo(
-    () => hasParentOperators ? indexOrder : indexOrder.filter(k => k !== 'parent_operator_type' && k !== 'parent_operator'),
-    [indexOrder, hasParentOperators],
+    () =>
+      hasParentOperators
+        ? indexOrder
+        : indexOrder.filter(k => k !== 'parent_operator_type' && k !== 'parent_operator'),
+    [indexOrder, hasParentOperators]
   );
   const activeIndices = useMemo(
     () => visibleIndexOrder.filter(k => enabledIndices[k]),
-    [visibleIndexOrder, enabledIndices],
+    [visibleIndexOrder, enabledIndices]
   );
   const isAggregating = activeIndices.length < visibleIndexOrder.length;
 
@@ -424,22 +527,25 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [allStatNames, statOrder]);
 
   const visibleStats = useMemo(
-    () => selectedStats ? orderedStatNames.filter(s => selectedStats.has(s)) : orderedStatNames,
-    [orderedStatNames, selectedStats],
+    () => (selectedStats ? orderedStatNames.filter(s => selectedStats.has(s)) : orderedStatNames),
+    [orderedStatNames, selectedStats]
   );
 
-  const toggleStat = useCallback((stat: string) => {
-    setSelectedStats(prev => {
-      const current = prev ?? new Set(allStatNames);
-      const next = new Set(current);
-      if (next.has(stat)) {
-        next.delete(stat);
-      } else {
-        next.add(stat);
-      }
-      return next;
-    });
-  }, [allStatNames]);
+  const toggleStat = useCallback(
+    (stat: string) => {
+      setSelectedStats(prev => {
+        const current = prev ?? new Set(allStatNames);
+        const next = new Set(current);
+        if (next.has(stat)) {
+          next.delete(stat);
+        } else {
+          next.add(stat);
+        }
+        return next;
+      });
+    },
+    [allStatNames]
+  );
 
   const selectAllStats = useCallback(() => setSelectedStats(null), []);
   const selectNoStats = useCallback(() => setSelectedStats(new Set()), []);
@@ -448,20 +554,23 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     setDraggedStat(stat);
   }, []);
 
-  const handleStatDragOver = useCallback((e: React.DragEvent, targetStat: string) => {
-    e.preventDefault();
-    if (!draggedStat || draggedStat === targetStat) return;
-    setStatOrder(prev => {
-      const current = prev ?? [...allStatNames];
-      const next = [...current];
-      const fromIdx = next.indexOf(draggedStat);
-      const toIdx = next.indexOf(targetStat);
-      if (fromIdx === -1 || toIdx === -1) return current;
-      next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, draggedStat);
-      return next;
-    });
-  }, [draggedStat, allStatNames]);
+  const handleStatDragOver = useCallback(
+    (e: React.DragEvent, targetStat: string) => {
+      e.preventDefault();
+      if (!draggedStat || draggedStat === targetStat) return;
+      setStatOrder(prev => {
+        const current = prev ?? [...allStatNames];
+        const next = [...current];
+        const fromIdx = next.indexOf(draggedStat);
+        const toIdx = next.indexOf(targetStat);
+        if (fromIdx === -1 || toIdx === -1) return current;
+        next.splice(fromIdx, 1);
+        next.splice(toIdx, 0, draggedStat);
+        return next;
+      });
+    },
+    [draggedStat, allStatNames]
+  );
 
   const handleStatDragEnd = useCallback(() => {
     setDraggedStat(null);
@@ -516,7 +625,18 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
     const result: PivotedRow[] = [];
     for (const group of groups.values()) {
-      const aggs = new Map<string, { sum: number | null; mean: number | null; min: number | null; max: number | null; stdev: number | null; count: number; isNumeric: boolean }>();
+      const aggs = new Map<
+        string,
+        {
+          sum: number | null;
+          mean: number | null;
+          min: number | null;
+          max: number | null;
+          stdev: number | null;
+          count: number;
+          isNumeric: boolean;
+        }
+      >();
       if (isAggregating) {
         for (const [stat, bucket] of group.aggBuckets) {
           const hasNum = bucket.nums.length > 0;
@@ -526,7 +646,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           const max = hasNum ? Math.max(...bucket.nums) : null;
           let stdev: number | null = null;
           if (mean !== null && bucket.nums.length > 1) {
-            const variance = bucket.nums.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (bucket.nums.length - 1);
+            const variance =
+              bucket.nums.reduce((acc, v) => acc + (v - mean) ** 2, 0) / (bucket.nums.length - 1);
             stdev = Math.sqrt(variance);
           }
           aggs.set(stat, { sum, mean, min, max, stdev, count: bucket.count, isNumeric: hasNum });
@@ -623,10 +744,34 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [flatRows]);
   const indexLabels: Record<IndexKey, React.ReactNode> = {
     worker_plan: 'Worker / Plan',
-    parent_operator_type: <><code className="font-mono text-data">{parentPlanLevelLabel}</code><br />Operator Type</>,
-    parent_operator: <><code className="font-mono text-data">{parentPlanLevelLabel}</code><br />Operator Instance</>,
-    operator_type: <><code className="font-mono text-data">{currentPlanLevelLabel}</code><br />Operator Type</>,
-    operator: <><code className="font-mono text-data">{currentPlanLevelLabel}</code><br />Operator Instance</>,
+    parent_operator_type: (
+      <>
+        <code className="font-mono text-data-accent">{parentPlanLevelLabel}</code>
+        <br />
+        Operator Type
+      </>
+    ),
+    parent_operator: (
+      <>
+        <code className="font-mono text-data-accent">{parentPlanLevelLabel}</code>
+        <br />
+        Operator Instance
+      </>
+    ),
+    operator_type: (
+      <>
+        <code className="font-mono text-data-accent-2">{currentPlanLevelLabel}</code>
+        <br />
+        Operator Type
+      </>
+    ),
+    operator: (
+      <>
+        <code className="font-mono text-data-accent-2">{currentPlanLevelLabel}</code>
+        <br />
+        Operator Instance
+      </>
+    ),
   };
 
   return (
@@ -649,7 +794,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                 enabledIndices[key]
                   ? 'bg-primary/10 border-primary/40 text-primary'
                   : 'bg-muted/50 border-border text-muted-foreground',
-                draggedIndex === key && 'opacity-50',
+                draggedIndex === key && 'opacity-50'
               )}
             >
               {indexLabels[key]}
@@ -666,7 +811,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                     'text-xs px-2 py-0.5 rounded border transition-colors',
                     aggMode === mode
                       ? 'bg-primary/10 border-primary/40 text-primary'
-                      : 'bg-muted/50 border-border text-muted-foreground',
+                      : 'bg-muted/50 border-border text-muted-foreground'
                   )}
                 >
                   {mode}
@@ -676,61 +821,72 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           )}
         </div>
         {/* Column selection row */}
-        <div
-          className="relative flex items-center gap-1 px-3 py-1.5 border-t border-border/50 group/cols"
-        >
+        <div className="relative flex items-center gap-1 px-3 py-1.5 border-t border-border/50 group/cols">
           <span className="text-xs text-muted-foreground shrink-0 mr-1">Columns:</span>
-          <button onClick={selectAllStats} className="text-xs text-primary hover:underline shrink-0">All</button>
-          <button onClick={selectNoStats} className="text-xs text-primary hover:underline shrink-0">None</button>
+          <button
+            onClick={selectAllStats}
+            className="text-xs text-primary hover:underline shrink-0"
+          >
+            All
+          </button>
+          <button onClick={selectNoStats} className="text-xs text-primary hover:underline shrink-0">
+            None
+          </button>
           <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-1">
-            {[...orderedStatNames].sort((a, b) => {
-              const aChecked = selectedStats ? selectedStats.has(a) : true;
-              const bChecked = selectedStats ? selectedStats.has(b) : true;
-              if (aChecked !== bChecked) return aChecked ? -1 : 1;
-              return 0;
-            }).map(stat => {
-              const checked = selectedStats ? selectedStats.has(stat) : true;
-              return (
-                <button
-                  key={stat}
-                  onClick={() => toggleStat(stat)}
-                  className={cn(
-                    'text-xs font-mono px-1.5 py-0 rounded border transition-colors whitespace-nowrap shrink-0',
-                    checked
-                      ? 'bg-primary/10 border-primary/40 text-data'
-                      : 'bg-muted/50 border-border text-data/60',
-                  )}
-                >
-                  {stat}
-                </button>
-              );
-            })}
+            {[...orderedStatNames]
+              .sort((a, b) => {
+                const aChecked = selectedStats ? selectedStats.has(a) : true;
+                const bChecked = selectedStats ? selectedStats.has(b) : true;
+                if (aChecked !== bChecked) return aChecked ? -1 : 1;
+                return 0;
+              })
+              .map(stat => {
+                const checked = selectedStats ? selectedStats.has(stat) : true;
+                return (
+                  <button
+                    key={stat}
+                    onClick={() => toggleStat(stat)}
+                    className={cn(
+                      'text-xs font-mono px-1.5 py-0 rounded border transition-colors whitespace-nowrap shrink-0',
+                      checked
+                        ? 'bg-primary/10 border-primary/40 text-data'
+                        : 'bg-muted/50 border-border text-data/60'
+                    )}
+                  >
+                    {stat}
+                  </button>
+                );
+              })}
           </div>
-          <span className="shrink-0 text-xs text-muted-foreground cursor-default">&hellip;&#x25BE;</span>
+          <span className="shrink-0 text-xs text-muted-foreground cursor-default">
+            &hellip;&#x25BE;
+          </span>
           {/* Dropdown on hover when items overflow */}
           <div className="absolute left-0 top-full z-20 w-full bg-card border border-border rounded-b shadow-lg p-2 hidden group-hover/cols:flex flex-wrap gap-1">
-            {[...orderedStatNames].sort((a, b) => {
-              const aChecked = selectedStats ? selectedStats.has(a) : true;
-              const bChecked = selectedStats ? selectedStats.has(b) : true;
-              if (aChecked !== bChecked) return aChecked ? -1 : 1;
-              return 0;
-            }).map(stat => {
-              const checked = selectedStats ? selectedStats.has(stat) : true;
-              return (
-                <button
-                  key={stat}
-                  onClick={() => toggleStat(stat)}
-                  className={cn(
-                    'text-xs font-mono px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap',
-                    checked
-                      ? 'bg-primary/10 border-primary/40 text-data'
-                      : 'bg-muted/50 border-border text-data/60',
-                  )}
-                >
-                  {stat}
-                </button>
-              );
-            })}
+            {[...orderedStatNames]
+              .sort((a, b) => {
+                const aChecked = selectedStats ? selectedStats.has(a) : true;
+                const bChecked = selectedStats ? selectedStats.has(b) : true;
+                if (aChecked !== bChecked) return aChecked ? -1 : 1;
+                return 0;
+              })
+              .map(stat => {
+                const checked = selectedStats ? selectedStats.has(stat) : true;
+                return (
+                  <button
+                    key={stat}
+                    onClick={() => toggleStat(stat)}
+                    className={cn(
+                      'text-xs font-mono px-1.5 py-0.5 rounded border transition-colors whitespace-nowrap',
+                      checked
+                        ? 'bg-primary/10 border-primary/40 text-data'
+                        : 'bg-muted/50 border-border text-data/60'
+                    )}
+                  >
+                    {stat}
+                  </button>
+                );
+              })}
           </div>
         </div>
       </div>
@@ -741,7 +897,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           <thead className="sticky top-0 bg-card z-10">
             <tr className="border-b border-border">
               {activeIndices.map(key => (
-                <th key={key} className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap">
+                <th
+                  key={key}
+                  className="text-left px-3 py-2 font-medium text-muted-foreground whitespace-nowrap"
+                >
                   {indexLabels[key]}
                 </th>
               ))}
@@ -758,9 +917,13 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                   className={cn(
                     'text-right px-3 py-2 font-medium font-mono text-data whitespace-nowrap cursor-pointer select-none hover:text-foreground',
                     draggedStat === stat && 'opacity-50',
-                    sortColumn === stat && 'text-foreground',
+                    sortColumn === stat && 'text-foreground'
                   )}
-                  style={hoveredStat?.name === stat ? { boxShadow: 'inset 0 0 0 999px hsl(var(--primary) / 0.1)' } : undefined}
+                  style={
+                    hoveredStat?.name === stat
+                      ? { boxShadow: 'inset 0 0 0 999px hsl(var(--primary) / 0.1)' }
+                      : undefined
+                  }
                 >
                   {stat}
                   {sortColumn === stat && (
@@ -774,7 +937,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
             {sortedRows.map((row, i) => {
               const spans = rowSpans[i];
               const hasOverlap = [...row.operatorIds].some(id => selectedNodeIds.has(id));
-              const isHoveredFromDag = hoveredOperatorId !== null && row.operatorIds.has(hoveredOperatorId);
+              const isHoveredFromDag =
+                hoveredOperatorId !== null && row.operatorIds.has(hoveredOperatorId);
               const isSelected = hasOverlap;
               const isDimmed = hasSelection && !isSelected && !isHoveredFromDag;
               // Pick a representative operator ID for hover (first in set)
@@ -784,11 +948,14 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
               return (
                 <tr
                   key={row.rowKey}
-                  ref={el => { if (el) rowRefs.current.set(row.rowKey, el); else rowRefs.current.delete(row.rowKey); }}
+                  ref={el => {
+                    if (el) rowRefs.current.set(row.rowKey, el);
+                    else rowRefs.current.delete(row.rowKey);
+                  }}
                   className={cn(
                     'border-b border-border/50 hover:bg-muted/50 transition-opacity',
                     isSelected && 'bg-muted/70',
-                    isHoveredFromDag && 'bg-primary/10',
+                    isHoveredFromDag && 'bg-primary/10'
                   )}
                   style={{ opacity: isDimmed ? 0.3 : 1 }}
                 >
@@ -798,39 +965,60 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                         key={gk.key}
                         className={cn(
                           'px-3 py-1.5 whitespace-nowrap align-top border-r border-border/30',
-                          gk.key === 'operator' && 'font-medium',
+                          gk.key === 'operator' && 'font-medium'
                         )}
                         rowSpan={spans[col]!}
-                        style={(gk.key === 'operator_type' || gk.key === 'parent_operator_type') ? { borderLeftWidth: 8, borderLeftColor: operatorTypeColor(gk.id), backgroundColor: `color-mix(in srgb, ${operatorTypeColor(gk.id)} 15%, transparent)` } : undefined}
+                        style={
+                          gk.key === 'operator_type' || gk.key === 'parent_operator_type'
+                            ? {
+                                borderLeftWidth: 8,
+                                borderLeftColor: operatorTypeColor(gk.id),
+                                backgroundColor: `color-mix(in srgb, ${operatorTypeColor(gk.id)} 15%, transparent)`,
+                              }
+                            : undefined
+                        }
                         onMouseEnter={
-                          gk.key === 'operator' && firstOpId ? () => {
-                            if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
-                              setSelectedPlanId(firstOpPlanId);
-                            }
-                            setHoveredOperatorId(firstOpId);
-                          }
-                          : gk.key === 'parent_operator_type' ? () => setHighlightedNodeIds(childIdsByParentType.get(gk.id) ?? null)
-                          : gk.key === 'parent_operator' ? () => setHighlightedNodeIds(childIdsByParentName.get(gk.id) ?? null)
-                          : gk.key === 'operator_type' ? () => setHoveredOperatorType(gk.id)
-                          : undefined
+                          gk.key === 'operator' && firstOpId
+                            ? () => {
+                                if (firstOpPlanId && firstOpPlanId !== selectedPlanId) {
+                                  setSelectedPlanId(firstOpPlanId);
+                                }
+                                setHoveredOperatorId(firstOpId);
+                              }
+                            : gk.key === 'parent_operator_type'
+                              ? () => setHighlightedNodeIds(childIdsByParentType.get(gk.id) ?? null)
+                              : gk.key === 'parent_operator'
+                                ? () =>
+                                    setHighlightedNodeIds(childIdsByParentName.get(gk.id) ?? null)
+                                : gk.key === 'operator_type'
+                                  ? () => setHoveredOperatorType(gk.id)
+                                  : undefined
                         }
                         onMouseLeave={
-                          gk.key === 'operator' && firstOpId ? () => setHoveredOperatorId(prev => prev === firstOpId ? null : prev)
-                          : (gk.key === 'parent_operator_type' || gk.key === 'parent_operator') ? () => setHighlightedNodeIds(null)
-                          : gk.key === 'operator_type' ? () => setHoveredOperatorType(null)
-                          : undefined
+                          gk.key === 'operator' && firstOpId
+                            ? () => setHoveredOperatorId(prev => (prev === firstOpId ? null : prev))
+                            : gk.key === 'parent_operator_type' || gk.key === 'parent_operator'
+                              ? () => setHighlightedNodeIds(null)
+                              : gk.key === 'operator_type'
+                                ? () => setHoveredOperatorType(null)
+                                : undefined
                         }
                       >
                         {gk.label}
                       </td>
-                    ) : null,
+                    ) : null
                   )}
                   {visibleStats.map(stat => {
                     const numVal = getSortValue(row, stat, isAggregating, aggMode);
                     const range = columnRanges.get(stat);
-                    const bg = numVal !== null && range ? gradientBg(numVal, range.min, range.max) : undefined;
+                    const bg =
+                      numVal !== null && range
+                        ? gradientBg(numVal, range.min, range.max)
+                        : undefined;
                     const isStatHovered = hoveredStat?.name === stat;
-                    const colHighlight = isStatHovered ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)' : undefined;
+                    const colHighlight = isStatHovered
+                      ? 'inset 0 0 0 999px hsl(var(--primary) / 0.07)'
+                      : undefined;
                     const statCellProps = {
                       onMouseEnter: () => setHoveredStat(buildHoveredStatInfo(stat)),
                       onMouseLeave: () => setHoveredStat(null),
@@ -852,7 +1040,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
                     const agg = row.aggs.get(stat);
                     if (!agg || !agg.isNumeric) {
                       return (
-                        <td key={stat} className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground" style={{ boxShadow: colHighlight }} {...statCellProps}>
+                        <td
+                          key={stat}
+                          className="px-3 py-1.5 whitespace-nowrap text-right font-mono text-muted-foreground"
+                          style={{ boxShadow: colHighlight }}
+                          {...statCellProps}
+                        >
                           -
                         </td>
                       );

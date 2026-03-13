@@ -16,7 +16,13 @@ import '@xyflow/react/dist/style.css';
 import { useAtomValue, useSetAtom } from 'jotai';
 import type { DAGData } from '@/services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
-import { selectedNodeIdsAtom, selectedOperatorLabelAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, type HoveredOperatorInfo } from '@/atoms/dag';
+import {
+  selectedNodeIdsAtom,
+  selectedOperatorLabelAtom,
+  hoveredOperatorIdAtom,
+  hoveredOperatorInfoAtom,
+  type HoveredOperatorInfo,
+} from '@/atoms/dag';
 import type { StatValue } from '@/services/query-plan/types';
 import { formatWithPrefix } from '@/services/formatters';
 import { operatorTypeColor } from '@/services/colors';
@@ -239,8 +245,12 @@ const FlowLayout = ({
       onEdgesChange={onEdgesChange}
       onNodeClick={handleNodeClick}
       onMoveStart={handleMoveStart}
-      onMouseEnter={() => { mouseInside.current = true; }}
-      onMouseLeave={() => { mouseInside.current = false; }}
+      onMouseEnter={() => {
+        mouseInside.current = true;
+      }}
+      onMouseLeave={() => {
+        mouseInside.current = false;
+      }}
       proOptions={{ hideAttribution: true }}
       nodeTypes={nodeTypes}
       fitView
@@ -288,7 +298,9 @@ const OperatorStatsOverlay = ({ info }: { info: HoveredOperatorInfo }) => (
           {info.stats.map(({ key, value }) => (
             <div key={key} className="text-xs flex items-center justify-between">
               <span className="capitalize">{key.replace(/_/g, ' ')}:</span>
-              <span className="text-muted-foreground ml-1 font-mono">{formatStatValue(value, key)}</span>
+              <span className="text-muted-foreground ml-1 font-mono">
+                {formatStatValue(value, key)}
+              </span>
             </div>
           ))}
         </div>

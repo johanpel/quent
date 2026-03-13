@@ -247,7 +247,7 @@ function TreeNode<T extends TreeDataItem = TreeDataItem>({
   // Expand this node when it appears in expandedItemIds (e.g. external plan switch)
   React.useEffect(() => {
     if (expandedItemIds.includes(item.id)) {
-      setValue(prev => prev.includes(item.id) ? prev : [item.id]);
+      setValue(prev => (prev.includes(item.id) ? prev : [item.id]));
     }
   }, [expandedItemIds, item.id]);
 

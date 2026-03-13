@@ -124,7 +124,8 @@ export function Timeline({
               value: [m.xStart, 1],
               label: {
                 show: !dimmed,
-                formatter: () => `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
+                formatter: () =>
+                  `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
                 position: [0, -2],
                 fontSize: 8,
                 fontWeight: 600,
@@ -174,7 +175,15 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks, markAreaFillOpacity, markAreaBorderOpacity, markLabelTextColor, durationSeconds]);
+  }, [
+    series,
+    timestamps,
+    marks,
+    markAreaFillOpacity,
+    markAreaBorderOpacity,
+    markLabelTextColor,
+    durationSeconds,
+  ]);
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];

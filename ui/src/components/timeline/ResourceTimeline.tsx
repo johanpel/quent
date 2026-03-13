@@ -191,7 +191,7 @@ export function ResourceTimeline({
           return {
             ...m,
             isDimmed: !inOperator,
-            operatorName: inOperator ? operatorLabel ?? undefined : undefined,
+            operatorName: inOperator ? (operatorLabel ?? undefined) : undefined,
           };
         });
         return {

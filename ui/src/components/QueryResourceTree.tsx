@@ -18,7 +18,12 @@ import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
 import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
 import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
-import { transformResourceTree, getAdaptiveNumBins, getLongEntitiesThreshold, nanosToMs } from '@/lib/timeline.utils';
+import {
+  transformResourceTree,
+  getAdaptiveNumBins,
+  getLongEntitiesThreshold,
+  nanosToMs,
+} from '@/lib/timeline.utils';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
 import { useBulkTimelines } from '@/hooks/useBulkTimelines';
 import {
@@ -173,7 +178,11 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType,
-            long_entities_threshold_s: entities.resource_types[rootResourceType]?.capacities.some(c => c.name === 'unit') ? getLongEntitiesThreshold(durationSeconds) : null,
+            long_entities_threshold_s: entities.resource_types[rootResourceType]?.capacities.some(
+              c => c.name === 'unit'
+            )
+              ? getLongEntitiesThreshold(durationSeconds)
+              : null,
             entity_filter: { entity_type_name: rootFsmFilter ?? null },
             app_params: { operator_id: null },
             config: {

@@ -80,10 +80,7 @@ export function OperatorHeatmapChart({
     [gridBackgroundColor, gridBorderColor]
   );
 
-  const xCategories = useMemo(
-    () => Array.from({ length: numBins }, (_, i) => i),
-    [numBins]
-  );
+  const xCategories = useMemo(() => Array.from({ length: numBins }, (_, i) => i), [numBins]);
 
   const yCategories = useMemo(() => operators.map(op => op.label), [operators]);
 

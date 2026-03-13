@@ -2,7 +2,14 @@ import { memo, useCallback } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { cva } from 'class-variance-authority';
 import { useAtomValue, useSetAtom } from 'jotai';
-import { selectedNodeIdsAtom, hoveredOperatorIdAtom, hoveredOperatorInfoAtom, hoveredStatAtom, hoveredOperatorTypeAtom, highlightedNodeIdsAtom } from '@/atoms/dag';
+import {
+  selectedNodeIdsAtom,
+  hoveredOperatorIdAtom,
+  hoveredOperatorInfoAtom,
+  hoveredStatAtom,
+  hoveredOperatorTypeAtom,
+  highlightedNodeIdsAtom,
+} from '@/atoms/dag';
 import { Operator } from '~quent/types/Operator';
 import { parseCustomStatistics } from '@/lib/queryBundle.utils.ts';
 
@@ -68,8 +75,16 @@ const nodeVariants = cva(
         selected: true,
         class: 'bg-purple-500/60 hover:bg-purple-500/70',
       },
-      { operationType: 'aggregate', selected: true, class: 'bg-green-500/60 hover:bg-green-500/70' },
-      { operationType: 'exchange', selected: true, class: 'bg-orange-500/60 hover:bg-orange-500/70' },
+      {
+        operationType: 'aggregate',
+        selected: true,
+        class: 'bg-green-500/60 hover:bg-green-500/70',
+      },
+      {
+        operationType: 'exchange',
+        selected: true,
+        class: 'bg-orange-500/60 hover:bg-orange-500/70',
+      },
       { operationType: 'output', selected: true, class: 'bg-red-500/60 hover:bg-red-500/70' },
       { operationType: 'stage', selected: true, class: 'bg-indigo-500/60 hover:bg-indigo-500/70' },
       { operationType: 'local', selected: true, class: 'bg-amber-500/60 hover:bg-amber-500/70' },
@@ -77,7 +92,11 @@ const nodeVariants = cva(
       { operationType: 'filter', selected: true, class: 'bg-cyan-500/60 hover:bg-cyan-500/70' },
       { operationType: 'sort', selected: true, class: 'bg-violet-500/60 hover:bg-violet-500/70' },
       { operationType: 'limit', selected: true, class: 'bg-pink-500/60 hover:bg-pink-500/70' },
-      { operationType: 'union', selected: true, class: 'bg-emerald-500/60 hover:bg-emerald-500/70' },
+      {
+        operationType: 'union',
+        selected: true,
+        class: 'bg-emerald-500/60 hover:bg-emerald-500/70',
+      },
       { operationType: 'other', selected: true, class: 'bg-gray-500/60 hover:bg-gray-500/70' },
     ],
     defaultVariants: {
@@ -132,7 +151,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorTypeName = data.metadata?.rawNode?.operator_type_name ?? data.operationType;
   const isSelected = selectedNodeIds.has(operatorId);
   const isHovered = hoveredOperatorId === operatorId && operatorId !== '';
-  const isTypeHovered = hoveredOpType !== null && hoveredOpType.toLowerCase().split(', ').includes(operatorTypeName.toLowerCase());
+  const isTypeHovered =
+    hoveredOpType !== null &&
+    hoveredOpType.toLowerCase().split(', ').includes(operatorTypeName.toLowerCase());
   const isHighlighted = highlightedNodeIds !== null && highlightedNodeIds.has(operatorId);
   const hasSelection = selectedNodeIds.size > 0;
   const isDimmed = hasSelection && !isSelected;
@@ -140,14 +161,16 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
 
   // Heatmap: compute background override when a stat column is hovered
-  const heatmapStyle = hoveredStat ? (() => {
-    const v = hoveredStat.values.get(operatorId);
-    if (v === undefined) return { opacity: 0.2 };
-    const range = hoveredStat.max - hoveredStat.min;
-    const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
-    const color = heatmapBg(t);
-    return { backgroundColor: color, borderColor: color };
-  })() : undefined;
+  const heatmapStyle = hoveredStat
+    ? (() => {
+        const v = hoveredStat.values.get(operatorId);
+        if (v === undefined) return { opacity: 0.2 };
+        const range = hoveredStat.max - hoveredStat.min;
+        const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
+        const color = heatmapBg(t);
+        return { backgroundColor: color, borderColor: color };
+      })()
+    : undefined;
 
   const onMouseEnter = useCallback(() => {
     if (operatorId) {
@@ -159,10 +182,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         stats: statistics,
       });
     }
-  }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId, data.label, data.operationType, statistics]);
+  }, [
+    operatorId,
+    setHoveredOperatorId,
+    setHoveredOperatorInfo,
+    data.nodeId,
+    data.label,
+    data.operationType,
+    statistics,
+  ]);
   const onMouseLeave = useCallback(() => {
-    setHoveredOperatorId(prev => prev === operatorId ? null : prev);
-    setHoveredOperatorInfo(prev => prev?.nodeId === data.nodeId ? null : prev);
+    setHoveredOperatorId(prev => (prev === operatorId ? null : prev));
+    setHoveredOperatorInfo(prev => (prev?.nodeId === data.nodeId ? null : prev));
   }, [operatorId, setHoveredOperatorId, setHoveredOperatorInfo, data.nodeId]);
 
   const nodeContent = (
@@ -173,14 +204,21 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
       })} ${isSelected ? 'border-3 scale-110' : ''} ${(isHovered || isTypeHovered || isHighlighted) && !isSelected ? 'ring-2 ring-primary/50' : ''}`}
       style={{
         zIndex: 10,
-        opacity: heatmapStyle?.opacity
-          ?? (highlightedNodeIds !== null && !isHighlighted ? 0.25
-          : (hoveredOpType !== null && !isTypeHovered ? 0.25
-          : (hoveredOperatorId !== null && !isHovered ? 0.25
-          : (isDimmed && !isHovered ? 0.3
-          : 1)))),
+        opacity:
+          heatmapStyle?.opacity ??
+          (highlightedNodeIds !== null && !isHighlighted
+            ? 0.25
+            : hoveredOpType !== null && !isTypeHovered
+              ? 0.25
+              : hoveredOperatorId !== null && !isHovered
+                ? 0.25
+                : isDimmed && !isHovered
+                  ? 0.3
+                  : 1),
         transition: 'opacity 0.15s, transform 0.15s, background-color 0.15s, border-color 0.15s',
-        ...(heatmapStyle?.backgroundColor ? { backgroundColor: heatmapStyle.backgroundColor, borderColor: heatmapStyle.borderColor } : {}),
+        ...(heatmapStyle?.backgroundColor
+          ? { backgroundColor: heatmapStyle.backgroundColor, borderColor: heatmapStyle.borderColor }
+          : {}),
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

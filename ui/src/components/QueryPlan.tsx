@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, useMemo, lazy, Suspense } from 'react';
 import { useAtom, useSetAtom } from 'jotai';
 import { useQueryBundle } from '@/hooks/useQueryBundle';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
@@ -38,6 +38,19 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     }
   }, [queryBundle, planId, setPlanId]);
 
+  // Build depth map and find selected plan's depth to color siblings consistently
+  const { depthMap, selectedDepth } = useMemo(() => {
+    const dm = new Map<string, number>();
+    const walk = (items: QueryPlanDataItem[], depth: number) => {
+      for (const item of items) {
+        dm.set(item.id, depth);
+        if (item.children) walk(item.children as QueryPlanDataItem[], depth + 1);
+      }
+    };
+    walk(treeData, 0);
+    return { depthMap: dm, selectedDepth: dm.get(planId) ?? -1 };
+  }, [treeData, planId]);
+
   // handle loading and error states
   if (queryBundleLoading) {
     return (
@@ -72,6 +85,13 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const singleQueryPlan = treeData.length === 1 && !treeData[0]?.children;
 
   const renderItem = ({ item, hasChildren }: { item: QueryPlanDataItem; hasChildren: boolean }) => {
+    const depth = depthMap.get(item.id) ?? -1;
+    const planTypeColor =
+      depth === selectedDepth
+        ? 'text-data-accent-2'
+        : depth === selectedDepth - 1
+          ? 'text-data-accent'
+          : 'text-data';
     return (
       <div
         className="flex flex-col items-start py-0.5 pl-1"
@@ -82,7 +102,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
           <span className="text-xs">Query: {item.queryId}</span>
         ) : (
           <span className="text-xs">
-            <span className="capitalize">{item.planType}</span>
+            <span className={`capitalize font-mono ${planTypeColor}`}>{item.planType}</span>
             {!hasChildren && <span>: {item.id}</span>}
           </span>
         )}

@@ -201,7 +201,8 @@ export function buildTimelineMarks(
         const xStart = startTimeMs + transition.timestamp * 1000;
         const xEnd = startTimeMs + next.timestamp * 1000;
         const stateIndex = stateIndexMap.get(transition.name);
-        const color = stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(transition.name);
+        const color =
+          stateIndex != null ? getColorByIndex(stateIndex) : getColorForKey(transition.name);
         return { label, stateName: transition.name, color, xStart, xEnd };
       })
       .filter((m): m is TimelineMark => m != null && m.xEnd > m.xStart);
@@ -620,7 +621,9 @@ export function buildBulkParamsForItem(
 
   const resourceTypeDecl = resourceTypeName ? entities.resource_types[resourceTypeName] : undefined;
   const hasUnitCapacity = resourceTypeDecl?.capacities.some(c => c.name === 'unit') ?? false;
-  const longEntitiesThreshold = hasUnitCapacity ? getLongEntitiesThreshold(config.end - config.start) : null;
+  const longEntitiesThreshold = hasUnitCapacity
+    ? getLongEntitiesThreshold(config.end - config.start)
+    : null;
 
   if (isGroup) {
     const groupResourceTypeName = resourceTypeName || '';

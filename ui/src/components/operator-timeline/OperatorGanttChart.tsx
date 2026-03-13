@@ -35,7 +35,6 @@ import { formatDurationForWindow } from '@/services/formatters';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_VISIBLE_ROWS = 5;
-const Y_SLIDER_WIDTH = 16;
 /** Separate chart group so Y dataZoom on the Gantt does not sync to resource timelines. */
 const OPERATOR_GANTT_CHART_GROUP = 'operator-gantt-group';
 
