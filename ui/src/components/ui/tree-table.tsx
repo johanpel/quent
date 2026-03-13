@@ -140,6 +140,7 @@ const TreeNode = ({
   renderItem,
   onExpandChange,
   onReorder,
+  controlledExpandedIds,
   highlightedItemIds,
   level = 0,
 }: {
@@ -152,12 +153,21 @@ const TreeNode = ({
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
   onReorder?: (parentId: string | null, fromId: string, toId: string) => void;
+  controlledExpandedIds?: Set<string>;
   highlightedItemIds?: Set<string>;
   level?: number;
 }) => {
   const itemExpanded = (item as { expanded?: boolean }).expanded;
   const shouldExpandByDefault = expandedItemIds.includes(item.id) || itemExpanded === true;
   const [value, setValue] = useState(shouldExpandByDefault ? [item.id] : []);
+
+  // Expand when externally requested via controlledExpandedIds.
+  useEffect(() => {
+    if (controlledExpandedIds?.has(item.id) && !value.includes(item.id)) {
+      setValue([item.id]);
+      onExpandChange?.(item.id, true);
+    }
+  }, [controlledExpandedIds, item.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const hasChildren = !!item.children?.length;
   const isSelected = selectedItemId === item.id;
   const isOpen = value.includes(item.id);
@@ -225,6 +235,7 @@ const TreeNode = ({
             onExpandChange={onExpandChange}
             onReorder={onReorder}
             parentId={item.id}
+            controlledExpandedIds={controlledExpandedIds}
             highlightedItemIds={highlightedItemIds}
             level={level + 1}
           />
@@ -321,6 +332,7 @@ type TreeItemProps = {
   onExpandChange?: (itemId: string, isExpanded: boolean) => void;
   onReorder?: (parentId: string | null, fromId: string, toId: string) => void;
   parentId?: string | null;
+  controlledExpandedIds?: Set<string>;
   highlightedItemIds?: Set<string>;
   level?: number;
   className?: string;
@@ -340,6 +352,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
       onExpandChange,
       onReorder,
       parentId,
+      controlledExpandedIds,
       highlightedItemIds,
       level,
       ...props
@@ -391,6 +404,7 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
                   renderItem={renderItem}
                   onExpandChange={onExpandChange}
                   onReorder={onReorder}
+                  controlledExpandedIds={controlledExpandedIds}
                   highlightedItemIds={highlightedItemIds}
                 />
               ) : (
@@ -424,6 +438,7 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
   defaultNodeIcon?: IconComponent;
   defaultLeafIcon?: IconComponent;
   renderItem?: (params: TreeTableRenderItemParams) => React.ReactNode;
+  controlledExpandedIds?: Set<string>;
   highlightedItemIds?: Set<string>;
 };
 
@@ -440,6 +455,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       defaultNodeIcon,
       className,
       renderItem,
+      controlledExpandedIds,
       highlightedItemIds,
       ...props
     },
@@ -497,6 +513,7 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
           renderItem={renderItem}
           onExpandChange={onExpandChange}
           onReorder={onReorder}
+          controlledExpandedIds={controlledExpandedIds}
           highlightedItemIds={highlightedItemIds}
           level={0}
           {...props}

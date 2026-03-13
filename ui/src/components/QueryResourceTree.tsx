@@ -1,5 +1,5 @@
 import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useHydrateAtoms } from 'jotai/utils';
 import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
@@ -20,6 +20,7 @@ import type { QueryFilter } from '~quent/types/QueryFilter';
 import type { OperatorFilter } from '~quent/types/OperatorFilter';
 import {
   transformResourceTree,
+  findAncestorGroupIds,
   getAdaptiveNumBins,
   getLongEntitiesThreshold,
   nanosToMs,
@@ -34,6 +35,7 @@ import {
   groupFsmFiltersAtom,
   engineIdAtom,
   queryIdAtom,
+  trackedEntityAtom,
 } from '@/atoms/timeline';
 import { useAtom, useAtomValue } from 'jotai';
 import { TimelineToolbar } from './timeline/TimelineToolbar';
@@ -119,7 +121,22 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
-  const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+  const { expandedIds, handleExpandChange, expandAll } = useExpandedIds(rootItem.id);
+
+  const trackedEntity = useAtomValue(trackedEntityAtom);
+
+  // Auto-expand resource groups that contain resources used by the tracked entity.
+  useEffect(() => {
+    if (!trackedEntity?.fsm) return;
+    const resourceIds = new Set(
+      trackedEntity.fsm.transitions.flatMap(t => t.usages.map(u => u.resource))
+    );
+    if (resourceIds.size === 0) return;
+    const ancestorIds = findAncestorGroupIds(rootItem, resourceIds);
+    if (ancestorIds.size > 0) {
+      expandAll(ancestorIds);
+    }
+  }, [trackedEntity, rootItem, expandAll]);
 
   const handleReorder = useCallback(
     (parentId: string | null, fromId: string, toId: string) => {
@@ -322,6 +339,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           columnWidths={[275, 'auto']}
           onExpandChange={onExpandChange}
           onReorder={handleReorder}
+          controlledExpandedIds={expandedIds}
           highlightedItemIds={highlightedItemIds}
         />
       </div>

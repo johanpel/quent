@@ -18,5 +18,16 @@ export function useExpandedIds(initialId?: string) {
     });
   }, []);
 
-  return { expandedIds, handleExpandChange } as const;
+  /** Expand all provided IDs (additive — does not collapse anything). */
+  const expandAll = useCallback((ids: Iterable<string>) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  return { expandedIds, handleExpandChange, expandAll } as const;
 }

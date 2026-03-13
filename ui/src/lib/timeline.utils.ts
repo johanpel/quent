@@ -600,6 +600,38 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
   return undefined;
 }
 
+/**
+ * Walk the tree and collect the IDs of all ancestor groups that contain at
+ * least one leaf resource whose ID is in `targetIds`.
+ */
+export function findAncestorGroupIds(
+  node: TreeTableItem,
+  targetIds: Set<string>
+): Set<string> {
+  const result = new Set<string>();
+
+  function walk(item: TreeTableItem): boolean {
+    // Leaf resource — check if it's one of the targets.
+    if (!item.children || item.children.length === 0) {
+      return targetIds.has(item.id);
+    }
+    // Group — recurse children and collect if any child matches.
+    let hasMatch = false;
+    for (const child of item.children) {
+      if (walk(child)) {
+        hasMatch = true;
+      }
+    }
+    if (hasMatch) {
+      result.add(item.id);
+    }
+    return hasMatch;
+  }
+
+  walk(node);
+  return result;
+}
+
 /** Build TimelineRequest params for a single tree item.
  *  @param groupFsmFilters — per-item FSM filter map for resource groups.
  *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
