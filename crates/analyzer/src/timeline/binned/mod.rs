@@ -97,6 +97,10 @@ impl UnitAggregator {
             deltas.push((clamped_end, -rate));
         }
 
+        if deltas.is_empty() {
+            return;
+        }
+
         // Sort: by timestamp, then ends (-rate) before starts (+rate) at same
         // timestamp so the running sum doesn't transiently overcount.
         deltas.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.partial_cmp(&b.1).unwrap()));

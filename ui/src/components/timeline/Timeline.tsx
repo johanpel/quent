@@ -7,7 +7,7 @@ import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { TooltipContent } from './TimelineTooltip';
-import { withOpacity } from '@/services/colors';
+import { withOpacity, darkenColor } from '@/services/colors';
 import type { TimelineSeriesEntry } from './types';
 import {
   TimelineSeries,
@@ -54,6 +54,7 @@ export function Timeline({
     markAreaFillOpacity,
     markAreaBorderOpacity,
     markLabelTextColor,
+    markBorderColor,
   } = useTimelineChartColors();
 
   const zoomRange = useAtomValue(zoomRangeAtom);
@@ -64,6 +65,7 @@ export function Timeline({
   windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 
   const maxMarkCountRef = useRef(0);
+  const plotWidthRef = useRef(700);
 
   const seriesOptions = useMemo(() => {
     const sortedEntries = Object.entries(series).sort((a, b) => a[0].localeCompare(b[0]));
@@ -102,13 +104,9 @@ export function Timeline({
 
     const markCount = marks?.length ?? 0;
     maxMarkCountRef.current = Math.max(maxMarkCountRef.current, markCount);
-    // Use visible time range from timestamps for width estimation.
-    // When zoomed in, timestamps reflect the visible window, not the
-    // full duration, so mark labels scale correctly.
-    const visibleMs =
-      timestamps.length >= 2
-        ? timestamps[timestamps.length - 1]! - timestamps[0]!
-        : durationSeconds * 1000;
+    // Use zoom-aware visible time range for width estimation so labels
+    // scale correctly when zoomed in.
+    const visibleMs = (zoomRange.end - zoomRange.start) * 1000;
 
     const tickData: { xAxis: number; lineStyle: { color: string } }[] = [];
 
@@ -122,8 +120,10 @@ export function Timeline({
         // Estimate label width from mark's time fraction of the visible window.
         // Assume ~700px usable chart width after axis spacing.
         const markFraction = visibleMs > 0 ? (m.xEnd - m.xStart) / visibleMs : 0;
-        const estimatedWidth = Math.max(10, Math.floor(markFraction * 700) - 8);
-        const borderWidth = tracked ? 2.5 : dimmed ? 0.5 : 1.5;
+        const borderWidth = tracked ? 3 : dimmed ? 0.5 : 1.5;
+        const markPixelWidth = Math.floor(markFraction * plotWidthRef.current);
+        const labelPadX = 2;
+        const labelWidth = Math.max(10, markPixelWidth - borderWidth * 2 - labelPadX * 2);
         const fillOpacity = tracked ? 1 : dimmed ? dimOpacity : 1;
         allSeries.push({
           name: `__mark_${i}`,
@@ -137,34 +137,40 @@ export function Timeline({
                 show: !dimmed,
                 formatter: () =>
                   `${m.label}\n${m.stateName}${m.operatorName ? `\n${m.operatorName}` : ''}`,
-                position: [0, -2],
+                position: [borderWidth, 0],
                 fontSize: 8,
                 fontWeight: 600,
+                lineHeight: 10,
                 color: markLabelTextColor,
-                backgroundColor: withOpacity(stateColor, 0.85),
-                borderRadius: 2,
-                padding: [1, 3],
+                backgroundColor: darkenColor(stateColor, 0.3),
+                borderRadius: 0,
+                padding: [1, labelPadX],
                 overflow: 'truncate',
                 ellipsis: '…',
-                width: estimatedWidth,
+                width: labelWidth,
               },
             },
             [m.xEnd, 1],
             [m.xEnd, 0],
           ],
-          zlevel: 1,
+          zlevel: tracked ? 3 : 1,
+          z: tracked ? 20 : undefined,
           label: { show: false },
           symbolSize: 0,
           lineStyle: {
             width: borderWidth,
-            color: withOpacity(stateColor, dimmed ? dimOpacity : 0.8),
-            type: tracked ? 'dashed' : 'solid',
-            ...(tracked ? { shadowBlur: 6, shadowColor: withOpacity(stateColor, 0.7) } : {}),
+            color: dimmed ? withOpacity(stateColor, dimOpacity) : markBorderColor,
+            type: 'solid',
+            ...(tracked
+              ? { shadowBlur: 12, shadowColor: withOpacity(stateColor, 0.9), shadowOffsetX: 0, shadowOffsetY: 0 }
+              : {}),
           },
           areaStyle: {
             color: withOpacity(stateColor, fillOpacity),
             opacity: 1,
-            ...(tracked ? { shadowBlur: 10, shadowColor: withOpacity(stateColor, 0.5) } : {}),
+            ...(tracked
+              ? { shadowBlur: 16, shadowColor: withOpacity(stateColor, 0.8) }
+              : {}),
           },
           tooltip: { show: false },
           silent: true,
@@ -222,7 +228,10 @@ export function Timeline({
     markAreaFillOpacity,
     markAreaBorderOpacity,
     markLabelTextColor,
+    markBorderColor,
     durationSeconds,
+    zoomRange,
+    height,
   ]);
 
   const yAxisFormatter = useMemo(() => {
@@ -412,6 +421,14 @@ export function Timeline({
   const handleChartReady = useCallback((instance: EChartsInstance) => {
     instanceRef.current = instance;
     connectChart(instance, CHART_GROUP, false);
+
+    // Measure actual plot area width for accurate mark label sizing.
+    const updatePlotWidth = () => {
+      const width = instance.getWidth?.() ?? 0;
+      if (width > 0) plotWidthRef.current = width - 60; // subtract grid left+right (50+10)
+    };
+    updatePlotWidth();
+    instance.on('finished', updatePlotWidth);
 
     const dom = instance.getDom();
     dom.addEventListener('pointerdown', () => {

@@ -22,6 +22,8 @@ const MARK_AREA_FILL_OPACITY = 0.12;
 const MARK_AREA_BORDER_OPACITY = 0.75;
 const MARK_LABEL_TEXT_COLOR = WHITE;
 const MARK_LABEL_TEXT_COLOR_DARK = WHITE;
+const MARK_BORDER_COLOR = 'rgba(0,0,0,0.55)';
+const MARK_BORDER_COLOR_DARK = 'rgba(0,0,0,0.55)';
 
 /** Softer than pure black/white for chart text to reduce contrast. */
 const TEXT_COLOR_LIGHT = '#333333';
@@ -77,6 +79,7 @@ export function useTimelineChartColors() {
       markAreaFillOpacity: MARK_AREA_FILL_OPACITY,
       markAreaBorderOpacity: MARK_AREA_BORDER_OPACITY,
       markLabelTextColor: theme === THEME_DARK ? MARK_LABEL_TEXT_COLOR_DARK : MARK_LABEL_TEXT_COLOR,
+      markBorderColor: theme === THEME_DARK ? MARK_BORDER_COLOR_DARK : MARK_BORDER_COLOR,
     };
   }, [theme]);
 }
