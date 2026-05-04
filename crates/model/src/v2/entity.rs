@@ -16,6 +16,8 @@ pub struct Multi<T> {
     _phantom: PhantomData<T>,
 }
 
+// TODO: use the analysis/event crate traits/structs.
+
 // Every entity has a unique id.
 // For instrumentation:
 pub trait EntityHandle {
@@ -29,13 +31,14 @@ pub trait EntityModel {
     fn type_name() -> String;
 }
 
-// An event has a timestamp and a payload
+// An event has an entity id, a timestamp, and a payload
 pub struct Event<T> {
     pub id: Uuid,
     pub timestamp: TimeUnixNanoSec,
     pub payload: T,
 }
 
+// Mock error type
 #[derive(Debug)]
 pub struct ObserverError;
 impl std::fmt::Display for ObserverError {
@@ -45,6 +48,7 @@ impl std::fmt::Display for ObserverError {
 }
 impl std::error::Error for ObserverError {}
 
+// An entity that emits one single event only, no attributes (i.e. just records a timestamp).
 mod one_shot_empty {
     use super::*;
 
@@ -106,6 +110,7 @@ mod one_shot_empty {
     }
 }
 
+// An entity that emits one single event with attributes.
 mod one_shot_with_attribs {
     use super::*;
 
@@ -158,6 +163,7 @@ mod one_shot_with_attribs {
     }
 }
 
+// An entity that emits multiple kinds of events, just once per kind.
 mod multi_one_shot {
     use super::*;
 
@@ -182,10 +188,12 @@ mod multi_one_shot {
     }
 
     mod events {
+        use super::*;
+
         pub enum MultiOneShotEvent {
-            A(super::model::X),
-            B(super::model::Y),
-            C(super::model::Y), // same attributes type as B, but semantically different event
+            A(model::X),
+            B(model::Y),
+            C(model::Y), // same attributes type as B, but semantically different event
             D,
         }
     }
@@ -218,17 +226,17 @@ mod multi_one_shot {
         }
 
         impl MultiOneShotHandle {
-            fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
+            fn a(&self, _attributes: model::X) -> Result<(), ObserverError> {
                 // errors out if the event was previously submitted already
                 //
                 // emits event, flags this as emitted
                 todo!()
             }
-            fn b(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
+            fn b(&self, _attributes: model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
             // same attributes type as b(), but semantically different event
-            fn c(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
+            fn c(&self, _attributes: model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
             fn d(&self) {
@@ -244,14 +252,15 @@ mod multi_one_shot {
         // could have been in any order, and events may not have been sent, so
         // these are all optional.
         pub trait MultiOneShotModel: EntityModel {
-            fn a() -> Option<Event<super::model::X>>;
-            fn b() -> Option<Event<super::model::Y>>;
-            fn c() -> Option<Event<super::model::Y>>;
+            fn a() -> Option<Event<model::X>>;
+            fn b() -> Option<Event<model::Y>>;
+            fn c() -> Option<Event<model::Y>>;
             fn d() -> Option<Event<()>>;
         }
     }
 }
 
+// An entity that emits one kind of event, at least once, but possibly multiple times.
 mod one_multi_shot {
     use super::*;
 
@@ -314,6 +323,7 @@ mod one_multi_shot {
     }
 }
 
+// An entity that emits multiple kinds of events, possibly one or multiple times.
 mod multi_multi_shot {
     use super::*;
 
@@ -393,6 +403,7 @@ mod multi_multi_shot {
     }
 }
 
+// An entity with mixed types of events.
 mod mixed {
     use super::*;
 
@@ -468,7 +479,7 @@ mod mixed {
     }
 }
 
-// Some invalid things that should produce compilation errors
+// Invalid things that should produce compilation errors.
 mod invalid {
     use super::*;
 
@@ -477,7 +488,6 @@ mod invalid {
 
         // Can't have plain fields if there are any Once or Many typed fields.
         // Plain fields are only allowed for single, one-shot event entities.
-
         #[derive(Entity)]
         pub struct Invalid {
             plain: u64,

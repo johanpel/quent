@@ -1,14 +1,24 @@
 use std::marker::PhantomData;
 
+use quent_model_macros::Fsm;
 use quent_model_macros::Resource;
-use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
+
+use crate::v2::entity::ObserverError;
+
+// Notes:
+//
+// Resources should roughly be considered an attribute "convention" on top of
+// the entity and FSM semantics. As such it should be possible to provide a
+// sugaring syntax over those concepts, without requiring additional core things
+// from the entity and FSM derives.
 
 // User-facing types used during modeling
 struct Capacity<T> {
     _phantom: PhantomData<T>,
 }
 
+// a unit resource
 mod thread {
     use super::*;
 
@@ -20,108 +30,103 @@ mod thread {
         struct Thread;
     }
 
-    mod events {
+    mod desugared {
         use super::*;
 
         pub struct ThreadInit {
             parent_group_id: Uuid,
         }
 
-        pub enum ThreadEvent {
+        #[derive(Fsm)]
+        pub enum ThreadFsm {
             Init(ThreadInit),
-            Operating, // nothing here since it's a unit resource
+            Operating,
             Finalizing,
             Exit,
         }
     }
 
+    // Since a resource is an FSM with predefined transition, no additional types need to be generated besides pub enum ThreadFsm.
+    mod events {}
+
     mod instrumentation {
         use super::*;
 
-        struct ThreadObserver {
-            // holds sender to mpsc event channel
-        }
+        struct Init;
+        struct Operating;
+        struct Finalizing;
+
+        struct ThreadObserver {}
         impl ThreadObserver {
-            fn init(&self) -> ThreadHandle {
+            fn init(
+                &self,
+                _attributes: desugared::ThreadInit,
+            ) -> Result<ThreadHandle<Init>, ObserverError> {
                 // clones sender into handle
                 // emits state transition event
                 todo!()
             }
         }
 
-        struct ThreadHandle {
+        struct ThreadHandle<T> {
+            _phantom: PhantomData<T>,
             id: Uuid,
             // + sender to event channel of the observer
         }
 
-        impl ThreadHandle {
-            fn operating(self) -> Self {
+        impl ThreadHandle<Init> {
+            fn operating(self) -> Result<ThreadHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn finalizing(self) -> Self {
+        }
+
+        impl ThreadHandle<Operating> {
+            fn finalizing(self) -> Result<ThreadHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn exit(self) {
+        }
+
+        impl ThreadHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
         }
     }
 
-    // in analysis we want to be able to back a "view" of an entity with
-    // anything, e.g. an plain rust struct, an index into an arrow recordbatch
-    // or a database. so ideally we generate a trait of which its members are
-    // used by analysis code
-    mod analysis {
-        use super::*;
-
-        // trivial linear FSM transitions.
-        trait ThreadModel {
-            fn init(&self) -> Option<super::events::ThreadInit>;
-            fn operating(&self) -> Option<TimeUnixNanoSec>;
-            fn finalizing(&self) -> Option<TimeUnixNanoSec>;
-            fn exit(&self) -> Option<TimeUnixNanoSec>;
-        }
-    }
+    mod analysis {}
 }
 
+// a resource with one occupancy capacity
 mod memory {
     use super::*;
 
     mod model {
         use super::*;
 
-        // Resource with occupancy capacity
+        // While a resource is an FSM, it has a very constrained declaration
+        // space compared to arbitrary FSMs. The only thing we need to declare
+        // are its capacities.
+        //
+        // Since at some point in time, all available capacities of a resource
+        // are simultaneously used by things to a certain amount, so using a
+        // product type to declare it here a makes sense.
         #[derive(Resource)]
-        struct Memory {
-            bytes: Capacity<u64>,
-            // open questions:
-            // what to do with arbitrary other attributes?
-            // will they go on initializing state, if is that obvious to the users?
-            // maybe: foo: Atrribute<T> ?
+        pub struct Memory {
+            pub bytes: Capacity<u64>,
         }
     }
 
-    mod events {
+    mod desugared {
         use super::*;
 
-        struct MemoryInit {
-            parent_group_id: Uuid,
-        }
-
-        struct MemoryOperating {
-            capacity_bytes: u64,
-        }
-
-        enum MemoryEvent {
-            Init(MemoryInit),
-            Operating(MemoryOperating),
-            Finalizing,
-            Exit,
-        }
+        #[derive(Fsm)]
+        pub enum MemoryFsm {}
     }
+
+    mod events {}
 
     mod instrumentation {
         use super::*;

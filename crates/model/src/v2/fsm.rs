@@ -23,6 +23,21 @@ use uuid::Uuid;
 // is no recovery from these errors, so FSM handles are dropped. Future work can
 // consider returning the handle in some erroneous state.
 
+// Type representing the FSM transition event payload.
+//
+// Every FSM transition will be accompanied by a sequence number. The order of
+// transitions can be determined by looking at the sequence number because most
+// clock sources are guaranteed to be monotonically increasing, but there is no
+// guarantee two subsequent events can never get same timestamp (although it is
+// very unlikely).
+pub struct Transition<T> {
+    // If this ever wraps in case an FSM goes through over u16::MAX (65535)
+    // state transitions, we should panic, so clients can let us know this needs
+    // to be increased.
+    sequence_number: u16,
+    payload: T,
+}
+
 // Arbitrary attribute types
 pub struct X {
     pub foo: u64,
@@ -31,14 +46,14 @@ pub struct Y {
     pub bar: String,
 }
 
-// This shouldn't compile. States need a name and an attributes type,
-// which none of these definitions can provide:
+// Fsm declarations that shouldn't compile.
 mod invalid {
     use super::*;
 
     mod model {
         use super::*;
 
+        // Shouldn't compile, because states need a name and an attributes type.
         #[derive(Fsm)]
         pub enum Invalid {}
     }
@@ -402,7 +417,7 @@ mod solo_loop {
 }
 
 // FSM with a state with multiple next states
-mod fanout {
+mod fan_out {
     use super::*;
 
     mod model {
@@ -502,7 +517,8 @@ mod fanout {
     }
 }
 
-mod fanin {
+// FSM with multiple states transitioning into one next state
+mod fan_in {
     use super::*;
 
     mod model {
@@ -510,7 +526,7 @@ mod fanin {
 
         #[derive(Fsm)]
         #[quent(transitions={entry->A, A->{B,C}, {B, C}->D, D->exit})]
-        pub enum Fanin {
+        pub enum FanIn {
             A(()),
             B(X),
             C,
@@ -529,52 +545,52 @@ mod fanin {
         pub struct C;
         pub struct D;
 
-        pub struct FaninObserver {
+        pub struct FanInObserver {
             // holds same stuff as in entity examples
         }
 
-        impl FaninObserver {
+        impl FanInObserver {
             // Initial state transition produces a handle with an API following
             // the type-state pattern
-            pub fn a(&self) -> Result<FaninHandle<A>, ObserverError> {
+            pub fn a(&self) -> Result<FanInHandle<A>, ObserverError> {
                 todo!()
             }
         }
 
         // A handle for the FSM
-        pub struct FaninHandle<T> {
+        pub struct FanInHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
         }
 
-        impl<T> EntityHandle for FaninHandle<T> {
+        impl<T> EntityHandle for FanInHandle<T> {
             fn id(&self) -> Uuid {
                 self.id
             }
         }
 
-        impl FaninHandle<A> {
-            pub fn b(self, _attributes: X) -> Result<FaninHandle<B>, ObserverError> {
+        impl FanInHandle<A> {
+            pub fn b(self, _attributes: X) -> Result<FanInHandle<B>, ObserverError> {
                 todo!()
             }
-            pub fn c(self) -> Result<FaninHandle<C>, ObserverError> {
-                todo!()
-            }
-        }
-
-        impl FaninHandle<B> {
-            pub fn d(self, _attributes: Y) -> Result<FaninHandle<D>, ObserverError> {
+            pub fn c(self) -> Result<FanInHandle<C>, ObserverError> {
                 todo!()
             }
         }
 
-        impl FaninHandle<C> {
-            pub fn d(self, _attributes: Y) -> Result<FaninHandle<D>, ObserverError> {
+        impl FanInHandle<B> {
+            pub fn d(self, _attributes: Y) -> Result<FanInHandle<D>, ObserverError> {
                 todo!()
             }
         }
 
-        impl FaninHandle<D> {
+        impl FanInHandle<C> {
+            pub fn d(self, _attributes: Y) -> Result<FanInHandle<D>, ObserverError> {
+                todo!()
+            }
+        }
+
+        impl FanInHandle<D> {
             pub fn exit(self) -> Result<(), ObserverError> {
                 todo!()
             }
@@ -585,7 +601,7 @@ mod fanin {
         use super::*;
 
         fn example() -> Result<(), Box<dyn std::error::Error>> {
-            let obs = instrumentation::FaninObserver {};
+            let obs = instrumentation::FanInObserver {};
 
             obs.a()?
                 .b(X { foo: 10 })?
@@ -607,6 +623,7 @@ mod fanin {
     }
 }
 
+// Full example with fanin, fanout, loop
 mod full {
     use super::*;
 
@@ -615,11 +632,19 @@ mod full {
 
         #[derive(Fsm)]
         #[quent(transitions={entry->A, A->{B,C}, B->B, {B, C}->D, D->exit})]
-        pub enum Multi {
+        pub enum Full {
             A(()),
             B(Y),
             C,
             D(X),
         }
+    }
+
+    mod events {}
+
+    mod instrumentation {
+        pub struct FullObserver {}
+
+        impl FullObserver {}
     }
 }
