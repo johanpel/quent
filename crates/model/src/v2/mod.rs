@@ -13,5 +13,6 @@
 
 mod entity;
 mod fsm;
+mod fsm_using_resource;
 mod resource;
 mod resource_group;

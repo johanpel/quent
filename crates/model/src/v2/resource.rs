@@ -4,7 +4,7 @@ use quent_model_macros::Fsm;
 use quent_model_macros::Resource;
 use uuid::Uuid;
 
-use crate::v2::entity::ObserverError;
+use crate::v2::entity::{EntityHandle, ObserverError};
 
 // Notes:
 //
@@ -16,7 +16,7 @@ use crate::v2::entity::ObserverError;
 // TODO: seal traits below
 
 // Trait + tag types for whether capacities are bounded or unbounded
-trait Boundedness {}
+pub trait Boundedness {}
 /// The resource capacity is bounded.
 pub struct Bounded;
 impl Boundedness for Bounded {}
@@ -27,7 +27,7 @@ pub struct Unbounded;
 impl Boundedness for Unbounded {}
 
 // Trait + tag type for capacities that after resource init are either fixed or dynamically resizable.
-trait Resizeability {}
+pub trait Resizeability {}
 /// The resource capacity is fixed after initialization.
 pub struct Fixed;
 impl Resizeability for Fixed {}
@@ -36,7 +36,7 @@ pub struct Resizable;
 impl Resizeability for Resizable {}
 
 // Trait + tag type for the kind of capacity.
-trait CapacityKind {}
+pub trait CapacityKind {}
 /// The resource capacity is fixed after initialization.
 pub struct Occupancy;
 impl CapacityKind for Occupancy {}
@@ -53,7 +53,7 @@ impl CapacityKind for Rate {}
 // single three-valued generic.
 //
 // Would be nice if we could use plain enums as const generics, but we can't.
-struct Capacity<T, K = Occupancy, R = Fixed, B = Bounded>
+pub struct Capacity<T, K = Occupancy, R = Fixed, B = Bounded>
 where
     K: CapacityKind,
     R: Resizeability,
@@ -66,60 +66,87 @@ where
 }
 
 // User-facing types used in the instrumentation API:
+
+// TODO: consider whether we really need both bound and value.
 /// To convey a new capacity bound.
-struct CapacityBound<ValueType> {
-    value: ValueType,
+pub struct CapacityBound<ValueType> {
+    pub value: ValueType,
 }
 
 /// To convey a new capacity value.
-struct CapacityValue<ValueType> {
-    value: ValueType,
+pub struct CapacityValue<ValueType> {
+    pub value: ValueType,
+}
+
+/// A trait for resources that allows setting the usage amounts of the capacities during instrumentation run time.
+pub trait Resource {
+    type UsageValueType; // this must be serde/narrow/etc. compatible
+}
+
+/// A type for FSMs to convey they have a Usage of a resource.
+// this must be serde/narrow/etc. compatible
+pub struct Usage<ResourceType>
+where
+    ResourceType: Resource,
+{
+    pub instance: Uuid,
+    pub amounts: ResourceType::UsageValueType,
 }
 
 // A unit resource. Has one unnamed capacity with bound 1. Useful for threads,
 // mutexes, or any other type of exclusive usage of a thing.
-mod thread {
+pub(crate) mod thread {
     use super::*;
 
-    mod model {
+    pub(crate) mod model {
         use super::*;
 
-        // Unit resource
         #[derive(Resource)] // Derive macro to be implemented
-        struct Thread;
+        pub struct Thread;
     }
 
-    mod desugared {
+    pub(crate) mod desugared {
         use super::*;
 
         pub struct ThreadInit {
-            parent_group_id: Uuid,
+            pub parent_group_id: Uuid,
         }
 
         #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
         pub enum ThreadFsm {
             Init(ThreadInit),
             Operating, // < nothing here since this is a unit resource. it's capacity is always exactly 1.
             Finalizing,
-            Exit,
         }
     }
 
     // Since a resource is an FSM with predefined transition, no additional
     // types need to be generated besides pub enum ThreadFsm.
-    mod events {}
+    pub(crate) mod events {}
 
-    mod instrumentation {
+    pub(crate) mod instrumentation {
         use super::*;
 
+        // Usage value type, used in FSM transitions.
+        pub struct ThreadUsage; // empty because this is a unit resource.
+        impl Resource for model::Thread {
+            type UsageValueType = ThreadUsage;
+        }
+
+        // FSM state tag types
         pub struct Init;
         pub struct Operating;
         pub struct Finalizing;
 
         pub struct ThreadObserver {}
-
         impl ThreadObserver {
-            fn init(
+            pub fn init(
                 &self,
                 _attributes: desugared::ThreadInit,
             ) -> Result<ThreadHandle<Init>, ObserverError> {
@@ -134,37 +161,39 @@ mod thread {
             id: Uuid,
             // + sender to event channel of the observer
         }
-
+        impl<T> EntityHandle for ThreadHandle<T> {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
         impl ThreadHandle<Init> {
-            fn operating(self) -> Result<ThreadHandle<Operating>, ObserverError> {
+            pub fn operating(self) -> Result<ThreadHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
         }
-
         impl ThreadHandle<Operating> {
-            fn finalizing(self) -> Result<ThreadHandle<Finalizing>, ObserverError> {
+            pub fn finalizing(self) -> Result<ThreadHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
         }
-
         impl ThreadHandle<Finalizing> {
-            fn exit(self) -> Result<(), ObserverError> {
+            pub fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
         }
     }
 
-    mod analysis {}
+    pub(crate) mod analyzer {}
 }
 
 // a resource with one bounded occupancy capacity
-mod memory {
+pub(crate) mod memory {
     use super::*;
 
-    mod model {
+    pub(crate) mod model {
         use super::*;
 
         // While a resource is an FSM, it has a very constrained declaration
@@ -180,7 +209,7 @@ mod memory {
         }
     }
 
-    mod desugared {
+    pub(crate) mod desugared {
         use super::*;
 
         pub struct MemoryInit {
@@ -192,6 +221,12 @@ mod memory {
         }
 
         #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
         pub enum MemoryFsm {
             Init(MemoryInit),
             Operating(MemoryOperating),
@@ -199,11 +234,20 @@ mod memory {
         }
     }
 
-    mod events {}
+    pub(crate) mod events {}
 
-    mod instrumentation {
+    pub(crate) mod instrumentation {
         use super::*;
 
+        // Usage value type, used in FSM transitions.
+        pub struct MemoryUsage {
+            pub bytes: CapacityValue<u64>, // TODO: consider plain u64
+        }
+        impl Resource for model::Memory {
+            type UsageValueType = MemoryUsage;
+        }
+
+        // FSM state tag types
         pub struct Init;
         pub struct Operating;
         pub struct Finalizing;
@@ -211,7 +255,7 @@ mod memory {
         pub struct MemoryObserver {}
 
         impl MemoryObserver {
-            fn init(
+            pub fn init(
                 &self,
                 _attributes: desugared::MemoryInit,
             ) -> Result<MemoryHandle<Init>, ObserverError> {
@@ -226,9 +270,13 @@ mod memory {
             id: Uuid,
             // + sender to event channel of the observer
         }
-
+        impl<T> EntityHandle for MemoryHandle<T> {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
         impl MemoryHandle<Init> {
-            fn operating(
+            pub fn operating(
                 self,
                 _attributes: desugared::MemoryOperating,
             ) -> Result<MemoryHandle<Operating>, ObserverError> {
@@ -236,23 +284,21 @@ mod memory {
                 todo!()
             }
         }
-
         impl MemoryHandle<Operating> {
-            fn finalizing(self) -> Result<MemoryHandle<Finalizing>, ObserverError> {
+            pub fn finalizing(self) -> Result<MemoryHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
         }
-
         impl MemoryHandle<Finalizing> {
-            fn exit(self) -> Result<(), ObserverError> {
+            pub fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
         }
     }
 
-    mod analysis {
+    mod analyzer {
         // TODO
     }
 }
@@ -264,7 +310,6 @@ mod memory_unbounded {
     mod model {
         use super::*;
 
-        // Resource with resizable capacity
         #[derive(Resource)]
         pub struct MemoryUnbounded {
             pub bytes: Capacity<u64, Occupancy, Fixed, Unbounded>,
@@ -278,6 +323,13 @@ mod memory_unbounded {
             pub parent_group_id: Uuid,
         }
 
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
         pub enum MemoryUnboundedFsm {
             Init(MemoryUnboundedInit),
             Operating, // nothing here, all capacities are unbounded
@@ -290,9 +342,17 @@ mod memory_unbounded {
     mod instrumentation {
         use super::*;
 
+        // Usage value type, used in FSM transitions.
+        pub struct MemoryUnboundedUsage {
+            pub bytes: CapacityValue<u64>,
+        }
+        impl Resource for model::MemoryUnbounded {
+            type UsageValueType = MemoryUnboundedUsage;
+        }
+
+        // FSM state tag types
         pub struct Init;
         pub struct Operating;
-        pub struct Resizing;
         pub struct Finalizing;
 
         pub struct MemoryUnboundedObserver {}
@@ -334,7 +394,7 @@ mod memory_unbounded {
         }
     }
 
-    mod analysis {
+    mod analyzer {
         // TODO
     }
 }
@@ -346,7 +406,6 @@ mod memory_resizable {
     mod model {
         use super::*;
 
-        // Resource with resizable capacity
         #[derive(Resource)]
         pub struct MemoryResizable {
             pub bytes: Capacity<u64, Occupancy, Resizable>,
@@ -364,6 +423,15 @@ mod memory_resizable {
             pub bytes: CapacityBound<u64>,
         }
 
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Resizing,
+            Resizing -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
         pub enum MemoryResizableFsm {
             Init(MemoryResizableInit),
             Operating(MemoryResizableOperating),
@@ -377,6 +445,15 @@ mod memory_resizable {
     mod instrumentation {
         use super::*;
 
+        // Usage value type, used in FSM transitions.
+        pub struct MemoryResizableUsage {
+            pub bytes: CapacityValue<u64>,
+        }
+        impl Resource for model::MemoryResizable {
+            type UsageValueType = MemoryResizableUsage;
+        }
+
+        // FSM state tag types
         pub struct Init;
         pub struct Operating;
         pub struct Resizing;
@@ -412,7 +489,7 @@ mod memory_resizable {
         }
 
         impl MemoryResizableHandle<Operating> {
-            fn resizing(self) -> Result<MemoryResizableHandle<Operating>, ObserverError> {
+            fn resizing(self) -> Result<MemoryResizableHandle<Resizing>, ObserverError> {
                 // emits event
                 todo!()
             }
@@ -440,7 +517,7 @@ mod memory_resizable {
         }
     }
 
-    mod analysis {
+    mod analyzer {
         // TODO
     }
 }
@@ -452,8 +529,6 @@ mod channel {
     mod model {
         use super::*;
 
-        // Resource with rate capacity
-        //
         // For the resource operating state transition, the user is going to
         // convey the maximum number of items per unit of time that the resource
         // supports if the capacity is a "rate" kind of capacity. Thus we need
@@ -472,7 +547,7 @@ mod channel {
         // afterwards. Thus the fsm transition event API will simply be
         // something like transfer(bytes: u64).
         #[derive(Resource)]
-        struct Channel {
+        pub struct Channel {
             bytes: Capacity<u64, Rate, Fixed, Unbounded>,
         }
     }
@@ -484,10 +559,16 @@ mod channel {
             pub parent_group_id: Uuid,
         }
 
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
         pub enum ChannelFsm {
             Init(ChannelInit),
             Operating,
-            Resizing, // additional state vs. resource without any resizable capacities.
             Finalizing,
         }
     }
@@ -497,9 +578,17 @@ mod channel {
     mod instrumentation {
         use super::*;
 
+        // Usage value type, used in FSM transitions.
+        pub struct ChannelUsage {
+            pub bytes: CapacityValue<u64>,
+        }
+        impl Resource for model::Channel {
+            type UsageValueType = ChannelUsage;
+        }
+
+        // FSM state tag types
         pub struct Init;
         pub struct Operating;
-        pub struct Resizing;
         pub struct Finalizing;
 
         pub struct ChannelObserver {}
@@ -541,7 +630,7 @@ mod channel {
         }
     }
 
-    mod analysis {
+    mod analyzer {
         // TODO
     }
 }
@@ -557,7 +646,7 @@ mod invalid {
         // the resource knows it's going over some limit and that a new limit
         // can be known.
         #[derive(Resource)]
-        pub struct Invalid_0 {
+        pub struct Invalid0 {
             pub bytes: Capacity<u64, Occupancy, Resizable, Unbounded>,
         }
     }

@@ -46,19 +46,6 @@ pub struct Y {
     pub bar: String,
 }
 
-// Fsm declarations that shouldn't compile.
-mod invalid {
-    use super::*;
-
-    mod model {
-        use super::*;
-
-        // Shouldn't compile, because states need a name and an attributes type.
-        #[derive(Fsm)]
-        pub enum Invalid {}
-    }
-}
-
 // FSM with just one state without attributes
 mod single_empty {
     use super::*;
@@ -646,5 +633,51 @@ mod full {
         pub struct FullObserver {}
 
         impl FullObserver {}
+    }
+}
+
+// Fsm declarations that shouldn't compile.
+mod invalid {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        // Shouldn't compile, because states need a name and an attributes type.
+        #[derive(Fsm)]
+        pub enum Invalid0 {}
+
+        // Shouldn't compile, no entry state
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            A -> B,
+            B -> exit
+        })]
+        pub enum Invalid1 {
+            A,
+            B,
+        }
+
+        // Shouldn't compile, no exit state
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> A,
+            A -> B,
+        })]
+        pub enum Invalid2 {
+            A,
+            B,
+        }
+
+        // Shouldn't compile, cannot enter into exit
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> exit,
+            A -> B
+        })]
+        pub enum Invalid3 {
+            A,
+            B,
+        }
     }
 }
