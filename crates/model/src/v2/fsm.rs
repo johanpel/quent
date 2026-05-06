@@ -1,6 +1,8 @@
-use crate::v2::entity::{EntityHandle, ObserverError};
+use crate::v2::entity::{EntityHandle, Event, ObserverError};
 use quent_model_macros::Fsm;
+use quent_time::timestamp;
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicU16;
 use uuid::Uuid;
 
 // Considerations:
@@ -34,8 +36,8 @@ pub struct Transition<T> {
     // If this ever wraps in case an FSM goes through over u16::MAX (65535)
     // state transitions, we should panic, so clients can let us know this needs
     // to be increased.
-    sequence_number: u16,
-    payload: T,
+    pub sequence_number: u16,
+    pub payload: T,
 }
 
 // Arbitrary attribute types
@@ -62,7 +64,7 @@ mod single_empty {
     }
 
     mod events {
-        // No generated types here, X is the only state
+        // No generated types here, A is the only state
     }
 
     mod instrumentation {
@@ -156,6 +158,7 @@ mod single_attribs {
     }
 
     mod instrumentation {
+
         use super::*;
 
         // Tag type generated to support the type-state pattern below
@@ -168,8 +171,24 @@ mod single_attribs {
         impl SingleAttribsObserver {
             // Initial state transition produces a handle with an API following
             // the type-state pattern
-            pub fn a(&self, _attributes: X) -> Result<SingleAttribsHandle<A>, ObserverError> {
-                todo!()
+            pub fn a(&self, attributes: X) -> Result<SingleAttribsHandle<A>, ObserverError> {
+                let id = Uuid::now_v7();
+                let _event: Event<Transition<model::SingleAttribs>> = Event {
+                    id,
+                    timestamp: timestamp(),
+                    payload: Transition {
+                        sequence_number: 0,
+                        payload: model::SingleAttribs::A(attributes),
+                    },
+                };
+
+                // emitting the event goes here.
+
+                Ok(SingleAttribsHandle {
+                    _phantom: PhantomData,
+                    id,
+                    next_seq_no: AtomicU16::new(1),
+                })
             }
         }
 
@@ -177,6 +196,7 @@ mod single_attribs {
         pub struct SingleAttribsHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
+            next_seq_no: AtomicU16,
         }
 
         impl<T> EntityHandle for SingleAttribsHandle<T> {
@@ -187,7 +207,18 @@ mod single_attribs {
 
         impl SingleAttribsHandle<A> {
             pub fn exit(self) -> Result<(), ObserverError> {
-                todo!()
+                let _event: Event<Transition<()>> = Event {
+                    id: self.id,
+                    timestamp: timestamp(),
+                    payload: Transition {
+                        sequence_number: self
+                            .next_seq_no
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                        payload: (),
+                    },
+                };
+                // emitting the event goes here.
+                Ok(())
             }
         }
     }
@@ -266,6 +297,7 @@ mod multi_seq {
         pub struct MultiSeqHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
+            next_seq_no: AtomicU16,
         }
 
         impl<T> EntityHandle for MultiSeqHandle<T> {
@@ -363,6 +395,7 @@ mod solo_loop {
         pub struct SoloLoopHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
+            next_seq_no: AtomicU16,
         }
 
         impl<T> EntityHandle for SoloLoopHandle<T> {
@@ -447,6 +480,7 @@ mod fan_out {
         pub struct FanoutHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
+            next_seq_no: AtomicU16,
         }
 
         impl<T> EntityHandle for FanoutHandle<T> {
@@ -548,6 +582,7 @@ mod fan_in {
         pub struct FanInHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
+            next_seq_no: AtomicU16,
         }
 
         impl<T> EntityHandle for FanInHandle<T> {

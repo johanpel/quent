@@ -127,8 +127,8 @@ mod one_shot_with_attribs {
             // field, but for single-event entities, either the entity name or
             // field name needs to be chosen for the observer api call to
             // produce this event.
-            foo: u64,
-            bar: String,
+            pub foo: u64,
+            pub bar: String,
         }
     }
 

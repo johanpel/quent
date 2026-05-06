@@ -23,135 +23,250 @@
 // d. ... ?
 //
 // Should multi events be able to carry the resource group attributes?
-#[derive(Entity, ResourceGroup)]
-struct FooResourceGroup {
-    #[quent(rg)]
-    a: Once<MyEventAttributesA>,
+
+use crate::v2::{
+    entity::{EntityHandle, Event, ObserverError, Once},
+    fsm::Transition,
+};
+use quent_model_macros::{Entity, Fsm, ResourceGroup};
+use quent_time::timestamp;
+
+use std::{marker::PhantomData, sync::atomic::AtomicU16};
+
+use uuid::Uuid;
+
+pub struct ResourceGroupDeclaration {
+    pub parent_group_id: Uuid,
 }
 
-#[derive(Entity, ResourceGroup)]
-#[quent(root)]
-struct FooRootResourceGroup {
-    #[quent(rg)]
-    a: Once<MyEventAttributesA>,
-}
+// An entities as resource group
+mod entity_rg {
+    use super::*;
 
+    mod model {
+        use super::*;
 
-// user facing result (rust):
+        #[derive(Entity, ResourceGroup)]
+        pub struct OneShot {
+            pub value: u64,
+        }
 
-struct FooHandle {
-    id: Uuid,
-    a_emitted: bool,
-    b_emitted: bool,
-    c_emitted: bool,
-}
+        pub struct X {
+            pub foo: u64,
+        }
 
-impl FooHandle {
-    fn a(instance_name: String, attributes: MyEventAttributesA) {}
-    fn b(attributes: MyEventAttributesA) {}
-    fn c(attributes: MyEventAttributesA) {}
-    fn d(attributes: MyEventAttributesA) {}
-}
+        #[derive(Entity, ResourceGroup)]
+        pub struct MultiOneShot {
+            // marks this event as the one that will carry the resource group properties
+            #[quent(resource_group(declare))]
+            pub a: Once<X>,
+            pub b: Once<X>,
+        }
+    }
 
-struct FooObserver {}
+    mod events {
+        use super::*;
 
-impl FooObserver {
-    fn handle() -> FooHandle;
-}
+        pub enum MultiOneShotEvent {
+            A(model::X, ResourceGroupDeclaration),
+            B(model::X),
+        }
+    }
 
-struct FooResourceGroupHandle {
-    id: Uuid,
-    a_emitted: bool,
-    b_emitted: bool,
-    c_emitted: bool,
-}
+    mod instrumentation {
+        use crate::v2::entity::EntityHandle;
 
-impl FooResourceGroupHandle {
-    fn a(instance_name: String, parent_group_id: Uuid, attributes: MyEventAttributesA) {}
-}
+        use super::*;
 
-struct FooRootResourceGroupHandle {}
+        pub struct OneShotObserver {}
+        impl OneShotObserver {
+            pub fn one_shot(
+                &self,
+                _attributes: model::OneShot,
+                _parent_group_id: Uuid, // additional field due to ResourceGroup
+            ) -> Result<Uuid, ObserverError> {
+                todo!()
+            }
+        }
 
-impl FooObserver {
-    fn a(instance_name: String, attributes: MyEventAttributesA) {}
-}
-
-// in macros/codegen, not required, just a brainstorm, may need to look completely different:
-
-enum RgAttributes {
-    Root,
-    Regular,
-}
-
-struct EventDecl {
-    // to know the fn names on the handle
-    name: String,
-    // type of the event
-    attributes: syn::Type,
-    // to know whether to prevent multiple events from being emitted per handle
-    multi: bool,
-    // to know whether to append rg attributes and which ones
-    rg_attributes: Option<RgAttributes>,
-}
-
-trait EntityDecl {
-    fn events() -> impl Iterator<Item = EventDecl;
-}
-
-impl EntityDecl for Foo {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "b",
-                attributes: MyEventAttributesB,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "c",
-                attributes: MyEventAttributesB,
-                multi: false,
-                rg_attributes: None,
-            },
-            EventDecl {
-                name: "d",
-                attributes: MyEventAttributesA,
-                multi: true,
-                rg_attributes: None,
-            },
-        ]
+        pub struct MultiOneShotObserver {}
+        impl MultiOneShotObserver {
+            pub fn handle(&self) -> Result<MultiOneShotHandle, ObserverError> {
+                todo!()
+            }
+        }
+        pub struct MultiOneShotHandle {
+            id: Uuid,
+        }
+        impl EntityHandle for MultiOneShotHandle {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
+        impl MultiOneShotHandle {
+            pub fn a(
+                &self,
+                _attributes: model::X,
+                _parent_group_id: Uuid,
+            ) -> Result<(), ObserverError> {
+                todo!()
+            }
+            pub fn b(&self, _attributes: model::X) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
     }
 }
 
-impl EntityDecl for FooResourceGroup {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: Some(RgAttributes::Regular),
-            },
-        ]
+// Entities as root resource groups
+mod entity_rg_root {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        #[derive(Entity, ResourceGroup)]
+        #[quent(resource_group(root))] // annotates this is a root resource group
+        pub struct OneShot {
+            pub value: u64,
+        }
+
+        pub struct X {
+            pub foo: u64,
+        }
+
+        #[derive(Entity, ResourceGroup)]
+        #[quent(resource_group(root))] // annotates this is a root resource group
+        pub struct MultiOneShot {
+            // Since this is a root resource, no event needs to carry the parent
+            // group id, so we don't need to annotate any event like in the non-root
+            // case.
+            pub a: Once<X>,
+            pub b: Once<X>,
+        }
+    }
+
+    mod instrumentation {
+
+        use super::*;
+
+        pub struct OneShotObserver {}
+        impl OneShotObserver {
+            pub fn one_shot(&self, _attributes: model::OneShot) -> Result<Uuid, ObserverError> {
+                todo!()
+            }
+        }
+
+        pub struct MultiOneShotObserver {}
+        impl MultiOneShotObserver {
+            pub fn handle(&self) -> Result<MultiOneShotHandle, ObserverError> {
+                todo!()
+            }
+        }
+        pub struct MultiOneShotHandle {
+            id: Uuid,
+        }
+        impl EntityHandle for MultiOneShotHandle {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
+        impl MultiOneShotHandle {
+            pub fn a(&self, _attributes: model::X) -> Result<(), ObserverError> {
+                todo!()
+            }
+            pub fn b(&self, _attributes: model::X) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
     }
 }
 
+mod fsm_rg {
+    use super::*;
 
-impl EntityDecl for FooRootResourceGroup {
-    fn events() -> impl Iterator<Item = EventDecl> {
-        [
-            EventDecl {
-                name: "a",
-                attributes: MyEventAttributesA,
-                multi: false,
-                rg_attributes: Some(RgAttributes::Regular),
-            },
-        ]
+    mod model {
+        use super::*;
+        pub struct X {
+            pub foo: u64,
+        }
+
+        // TODO: perhaps always have resource group attributes included in the entry transition? this will prevent redeclaration too.
+        #[derive(Fsm, ResourceGroup)]
+        #[quent(transitions = {
+            entry -> A,
+            A -> B,
+            B -> exit
+        })]
+        pub enum Foo {
+            #[quent(resource_group(declare))]
+            A(X),
+            B(X),
+        }
+    }
+
+    mod events {}
+
+    mod instrumentation {
+
+        use super::*;
+
+        // Tag type generated to support the type-state pattern below
+        pub struct A;
+        pub struct B;
+
+        pub struct FooObserver {
+            // holds same stuff as in entity examples
+        }
+
+        impl FooObserver {
+            pub fn a(
+                &self,
+                attributes: model::X,
+                parent_group_id: Uuid, // additional field for the transition to A
+            ) -> Result<FooHandle<A>, ObserverError> {
+                let id = Uuid::now_v7();
+                // payload is now a tuple with the resource group declaration added
+                let _event: Event<Transition<(model::Foo, ResourceGroupDeclaration)>> = Event {
+                    id,
+                    timestamp: timestamp(),
+                    payload: Transition {
+                        sequence_number: 0,
+                        payload: (
+                            model::Foo::A(attributes),
+                            ResourceGroupDeclaration { parent_group_id },
+                        ),
+                    },
+                };
+                // emitting the event goes here.
+                Ok(FooHandle {
+                    _phantom: PhantomData,
+                    id,
+                    next_seq_no: AtomicU16::new(1),
+                })
+            }
+        }
+
+        // A handle for the FSM
+        pub struct FooHandle<T> {
+            _phantom: PhantomData<T>,
+            id: Uuid,
+            next_seq_no: AtomicU16,
+        }
+        impl<T> EntityHandle for FooHandle<T> {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
+        impl FooHandle<A> {
+            pub fn b(self) -> Result<FooHandle<B>, ObserverError> {
+                todo!()
+            }
+        }
+        impl FooHandle<B> {
+            pub fn exit(self) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
     }
 }

@@ -10,7 +10,6 @@
 // }
 //
 // Generated code does not need to follow this pattern, this is just for sanity.
-
 mod entity;
 mod fsm;
 mod fsm_using_resource;

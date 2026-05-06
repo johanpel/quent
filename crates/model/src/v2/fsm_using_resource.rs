@@ -19,7 +19,7 @@ mod task {
         pub struct Computing {
             pub thread: Usage<thread::model::Thread>,
             pub global_memory: Usage<memory::model::Memory>,
-            pub pool_memory: Option<Usage<memory::model::Memory>>,
+            pub pool_memory: Option<Usage<memory::model::Memory>>, // optional usage is allowed
         }
 
         #[derive(Fsm)]
@@ -28,32 +28,13 @@ mod task {
             Queueing -> Computing,
             Computing -> exit
         })]
-        enum Task {
+        pub enum Task {
             Queueing,
             Computing(Computing),
         }
     }
 
-    mod desugared {
-        use super::*;
-
-        pub struct ThreadInit {
-            pub parent_group_id: Uuid,
-        }
-
-        #[derive(Fsm)]
-        #[quent(transitions = {
-            entry -> Init,
-            Init -> Operating,
-            Operating -> Finalizing,
-            Finalizing -> exit
-        })]
-        pub enum ThreadFsm {
-            Init(ThreadInit),
-            Operating,
-            Finalizing,
-        }
-    }
+    mod desugared {}
 
     mod instrumentation {
         use super::*;
@@ -65,7 +46,6 @@ mod task {
         pub struct TaskObserver {
             // holds same stuff as in entity examples
         }
-
         impl TaskObserver {
             pub fn queueing(&self) -> Result<TaskHandle<Queueing>, ObserverError> {
                 todo!()
@@ -76,13 +56,11 @@ mod task {
             _phantom: PhantomData<T>,
             id: Uuid,
         }
-
         impl<T> EntityHandle for TaskHandle<T> {
             fn id(&self) -> Uuid {
                 self.id
             }
         }
-
         impl TaskHandle<Queueing> {
             pub fn computing(
                 self,
@@ -99,7 +77,6 @@ mod task {
     }
 
     mod usage {
-
         use super::*;
 
         fn example() -> std::result::Result<(), Box<dyn std::error::Error>> {
