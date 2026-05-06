@@ -13,12 +13,71 @@ use crate::v2::entity::ObserverError;
 // sugaring syntax over those concepts, without requiring additional core things
 // from the entity and FSM derives.
 
-// User-facing types used during modeling
-struct Capacity<T> {
-    _phantom: PhantomData<T>,
+// TODO: seal traits below
+
+// Trait + tag types for whether capacities are bounded or unbounded
+trait Boundedness {}
+/// The resource capacity is bounded.
+pub struct Bounded;
+impl Boundedness for Bounded {}
+/// The resource capacity is unbounded.
+///
+/// It is physically always bounded, but the bounds may be unknown.
+pub struct Unbounded;
+impl Boundedness for Unbounded {}
+
+// Trait + tag type for capacities that after resource init are either fixed or dynamically resizable.
+trait Resizeability {}
+/// The resource capacity is fixed after initialization.
+pub struct Fixed;
+impl Resizeability for Fixed {}
+/// The resource capacity is resizable after initialization.
+pub struct Resizable;
+impl Resizeability for Resizable {}
+
+// Trait + tag type for the kind of capacity.
+trait CapacityKind {}
+/// The resource capacity is fixed after initialization.
+pub struct Occupancy;
+impl CapacityKind for Occupancy {}
+/// The resource capacity is resizable after initialization.
+pub struct Rate;
+impl CapacityKind for Rate {}
+
+// User-facing types used during modeling While K, R, and B are two-valued
+// properties, which would technically allow for the use of a const bool
+// generic, it would make the declaration site less readable, hence we favor tag
+// types.
+//
+// TODO: since not all combinations of R and B are allowed, consider making it a
+// single three-valued generic.
+//
+// Would be nice if we could use plain enums as const generics, but we can't.
+struct Capacity<T, K = Occupancy, R = Fixed, B = Bounded>
+where
+    K: CapacityKind,
+    R: Resizeability,
+    B: Boundedness,
+{
+    _value_type: PhantomData<T>,
+    _kind: PhantomData<K>,
+    _bounded: PhantomData<B>,
+    _resizable: PhantomData<R>,
 }
 
-// a unit resource
+// User-facing types used in the instrumentation API:
+/// To convey a new capacity bound.
+struct CapacityBound<ValueType> {
+    value: ValueType,
+}
+
+/// To convey a new capacity value.
+struct CapacityValue<ValueType> {
+    value: ValueType,
+}
+
+// A unit resource. Has one unnamed capacity with bound 1. Useful for threads,
+// mutexes, or any other type of exclusive usage of a thing.
 mod thread {
     use super::*;
 
@@ -40,23 +99,25 @@ mod thread {
         #[derive(Fsm)]
         pub enum ThreadFsm {
             Init(ThreadInit),
-            Operating,
+            Operating, // < nothing here since this is a unit resource. it's capacity is always exactly 1.
             Finalizing,
             Exit,
         }
     }
 
-    // Since a resource is an FSM with predefined transition, no additional types need to be generated besides pub enum ThreadFsm.
+    // Since a resource is an FSM with predefined transition, no additional
+    // types need to be generated besides pub enum ThreadFsm.
     mod events {}
 
     mod instrumentation {
         use super::*;
 
-        struct Init;
-        struct Operating;
-        struct Finalizing;
+        pub struct Init;
+        pub struct Operating;
+        pub struct Finalizing;
 
-        struct ThreadObserver {}
+        pub struct ThreadObserver {}
+
         impl ThreadObserver {
             fn init(
                 &self,
@@ -68,7 +129,7 @@ mod thread {
             }
         }
 
-        struct ThreadHandle<T> {
+        pub struct ThreadHandle<T> {
             _phantom: PhantomData<T>,
             id: Uuid,
             // + sender to event channel of the observer
@@ -99,7 +160,7 @@ mod thread {
     mod analysis {}
 }
 
-// a resource with one occupancy capacity
+// a resource with one bounded occupancy capacity
 mod memory {
     use super::*;
 
@@ -122,8 +183,20 @@ mod memory {
     mod desugared {
         use super::*;
 
+        pub struct MemoryInit {
+            pub parent_group_id: Uuid,
+        }
+
+        pub struct MemoryOperating {
+            pub bytes: CapacityBound<u64>,
+        }
+
         #[derive(Fsm)]
-        pub enum MemoryFsm {}
+        pub enum MemoryFsm {
+            Init(MemoryInit),
+            Operating(MemoryOperating),
+            Finalizing,
+        }
     }
 
     mod events {}
@@ -131,33 +204,48 @@ mod memory {
     mod instrumentation {
         use super::*;
 
-        struct MemoryObserver {
-            // holds sender to mpsc event channel
-        }
+        pub struct Init;
+        pub struct Operating;
+        pub struct Finalizing;
+
+        pub struct MemoryObserver {}
 
         impl MemoryObserver {
-            fn init(&self) -> MemoryHandle {
+            fn init(
+                &self,
+                _attributes: desugared::MemoryInit,
+            ) -> Result<MemoryHandle<Init>, ObserverError> {
                 // clones sender into handle
                 // emits state transition event
                 todo!()
             }
         }
 
-        struct MemoryHandle {
+        pub struct MemoryHandle<T> {
+            _phantom: PhantomData<T>,
             id: Uuid,
             // + sender to event channel of the observer
         }
 
-        impl MemoryHandle {
-            fn operating(self, capacity_bytes: u64) -> Self {
+        impl MemoryHandle<Init> {
+            fn operating(
+                self,
+                _attributes: desugared::MemoryOperating,
+            ) -> Result<MemoryHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn finalizing(self) -> Self {
+        }
+
+        impl MemoryHandle<Operating> {
+            fn finalizing(self) -> Result<MemoryHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn exit(self) {
+        }
+
+        impl MemoryHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
@@ -165,11 +253,93 @@ mod memory {
     }
 
     mod analysis {
-        use super::*;
         // TODO
     }
 }
 
+// a resource with one unbounded occupancy capacity
+mod memory_unbounded {
+    use super::*;
+
+    mod model {
+        use super::*;
+
+        // Resource with resizable capacity
+        #[derive(Resource)]
+        pub struct MemoryUnbounded {
+            pub bytes: Capacity<u64, Occupancy, Fixed, Unbounded>,
+        }
+    }
+
+    mod desugared {
+        use super::*;
+
+        pub struct MemoryUnboundedInit {
+            pub parent_group_id: Uuid,
+        }
+
+        pub enum MemoryUnboundedFsm {
+            Init(MemoryUnboundedInit),
+            Operating, // nothing here, all capacities are unbounded
+            Finalizing,
+        }
+    }
+
+    mod events {}
+
+    mod instrumentation {
+        use super::*;
+
+        pub struct Init;
+        pub struct Operating;
+        pub struct Resizing;
+        pub struct Finalizing;
+
+        pub struct MemoryUnboundedObserver {}
+
+        impl MemoryUnboundedObserver {
+            fn init(
+                &self,
+                _attributes: desugared::MemoryUnboundedInit,
+            ) -> Result<MemoryUnboundedHandle<Init>, ObserverError> {
+                // clones sender into handle
+                // emits state transition event
+                todo!()
+            }
+        }
+
+        pub struct MemoryUnboundedHandle<T> {
+            _phantom: PhantomData<T>,
+            id: Uuid,
+            // + sender to event channel of the observer
+        }
+
+        impl MemoryUnboundedHandle<Init> {
+            fn operating(self) -> Result<MemoryUnboundedHandle<Operating>, ObserverError> {
+                // emits event
+                todo!()
+            }
+        }
+        impl MemoryUnboundedHandle<Operating> {
+            fn finalizing(self) -> Result<MemoryUnboundedHandle<Finalizing>, ObserverError> {
+                // emits event
+                todo!()
+            }
+        }
+        impl MemoryUnboundedHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
+                // emits event
+                todo!()
+            }
+        }
+    }
+
+    mod analysis {
+        // TODO
+    }
+}
+
+// a resource with one bounded occupancy capacity that is resizeable
 mod memory_resizable {
     use super::*;
 
@@ -178,66 +348,92 @@ mod memory_resizable {
 
         // Resource with resizable capacity
         #[derive(Resource)]
-        struct MemoryResizable {
-            #[quent(resizable)] // means it will have the operating <-> resizing transitions
-            bytes: Capacity<u64>,
+        pub struct MemoryResizable {
+            pub bytes: Capacity<u64, Occupancy, Resizable>,
         }
     }
 
-    mod events {
+    mod desugared {
         use super::*;
 
-        struct MemoryResizableInit {
-            parent_group_id: Uuid,
+        pub struct MemoryResizableInit {
+            pub parent_group_id: Uuid,
         }
 
-        struct MemoryResizableOperating {
-            capacity_bytes: u64,
+        pub struct MemoryResizableOperating {
+            pub bytes: CapacityBound<u64>,
         }
 
-        enum MemoryResizableEvent {
+        pub enum MemoryResizableFsm {
             Init(MemoryResizableInit),
             Operating(MemoryResizableOperating),
-            Resizing,
+            Resizing, // additional state vs. resource without any resizable capacities.
             Finalizing,
-            Exit,
         }
     }
+
+    mod events {}
 
     mod instrumentation {
         use super::*;
 
-        struct MemoryResizableObserver {
-            // holds sender to mpsc event channel
-        }
+        pub struct Init;
+        pub struct Operating;
+        pub struct Resizing;
+        pub struct Finalizing;
+
+        pub struct MemoryResizableObserver {}
 
         impl MemoryResizableObserver {
-            fn init(&self) -> MemoryResizableHandle {
+            fn init(
+                &self,
+                _attributes: desugared::MemoryResizableInit,
+            ) -> Result<MemoryResizableHandle<Init>, ObserverError> {
                 // clones sender into handle
                 // emits state transition event
                 todo!()
             }
         }
 
-        struct MemoryResizableHandle {
+        pub struct MemoryResizableHandle<T> {
+            _phantom: PhantomData<T>,
             id: Uuid,
             // + sender to event channel of the observer
         }
 
-        impl MemoryResizableHandle {
-            fn operating(self, capacity_bytes: u64) -> Self {
+        impl MemoryResizableHandle<Init> {
+            fn operating(
+                self,
+                _attributes: desugared::MemoryResizableOperating,
+            ) -> Result<MemoryResizableHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn resizing(self) -> Self {
+        }
+
+        impl MemoryResizableHandle<Operating> {
+            fn resizing(self) -> Result<MemoryResizableHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn finalizing(self) -> Self {
+            fn finalizing(self) -> Result<MemoryResizableHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn exit(self) {
+        }
+
+        impl MemoryResizableHandle<Resizing> {
+            fn operating(
+                self,
+                _attributes: desugared::MemoryResizableOperating,
+            ) -> Result<MemoryResizableHandle<Operating>, ObserverError> {
+                // emits event
+                todo!()
+            }
+        }
+
+        impl MemoryResizableHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
@@ -245,92 +441,11 @@ mod memory_resizable {
     }
 
     mod analysis {
-        use super::*;
         // TODO
     }
 }
 
-mod memory_unbounded {
-    use super::*;
-
-    mod model {
-        use super::*;
-
-        // Resource with potentially virtually unbounded capacity (i.e. we don't
-        // know or don't care about out the maximum capacity at run time, just
-        // want to track usage)
-        //
-        // If it is "unbounded", then the user is not required to set the
-        // capacity bounds, but they can set the capacity bounds, if they know,
-        // hence Option<u64> in the instrumentation API.
-        #[derive(Resource)]
-        struct MemoryUnbounded {
-            #[quent(unbounded)]
-            bytes: Capacity<u64>,
-        }
-    }
-
-    mod events {
-        use super::*;
-
-        struct MemoryUnboundedInit {
-            parent_group_id: Uuid,
-        }
-
-        struct MemoryUnboundedOperating {
-            capacity_bytes: u64,
-        }
-
-        enum MemoryUnboundedEvent {
-            Init(MemoryUnboundedInit),
-            Operating(MemoryUnboundedOperating),
-            Finalizing,
-            Exit,
-        }
-    }
-
-    mod instrumentation {
-        use super::*;
-
-        struct MemoryUnboundedObserver {
-            // holds sender to mpsc event channel
-        }
-
-        impl MemoryUnboundedObserver {
-            fn init(&self) -> MemoryUnboundedHandle {
-                // clones sender into handle
-                // emits state transition event
-                todo!()
-            }
-        }
-
-        struct MemoryUnboundedHandle {
-            id: Uuid,
-            // + sender to event channel of the observer
-        }
-
-        impl MemoryUnboundedHandle {
-            fn operating(self, capacity_bytes: Option<u64>) -> Self {
-                // emits event
-                todo!()
-            }
-            fn finalizing(self) -> Self {
-                // emits event
-                todo!()
-            }
-            fn exit(self) {
-                // emits event
-                todo!()
-            }
-        }
-    }
-
-    mod analysis {
-        use super::*;
-        // TODO
-    }
-}
-
+// a resource with one unbounded rate capacity
 mod channel {
     use super::*;
 
@@ -358,60 +473,68 @@ mod channel {
         // something like transfer(bytes: u64).
         #[derive(Resource)]
         struct Channel {
-            #[quent(rate, unbounded)]
-            bytes: Capacity<u64>,
+            bytes: Capacity<u64, Rate, Fixed, Unbounded>,
         }
     }
 
-    mod events {
+    mod desugared {
         use super::*;
 
-        struct ChannelInit {
-            parent_group_id: Uuid,
+        pub struct ChannelInit {
+            pub parent_group_id: Uuid,
         }
 
-        struct ChannelOperating {
-            capacity_bytes_per_second: f64,
-        }
-
-        enum ChannelEvent {
+        pub enum ChannelFsm {
             Init(ChannelInit),
-            Operating(ChannelOperating),
+            Operating,
+            Resizing, // additional state vs. resource without any resizable capacities.
             Finalizing,
-            Exit,
         }
     }
+
+    mod events {}
 
     mod instrumentation {
         use super::*;
 
-        struct ChannelObserver {
-            // holds sender to mpsc event channel
-        }
+        pub struct Init;
+        pub struct Operating;
+        pub struct Resizing;
+        pub struct Finalizing;
+
+        pub struct ChannelObserver {}
 
         impl ChannelObserver {
-            fn init(&self) -> ChannelHandle {
+            fn init(
+                &self,
+                _attributes: desugared::ChannelInit,
+            ) -> Result<ChannelHandle<Init>, ObserverError> {
                 // clones sender into handle
                 // emits state transition event
                 todo!()
             }
         }
 
-        struct ChannelHandle {
+        pub struct ChannelHandle<T> {
+            _phantom: PhantomData<T>,
             id: Uuid,
             // + sender to event channel of the observer
         }
 
-        impl ChannelHandle {
-            fn operating(self, capacity_bytes_per_second: Option<f64>) -> Self {
+        impl ChannelHandle<Init> {
+            fn operating(self) -> Result<ChannelHandle<Operating>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn finalizing(self) -> Self {
+        }
+        impl ChannelHandle<Operating> {
+            fn finalizing(self) -> Result<ChannelHandle<Finalizing>, ObserverError> {
                 // emits event
                 todo!()
             }
-            fn exit(self) {
+        }
+        impl ChannelHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
                 // emits event
                 todo!()
             }
@@ -419,68 +542,23 @@ mod channel {
     }
 
     mod analysis {
-        use super::*;
         // TODO
     }
 }
 
-// in macros/codegen, not required, just a brainstorm, may need to look completely different:
-// enum ValueType {
-//     U64,
-// }
+// things that should produce compilation errors
+mod invalid {
+    use super::*;
 
-// enum CapacityKind {
-//     Occupancy,
-//     Rate,
-// }
+    mod model {
+        use super::*;
 
-// struct CapacityDecl {
-//     name: String,
-//     kind: CapacityKind,
-//     typ: ValueType,
-//     resizeable: bool,
-//     unbounded: bool,
-// }
-
-// trait ResourceDecl {
-//     fn capacities() -> impl Iterator<Item = CapacityDecl>;
-// }
-
-// impl ResourceDecl for Memory {
-//     fn capacities() -> impl Iterator<Item = CapacityDecl> {
-//         [CapacityDecl {
-//             name: "bytes".to_owned(),      // from the field name
-//             kind: CapacityKind::Occupancy, // implicit, occupancy unless there is #[quent(rate)]
-//             typ: ValueType::U64,           // from the field type
-//             resizeable: false,             // from #[quent(resizeable)]
-//             unbounded: false,              // from field type (when using Option<T>)
-//         }]
-//         .into_iter()
-//     }
-// }
-
-// impl ResourceDecl for MemoryResizable {
-//     fn capacities() -> impl Iterator<Item = CapacityDecl> {
-//         [CapacityDecl {
-//             name: "bytes".to_owned(),
-//             kind: CapacityKind::Occupancy,
-//             typ: ValueType::U64,
-//             resizeable: true,
-//             unbounded: false,
-//         }]
-//         .into_iter()
-//     }
-// }
-
-// impl ResourceDecl for MemoryUnbounded {
-//     fn capacities() -> impl Iterator<Item = CapacityDecl> {
-//         [CapacityDecl {
-//             name: "bytes".to_owned(),
-//             kind: CapacityKind::Occupancy,
-//             typ: ValueType::U64,
-//             resizeable: false,
-//             unbounded: true,
-//         }]
-//         .into_iter()
-//     }
-// }
+        // A capacity can't be both resizable and unbounded. Resizing implies
+        // the resource knows it's going over some limit and that a new limit
+        // can be known.
+        #[derive(Resource)]
+        pub struct Invalid_0 {
+            pub bytes: Capacity<u64, Occupancy, Resizable, Unbounded>,
+        }
+    }
+}
