@@ -275,3 +275,70 @@ mod fsm_rg {
         }
     }
 }
+
+mod fsm_rg_root {
+    use super::*;
+
+    mod model {
+        use super::*;
+        pub struct X {
+            pub foo: u64,
+        }
+
+        // TODO: perhaps always have resource group attributes included in the entry transition? this will prevent redeclaration too.
+        #[derive(Fsm, ResourceGroup)]
+        #[quent(transitions = {
+            entry -> A,
+            A -> B,
+            B -> exit
+        })]
+        #[quent(resource_group(root))]
+        pub enum Foo {
+            A(X),
+            B(X),
+        }
+    }
+
+    mod events {}
+
+    mod instrumentation {
+
+        use super::*;
+
+        // Tag type generated to support the type-state pattern below
+        pub struct A;
+        pub struct B;
+
+        pub struct FooObserver {
+            // holds same stuff as in entity examples
+        }
+
+        impl FooObserver {
+            pub fn a(&self, _attributes: model::X) -> Result<FooHandle<A>, ObserverError> {
+                todo!()
+            }
+        }
+
+        // A handle for the FSM
+        pub struct FooHandle<T> {
+            _phantom: PhantomData<T>,
+            id: Uuid,
+            next_seq_no: AtomicU16,
+        }
+        impl<T> EntityHandle for FooHandle<T> {
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
+        impl FooHandle<A> {
+            pub fn b(self) -> Result<FooHandle<B>, ObserverError> {
+                todo!()
+            }
+        }
+        impl FooHandle<B> {
+            pub fn exit(self) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
+    }
+}

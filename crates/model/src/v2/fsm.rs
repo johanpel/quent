@@ -679,8 +679,10 @@ mod full {
             }
         }
 
-        pub struct FullHandle<S> {
-            _phantom: PhantomData<S>,
+        pub struct FullHandle<T> {
+            _phantom: PhantomData<T>,
+            id: Uuid,
+            next_seq_no: AtomicU16,
         }
         impl FullHandle<A> {
             pub fn b(self, _attributes: Y) -> Result<FullHandle<B>, ObserverError> {

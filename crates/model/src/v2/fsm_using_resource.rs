@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::v2::entity::{EntityHandle, ObserverError};
-use crate::v2::resource::{CapacityBound, CapacityValue, Usage, memory, thread};
+use crate::v2::resource::{CapacityValue, OccupancyBound, Usage, memory, thread};
 use quent_model_macros::Fsm;
 
 use uuid::Uuid;
@@ -90,7 +90,7 @@ mod task {
                     parent_group_id: Uuid::nil(),
                 })?
                 .operating(memory::desugared::MemoryOperating {
-                    bytes: CapacityBound { value: 1337 },
+                    bytes: OccupancyBound { value: 1337 },
                 })?;
             let thread_inst = thread_obs
                 .init(thread::desugared::ThreadInit {
