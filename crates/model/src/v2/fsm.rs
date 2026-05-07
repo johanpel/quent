@@ -655,7 +655,7 @@ mod full {
         #[derive(Fsm)]
         #[quent(transitions={entry->A, A->{B,C}, B->B, {B, C}->D, D->exit})]
         pub enum Full {
-            A(()),
+            A,
             B(Y),
             C,
             D(X),
@@ -665,9 +665,49 @@ mod full {
     mod events {}
 
     mod instrumentation {
-        pub struct FullObserver {}
+        use super::*;
 
-        impl FullObserver {}
+        pub struct A;
+        pub struct B;
+        pub struct C;
+        pub struct D;
+
+        pub struct FullObserver {}
+        impl FullObserver {
+            pub fn a(&self) -> Result<FullHandle<A>, ObserverError> {
+                todo!()
+            }
+        }
+
+        pub struct FullHandle<S> {
+            _phantom: PhantomData<S>,
+        }
+        impl FullHandle<A> {
+            pub fn b(self, _attributes: Y) -> Result<FullHandle<B>, ObserverError> {
+                todo!()
+            }
+            pub fn c(self) -> Result<FullHandle<C>, ObserverError> {
+                todo!()
+            }
+        }
+        impl FullHandle<B> {
+            pub fn b(self, _attributes: Y) -> Result<FullHandle<B>, ObserverError> {
+                todo!()
+            }
+            pub fn d(self, _attributes: X) -> Result<FullHandle<D>, ObserverError> {
+                todo!()
+            }
+        }
+        impl FullHandle<C> {
+            pub fn d(self, _attributes: X) -> Result<FullHandle<B>, ObserverError> {
+                todo!()
+            }
+        }
+        impl FullHandle<D> {
+            pub fn exit(self) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
     }
 }
 
