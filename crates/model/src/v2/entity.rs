@@ -7,16 +7,6 @@ use uuid::Uuid;
 
 // User-facing types used for modeling
 
-// An event that can only be emitted <= 1 time per entity
-pub struct Once<T> {
-    _phantom: PhantomData<T>,
-}
-
-// An event that can be emitted >= 0 times per entity
-pub struct Multi<T> {
-    _phantom: PhantomData<T>,
-}
-
 // A type-safe reference to another entity
 pub struct Ref<E: EntityDeclaration> {
     _phantom: PhantomData<E>,
@@ -65,6 +55,7 @@ impl std::fmt::Display for ObserverError {
 impl std::error::Error for ObserverError {}
 
 // An entity that emits one single event only, no attributes (i.e. just records a timestamp).
+// The struct itself is the event payload: Event<OneShotEmpty>.
 mod one_shot_empty {
     use super::*;
 
@@ -78,7 +69,7 @@ mod one_shot_empty {
     }
 
     mod events {
-        // nothing here, Event<()> already captures everything.
+        // The struct itself is the event payload: Event<OneShotEmpty>
     }
 
     mod instrumentation {
@@ -112,39 +103,20 @@ mod one_shot_empty {
 
     // Future work
     //
-    // mod analyzer {
-    //     use super::*;
-    //     // Generate traits of entity models in analysis. These traits exist for
-    //     // convenience and could be implemented by various entity containers,
-    //     // e.g. plain Rust types, column-oriented formats such as Arrow through
-    //     // a reference to some row representing the entity, or a time-series
-    //     // database, etc.
-    //     //
-    //     // Single-event entity, so if the event ever arrived, we know its
-    //     // timestamp.
-    //     pub trait OneShotEmptyModel: EntityModel {
-    //         fn one_shot_empty(&self) -> Event<()>;
-    //     }
-    // }
+    // mod analyzer { ... }
 }
 
 // An entity that emits one single event with attributes.
+// The struct itself is the event payload: Event<OneShotWithAttribs>.
 mod one_shot_with_attribs {
     use super::*;
 
     pub(crate) mod model {
         use super::*;
 
-        // Single-event entity. Just emits one event with attributes of this
-        // struct.
+        // Single-event entity. The struct fields are the event attributes.
         #[derive(Entity)]
         pub struct OneShotWithAttribs {
-            // is it fine that this implicitly becomes the entire event vs.
-            // multi event syntax below? alternative is to require Entity to
-            // always have at least one Once<Attributes> or Multi<Attributes>
-            // field, but for single-event entities, either the entity name or
-            // field name needs to be chosen for the observer api call to
-            // produce this event.
             pub foo: u64,
             pub bar: String,
         }
@@ -157,7 +129,7 @@ mod one_shot_with_attribs {
     }
 
     mod events {
-        // the OneShotWithAttribs struct is the event
+        // The struct itself is the event payload: Event<OneShotWithAttribs>
     }
 
     mod instrumentation {
@@ -179,17 +151,12 @@ mod one_shot_with_attribs {
 
     // Future work
     //
-    // mod analyzer {
-    //     use super::*;
-    //     // Still single event entity. If it ever arrived, we know it in its
-    //     // entirety.
-    //     pub trait OneShotWithAttribsModel: EntityModel {
-    //         fn one_shot_with_attribs() -> Event<super::model::OneShotWithAttribs>; // hence this is not optional
-    //     }
-    // }
+    // mod analyzer { ... }
 }
 
 // An entity that emits multiple kinds of events, just once per kind.
+// The enum itself is the event payload: Event<MultiOneShot>.
+// Enum variants are Once by default; annotate with #[quent(multi)] for multi-emittable events.
 mod multi_one_shot {
     use super::*;
 
@@ -206,23 +173,16 @@ mod multi_one_shot {
         }
 
         #[derive(Entity)]
-        pub struct MultiOneShot {
-            a: Once<X>, // field name becomes the event name
-            b: Once<Y>,
-            c: Once<Y>, // same attributes type as b, but semantically different event
-            d: Once<()>,
+        pub enum MultiOneShot {
+            A(X),
+            B(Y),
+            C(Y), // same payload type as B, but semantically different event
+            D,
         }
     }
 
     mod events {
-        use super::*;
-
-        pub enum MultiOneShotEvent {
-            A(model::X),
-            B(model::Y),
-            C(model::Y), // same attributes type as B, but semantically different event
-            D,
-        }
+        // The enum itself is the event payload: Event<MultiOneShot>
     }
 
     mod instrumentation {
@@ -245,10 +205,10 @@ mod multi_one_shot {
             // - holds its id:
             id: Uuid,
             // - holds an atomic of at least size ceil(log_2(num_events)) as a
-            // bitmask for which events have already been emitted. It's unlikely
-            // the handle will be attempted to be used by multiple threads to
-            // emit the same events, so we don't have to find this out over
-            // num_events bools.
+            // bitmask for which Once variants have already been emitted. It's
+            // unlikely the handle will be attempted to be used by multiple
+            // threads to emit the same events, so we don't have to spread this
+            // out over num_events bools.
             once_events_emitted: [AtomicU8; 4],
             // - holds sender
             // - doesn't hold a sequence number like FSM because there are no
@@ -266,19 +226,17 @@ mod multi_one_shot {
 
         impl MultiOneShotHandle {
             fn a(&self, _attributes: model::X) -> Result<(), ObserverError> {
-                // errors out if the event was previously submitted already
-                //
-                // emits event, flags this as emitted in the bitmask
+                // Once variant: errors out if already emitted, flags in bitmask
                 todo!()
             }
             fn b(&self, _attributes: model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
-            // same attributes type as b(), but semantically different event
+            // same payload type as b(), but semantically different event
             fn c(&self, _attributes: model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
-            fn d(&self) {
+            fn d(&self) -> Result<(), ObserverError> {
                 todo!()
             }
         }
@@ -286,21 +244,11 @@ mod multi_one_shot {
 
     // Future work
     //
-    // mod analyzer {
-    //     use super::*;
-    //     // If at least one event arrived, we know this entity exists. But it
-    //     // could have been in any order, and events may not have been sent, so
-    //     // these are all optional.
-    //     pub trait MultiOneShotModel: EntityModel {
-    //         fn a() -> Option<Event<model::X>>;
-    //         fn b() -> Option<Event<model::Y>>;
-    //         fn c() -> Option<Event<model::Y>>;
-    //         fn d() -> Option<Event<()>>;
-    //     }
-    // }
+    // mod analyzer { ... }
 }
 
-// An entity that emits one kind of event, at least once, but possibly multiple times.
+// An entity that emits one kind of event, zero or more times.
+// The enum itself is the event payload: Event<OneMultiShot>.
 mod one_multi_shot {
     use super::*;
 
@@ -312,15 +260,14 @@ mod one_multi_shot {
         }
 
         #[derive(Entity)]
-        pub struct OneMultiShot {
-            a: Multi<X>,
+        pub enum OneMultiShot {
+            #[quent(multi)]
+            A(X),
         }
     }
 
     mod events {
-        pub enum OneMultiShotEvent {
-            A(super::model::X),
-        }
+        // The enum itself is the event payload: Event<OneMultiShot>
     }
 
     mod instrumentation {
@@ -337,7 +284,7 @@ mod one_multi_shot {
         pub struct OneMultiShotHandle {
             // holds entity UUID
             // holds sender
-            // doesn't hold any flags
+            // no bitmask: no Once variants
         }
 
         impl EntityDeclaration for model::OneMultiShot {}
@@ -350,15 +297,16 @@ mod one_multi_shot {
         }
 
         impl OneMultiShotHandle {
-            fn a(&self, _attributes: super::model::X) {
-                // emits event
+            fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
+                // Could still error out on channel errors etc.
                 todo!()
             }
         }
     }
 }
 
-// An entity that emits multiple kinds of events, possibly one or multiple times.
+// An entity that emits multiple kinds of events, each zero or more times.
+// The enum itself is the event payload: Event<MultiMulti>.
 mod multi_multi_shot {
     use super::*;
 
@@ -374,19 +322,18 @@ mod multi_multi_shot {
         }
 
         #[derive(Entity)]
-        pub struct MultiMulti {
-            a: Multi<X>,
-            b: Multi<X>,
-            c: Multi<Y>,
+        pub enum MultiMulti {
+            #[quent(multi)]
+            A(X),
+            #[quent(multi)]
+            B(X),
+            #[quent(multi)]
+            C(Y),
         }
     }
 
     mod events {
-        pub enum XEvent {
-            A(super::model::X),
-            B(super::model::X),
-            C(super::model::Y),
-        }
+        // The enum itself is the event payload: Event<MultiMulti>
     }
 
     mod instrumentation {
@@ -403,6 +350,7 @@ mod multi_multi_shot {
         pub struct MultiMultiHandle {
             // holds uuid
             // holds sender
+            // no bitmask: no Once variants
         }
 
         impl EntityDeclaration for model::MultiMulti {}
@@ -414,23 +362,21 @@ mod multi_multi_shot {
         }
 
         impl MultiMultiHandle {
-            fn a(&self, _attributes: super::model::X) {
-                // emits event
+            fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
                 todo!()
             }
-            fn b(&self, _attributes: super::model::X) {
-                // emits event
+            fn b(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
                 todo!()
             }
-            fn c(&self, _attributes: super::model::Y) {
-                // emits event
+            fn c(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
                 todo!()
             }
         }
     }
 }
 
-// An entity with mixed types of events.
+// An entity with mixed event kinds: some Once (default), some Multi.
+// The enum itself is the event payload: Event<Mixed>.
 mod mixed {
     use super::*;
 
@@ -446,17 +392,15 @@ mod mixed {
         }
 
         #[derive(Entity)]
-        pub struct Mixed {
-            a: Once<X>,
-            b: Multi<Y>,
+        pub enum Mixed {
+            A(X), // Once (default)
+            #[quent(multi)]
+            B(Y), // Multi
         }
     }
 
     mod events {
-        pub enum MixedEvent {
-            A(super::model::X),
-            B(super::model::Y),
-        }
+        // The enum itself is the event payload: Event<Mixed>
     }
 
     mod instrumentation {
@@ -473,7 +417,7 @@ mod mixed {
         pub struct MixedHandle {
             // holds entity uuid
             // holds sender
-            // holds flags for one-shot events, so in this case only for event A
+            // holds bitmask for Once variants only (in this case only A)
         }
 
         impl EntityDeclaration for model::Mixed {}
@@ -486,13 +430,13 @@ mod mixed {
 
         impl MixedHandle {
             pub fn a(&self, _attributes: super::model::X) -> Result<(), ObserverError> {
-                // emits event
-                // errors out if event was already sent
+                // Once variant: errors out if already emitted
+                // Can also still error out on channel errors etc.
                 todo!()
             }
 
-            pub fn b(&self, _attributes: super::model::Y) {
-                // emits event
+            pub fn b(&self, _attributes: super::model::Y) -> Result<(), ObserverError> {
+                // Could still error out on channel errors etc.
                 todo!()
             }
         }
@@ -500,14 +444,7 @@ mod mixed {
 
     // Future work
     //
-    // mod analyzer {
-    //     use super::*;
-
-    //     pub trait MixedModel: EntityModel {
-    //         fn a() -> Option<Event<super::model::X>>;
-    //         fn b() -> impl Iterator<Item = Event<super::model::X>>;
-    //     }
-    // }
+    // mod analyzer { ... }
 }
 
 // Invalid things that should produce compilation errors.
@@ -517,12 +454,8 @@ mod invalid {
     mod model {
         use super::*;
 
-        // Can't have plain fields if there are any Once or Many typed fields.
-        // Plain fields are only allowed for single, one-shot event entities.
+        // An entity enum must have at least one variant.
         #[derive(Entity)]
-        pub struct Invalid {
-            plain: u64,
-            a: Once<()>,
-        }
+        pub enum Invalid {}
     }
 }
