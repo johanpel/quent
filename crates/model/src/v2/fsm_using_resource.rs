@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::v2::entity::{EntityHandle, ObserverError};
+use crate::v2::entity::{EntityDeclaration, EntityHandle, ObserverError};
 use crate::v2::resource::{CapacityValue, OccupancyBound, Usage, memory, thread};
 use quent_model_macros::Fsm;
 
@@ -56,7 +56,9 @@ mod task {
             _phantom: PhantomData<T>,
             id: Uuid,
         }
+        impl EntityDeclaration for model::Task {}
         impl<T> EntityHandle for TaskHandle<T> {
+            type DeclarationType = model::Task;
             fn id(&self) -> Uuid {
                 self.id
             }

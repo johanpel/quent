@@ -1,4 +1,4 @@
-use crate::v2::entity::{EntityHandle, Event, ObserverError};
+use crate::v2::entity::{EntityDeclaration, EntityHandle, Event, ObserverError};
 use quent_model_macros::Fsm;
 use quent_time::timestamp;
 use std::marker::PhantomData;
@@ -68,6 +68,8 @@ mod single_empty {
     }
 
     mod instrumentation {
+        use crate::v2::entity::EntityDeclaration;
+
         use super::*;
 
         // Tag type generated to support the type-state pattern below
@@ -91,7 +93,9 @@ mod single_empty {
             id: Uuid,
         }
 
+        impl EntityDeclaration for model::SingleEmpty {}
         impl<T> EntityHandle for SingleEmptyHandle<T> {
+            type DeclarationType = model::SingleEmpty;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -199,7 +203,9 @@ mod single_attribs {
             next_seq_no: AtomicU16,
         }
 
+        impl EntityDeclaration for model::SingleAttribs {}
         impl<T> EntityHandle for SingleAttribsHandle<T> {
+            type DeclarationType = model::SingleAttribs;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -300,7 +306,9 @@ mod multi_seq {
             next_seq_no: AtomicU16,
         }
 
+        impl EntityDeclaration for model::MultiSeq {}
         impl<T> EntityHandle for MultiSeqHandle<T> {
+            type DeclarationType = model::MultiSeq;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -398,7 +406,9 @@ mod solo_loop {
             next_seq_no: AtomicU16,
         }
 
+        impl EntityDeclaration for model::SoloLoop {}
         impl<T> EntityHandle for SoloLoopHandle<T> {
+            type DeclarationType = model::SoloLoop;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -483,7 +493,9 @@ mod fan_out {
             next_seq_no: AtomicU16,
         }
 
+        impl EntityDeclaration for model::Fanout {}
         impl<T> EntityHandle for FanoutHandle<T> {
+            type DeclarationType = model::Fanout;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -585,7 +597,9 @@ mod fan_in {
             next_seq_no: AtomicU16,
         }
 
+        impl EntityDeclaration for model::FanIn {}
         impl<T> EntityHandle for FanInHandle<T> {
+            type DeclarationType = model::FanIn;
             fn id(&self) -> Uuid {
                 self.id
             }

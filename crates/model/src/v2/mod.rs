@@ -6,7 +6,7 @@
 //   mod events { ... }             // the generated event types for the model component
 //   mod instrumentation { ... }    // the generated instrumentation api for the model component
 //   mod usage { ... }              // instrumentation usage example
-//   mod analyzer { ... }           // the generated analyzer api for the model component
+//   mod analyzer { ... }           // the generated analyzer api for the model component. Future work typically so commented out
 // }
 //
 // Generated code does not need to follow this pattern, this is just for sanity.

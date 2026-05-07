@@ -30,7 +30,7 @@
 // 2. b, but with a struct-level annotation
 
 use crate::v2::{
-    entity::{EntityHandle, Event, ObserverError, Once},
+    entity::{EntityDeclaration, EntityHandle, Event, ObserverError, Once},
     fsm::Transition,
 };
 use quent_model_macros::{Entity, Fsm, ResourceGroup};
@@ -103,7 +103,9 @@ mod entity_rg {
         pub struct MultiOneShotHandle {
             id: Uuid,
         }
+        impl EntityDeclaration for model::MultiOneShot {}
         impl EntityHandle for MultiOneShotHandle {
+            type DeclarationType = model::MultiOneShot;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -171,7 +173,9 @@ mod entity_rg_root {
         pub struct MultiOneShotHandle {
             id: Uuid,
         }
+        impl EntityDeclaration for model::MultiOneShot {}
         impl EntityHandle for MultiOneShotHandle {
+            type DeclarationType = model::MultiOneShot;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -258,7 +262,9 @@ mod fsm_rg {
             id: Uuid,
             next_seq_no: AtomicU16,
         }
+        impl EntityDeclaration for model::Foo {}
         impl<T> EntityHandle for FooHandle<T> {
+            type DeclarationType = model::Foo;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -325,7 +331,9 @@ mod fsm_rg_root {
             id: Uuid,
             next_seq_no: AtomicU16,
         }
+        impl EntityDeclaration for model::Foo {}
         impl<T> EntityHandle for FooHandle<T> {
+            type DeclarationType = model::Foo;
             fn id(&self) -> Uuid {
                 self.id
             }

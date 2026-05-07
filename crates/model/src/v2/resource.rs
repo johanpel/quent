@@ -4,7 +4,7 @@ use quent_model_macros::Fsm;
 use quent_model_macros::Resource;
 use uuid::Uuid;
 
-use crate::v2::entity::{EntityHandle, ObserverError};
+use crate::v2::entity::{EntityDeclaration, EntityHandle, ObserverError};
 
 // Notes:
 //
@@ -163,7 +163,9 @@ pub(crate) mod thread {
             id: Uuid,
             // + sender to event channel of the observer
         }
+        impl EntityDeclaration for model::Thread {}
         impl<T> EntityHandle for ThreadHandle<T> {
+            type DeclarationType = model::Thread;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -272,7 +274,9 @@ pub(crate) mod memory {
             id: Uuid,
             // + sender to event channel of the observer
         }
+        impl EntityDeclaration for model::Memory {}
         impl<T> EntityHandle for MemoryHandle<T> {
+            type DeclarationType = model::Memory;
             fn id(&self) -> Uuid {
                 self.id
             }

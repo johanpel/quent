@@ -25,21 +25,26 @@ pub struct Ref<E: EntityDeclaration> {
 
 // Traits used to tie things together
 /// To mark a type as an entity declaration so Ref's generic can be bound by it.
-pub trait EntityDeclaration {}
+pub trait EntityDeclaration {
+    // Might be useful to have:
+    // fn type_name(&self) -> String;
+}
 
 // TODO: use the analysis/event crate traits/structs.
 
 // Every entity has a unique id.
 // For instrumentation:
 pub trait EntityHandle {
-    fn id(&self) -> Uuid;
-}
+    type DeclarationType: EntityDeclaration;
 
-// Every entity has a unique id.
-// For analysis:
-pub trait EntityModel {
     fn id(&self) -> Uuid;
-    fn type_name() -> String;
+
+    fn entity_ref(&self) -> Ref<Self::DeclarationType> {
+        Ref {
+            _phantom: PhantomData,
+            id: self.id(),
+        }
+    }
 }
 
 // An event has an entity id, a timestamp, and a payload
@@ -105,20 +110,22 @@ mod one_shot_empty {
         }
     }
 
-    mod analyzer {
-        use super::*;
-        // Generate traits of entity models in analysis. These traits exist for
-        // convenience and could be implemented by various entity containers,
-        // e.g. plain Rust types, column-oriented formats such as Arrow through
-        // a reference to some row representing the entity, or a time-series
-        // database, etc.
-        //
-        // Single-event entity, so if the event ever arrived, we know its
-        // timestamp.
-        pub trait OneShotEmptyModel: EntityModel {
-            fn one_shot_empty(&self) -> Event<()>;
-        }
-    }
+    // Future work
+    //
+    // mod analyzer {
+    //     use super::*;
+    //     // Generate traits of entity models in analysis. These traits exist for
+    //     // convenience and could be implemented by various entity containers,
+    //     // e.g. plain Rust types, column-oriented formats such as Arrow through
+    //     // a reference to some row representing the entity, or a time-series
+    //     // database, etc.
+    //     //
+    //     // Single-event entity, so if the event ever arrived, we know its
+    //     // timestamp.
+    //     pub trait OneShotEmptyModel: EntityModel {
+    //         fn one_shot_empty(&self) -> Event<()>;
+    //     }
+    // }
 }
 
 // An entity that emits one single event with attributes.
@@ -170,14 +177,16 @@ mod one_shot_with_attribs {
         }
     }
 
-    mod analyzer {
-        use super::*;
-        // Still single event entity. If it ever arrived, we know it in its
-        // entirety.
-        pub trait OneShotWithAttribsModel: EntityModel {
-            fn one_shot_with_attribs() -> Event<super::model::OneShotWithAttribs>; // hence this is not optional
-        }
-    }
+    // Future work
+    //
+    // mod analyzer {
+    //     use super::*;
+    //     // Still single event entity. If it ever arrived, we know it in its
+    //     // entirety.
+    //     pub trait OneShotWithAttribsModel: EntityModel {
+    //         fn one_shot_with_attribs() -> Event<super::model::OneShotWithAttribs>; // hence this is not optional
+    //     }
+    // }
 }
 
 // An entity that emits multiple kinds of events, just once per kind.
@@ -219,6 +228,8 @@ mod multi_one_shot {
     mod instrumentation {
         use super::*;
 
+        impl EntityDeclaration for model::MultiOneShot {}
+
         pub struct MultiOneShotObserver {}
 
         impl MultiOneShotObserver {
@@ -247,6 +258,7 @@ mod multi_one_shot {
         }
 
         impl EntityHandle for MultiOneShotHandle {
+            type DeclarationType = model::MultiOneShot;
             fn id(&self) -> Uuid {
                 self.id
             }
@@ -272,19 +284,20 @@ mod multi_one_shot {
         }
     }
 
-    mod analyzer {
-        use super::*;
-
-        // If at least one event arrived, we know this entity exists. But it
-        // could have been in any order, and events may not have been sent, so
-        // these are all optional.
-        pub trait MultiOneShotModel: EntityModel {
-            fn a() -> Option<Event<model::X>>;
-            fn b() -> Option<Event<model::Y>>;
-            fn c() -> Option<Event<model::Y>>;
-            fn d() -> Option<Event<()>>;
-        }
-    }
+    // Future work
+    //
+    // mod analyzer {
+    //     use super::*;
+    //     // If at least one event arrived, we know this entity exists. But it
+    //     // could have been in any order, and events may not have been sent, so
+    //     // these are all optional.
+    //     pub trait MultiOneShotModel: EntityModel {
+    //         fn a() -> Option<Event<model::X>>;
+    //         fn b() -> Option<Event<model::Y>>;
+    //         fn c() -> Option<Event<model::Y>>;
+    //         fn d() -> Option<Event<()>>;
+    //     }
+    // }
 }
 
 // An entity that emits one kind of event, at least once, but possibly multiple times.
@@ -327,7 +340,10 @@ mod one_multi_shot {
             // doesn't hold any flags
         }
 
+        impl EntityDeclaration for model::OneMultiShot {}
         impl EntityHandle for OneMultiShotHandle {
+            type DeclarationType = model::OneMultiShot;
+
             fn id(&self) -> Uuid {
                 todo!()
             }
@@ -338,14 +354,6 @@ mod one_multi_shot {
                 // emits event
                 todo!()
             }
-        }
-    }
-
-    mod analyzer {
-        use super::*;
-
-        pub trait OneMultiShotModel: EntityModel {
-            fn a() -> impl Iterator<Item = Event<super::model::X>>;
         }
     }
 }
@@ -397,7 +405,9 @@ mod multi_multi_shot {
             // holds sender
         }
 
+        impl EntityDeclaration for model::MultiMulti {}
         impl EntityHandle for MultiMultiHandle {
+            type DeclarationType = model::MultiMulti;
             fn id(&self) -> Uuid {
                 todo!()
             }
@@ -416,16 +426,6 @@ mod multi_multi_shot {
                 // emits event
                 todo!()
             }
-        }
-    }
-
-    mod analyzer {
-        use super::*;
-
-        pub trait MultiMultiShotModel: EntityModel {
-            fn a() -> impl Iterator<Item = Event<super::model::X>>;
-            fn b() -> impl Iterator<Item = Event<super::model::X>>;
-            fn c() -> impl Iterator<Item = Event<super::model::Y>>;
         }
     }
 }
@@ -476,7 +476,9 @@ mod mixed {
             // holds flags for one-shot events, so in this case only for event A
         }
 
+        impl EntityDeclaration for model::Mixed {}
         impl EntityHandle for MixedHandle {
+            type DeclarationType = model::Mixed;
             fn id(&self) -> Uuid {
                 todo!()
             }
@@ -496,14 +498,16 @@ mod mixed {
         }
     }
 
-    mod analyzer {
-        use super::*;
+    // Future work
+    //
+    // mod analyzer {
+    //     use super::*;
 
-        pub trait MixedModel: EntityModel {
-            fn a() -> Option<Event<super::model::X>>;
-            fn b() -> impl Iterator<Item = Event<super::model::X>>;
-        }
-    }
+    //     pub trait MixedModel: EntityModel {
+    //         fn a() -> Option<Event<super::model::X>>;
+    //         fn b() -> impl Iterator<Item = Event<super::model::X>>;
+    //     }
+    // }
 }
 
 // Invalid things that should produce compilation errors.
