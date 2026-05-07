@@ -8,19 +8,24 @@ use quent_time::TimeUnixNanoSec;
 use std::sync::atomic::AtomicU8;
 use uuid::Uuid;
 
+// Trait to mark a type satisfies the requirements to be considered an entity.
+pub trait EntityDeclaration {}
+
 // User-facing types used for modeling
 
-// A type-safe reference to another entity
-pub struct Ref<E: EntityDeclaration> {
-    _phantom: PhantomData<E>,
-    id: Uuid,
-}
+// Type to tag a ref can be to any type of entity.
+pub struct AnyEntity;
+impl EntityDeclaration for AnyEntity {} // special case.
 
-// Traits used to tie things together
-/// To mark a type as an entity declaration so Ref's generic can be bound by it.
-pub trait EntityDeclaration {
-    // Might be useful to have:
-    // fn type_name(&self) -> String;
+// Tag type for reference kinds.
+pub struct RegularRef; // a regular reference to another entity without additional semantics
+
+// A type-safe reference to another entity
+#[derive(Clone, Copy)]
+pub struct EntityRef<E: EntityDeclaration, R = RegularRef> {
+    pub _entity: PhantomData<E>,
+    pub _ref_kind: PhantomData<R>,
+    pub id: Uuid,
 }
 
 // TODO: use the analysis/event crate traits/structs.
@@ -32,9 +37,10 @@ pub trait EntityHandle {
 
     fn id(&self) -> Uuid;
 
-    fn entity_ref(&self) -> Ref<Self::DeclarationType> {
-        Ref {
-            _phantom: PhantomData,
+    fn entity_ref(&self) -> EntityRef<Self::DeclarationType> {
+        EntityRef {
+            _entity: PhantomData,
+            _ref_kind: PhantomData,
             id: self.id(),
         }
     }
@@ -172,7 +178,7 @@ mod multi_one_shot {
 
         pub struct Y {
             bar: String,
-            other: Ref<one_shot_with_attribs::model::OneShotWithAttribs>,
+            other: EntityRef<one_shot_with_attribs::model::OneShotWithAttribs>,
         }
 
         #[derive(Entity)]

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::v2::{
-    entity::{EntityDeclaration, EntityHandle, Event, ObserverError},
+    entity::{EntityDeclaration, EntityHandle, EntityRef, Event, ObserverError, RegularRef},
     fsm::Transition,
 };
 use quent_model_macros::{Entity, Fsm, ResourceGroup, RootResourceGroup};
@@ -14,24 +14,56 @@ use uuid::Uuid;
 
 // Any entity can be a resource group, which means that at least one of its
 // events needs to carry resource group attributes.
-pub struct ResourceGroupAttributes {
-    pub parent_group_id: Uuid,
+
+// This is a tag type to convey an EntityRef is meant as a resource group
+// parent. EntityRefs with this tag should only be able to be created from
+// references to entities that are resource groups.
+pub struct RgParentRef;
+
+// This is a tag type to convey a ref can hold any resource group as a reference
+pub struct AnyRg;
+impl EntityDeclaration for AnyRg {}
+impl ResourceGroupDeclaration for AnyRg {}
+
+// Trait to convey an entity satisfies the requirements of a resource group.
+pub trait ResourceGroupDeclaration: EntityDeclaration {}
+
+// Allow converting a regular entity reference to a resource group declaration
+// to one that acts as a resource group parent.
+impl<R> From<EntityRef<R, RegularRef>> for EntityRef<R, RgParentRef>
+where
+    R: ResourceGroupDeclaration,
+{
+    fn from(value: EntityRef<R>) -> Self {
+        Self {
+            _entity: PhantomData,
+            _ref_kind: PhantomData,
+            id: value.id,
+        }
+    }
 }
 
-// Two types of entities as a non-root resource group.
+// Two types of entities as a non-root resource group and one resource root
+// entity acting as resource tree root.
 mod entity_rg {
     use super::*;
 
     mod model {
         use super::*;
 
+        // This is a root resource.
+        #[derive(Entity, RootResourceGroup)]
+        pub struct Root;
+
         // Single-event entity RG.
-        //
-        // The event payload will need the ResourceGroupAttributes in addition,
-        // so we put them in a tuple.
         #[derive(Entity, ResourceGroup)]
         pub struct OneShot {
-            pub value: u64,
+            pub some_attribute: u64,
+            // Arbitrarily named field carrying the type-safe resource group
+            // parent reference. Since this is a one shot entity and a non-root
+            // resource group requires an event conveying its parent, at least
+            // one struct field must contain this type of reference.
+            pub parent: EntityRef<Root, RgParentRef>,
         }
 
         pub struct X {
@@ -40,18 +72,30 @@ mod entity_rg {
 
         // Multi-event entity RG.
         //
-        // The challenge here is to enforce the rule that one of the events must
-        // carry the necessary attributes. We can only reason about that from
-        // the tokens this derive macro receives.
-        //
-        // The most trivial way to solve this right now would seem to enforce
-        // one of the enum variants to hold a tuple in which
-        // ResourceGroupAttributes appears. This way we also know which event
-        // carries it and how, for potential analysis types we generate in
-        // future work.
+        // Again, it is required to have at least one event declare what the
+        // parent resource group is. This can't be done in the X attribute set,
+        // because the ResourceGroup macro can't look at that type definition.
+        // Instead, the macro will require there to exist exactly one inline
+        // struct with a field with an EntityRef of kind ResourceGroupParentRef
         #[derive(Entity, ResourceGroup)]
         pub enum MultiOneShot {
-            A(X, ResourceGroupAttributes),
+            A {
+                x: X,
+                parent: EntityRef<OneShot, RgParentRef>,
+            },
+            B(X),
+        }
+
+        // Multi-event entity RG with a parent that can be any type of resource group.
+        //
+        // The macro requires at least one event to declare what the parent
+        // resource group is.
+        #[derive(Entity, ResourceGroup)]
+        pub enum WithAny {
+            A {
+                x: X,
+                parent: EntityRef<AnyRg, RgParentRef>,
+            },
             B(X),
         }
     }
@@ -63,13 +107,38 @@ mod entity_rg {
 
         use super::*;
 
+        impl EntityDeclaration for model::Root {}
+        impl ResourceGroupDeclaration for model::Root {}
+        pub struct RootObserver {}
+        impl RootObserver {
+            pub fn root(&self) -> Result<EntityRef<model::Root>, ObserverError> {
+                let id = Uuid::now_v7();
+                // emit event goes here.
+                Ok(EntityRef {
+                    _entity: PhantomData,
+                    _ref_kind: PhantomData,
+                    id,
+                })
+            }
+        }
+
+        impl EntityDeclaration for model::OneShot {}
+        impl ResourceGroupDeclaration for model::OneShot {}
         pub struct OneShotObserver {}
         impl OneShotObserver {
+            // The parent is now part of model::OneShot itself, so the observer
+            // takes the struct directly — no extra tuple, no extra argument.
             pub fn one_shot(
                 &self,
-                _attributes: (model::OneShot, ResourceGroupAttributes),
-            ) -> Result<Uuid, ObserverError> {
-                todo!()
+                _attributes: model::OneShot,
+            ) -> Result<EntityRef<model::OneShot>, ObserverError> {
+                let id = Uuid::now_v7();
+                // emit event goes here.
+                Ok(EntityRef {
+                    _entity: PhantomData,
+                    _ref_kind: PhantomData,
+                    id,
+                })
             }
         }
 
@@ -90,9 +159,42 @@ mod entity_rg {
             }
         }
         impl MultiOneShotHandle {
+            // Named arguments mirror the named fields of variant A.
             pub fn a(
                 &self,
-                _attributes: (model::X, ResourceGroupAttributes),
+                _x: model::X,
+                _parent: EntityRef<model::OneShot, RgParentRef>,
+            ) -> Result<(), ObserverError> {
+                todo!()
+            }
+            pub fn b(&self, _attributes: model::X) -> Result<(), ObserverError> {
+                todo!()
+            }
+        }
+
+        pub struct WithAnyObserver {}
+        impl WithAnyObserver {
+            pub fn handle(&self) -> Result<WithAnyHandle, ObserverError> {
+                todo!()
+            }
+        }
+        pub struct WithAnyHandle {
+            id: Uuid,
+        }
+        impl EntityDeclaration for model::WithAny {}
+        impl ResourceGroupDeclaration for model::WithAny {}
+        impl EntityHandle for WithAnyHandle {
+            type DeclarationType = model::WithAny;
+            fn id(&self) -> Uuid {
+                self.id
+            }
+        }
+        impl WithAnyHandle {
+            // Named arguments mirror the named fields of variant A.
+            pub fn a(
+                &self,
+                _x: model::X,
+                _parent: EntityRef<AnyRg, RgParentRef>,
             ) -> Result<(), ObserverError> {
                 todo!()
             }
@@ -106,96 +208,27 @@ mod entity_rg {
         use super::*;
 
         fn example() -> Result<(), Box<dyn std::error::Error>> {
-            let one_shot_obs = instrumentation::OneShotObserver {};
-            one_shot_obs.one_shot((
-                model::OneShot { value: 10 },
-                ResourceGroupAttributes {
-                    parent_group_id: Uuid::now_v7(),
-                },
-            ))?;
+            let root_obs = instrumentation::RootObserver {};
 
-            let multi_one_shot_obs = instrumentation::MultiOneShotObserver {};
-            let handle = multi_one_shot_obs.handle()?;
-            handle.a((
-                model::X { foo: 10 },
-                ResourceGroupAttributes {
-                    parent_group_id: Uuid::now_v7(),
-                },
-            ))?;
+            let root = root_obs.root()?;
+
+            let one_shot_obs = instrumentation::OneShotObserver {};
+            let one_shot = one_shot_obs.one_shot(model::OneShot {
+                some_attribute: 10,
+                // into to convert it from a regular entity ref to a ref acting
+                // as a parent resource group ref
+                parent: root.into(),
+            })?;
+
+            let multi_obs = instrumentation::MultiOneShotObserver {};
+            let multi_handle = multi_obs.handle()?;
+            multi_handle.a(model::X { foo: 10 }, one_shot.into())?;
+
+            let with_any_obs = instrumentation::WithAnyObserver {};
+            let with_any_handle = with_any_obs.handle()?;
+            with_any_handle.a(model::X { foo: 10 }, one_shot.into())?;
 
             Ok(())
-        }
-    }
-}
-
-// Entities as root resource groups.
-// No parent_group_id needed; no ResourceGroupDeclaration injection.
-// Multi-event: enum IS the event payload directly (same as non-RG entities).
-mod entity_rg_root {
-    use super::*;
-
-    mod model {
-        use super::*;
-
-        // Single-event root RG.
-        // No ResourceGroupAttributes needed for now because that only carries the parent resource id.
-        #[derive(Entity, RootResourceGroup)]
-        pub struct OneShot {
-            pub value: u64,
-        }
-
-        pub struct X {
-            pub foo: u64,
-        }
-
-        // Multi-event root RG.
-        // No ResourceGroupAttributes needed for now because that only carries the parent resource id.
-        #[derive(Entity, RootResourceGroup)]
-        pub enum MultiOneShot {
-            A(X),
-            B(X),
-        }
-    }
-
-    mod events {
-        // MultiOneShot enum itself is the event payload: Event<MultiOneShot>
-    }
-
-    mod instrumentation {
-
-        use super::*;
-
-        pub struct OneShotObserver {}
-        impl OneShotObserver {
-            // No parent_group_id: root has no parent.
-            pub fn one_shot(&self, _attributes: model::OneShot) -> Result<Uuid, ObserverError> {
-                todo!()
-            }
-        }
-
-        pub struct MultiOneShotObserver {}
-        impl MultiOneShotObserver {
-            pub fn handle(&self) -> Result<MultiOneShotHandle, ObserverError> {
-                todo!()
-            }
-        }
-        pub struct MultiOneShotHandle {
-            id: Uuid,
-        }
-        impl EntityDeclaration for model::MultiOneShot {}
-        impl EntityHandle for MultiOneShotHandle {
-            type DeclarationType = model::MultiOneShot;
-            fn id(&self) -> Uuid {
-                self.id
-            }
-        }
-        impl MultiOneShotHandle {
-            pub fn a(&self, _attributes: model::X) -> Result<(), ObserverError> {
-                todo!()
-            }
-            pub fn b(&self, _attributes: model::X) -> Result<(), ObserverError> {
-                todo!()
-            }
         }
     }
 }
@@ -209,7 +242,9 @@ mod fsm_rg {
             pub foo: u64,
         }
 
-        // For FSMs we need to enforce at least one transition holds the ResourceGroupAttributes.
+        // For FSMs we need to enforce that exactly one transition variant
+        // declares the parent. As with multi-event entity RGs, a named struct
+        // variant keeps the field name (`parent`) visible.
         #[derive(Fsm, ResourceGroup)]
         #[quent(transitions = {
             entry -> A,
@@ -217,7 +252,10 @@ mod fsm_rg {
             B -> exit
         })]
         pub enum Foo {
-            A(X, ResourceGroupAttributes),
+            A {
+                x: X,
+                parent: EntityRef<AnyRg, RgParentRef>,
+            },
             B(X),
         }
     }
@@ -239,7 +277,8 @@ mod fsm_rg {
         impl FooObserver {
             pub fn a(
                 &self,
-                attributes: (model::X, ResourceGroupAttributes), // additional field for the transition to A
+                x: model::X,
+                parent: EntityRef<AnyRg, RgParentRef>,
             ) -> Result<FooHandle<A>, ObserverError> {
                 let id = Uuid::now_v7();
                 let _event: Event<Transition<model::Foo>> = Event {
@@ -247,7 +286,7 @@ mod fsm_rg {
                     timestamp: timestamp(),
                     payload: Transition {
                         sequence_number: 0,
-                        payload: model::Foo::A(attributes.0, attributes.1),
+                        payload: model::Foo::A { x, parent },
                     },
                 };
                 // emitting the event goes here.
