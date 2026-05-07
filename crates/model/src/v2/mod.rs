@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
 // Nesting the examples / exploration the following way:
 //
 // mod entity_name {                // name of the entity
@@ -13,5 +16,6 @@
 mod entity;
 mod fsm;
 mod fsm_using_resource;
+mod qe_rewrite;
 mod resource;
 mod resource_group;

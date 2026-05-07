@@ -1,5 +1,5 @@
-// An entity can be a resource group, which means that at least one of its
-// events needs to carry resource group attributes.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 
 use crate::v2::{
     entity::{EntityDeclaration, EntityHandle, Event, ObserverError},
@@ -12,6 +12,8 @@ use std::{marker::PhantomData, sync::atomic::AtomicU16};
 
 use uuid::Uuid;
 
+// Any entity can be a resource group, which means that at least one of its
+// events needs to carry resource group attributes.
 pub struct ResourceGroupAttributes {
     pub parent_group_id: Uuid,
 }

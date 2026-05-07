@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::v2::entity::{EntityDeclaration, EntityHandle, Event, ObserverError};
 use quent_model_macros::Fsm;
 use quent_time::timestamp;
