@@ -770,5 +770,17 @@ mod invalid {
             A,
             B,
         }
+
+        // Shouldn't compile, has unreachable states
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> A,
+            A -> exit
+            B -> A
+        })]
+        pub enum Invalid4 {
+            A,
+            B,
+        }
     }
 }

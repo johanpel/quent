@@ -204,3 +204,8 @@ pub fn derive_resource(_input: TokenStream) -> TokenStream {
 pub fn derive_resource_group(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }
+
+#[proc_macro_derive(RootResourceGroup, attributes(quent))]
+pub fn derive_root_resource_group(_input: TokenStream) -> TokenStream {
+    TokenStream::new()
+}
