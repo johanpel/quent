@@ -16,6 +16,16 @@ pub struct Multi<T> {
     _phantom: PhantomData<T>,
 }
 
+// A type-safe reference to another entity
+pub struct Ref<E: EntityDeclaration> {
+    _phantom: PhantomData<E>,
+    id: Uuid,
+}
+
+// Traits used to tie things together
+/// To mark a type as an entity declaration so Ref's generic can be bound by it.
+pub trait EntityDeclaration {}
+
 // TODO: use the analysis/event crate traits/structs.
 
 // Every entity has a unique id.
@@ -114,7 +124,7 @@ mod one_shot_empty {
 mod one_shot_with_attribs {
     use super::*;
 
-    mod model {
+    pub(crate) mod model {
         use super::*;
 
         // Single-event entity. Just emits one event with attributes of this
@@ -130,6 +140,12 @@ mod one_shot_with_attribs {
             pub foo: u64,
             pub bar: String,
         }
+    }
+
+    // Will only show this once as it seems trivial enough
+    mod desugared {
+        use super::*;
+        impl EntityDeclaration for model::OneShotWithAttribs {}
     }
 
     mod events {
@@ -176,6 +192,7 @@ mod multi_one_shot {
 
         pub struct Y {
             bar: String,
+            other: Ref<one_shot_with_attribs::model::OneShotWithAttribs>,
         }
 
         #[derive(Entity)]
