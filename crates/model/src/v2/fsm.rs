@@ -701,7 +701,7 @@ mod full {
             }
         }
         impl FullHandle<C> {
-            pub fn d(self, _attributes: X) -> Result<FullHandle<B>, ObserverError> {
+            pub fn d(self, _attributes: X) -> Result<FullHandle<D>, ObserverError> {
                 todo!()
             }
         }

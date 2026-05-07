@@ -645,7 +645,7 @@ mod channel_bounded {
         use super::*;
         #[derive(Resource)]
         pub struct ChannelBounded {
-            bytes: Capacity<u64, Rate, Fixed, Bounded>,
+            bytes: Capacity<u64, Rate, Resizable, Bounded>,
         }
     }
 
@@ -713,16 +713,19 @@ mod channel_bounded {
                 todo!()
             }
         }
-        impl ChannelBoundedHandle<Resizing> {
-            fn operating(self) -> Result<ChannelBoundedHandle<Operating>, ObserverError> {
-                todo!()
-            }
-        }
         impl ChannelBoundedHandle<Operating> {
-            fn resizing(self) -> Result<ChannelBoundedHandle<Finalizing>, ObserverError> {
+            fn resizing(self) -> Result<ChannelBoundedHandle<Resizing>, ObserverError> {
                 todo!()
             }
             fn finalizing(self) -> Result<ChannelBoundedHandle<Finalizing>, ObserverError> {
+                todo!()
+            }
+        }
+        impl ChannelBoundedHandle<Resizing> {
+            fn operating(
+                self,
+                _attributes: desugared::ChannelBoundedOperating,
+            ) -> Result<ChannelBoundedHandle<Operating>, ObserverError> {
                 todo!()
             }
         }
