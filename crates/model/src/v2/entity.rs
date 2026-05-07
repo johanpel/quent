@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use quent_model_macros::Entity;
 use quent_time::TimeUnixNanoSec;
+use std::sync::atomic::AtomicU8;
 use uuid::Uuid;
 
 // User-facing types used for modeling
@@ -230,15 +231,24 @@ mod multi_one_shot {
         }
 
         pub struct MultiOneShotHandle {
-            // holds entity uuid
-            // holds sender
-            // holds flags on what events have already been emitted to
-            // detect logic errors
+            // - holds its id:
+            id: Uuid,
+            // - holds an atomic of at least size ceil(log_2(num_events)) as a
+            // bitmask for which events have already been emitted. It's unlikely
+            // the handle will be attempted to be used by multiple threads to
+            // emit the same events, so we don't have to find this out over
+            // num_events bools.
+            once_events_emitted: [AtomicU8; 4],
+            // - holds sender
+            // - doesn't hold a sequence number like FSM because there are no
+            // restrictions on emission order, and non-increasing clock reads
+            // are rare, but we might consider adding an option to include
+            // sequence numbers in the future.
         }
 
         impl EntityHandle for MultiOneShotHandle {
             fn id(&self) -> Uuid {
-                todo!()
+                self.id
             }
         }
 
@@ -246,7 +256,7 @@ mod multi_one_shot {
             fn a(&self, _attributes: model::X) -> Result<(), ObserverError> {
                 // errors out if the event was previously submitted already
                 //
-                // emits event, flags this as emitted
+                // emits event, flags this as emitted in the bitmask
                 todo!()
             }
             fn b(&self, _attributes: model::Y) -> Result<(), ObserverError> {
