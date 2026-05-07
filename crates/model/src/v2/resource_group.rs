@@ -23,6 +23,11 @@
 // d. ... ?
 //
 // Should multi events be able to carry the resource group attributes?
+//
+// Choices made below:
+// 0. A
+// 1. b.
+// 2. b, but with a struct-level annotation
 
 use crate::v2::{
     entity::{EntityHandle, Event, ObserverError, Once},

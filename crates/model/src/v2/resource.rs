@@ -66,11 +66,13 @@ where
 }
 
 // User-facing types used in the instrumentation API:
+pub struct OccupancyBound<T> {
+    pub value: T,
+}
 
-// TODO: consider whether we really need both bound and value.
-/// To convey a new capacity bound.
-pub struct CapacityBound<ValueType> {
-    pub value: ValueType,
+pub struct RateBound<T> {
+    pub items: T,
+    pub nanoseconds: u64,
 }
 
 /// To convey a new capacity value.
@@ -217,7 +219,7 @@ pub(crate) mod memory {
         }
 
         pub struct MemoryOperating {
-            pub bytes: CapacityBound<u64>,
+            pub bytes: OccupancyBound<u64>, // note this differs from rate kind capacities
         }
 
         #[derive(Fsm)]
@@ -420,7 +422,7 @@ mod memory_resizable {
         }
 
         pub struct MemoryResizableOperating {
-            pub bytes: CapacityBound<u64>,
+            pub bytes: OccupancyBound<u64>,
         }
 
         #[derive(Fsm)]
@@ -625,6 +627,107 @@ mod channel {
         impl ChannelHandle<Finalizing> {
             fn exit(self) -> Result<(), ObserverError> {
                 // emits event
+                todo!()
+            }
+        }
+    }
+
+    mod analyzer {
+        // TODO
+    }
+}
+
+// a resource with one bounded rate capacity
+mod channel_bounded {
+    use super::*;
+
+    mod model {
+        use super::*;
+        #[derive(Resource)]
+        pub struct ChannelBounded {
+            bytes: Capacity<u64, Rate, Fixed, Bounded>,
+        }
+    }
+
+    mod desugared {
+        use super::*;
+        pub struct ChannelBoundedInit {
+            pub parent_group_id: Uuid,
+        }
+        pub struct ChannelBoundedOperating {
+            pub bytes: RateBound<u64>, // note this differs from occupancy kind capacities
+        }
+
+        #[derive(Fsm)]
+        #[quent(transitions = {
+            entry -> Init,
+            Init -> Operating,
+            Operating -> Resizing,
+            Resizing -> Operating,
+            Operating -> Finalizing,
+            Finalizing -> exit
+        })]
+        pub enum ChannelBoundedFsm {
+            Init(ChannelBoundedInit),
+            Operating,
+            Finalizing,
+        }
+    }
+
+    mod events {}
+
+    mod instrumentation {
+        use super::*;
+
+        pub struct ChannelBoundedUsage {
+            pub bytes: CapacityValue<u64>,
+        }
+        impl Resource for model::ChannelBounded {
+            type UsageValueType = ChannelBoundedUsage;
+        }
+
+        pub struct Init;
+        pub struct Operating;
+        pub struct Resizing;
+        pub struct Finalizing;
+
+        pub struct ChannelBoundedObserver {}
+        impl ChannelBoundedObserver {
+            fn init(
+                &self,
+                _attributes: desugared::ChannelBoundedInit,
+            ) -> Result<ChannelBoundedHandle<Init>, ObserverError> {
+                todo!()
+            }
+        }
+
+        pub struct ChannelBoundedHandle<T> {
+            _phantom: PhantomData<T>,
+            id: Uuid,
+        }
+        impl ChannelBoundedHandle<Init> {
+            pub fn operating(
+                self,
+                _attributes: desugared::ChannelBoundedOperating,
+            ) -> Result<ChannelBoundedHandle<Operating>, ObserverError> {
+                todo!()
+            }
+        }
+        impl ChannelBoundedHandle<Resizing> {
+            fn operating(self) -> Result<ChannelBoundedHandle<Operating>, ObserverError> {
+                todo!()
+            }
+        }
+        impl ChannelBoundedHandle<Operating> {
+            fn resizing(self) -> Result<ChannelBoundedHandle<Finalizing>, ObserverError> {
+                todo!()
+            }
+            fn finalizing(self) -> Result<ChannelBoundedHandle<Finalizing>, ObserverError> {
+                todo!()
+            }
+        }
+        impl ChannelBoundedHandle<Finalizing> {
+            fn exit(self) -> Result<(), ObserverError> {
                 todo!()
             }
         }
