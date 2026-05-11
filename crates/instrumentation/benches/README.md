@@ -7,15 +7,17 @@ exporter, plus a `noop` baseline.
 
 ```sh
 cargo bench -p quent-instrumentation --bench event_emit
-open target/criterion/report/index.html
 ```
+
+Report: `target/criterion/report/index.html`.
 
 ## Run with profiling
 
 ```sh
 QUENT_BENCH_PROFILE_TIME=10 cargo bench -p quent-instrumentation --bench event_emit
-open target/criterion/emit/*/profile/flamegraph.svg
 ```
+
+Flamegraphs: `target/criterion/emit/<variant>/profile/flamegraph.svg`.
 
 Setting `QUENT_BENCH_PROFILE_TIME` (seconds, per variant) switches criterion
 from measurement to profile mode and writes one flamegraph SVG per variant.
@@ -24,8 +26,6 @@ from measurement to profile mode and writes one flamegraph SVG per variant.
 ```sh
 QUENT_BENCH_PROFILE_TIME=10 QUENT_BENCH_PROFILE_HZ=9999 cargo bench -p quent-instrumentation --bench event_emit
 ```
-
-Use `xdg-open` on Linux.
 
 ## Clear results
 
