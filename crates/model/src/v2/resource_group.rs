@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::v2::{
-    entity::{EntityDeclaration, EntityHandle, EntityRef, Event, ObserverError, RegularRef},
+    entity::{
+        EntityDeclaration, EntityHandle, EntityRef, Event, IntoErased, ObserverError, RegularRef,
+    },
     fsm::Transition,
 };
 use quent_model_macros::{Entity, Fsm, ResourceGroup, RootResourceGroup};
@@ -20,25 +22,43 @@ use uuid::Uuid;
 // references to entities that are resource groups.
 pub struct RgParentRef;
 
-// This is a tag type to convey a ref can hold any resource group as a reference
+// Trait to convey an entity satisfies the requirements of a resource group.
+pub trait ResourceGroupDeclaration: EntityDeclaration {}
+
+// Tag type to convey a reference can be made to any type of resource group.
 pub struct AnyRg;
 impl EntityDeclaration for AnyRg {}
 impl ResourceGroupDeclaration for AnyRg {}
 
-// Trait to convey an entity satisfies the requirements of a resource group.
-pub trait ResourceGroupDeclaration: EntityDeclaration {}
-
-// Allow converting a regular entity reference to a resource group declaration
-// to one that acts as a resource group parent.
+// Typed conversion from a regular reference to a reference representing a
+// resource group parent-child relation.
 impl<R> From<EntityRef<R, RegularRef>> for EntityRef<R, RgParentRef>
 where
     R: ResourceGroupDeclaration,
 {
-    fn from(value: EntityRef<R>) -> Self {
+    fn from(value: EntityRef<R, RegularRef>) -> Self {
         Self {
             _entity: PhantomData,
             _ref_kind: PhantomData,
             id: value.id,
+        }
+    }
+}
+
+// Type-erasing conversion from a regular resource group reference to a
+// reference representing a resource group parent-child relation.
+//
+// This variant is useful when a resource group parent-child relation supports
+// multiple types of parents.
+impl<R> IntoErased<EntityRef<AnyRg, RgParentRef>> for EntityRef<R, RegularRef>
+where
+    R: ResourceGroupDeclaration,
+{
+    fn into_erased(self) -> EntityRef<AnyRg, RgParentRef> {
+        EntityRef {
+            _entity: PhantomData,
+            _ref_kind: PhantomData,
+            id: self.id,
         }
     }
 }
@@ -226,7 +246,7 @@ mod entity_rg {
 
             let with_any_obs = instrumentation::WithAnyObserver {};
             let with_any_handle = with_any_obs.handle()?;
-            with_any_handle.a(model::X { foo: 10 }, one_shot.into())?;
+            with_any_handle.a(model::X { foo: 10 }, one_shot.into_erased())?;
 
             Ok(())
         }

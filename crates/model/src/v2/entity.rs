@@ -21,11 +21,23 @@ impl EntityDeclaration for AnyEntity {} // special case.
 pub struct RegularRef; // a regular reference to another entity without additional semantics
 
 // A type-safe reference to another entity
-#[derive(Clone, Copy)]
 pub struct EntityRef<E: EntityDeclaration, R = RegularRef> {
     pub _entity: PhantomData<E>,
     pub _ref_kind: PhantomData<R>,
     pub id: Uuid,
+}
+
+impl<E: EntityDeclaration, R> Clone for EntityRef<E, R> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+impl<E: EntityDeclaration, R> Copy for EntityRef<E, R> {}
+
+// Trait to allow EntityRefs of certain kinds to be type erased, such that the
+// events carry a UUID for which the type needs to be resolved.
+pub trait IntoErased<T> {
+    fn into_erased(self) -> T;
 }
 
 // TODO: use the analysis/event crate traits/structs.
