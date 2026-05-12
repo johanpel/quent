@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::v2::entity::{EntityDeclaration, EntityHandle, Event, ObserverError};
-use quent_model_macros::Fsm;
+use crate::entity::{EntityDeclaration, EntityHandle, Event, ObserverError};
 use quent_time::timestamp;
+use quent_v2_model_macros::Fsm;
 use std::marker::PhantomData;
 use std::sync::atomic::AtomicU16;
 use uuid::Uuid;
@@ -71,7 +71,7 @@ mod single_empty {
     }
 
     mod instrumentation {
-        use crate::v2::entity::EntityDeclaration;
+        use crate::entity::EntityDeclaration;
 
         use super::*;
 

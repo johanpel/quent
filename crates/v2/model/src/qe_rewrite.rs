@@ -3,11 +3,11 @@
 
 // This file is an example of what a rewrite of the query engine domain types would look like
 
-use crate::v2::{
+use crate::{
     entity::{EntityDeclaration, EntityRef},
     resource_group::{AnyRg, RgParentRef},
 };
-use quent_model_macros::{Entity, Fsm, ResourceGroup, RootResourceGroup};
+use quent_v2_model_macros::{Entity, Fsm, ResourceGroup, RootResourceGroup};
 
 mod engine {
     use super::*;

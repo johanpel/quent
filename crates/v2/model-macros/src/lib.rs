@@ -1,3 +1,5 @@
+use proc_macro::TokenStream;
+
 #[proc_macro_derive(Entity, attributes(quent))]
 pub fn derive_entity(_input: TokenStream) -> TokenStream {
     TokenStream::new()
@@ -19,6 +21,6 @@ pub fn derive_resource_group(_input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_derive(RootResourceGroup, attributes(quent))]
-pub fn RootRg(_input: TokenStream) -> TokenStream {
+pub fn derive_root_resource_group(_input: TokenStream) -> TokenStream {
     TokenStream::new()
 }

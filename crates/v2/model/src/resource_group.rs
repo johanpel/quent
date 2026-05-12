@@ -1,14 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::v2::{
+use crate::{
     entity::{
         EntityDeclaration, EntityHandle, EntityRef, Event, IntoErased, ObserverError, RegularRef,
     },
     fsm::Transition,
+    resource::Capacity,
 };
-use quent_model_macros::{Entity, Fsm, ResourceGroup, RootResourceGroup};
 use quent_time::timestamp;
+use quent_v2_model_macros::{Entity, Fsm, Resource, ResourceGroup, RootResourceGroup};
 
 use std::{marker::PhantomData, sync::atomic::AtomicU16};
 
@@ -123,8 +124,6 @@ mod entity_rg {
     mod events {}
 
     mod instrumentation {
-        use crate::v2::entity::EntityHandle;
-
         use super::*;
 
         impl EntityDeclaration for model::Root {}
@@ -416,9 +415,6 @@ mod invalid {
 
     mod model {
         use super::*;
-
-        use crate::v2::resource::Capacity;
-        use quent_model_macros::Resource;
 
         // A resource cannot be a resource group, so this should fail compiling:
         #[derive(Resource, ResourceGroup)]

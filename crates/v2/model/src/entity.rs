@@ -3,8 +3,8 @@
 
 use std::marker::PhantomData;
 
-use quent_model_macros::Entity;
 use quent_time::TimeUnixNanoSec;
+use quent_v2_model_macros::Entity;
 use std::sync::atomic::AtomicU8;
 use uuid::Uuid;
 

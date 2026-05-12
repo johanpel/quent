@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::marker::PhantomData;
 
-use quent_model_macros::Fsm;
-use quent_model_macros::Resource;
+use quent_v2_model_macros::{Fsm, Resource};
 use uuid::Uuid;
 
-use crate::v2::entity::{EntityDeclaration, EntityHandle, ObserverError};
+use crate::entity::{EntityDeclaration, EntityHandle, ObserverError};
 
 // Notes:
 //
