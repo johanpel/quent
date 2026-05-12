@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
+use super::*;
 
-use std::marker::PhantomData;
-
-use crate::entity::{EntityDeclaration, EntityHandle, ObserverError};
-use crate::resource::{CapacityValue, OccupancyBound, Usage, memory, thread};
-use quent_v2_model_macros::Fsm;
+use crate::brainstorm::resource::{memory, thread};
 
 use uuid::Uuid;
 
