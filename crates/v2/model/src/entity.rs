@@ -3,24 +3,32 @@
 
 use std::marker::PhantomData;
 
-use quent_time::TimeUnixNanoSec;
-use quent_v2_model_macros::Entity;
-use std::sync::atomic::AtomicU8;
 use uuid::Uuid;
 
-// Trait to mark a type satisfies the requirements to be considered an entity.
+/// Trait to mark a type satisfies the requirements to be considered an entity.
+///
+/// The requirements are that it has a UUID and emits at least one event.
 pub trait EntityDeclaration {}
 
-// User-facing types used for modeling
-
-// Type to tag a ref can be to any type of entity.
+/// Type to tag an [`EntityRef`] can be to any type of entity, to be determined
+/// at run-time.
 pub struct AnyEntity;
 impl EntityDeclaration for AnyEntity {} // special case.
 
-// Tag type for reference kinds.
+/// Type to tag an [`EntityRef`] holds no special meaning.
 pub struct RegularRef; // a regular reference to another entity without additional semantics
 
-// A type-safe reference to another entity.
+/// A reference to another entity.
+///
+/// `E` restricts the entity type to which this reference refers. This can also
+/// be type-erased by using `E = AnyEntity`, such that at run-time, any entity
+/// can be provided.
+///
+/// `R` restricts the semantics of the reference. By default, it is a regular
+/// reference (`RegularRef`) which holds no special meaning. But, for example,
+/// it can be set to [`super::resource_group::RgParentRef`] to specify it
+/// carries a parent relation of a child resource group entity in the resource
+/// hierarchy.
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -41,16 +49,12 @@ impl<E: EntityDeclaration, R> Clone for EntityRef<E, R> {
 }
 impl<E: EntityDeclaration, R> Copy for EntityRef<E, R> {}
 
-// Trait to allow EntityRefs of certain kinds to be type erased, such that the
-// events carry a UUID for which the type needs to be resolved.
+/// Trait allowing specific [`EntityRef`]s to be type-erased.
 pub trait IntoErased<T> {
     fn into_erased(self) -> T;
 }
 
-// TODO: use the analysis/event crate traits/structs.
-
-// Every entity has a unique id.
-// For instrumentation:
+/// Trait for handles to run-time instantiated entities.
 pub trait EntityHandle {
     type DeclarationType: EntityDeclaration;
 
@@ -65,14 +69,7 @@ pub trait EntityHandle {
     }
 }
 
-// An event has an entity id, a timestamp, and a payload
-pub struct Event<T> {
-    pub id: Uuid,
-    pub timestamp: TimeUnixNanoSec,
-    pub payload: T,
-}
-
-// Mock error type
+// Mock error type, todo
 #[derive(Debug)]
 pub struct ObserverError;
 impl std::fmt::Display for ObserverError {

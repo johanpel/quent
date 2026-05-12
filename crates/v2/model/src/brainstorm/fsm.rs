@@ -1,4 +1,27 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
+
+// Considerations:
+//
+// While theoretically we could first generate a #[derive(Entity)] from a
+// #[derive(Fsm)], it would be harder to generate FSM entity instrumentation
+// APIs with the type-state pattern from there, so #[derive(Fsm)] will not take
+// that approach, but we should figure out what functionaltiy between those two
+// derives overlaps and deduplicate any logic.
+//
+// To compile a set of states an Fsm can be in, I've considered declaring a
+// struct where each field is the state name and the field type are the
+// attribute types. However, I find the enum style more compelling since an FSM
+// is always in exactly one state at any moment, which naturally translates to a
+// sum type.
+//
+// Since all transitions are compile-time validated for correctness, as far as
+// possible sequences defined by the FSMs topology is allowed, any errors the
+// transition event calls return are going to be sender channel related. There
+// is no recovery from these errors, so FSM handles are dropped. Future work can
+// consider returning the handle in some erroneous state.
 
 // Arbitrary attribute types
 pub struct X {
@@ -137,7 +160,7 @@ mod single_attribs {
                 let _event: Event<Transition<model::SingleAttribs>> = Event {
                     id,
                     timestamp: timestamp(),
-                    payload: Transition {
+                    data: Transition {
                         sequence_number: 0,
                         payload: model::SingleAttribs::A(attributes),
                     },
@@ -173,7 +196,7 @@ mod single_attribs {
                 let _event: Event<Transition<()>> = Event {
                     id: self.id,
                     timestamp: timestamp(),
-                    payload: Transition {
+                    data: Transition {
                         sequence_number: self
                             .next_seq_no
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed),

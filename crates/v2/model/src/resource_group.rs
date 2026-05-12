@@ -1,32 +1,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    entity::{
-        EntityDeclaration, EntityHandle, EntityRef, Event, IntoErased, ObserverError, RegularRef,
-    },
-    fsm::Transition,
-    resource::Capacity,
-};
-use quent_time::timestamp;
-use quent_v2_model_macros::{Entity, Fsm, Resource, ResourceGroup, RootResourceGroup};
+use crate::entity::{EntityDeclaration, EntityRef, IntoErased, RegularRef};
 
-use std::{marker::PhantomData, sync::atomic::AtomicU16};
+use std::marker::PhantomData;
 
-use uuid::Uuid;
-
-// Any entity can be a resource group, which means that at least one of its
-// events needs to carry resource group attributes.
-
-// This is a tag type to convey an EntityRef is meant as a resource group
-// parent. EntityRefs with this tag should only be able to be created from
-// references to entities that are resource groups.
-pub struct RgParentRef;
-
-// Trait to convey an entity satisfies the requirements of a resource group.
+/// Trait to convey an [`EntityDeclaration`] satisfies the requirements of being
+/// considered a resource group declaration.
+///
+/// The requierement is that the entity has an event with attributes in which
+/// the resource group's parent is set.
 pub trait ResourceGroupDeclaration: EntityDeclaration {}
 
-// Tag type to convey a reference can be made to any type of resource group.
+/// Tag type to convey an [`EntityRef`] refers to a resource group's parent.
+///
+/// [`EntityRefs`] with this tag should only be able to be created from
+/// references to entities that are resource groups.
+pub struct RgParentRef;
+
+/// Tag type to convey an [`EntityRef`] can be made to any type of resource
+/// group.
 pub struct AnyRg;
 impl EntityDeclaration for AnyRg {}
 impl ResourceGroupDeclaration for AnyRg {}

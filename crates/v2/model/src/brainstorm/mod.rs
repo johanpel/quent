@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 //
 // Nesting the examples / exploration the following way:
 //
@@ -20,6 +22,7 @@ mod resource_group;
 
 use super::*;
 use crate::ObserverError;
+use quent_events::Event;
 use quent_time::timestamp;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU8, AtomicU16};

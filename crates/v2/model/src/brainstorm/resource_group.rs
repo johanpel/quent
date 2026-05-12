@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use super::*;
 
 // Two types of entities as a non-root resource group and one resource root
@@ -239,7 +242,7 @@ mod fsm_rg {
                 let _event: Event<Transition<model::Foo>> = Event {
                     id,
                     timestamp: timestamp(),
-                    payload: Transition {
+                    data: Transition {
                         sequence_number: 0,
                         payload: model::Foo::A { x, parent },
                     },
