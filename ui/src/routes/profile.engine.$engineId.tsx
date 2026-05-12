@@ -4,7 +4,7 @@
 import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 import { Provider } from 'jotai';
 import { QueryPlan } from '@/components/QueryPlan';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 
 export const Route = createFileRoute('/profile/engine/$engineId')({
   component: ProfileLayout,
@@ -13,16 +13,12 @@ export const Route = createFileRoute('/profile/engine/$engineId')({
 function ProfileLayout() {
   const { engineId } = Route.useParams();
 
-  // Try to match either the query index route or the node route
-  const queryIndexMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/',
+  // Match the query layout route (covers all /query/$queryId/* children)
+  const queryMatch = useMatch({
+    from: '/profile/engine/$engineId/query/$queryId',
     shouldThrow: false,
   });
-  const queryNodeMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/node/$nodeId',
-    shouldThrow: false,
-  });
-  const queryId = queryIndexMatch?.params?.queryId ?? queryNodeMatch?.params?.queryId;
+  const queryId = queryMatch?.params?.queryId;
 
   return (
     <Provider key={queryId ?? ''}>

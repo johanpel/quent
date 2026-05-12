@@ -17,6 +17,7 @@ use quote::{format_ident, quote};
 
 use quent_model::{AttributeDef, FsmDef, ModelBuilder, StateDef, ValueType};
 
+use crate::common::{pretty_print, quent_path, remap_module_path, to_pascal_case};
 use crate::{CxxOptions, GeneratedFile};
 
 /// Recursively check whether any attribute in the list (or nested structs) uses `CustomAttributes`.
@@ -141,33 +142,6 @@ fn cxx_safe_name(name: &str) -> String {
     }
 }
 
-/// Parse the `__quent_{model}` re-export path.
-fn quent_path(model_name: &str, options: &CxxOptions) -> syn::Path {
-    let snake = convert_case::Casing::to_case(&model_name, convert_case::Case::Snake);
-    syn::parse_str(&format!(
-        "{}::__quent_{}",
-        options.instrumentation_crate, snake
-    ))
-    .unwrap()
-}
-
-/// Remap a `module_path!()` value to be relative to the instrumentation crate.
-///
-/// `module_path!()` returns paths like `quent_query_engine_model::engine`.
-/// The bridge accesses types through `quent_qe_cpp_instrumentation::engine`
-/// (via re-exports). This strips the original crate prefix and prepends the
-/// instrumentation crate name.
-fn remap_module_path(module_path: &str, options: &CxxOptions) -> String {
-    // module_path is "crate_name" or "crate_name::sub::module"
-    // Strip the crate name (first segment) and prepend instrumentation_crate
-    if let Some(rest) = module_path.split_once("::").map(|(_, rest)| rest) {
-        format!("{}::{}", options.instrumentation_crate, rest)
-    } else {
-        // Flat model — module_path is just the crate name, no submodules
-        options.instrumentation_crate.clone()
-    }
-}
-
 /// Map a Quent `ValueType` to a CXX-compatible Rust type string.
 /// Returns None if the type is not representable in CXX.
 fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
@@ -206,18 +180,6 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
     } else {
         Some(base)
     }
-}
-
-/// Convert snake_case to PascalCase.
-fn to_pascal_case(s: &str) -> String {
-    use convert_case::{Case, Casing};
-    s.to_case(Case::Pascal)
-}
-
-/// Format a `TokenStream` into a pretty-printed Rust source string via `prettyplease`.
-fn pretty_print(tokens: TokenStream) -> String {
-    let file = syn::parse2::<syn::File>(tokens).expect("generated tokens must be valid syntax");
-    prettyplease::unparse(&file)
 }
 
 /// Generate CXX bridge files for all model components.
@@ -435,29 +397,34 @@ fn emit_uuid_bridge(model: &ModelBuilder, model_name: &str, options: &CxxOptions
 
 /// Generate the context bridge module.
 ///
-/// The context is created once and stores the event sender in a global static.
-/// This avoids the need to share opaque Rust types across CXX bridge modules.
+/// The `Context` owns the inner quent context and exposes a sender accessor.
+/// C++ callers retain the returned `Box<Context>` and pass a reference to
+/// each observer/FSM factory, which extracts the sender from it.
 fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let ns = &options.namespace;
     let q = quent_path(model_name, options);
     let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
     let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
+    let context_type_id = format!("{ns}::Context");
 
     // Rust impl part — formatted via prettyplease.
     let impl_tokens = quote! {
-        /// Global event sender, initialized by `create_context`.
-        /// Returns a noop sender if context has not been created yet.
-        static SENDER: OnceLock<#q::EventSender<#event_type>> = OnceLock::new();
-
         pub struct Context {
-            _inner: #q::Context<#event_type>,
+            inner: #q::Context<#event_type>,
         }
 
-        pub fn global_sender() -> #q::EventSender<#event_type> {
-            SENDER
-                .get()
-                .cloned()
-                .unwrap_or_default()
+        impl Context {
+            pub fn events_sender(&self) -> #q::EventSender<#event_type> {
+                self.inner.events_sender()
+            }
+        }
+
+        // Shared across bridges: other bridge modules declare `type Context;`
+        // and CXX uses this `ExternType` impl to point at the C++ class
+        // generated here instead of emitting a duplicate.
+        unsafe impl ::cxx::ExternType for Context {
+            type Id = ::cxx::type_id!(#context_type_id);
+            type Kind = ::cxx::kind::Opaque;
         }
 
         pub fn create_context(id: ffi::UUID, exporter: String, output_dir: String) -> Result<Box<Context>, String> {
@@ -471,10 +438,7 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
             };
             let inner = #q::Context::try_new(#q::uuid::Uuid::from(id), opts)
                 .map_err(|e| e.to_string())?;
-            SENDER.set(inner.events_sender()).map_err(|_| {
-                "context already created — only one context per process is supported".to_string()
-            })?;
-            Ok(Box::new(Context { _inner: inner }))
+            Ok(Box::new(Context { inner }))
         }
     };
 
@@ -500,12 +464,7 @@ pub mod ffi {{
 "#
     );
 
-    // Combine: the ffi block is raw string, impl part is pretty-printed.
-    let content = format!(
-        "use std::sync::OnceLock;\n{}\n{}",
-        ffi_block,
-        pretty_print(impl_tokens)
-    );
+    let content = format!("{}\n{}", ffi_block, pretty_print(impl_tokens));
 
     GeneratedFile {
         name: "context.rs".to_string(),
@@ -520,12 +479,14 @@ pub mod ffi {{
 /// format these, so the ffi module is built as a string.
 fn build_ffi_module_string(
     ns: &str,
+    context_ns: &str,
     include_path: &str,
     shared_structs: &str,
     extern_rust_body: &str,
     uses_custom_attrs: bool,
 ) -> String {
     let ca_include = include_path.replace("uuid.rs.h", "custom_attributes.rs.h");
+    let context_include = include_path.replace("uuid.rs.h", "context.rs.h");
     let custom_attrs_types = if uses_custom_attrs {
         format!(
             r#"
@@ -543,6 +504,20 @@ fn build_ffi_module_string(
         String::new()
     };
 
+    // Context is an opaque Rust type owned by the context bridge. Other
+    // bridges reference it via extern "C++" + an ExternType impl in
+    // context.rs; declaring it here as extern "Rust" would duplicate the
+    // `RustType` impl and fail to compile.
+    let context_alias = format!(
+        r#"
+    #[namespace = "{context_ns}"]
+    unsafe extern "C++" {{
+        include!("{context_include}");
+        type Context = crate::bridge::context::Context;
+    }}
+"#
+    );
+
     format!(
         r#"#[cxx::bridge(namespace = "{ns}")]
 pub mod ffi {{
@@ -555,7 +530,7 @@ pub mod ffi {{
         include!("{include_path}");
         type UUID = crate::bridge::uuid::ffi::UUID;
     }}
-{custom_attrs_types}
+{custom_attrs_types}{context_alias}
 {shared_structs}    extern "Rust" {{
 {extern_rust_body}    }}
 }}
@@ -750,7 +725,7 @@ fn emit_entity_bridge(
     let mut extern_rust_body = String::new();
     extern_rust_body.push_str(&format!("        type {observer_name_str};\n\n"));
     extern_rust_body.push_str(&format!(
-        "        fn create_observer() -> Box<{observer_name_str}>;\n"
+        "        fn create_observer(ctx: &Context) -> Box<{observer_name_str}>;\n"
     ));
 
     // Token streams for impl code (standard Rust)
@@ -813,6 +788,7 @@ fn emit_entity_bridge(
         .any(|ev| attrs_use_custom_attributes(&ev.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
+        &options.namespace,
         &include_path,
         &shared_structs_str,
         &extern_rust_body,
@@ -829,9 +805,9 @@ fn emit_entity_bridge(
             #(#observer_impl_methods)*
         }
 
-        pub fn create_observer() -> Box<#observer_name> {
+        pub fn create_observer(ctx: &super::context::Context) -> Box<#observer_name> {
             Box::new(#observer_name {
-                tx: super::context::global_sender(),
+                tx: ctx.events_sender(),
             })
         }
     };
@@ -917,7 +893,7 @@ fn emit_state_flat_args(
         let resource_id_field = format_ident!("{}_resource_id", usage.field_name);
         let alias = format_ident!("__{}Capacity", to_pascal_case(&usage.field_name));
         // Resource type paths may be bare names (e.g., "Queue") for types in the
-        // same crate, or qualified (e.g., "quent_stdlib::Processor"). Bare names
+        // same crate, or qualified (e.g., "quent_stdlib::processor::Processor"). Bare names
         // need to be resolved against the component's module path.
         let resource_ty: syn::Type = {
             let path = &usage.resource_type_path;
@@ -1018,10 +994,12 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
     // Factory method
     if has_entry_data {
         extern_rust_body.push_str(&format!(
-            "        fn create(data: {entry_pascal_str}) -> Box<{handle_name_str}>;\n"
+            "        fn create(ctx: &Context, data: {entry_pascal_str}) -> Box<{handle_name_str}>;\n"
         ));
     } else {
-        extern_rust_body.push_str(&format!("        fn create() -> Box<{handle_name_str}>;\n"));
+        extern_rust_body.push_str(&format!(
+            "        fn create(ctx: &Context) -> Box<{handle_name_str}>;\n"
+        ));
     }
 
     // Transition methods (skip entry state — handled by factory)
@@ -1048,6 +1026,7 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
         .any(|s| attrs_use_custom_attributes(&s.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
+        &options.namespace,
         &include_path,
         &shared_structs_str,
         &extern_rust_body,
@@ -1087,9 +1066,9 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
     let factory_fn = if has_entry_data {
         let (stmts, args) = emit_state_flat_args(entry_state, &q, &remapped);
         quote! {
-            pub fn create(data: ffi::#entry_pascal) -> Box<#handle_name> {
+            pub fn create(ctx: &super::context::Context, data: ffi::#entry_pascal) -> Box<#handle_name> {
                 #stmts
-                let obs = #component_mod::#observer_name::new(&super::context::global_sender());
+                let obs = #component_mod::#observer_name::new(&ctx.events_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id, #(#args),*),
@@ -1098,8 +1077,8 @@ fn emit_fsm_bridge(fsm: &FsmDef, model_name: &str, options: &CxxOptions) -> Gene
         }
     } else {
         quote! {
-            pub fn create() -> Box<#handle_name> {
-                let obs = #component_mod::#observer_name::new(&super::context::global_sender());
+            pub fn create(ctx: &super::context::Context) -> Box<#handle_name> {
+                let obs = #component_mod::#observer_name::new(&ctx.events_sender());
                 let id = #q::uuid::Uuid::now_v7();
                 Box::new(#handle_name {
                     inner: obs.#entry_name(id),

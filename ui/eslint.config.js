@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -6,7 +9,15 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-plugin-prettier/recommended';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src/routeTree.gen.ts'] },
+  {
+    // `examples/*` are self-contained consumer apps with their own ESLint
+    // toolchains (e.g. `examples/quent-dag-panel` uses `@grafana/eslint-config`
+    // and is linted via its own `npm run lint`). The Grafana plugin's
+    // `.config/` directory is also vendor-scaffolded and must not be modified.
+    // Each example's own CI lints itself; we don't want the root workspace
+    // lint to second-guess them with a different rule set.
+    ignores: ['dist', 'src/routeTree.gen.ts', 'examples/**', '**/dist/**', '**/node_modules/**'],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

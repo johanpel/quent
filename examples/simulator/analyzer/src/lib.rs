@@ -210,7 +210,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             resource_tree,
             unique_operator_names,
             quantity_specs: [
-                ("bytes".into(), QuantitySpec::bytes()),
+                ("capacity_bytes".into(), QuantitySpec::bytes()),
                 ("unit".into(), QuantitySpec::unit()),
             ]
             .into(),

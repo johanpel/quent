@@ -1,30 +1,37 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { Column, TreeTable } from '@/components/ui/tree-table';
-import { useCallback, useMemo, useState } from 'react';
+import { Column, TreeTable } from '@quent/components';
+import { useCallback, useEffect, useMemo } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useHydrateAtoms } from 'jotai/utils';
-import { useHighlightedItemIds } from '@/hooks/useHighlightedItemIds';
-import { ResourceTree } from '~quent/types/ResourceTree';
-import { TimelineController } from './timeline/TimelineController';
-import { collectResourceTypesFromTree } from '@/lib/resource.utils';
-import { EntityRefKey } from '@/types';
-import { TreeTableItem } from './resource-tree/types';
-import { ResourceColumn } from './resource-tree/ResourceColumn';
-import { UsageColumn } from './resource-tree/UsageColumn';
-import { DEFAULT_TIMELINE_HEIGHT } from './timeline/types';
-import { QueryBundle } from '~quent/types/QueryBundle';
-import type { EntityRef } from '~quent/types/EntityRef';
-import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@/services/api';
-import type { SingleTimelineRequest } from '~quent/types/SingleTimelineRequest';
-import type { QueryFilter } from '~quent/types/QueryFilter';
-import type { TaskFilter } from '~quent/types/TaskFilter';
-import { transformResourceTree, getAdaptiveNumBins, nanosToMs } from '@/lib/timeline.utils';
+import { useAtom } from 'jotai';
+import { useHighlightedItemIds, useBulkTimelines, useHydrateTimelineAtoms } from '@quent/hooks';
+import { ResourceTree, QueryBundle } from '@quent/utils';
+import type { EntityRef, SingleTimelineRequest, QueryFilter, TaskFilter } from '@quent/utils';
+import { TimelineController } from '@quent/components';
+import { collectResourceTypesFromTree } from '@quent/components';
+import { EntityRefKey } from '@quent/utils';
+import { TreeTableItem } from '@quent/components';
+import { ResourceColumn } from '@quent/components';
+import { UsageColumn } from '@quent/components';
+import { DEFAULT_TIMELINE_HEIGHT } from '@quent/components';
+import { fetchSingleTimeline, DEFAULT_STALE_TIME } from '@quent/client';
+import {
+  transformResourceTree,
+  getAdaptiveNumBins,
+  nanosToMs,
+  collectVisibleEntries,
+  buildBulkParamsForItem,
+  findItemById,
+} from '@quent/components';
 import { useExpandedIds } from '@/hooks/useExpandedIds';
-import { useBulkTimelines } from '@/hooks/useBulkTimelines';
-import { zoomRangeAtom, debouncedZoomRangeAtom, startTimeMsAtom } from '@/atoms/timeline';
-import { TimelineToolbar } from './timeline/TimelineToolbar';
+import {
+  selectedTypesAtom,
+  selectedFsmTypesAtom,
+  rootResourceTypeAtom,
+} from '@/atoms/resourceTree';
+import { TimelineToolbar } from '@quent/components';
+import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import {
   OperatorGanttChart,
   OPERATOR_TIMELINE_ROW_TYPE,
@@ -32,7 +39,7 @@ import {
   operatorTimelineRowId,
   operatorsWithActiveSpansForWorker,
   workerIdFromOperatorTimelineRowId,
-} from './operator-timeline';
+} from '@quent/components';
 
 function getRootResourceGroupId(resourceTree: ResourceTree<EntityRef>): string | null {
   if (!('ResourceGroup' in resourceTree)) return null;
@@ -78,19 +85,21 @@ export function QueryResourceTree(props: QueryResourceTreeProps) {
 }
 
 function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreeProps) {
+  const { theme } = useTheme();
+  const isDark = theme === THEME_DARK;
   const { entities, resource_tree: resourceTree } = queryBundle;
-  const [selectedTypes, setSelectedTypes] = useState<Map<string, string>>(new Map());
-  const [selectedFsmTypes, setSelectedFsmTypes] = useState<Map<string, string | null>>(new Map());
+  const [selectedTypes, setSelectedTypes] = useAtom(selectedTypesAtom);
+  const [selectedFsmTypes, setSelectedFsmTypes] = useAtom(selectedFsmTypesAtom);
 
   const startTime = queryBundle.start_time_unix_ns;
   const durationSeconds = queryBundle.duration_s;
   const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
 
-  useHydrateAtoms([
-    [zoomRangeAtom, { start: 0, end: durationSeconds }],
-    [debouncedZoomRangeAtom, { start: 0, end: durationSeconds }],
-    [startTimeMsAtom, startTimeMs],
-  ]);
+  useHydrateTimelineAtoms({
+    zoomRange: { start: 0, end: durationSeconds },
+    debouncedZoomRange: { start: 0, end: durationSeconds },
+    startTimeMs,
+  });
 
   const rootItem = useMemo(
     () => transformResourceTree(entities, resourceTree),
@@ -101,11 +110,28 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
 
   const resourceTypeOptions = useMemo(() => collectResourceTypesFromTree([rootItem]), [rootItem]);
 
-  const [rootResourceType, setRootResourceType] = useState<string>(resourceTypeOptions[0] || '');
+  const [rootResourceType, setRootResourceType] = useAtom(rootResourceTypeAtom);
+
+  // Seed once per query when the atom is unset and options are available.
+  useEffect(() => {
+    if (rootResourceType != null) return;
+    const initial = resourceTypeOptions[0];
+    if (initial) setRootResourceType(initial);
+  }, [rootResourceType, resourceTypeOptions, setRootResourceType]);
 
   const rootResourceGroupId = useMemo(() => getRootResourceGroupId(resourceTree), [resourceTree]);
 
   const { expandedIds, handleExpandChange } = useExpandedIds(rootItem.id);
+  // `useExpandedIds` updates this set asynchronously after mount, so on the
+  // very first render `controlledExpandedIds` would be empty and the root
+  // would render collapsed. Ensure the root is always considered expanded so
+  // first paint matches the previous uncontrolled behavior.
+  const controlledExpandedIds = useMemo(() => {
+    if (expandedIds.has(rootItem.id)) return expandedIds;
+    const next = new Set(expandedIds);
+    next.add(rootItem.id);
+    return next;
+  }, [expandedIds, rootItem.id]);
 
   const { handleZoomChange, handleExpand } = useBulkTimelines({
     engineId,
@@ -115,6 +141,9 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     selectedTypes,
     groupFsmFilters: selectedFsmTypes,
     entities,
+    collectVisibleEntriesFn: collectVisibleEntries,
+    buildBulkParamsFn: buildBulkParamsForItem,
+    findItemByIdFn: findItemById,
   });
 
   const onExpandChange = useCallback(
@@ -140,7 +169,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
         entry: {
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
-            resource_type_name: rootResourceType,
+            resource_type_name: rootResourceType ?? '',
             long_entities_threshold_s: null,
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
@@ -229,6 +258,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
               durationSeconds={durationSeconds}
               timelineData={fetchedRootTimeline}
               onZoomChange={handleZoomChange}
+              isDark={isDark}
             />
           </div>
         ),
@@ -243,7 +273,8 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   operators={operators}
                   startTime={startTime}
                   durationSeconds={durationSeconds}
-                  height={DEFAULT_TIMELINE_HEIGHT * 1.2}
+                  height={DEFAULT_TIMELINE_HEIGHT}
+                  isDark={isDark}
                 />
               );
             }
@@ -257,6 +288,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
                   selectedFsmTypes={selectedFsmTypes}
                   startTime={startTime}
                   durationSeconds={durationSeconds}
+                  isDark={isDark}
                 />
               );
             }
@@ -268,8 +300,12 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
     startTime,
     durationSeconds,
     fetchedRootTimeline,
+    isDark,
     selectedTypes,
+    setSelectedTypes,
     selectedFsmTypes,
+    setSelectedFsmTypes,
+    setRootResourceType,
     entities,
     rootItem,
     engineId,
@@ -289,6 +325,10 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           columnWidths={[275, 'auto']}
           onExpandChange={onExpandChange}
           highlightedItemIds={highlightedItemIds}
+          controlledExpandedIds={controlledExpandedIds}
+          virtualized
+          // Estimate for virtualization
+          rowHeight={DEFAULT_TIMELINE_HEIGHT}
         />
       </div>
     </div>

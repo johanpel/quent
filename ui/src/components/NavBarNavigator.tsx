@@ -9,11 +9,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { cn } from '@/lib/utils';
-import { queryBundleQueryOptions } from '@/hooks/useQueryBundle';
-import { fetchListEngines, fetchListCoordinators, fetchListQueries } from '@/services/api';
-import { DataText } from '@/components/ui/data-text';
+} from '@quent/components';
+import { cn } from '@quent/utils';
+import {
+  queryBundleQueryOptions,
+  fetchListEngines,
+  fetchListCoordinators,
+  fetchListQueries,
+} from '@quent/client';
+import { DataText } from '@quent/components';
 
 function BreadcrumbDropdown({
   label,
@@ -54,17 +58,15 @@ export function NavBarNavigator() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const queryIndexMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/',
-    shouldThrow: false,
-  });
-  const queryNodeMatch = useMatch({
-    from: '/profile/engine/$engineId/query/$queryId/node/$nodeId',
+  // Match the layout route — satisfied by any child route (timeline, operators,
+  // node/$nodeId, index, …) without needing a per-leaf match here.
+  const queryLayoutMatch = useMatch({
+    from: '/profile/engine/$engineId/query/$queryId',
     shouldThrow: false,
   });
 
-  const engineId = queryIndexMatch?.params?.engineId ?? queryNodeMatch?.params?.engineId;
-  const queryId = queryIndexMatch?.params?.queryId ?? queryNodeMatch?.params?.queryId;
+  const engineId = queryLayoutMatch?.params?.engineId;
+  const queryId = queryLayoutMatch?.params?.queryId;
 
   const { data: queryBundle } = useQuery({
     ...queryBundleQueryOptions({ engineId: engineId ?? '', queryId: queryId ?? '' }),
