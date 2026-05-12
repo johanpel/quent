@@ -1861,6 +1861,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-v2-model"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-events",
+ "quent-exporter",
+ "quent-instrumentation",
+ "quent-time",
+ "quent-v2-model-macros",
+ "serde",
+ "serde_json",
+ "trybuild",
+ "uuid",
+]
+
+[[package]]
+name = "quent-v2-model-macros"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"

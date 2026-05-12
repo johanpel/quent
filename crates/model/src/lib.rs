@@ -15,7 +15,6 @@ mod model;
 mod r#ref;
 mod resource;
 mod usage;
-mod v2;
 
 // Re-export macros.
 pub use quent_model_macros::{
