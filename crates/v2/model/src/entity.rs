@@ -13,10 +13,11 @@ pub trait EntityDeclaration {}
 /// Type to tag an [`EntityRef`] can be to any type of entity, to be determined
 /// at run-time.
 pub struct AnyEntity;
-impl EntityDeclaration for AnyEntity {} // special case.
+// Special case:
+impl EntityDeclaration for AnyEntity {}
 
-/// Type to tag an [`EntityRef`] holds no special meaning.
-pub struct RegularRef; // a regular reference to another entity without additional semantics
+/// Type to tag an [`EntityRef`] of being of no particular meaning.
+pub struct RegularRef;
 
 /// A reference to another entity.
 ///
@@ -25,10 +26,12 @@ pub struct RegularRef; // a regular reference to another entity without addition
 /// can be provided.
 ///
 /// `R` restricts the semantics of the reference. By default, it is a regular
-/// reference (`RegularRef`) which holds no special meaning. But, for example,
-/// it can be set to [`super::resource_group::RgParentRef`] to specify it
-/// carries a parent relation of a child resource group entity in the resource
-/// hierarchy.
+/// reference (`RegularRef`) which holds no particular meaning. But, for
+/// example, it can be set to [`super::resource_group::RgParentRef`] to specify
+/// it carries a parent relation of a child resource group entity in the
+/// resource hierarchy. The latter is a requirement of the ResourceGroup
+/// qualification. One event MUST carry this field for an entity to qualify as a
+/// ResourceGroup.
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),

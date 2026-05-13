@@ -3,8 +3,10 @@
 
 mod entity;
 mod fsm;
+mod ir;
 mod resource;
 mod resource_group;
+mod validator;
 
 // TODO: remove when done
 mod brainstorm;

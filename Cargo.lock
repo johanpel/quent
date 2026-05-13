@@ -1948,6 +1948,7 @@ dependencies = [
 name = "quent-v2-model"
 version = "0.1.0"
 dependencies = [
+ "petgraph",
  "quent-attributes",
  "quent-events",
  "quent-exporter",
@@ -1956,6 +1957,7 @@ dependencies = [
  "quent-v2-model-macros",
  "serde",
  "serde_json",
+ "thiserror",
  "trybuild",
  "uuid",
 ]
