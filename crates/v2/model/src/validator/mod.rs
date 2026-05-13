@@ -4,10 +4,10 @@ use crate::{
     ir::{
         ModelDef,
         qualifications::{
-            QualificationProps, fsm::Fsm, resource::Resource, resource_group::ResourceGroup,
+            Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup,
         },
     },
-    validator::qualifications::{Qualification, QualificationError},
+    validator::qualifications::{QualificationCheck, QualificationError},
 };
 
 pub mod qualifications;
@@ -29,9 +29,9 @@ impl ModelDef {
             .flat_map(|entity| entity.qualifications.iter().map(move |q| (entity, q)))
             .filter_map(|(entity, q)| {
                 match q {
-                    QualificationProps::Fsm(_) => Fsm::qualifies(self, entity),
-                    QualificationProps::Resource(_) => Resource::qualifies(self, entity),
-                    QualificationProps::ResourceGroup(_) => ResourceGroup::qualifies(self, entity),
+                    Qualification::Fsm(_) => Fsm::qualifies(self, entity),
+                    Qualification::Resource(_) => Resource::qualifies(self, entity),
+                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(self, entity),
                 }
                 .err()
             })

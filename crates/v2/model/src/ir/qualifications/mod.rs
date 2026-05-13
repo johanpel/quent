@@ -32,7 +32,7 @@ pub enum QualificationRefKind {
     ResourceGroup(RgRefKind),
 }
 
-/// Properties of entity qualifications
+/// Qualifications of Entities.
 ///
 /// Qualifications can be considered requirements of entity events. These
 /// requirements can include constraints on any of the properties of events,
@@ -51,18 +51,21 @@ pub enum QualificationRefKind {
 /// qualification then puts additional constraints on the FSMs topology.
 ///
 /// See [`QualificationKind`] for supported qualifications.
-pub enum QualificationProps {
+///
+/// Qualifications are somewhat similar in spirit to Rust traits, but are named
+/// differently to prevent the obvious terminology clashing.
+pub enum Qualification {
     Fsm(Fsm),
     Resource(Resource),
     ResourceGroup(ResourceGroup),
 }
 
-impl QualificationProps {
+impl Qualification {
     pub fn kind(&self) -> QualificationKind {
         match self {
-            QualificationProps::Fsm(_) => QualificationKind::Fsm,
-            QualificationProps::Resource(_) => QualificationKind::Resource,
-            QualificationProps::ResourceGroup(_) => QualificationKind::ResourceGroup,
+            Qualification::Fsm(_) => QualificationKind::Fsm,
+            Qualification::Resource(_) => QualificationKind::Resource,
+            Qualification::ResourceGroup(_) => QualificationKind::ResourceGroup,
         }
     }
 }

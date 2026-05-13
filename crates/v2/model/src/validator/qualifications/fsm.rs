@@ -7,24 +7,24 @@ use petgraph::{
 
 use crate::{
     ir::qualifications::{
-        QualificationProps,
+        Qualification,
         fsm::{Fsm, State},
     },
-    validator::qualifications::{Qualification, QualificationError},
+    validator::qualifications::{QualificationCheck, QualificationError},
 };
 
-impl<'a> TryFrom<&'a QualificationProps> for &'a Fsm {
+impl<'a> TryFrom<&'a Qualification> for &'a Fsm {
     type Error = ();
 
-    fn try_from(value: &'a QualificationProps) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a Qualification) -> Result<Self, Self::Error> {
         match value {
-            QualificationProps::Fsm(fsm) => Ok(fsm),
+            Qualification::Fsm(fsm) => Ok(fsm),
             _ => Err(()),
         }
     }
 }
 
-impl Qualification for Fsm {
+impl QualificationCheck for Fsm {
     fn qualifies(
         _model: &crate::ir::ModelDef,
         entity: &crate::ir::entity::EntityDef,

@@ -1,22 +1,22 @@
 use std::collections::HashSet;
 
 use crate::{
-    ir::{event::EventDef, qualifications::QualificationProps},
-    validator::qualifications::Qualification,
+    ir::{event::EventDef, qualifications::Qualification},
+    validator::qualifications::QualificationCheck,
 };
 
 pub struct EntityDef {
     pub name: String,
     pub rust_path: String,
     pub events: Vec<EventDef>,
-    pub qualifications: HashSet<QualificationProps>,
+    pub qualifications: HashSet<Qualification>,
 }
 
 impl EntityDef {
     pub fn qualification<T>(&self) -> Option<&T>
     where
-        T: Qualification,
-        for<'a> &'a T: TryFrom<&'a QualificationProps>,
+        T: QualificationCheck,
+        for<'a> &'a T: TryFrom<&'a Qualification>,
     {
         self.qualifications
             .iter()

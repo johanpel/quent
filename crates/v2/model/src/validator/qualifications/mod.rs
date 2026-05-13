@@ -15,7 +15,7 @@ pub enum QualificationError {
 }
 
 /// A Qualifiation represents constraints of entity events.
-pub trait Qualification {
-    /// Checks whether 'entity` qualifies as Self.
+pub trait QualificationCheck {
+    /// Checks whether 'entity` qualifies as [`Self`].
     fn qualifies(model: &ModelDef, entity: &EntityDef) -> Result<(), QualificationError>;
 }

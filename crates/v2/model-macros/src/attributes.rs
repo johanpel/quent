@@ -1,0 +1,50 @@
+use proc_macro2::TokenStream;
+use syn::DeriveInput;
+
+pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
+    let name = &input.ident.to_string();
+
+    // Generics are not supported for now :tm:.
+    if !input.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.generics,
+            "#[derive(Attributes)] does not support generic types",
+        ));
+    }
+
+    // Get the fields.
+    let fields: &syn::Fields = match &input.data {
+        syn::Data::Enum(e) => {
+            return Err(syn::Error::new_spanned(
+                e.enum_token,
+                "#[derive(Attributes)] not allowed on enum",
+            ));
+        }
+        syn::Data::Union(u) => {
+            return Err(syn::Error::new_spanned(
+                u.union_token,
+                "#[derive(Attributes)] not allowed on union",
+            ));
+        }
+        syn::Data::Struct(s) => match &s.fields {
+            // Using Rust's convention for unnamed fields (enumerating them)
+            // would violate the modeling spec, which sort of follows ANSI C
+            // field naming rules as a common denominator across all sorts of
+            // target languages. We could choose to prefix it with _ or
+            // something, but that would mean the event data would have a
+            // mangled field name vs. the Rust struct declaration.
+            syn::Fields::Unnamed(_) => {
+                return Err(syn::Error::new_spanned(
+                    &input,
+                    "#[derive(Attributes)] requires a struct with named fields",
+                ));
+            }
+            _ => &s.fields,
+        },
+    };
+
+    fields.iter().map(|f| todo!())
+        todo!()
+
+    Ok(TokenStream::new())
+}

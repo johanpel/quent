@@ -1,8 +1,8 @@
 use crate::{
-    ir::qualifications::resource_group::ResourceGroup, validator::qualifications::Qualification,
+    ir::qualifications::resource_group::ResourceGroup, validator::qualifications::QualificationCheck,
 };
 
-impl Qualification for ResourceGroup {
+impl QualificationCheck for ResourceGroup {
     fn qualifies(
         model: &crate::ir::ModelDef,
         entity: &crate::ir::entity::EntityDef,
