@@ -15,7 +15,7 @@ mod engine {
     pub struct EngineImplementationAttributes {
         pub name: Option<String>,
         pub version: Option<String>,
-        pub custom_attributes: quent_attributes::CustomAttributes,
+        pub custom_attributes: quent_attributes::RuntimeAttributes,
     }
 
     pub struct Init {
@@ -67,11 +67,11 @@ mod operator {
         pub parent_plan_operators: Vec<EntityRef<Operator>>,
         pub instance_name: String,
         pub type_name: String,
-        pub custom_attributes: quent_attributes::CustomAttributes,
+        pub custom_attributes: quent_attributes::RuntimeAttributes,
     }
 
     pub struct Statistics {
-        pub custom_attributes: quent_attributes::CustomAttributes,
+        pub custom_attributes: quent_attributes::RuntimeAttributes,
     }
 
     #[derive(Entity, ResourceGroup)]
@@ -93,7 +93,7 @@ mod port {
     }
 
     pub struct Statistics {
-        pub custom_attributes: quent_attributes::CustomAttributes,
+        pub custom_attributes: quent_attributes::RuntimeAttributes,
     }
 
     #[derive(Entity, ResourceGroup)]

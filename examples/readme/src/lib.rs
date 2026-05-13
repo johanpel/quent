@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_model::{
-    Attributes, Ref, attributes::CustomAttributes, entity, fsm, instrumentation, model, resource,
+    Attributes, Ref, attributes::RuntimeAttributes, entity, fsm, instrumentation, model, resource,
     state,
 };
 use serde::{Deserialize, Serialize};
@@ -127,7 +127,7 @@ entity! {
 #[derive(Attributes, Serialize, Deserialize)]
 pub struct Details {
     pub version: String,          // key known at compile-time
-    pub custom: CustomAttributes, // for keys known at run-time only
+    pub custom: RuntimeAttributes, // for keys known at run-time only
 }
 
 // An entity can be marked as a Resource Group.

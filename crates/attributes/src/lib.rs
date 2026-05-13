@@ -176,15 +176,12 @@ impl Attribute {
     }
 }
 
-/// A collection of custom key-value attributes.
-///
-/// Used in model definitions for fields that carry arbitrary runtime metadata.
-/// The CXX bridge codegen emits this as a shared struct with typed vectors.
+/// An attribute set of which the keys are determined at run-time.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
-pub struct CustomAttributes(pub Vec<Attribute>);
+pub struct RuntimeAttributes(pub Vec<Attribute>);
 
-impl CustomAttributes {
+impl RuntimeAttributes {
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -221,21 +218,21 @@ impl CustomAttributes {
     }
 }
 
-impl std::ops::Deref for CustomAttributes {
+impl std::ops::Deref for RuntimeAttributes {
     type Target = Vec<Attribute>;
     fn deref(&self) -> &Vec<Attribute> {
         &self.0
     }
 }
 
-impl From<Vec<Attribute>> for CustomAttributes {
+impl From<Vec<Attribute>> for RuntimeAttributes {
     fn from(v: Vec<Attribute>) -> Self {
         Self(v)
     }
 }
 
-impl From<CustomAttributes> for Vec<Attribute> {
-    fn from(v: CustomAttributes) -> Self {
+impl From<RuntimeAttributes> for Vec<Attribute> {
+    fn from(v: RuntimeAttributes) -> Self {
         v.0
     }
 }
