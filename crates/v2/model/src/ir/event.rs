@@ -1,4 +1,4 @@
-use crate::ir::{attributes::Field, value_type::ValueType};
+use crate::ir::value_type::ValueType;
 
 /// IR of the cardinality of an event.
 #[derive(Debug, PartialEq, Eq)]
@@ -9,16 +9,29 @@ pub enum Cardinality {
     Multi,
 }
 
-/// IR of the type of payload of an event.
+/// IR of a type of event payload field
+///
+/// Not to be confused with fields of attribute sets, which are always
+/// user-defined and have no special meaning as far as the IR is concerned.
+// TODO(johanpel): we could make this more strict and modular by turning it into
+// an enum with variants like User(String, ValueType),
+// Qualification(<qualification-related payload enum>), but this requires moving
+// more logic into the derive macro.
 #[derive(Debug, PartialEq)]
-pub enum Payload {
-    /// The event only has one value as payload.
-    Value(ValueType),
-    /// The event has a set of named fields as a payload.
-    ///
-    /// [`crate::ir::qualifications::Qualification`]s can require certain named
-    /// fields to exist in the payload.
-    Named(Vec<Field>),
+pub struct Field {
+    /// The name of the field.
+    name: String,
+    /// The type of the field.
+    ty: ValueType,
+}
+
+impl Field {
+    pub fn new(name: impl Into<String>, ty: ValueType) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+        }
+    }
 }
 
 /// IR of an event.
@@ -28,6 +41,6 @@ pub struct Event {
     pub name: String,
     /// The [`Cardinality`] of the event.
     pub cardinality: Cardinality,
-    /// The type of [`Payload`] of the event.
-    pub payload: Payload,
+    /// The fields of the [`Payload`] of the event.
+    pub payload: Vec<Field>,
 }

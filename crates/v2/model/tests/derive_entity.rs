@@ -3,7 +3,7 @@ use quent_v2_model::{
     ir::{
         attributes::EntityRefTarget,
         entity::{Entity, ModelEntity},
-        event::{Cardinality, Event, Payload},
+        event::{Cardinality, Event, Field},
         value_type::{ModelEntityRefTarget, ValueType},
     },
 };
@@ -21,7 +21,7 @@ fn unit_struct() {
             events: vec![Event {
                 name: "Unit0".into(),
                 cardinality: Cardinality::Once,
-                payload: Payload::Value(ValueType::Attributes("Unit0".into()))
+                payload: vec![]
             }],
             qualifications: vec![],
             rust_path: utils::rust_path!("Unit0")
@@ -41,7 +41,7 @@ fn unit_struct() {
             events: vec![Event {
                 name: "Unit1".into(),
                 cardinality: Cardinality::Once,
-                payload: Payload::Value(ValueType::Attributes("Unit1".into()))
+                payload: vec![]
             }],
             qualifications: vec![],
             rust_path: utils::rust_path!("Unit1")
@@ -67,7 +67,10 @@ fn fields_struct() {
             events: vec![Event {
                 name: "StructSinglePrim".into(),
                 cardinality: Cardinality::Once,
-                payload: Payload::Value(ValueType::Attributes("StructSinglePrim".into()))
+                payload: vec![Field::new(
+                    "payload",
+                    ValueType::Attributes("StructSinglePrim".into())
+                )]
             }],
             qualifications: vec![],
             rust_path: utils::rust_path!("StructSinglePrim")
@@ -98,7 +101,10 @@ fn fields_struct() {
             events: vec![Event {
                 name: "StructMultiFieldWithAttrib".into(),
                 cardinality: Cardinality::Once,
-                payload: Payload::Value(ValueType::Attributes("StructMultiFieldWithAttrib".into()))
+                payload: vec![Field::new(
+                    "payload",
+                    ValueType::Attributes("StructMultiFieldWithAttrib".into())
+                )]
             }],
             qualifications: vec![],
             rust_path: utils::rust_path!("StructMultiFieldWithAttrib")
@@ -110,4 +116,119 @@ fn fields_struct() {
     );
 
     // TODO: struct with more value types including ref and resource usage
+}
+
+#[test]
+#[allow(unused)]
+fn enums() {
+    #[derive(Entity)]
+    enum SingleUnit {
+        A,
+    }
+    assert_eq!(
+        SingleUnit::model_entity(),
+        Entity {
+            name: "SingleUnit".into(),
+            events: vec![Event {
+                name: "A".into(),
+                cardinality: Cardinality::Once,
+                payload: vec![],
+            }],
+            qualifications: vec![],
+            rust_path: utils::rust_path!("SingleUnit"),
+        }
+    );
+    assert_eq!(
+        SingleUnit::model_entity_ref_target(),
+        EntityRefTarget::Specific("SingleUnit".into())
+    );
+
+    #[derive(Entity)]
+    enum MultiUnit {
+        A,
+        B,
+    }
+    assert_eq!(
+        MultiUnit::model_entity(),
+        Entity {
+            name: "MultiUnit".into(),
+            events: vec![
+                Event {
+                    name: "A".into(),
+                    cardinality: Cardinality::Once,
+                    payload: vec![],
+                },
+                Event {
+                    name: "B".into(),
+                    cardinality: Cardinality::Once,
+                    payload: vec![],
+                },
+            ],
+            qualifications: vec![],
+            rust_path: utils::rust_path!("MultiUnit"),
+        }
+    );
+    assert_eq!(
+        MultiUnit::model_entity_ref_target(),
+        EntityRefTarget::Specific("MultiUnit".into())
+    );
+
+    #[derive(Attributes)]
+    struct X;
+    #[derive(Entity)]
+    enum SingleUserPayload {
+        A(X),
+    }
+    assert_eq!(
+        SingleUserPayload::model_entity(),
+        Entity {
+            name: "SingleUserPayload".into(),
+            events: vec![Event {
+                name: "A".into(),
+                cardinality: Cardinality::Once,
+                payload: vec![Field::new("payload", ValueType::Attributes("X".into()))],
+            }],
+            qualifications: vec![],
+            rust_path: utils::rust_path!("SingleUserPayload"),
+        }
+    );
+    assert_eq!(
+        SingleUserPayload::model_entity_ref_target(),
+        EntityRefTarget::Specific("SingleUserPayload".into())
+    );
+
+    #[derive(Attributes)]
+    struct Y {
+        a: u8,
+        b: String,
+    };
+    #[derive(Entity)]
+    enum MultiUserPayload {
+        A(X),
+        B(Y),
+    }
+    assert_eq!(
+        MultiUserPayload::model_entity(),
+        Entity {
+            name: "MultiUserPayload".into(),
+            events: vec![
+                Event {
+                    name: "A".into(),
+                    cardinality: Cardinality::Once,
+                    payload: vec![Field::new("payload", ValueType::Attributes("X".into()))],
+                },
+                Event {
+                    name: "B".into(),
+                    cardinality: Cardinality::Once,
+                    payload: vec![Field::new("payload", ValueType::Attributes("Y".into()))],
+                },
+            ],
+            qualifications: vec![],
+            rust_path: utils::rust_path!("MultiUserPayload"),
+        }
+    );
+    assert_eq!(
+        MultiUserPayload::model_entity_ref_target(),
+        EntityRefTarget::Specific("MultiUserPayload".into())
+    );
 }
