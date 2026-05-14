@@ -15,7 +15,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 
     match &input.data {
         syn::Data::Struct(s) => expand_struct(name, &name_str, &s.fields, &input),
-        syn::Data::Enum(e) => todo!(),
+        syn::Data::Enum(_e) => todo!(),
         syn::Data::Union(u) => Err(syn::Error::new_spanned(
             u.union_token,
             "#[derive(Entity)] not supported on union, use struct or enum",

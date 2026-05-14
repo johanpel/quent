@@ -47,6 +47,10 @@ pub enum ValueType {
         role_type: EntityRefKind,
     },
     /// A usage of a resource.
+    // TODO(johanpel): since Usage is also a type of reference, but a little bit
+    // richer in terms of it also adding quantities etc., we may consider one
+    // grand reference type that could also hold data like this, which depends
+    // on the qualities of the entity referenced to.
     Usage {
         resource: String,
     },
