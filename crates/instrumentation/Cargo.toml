@@ -13,3 +13,17 @@ tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-util.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+pprof = { version = "0.14", features = ["criterion", "flamegraph"] }
+quent-collector = { path = "../collector/server" }
+quent-collector-proto = { path = "../collector/proto" }
+serde = { workspace = true, features = ["derive"] }
+tempfile = "3"
+tokio-stream.workspace = true
+tonic.workspace = true
+
+[[bench]]
+name = "event_emit"
+harness = false

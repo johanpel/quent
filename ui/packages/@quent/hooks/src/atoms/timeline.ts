@@ -37,8 +37,32 @@ export const zoomRangeAtom = atom<ZoomRange>({ start: 0, end: 0 });
 /** Debounced zoom range — settles after ZOOM_DEBOUNCE_MS, drives the bulk query */
 export const debouncedZoomRangeAtom = atom<ZoomRange>({ start: 0, end: 0 });
 
-/** Which timeline row is currently hovered (for tooltip display) */
-export const hoveredTimelineIdAtom = atom<string | null>(null);
+/**
+ * Pointer-level hover state used to drive an app-rendered timeline tooltip.
+ *
+ * Written by the chart's own pointermove handler (see `Timeline.tsx`) and
+ * carries enough information for an out-of-chart portal to render a tooltip:
+ * the snapped bin index for series lookup, viewport coords for placement,
+ * and a stable `sourceId` that lets exactly one Timeline take ownership of
+ * the active hover (single-active invariant).
+ */
+export interface TimelineHoverState {
+  /** Bin index under the pointer, already snapped to the nearest bin. */
+  dataIndex: number;
+  /**
+   * Raw (un-snapped) x-axis value from `convertFromPixel`, in ms. Carried
+   * alongside `dataIndex` so consumers can validate the snap or display the
+   * exact pointer time independently of the snapped bin.
+   */
+  timestampMs: number;
+  /** Pointer viewport coords for portal placement. */
+  clientX: number;
+  clientY: number;
+  /** Stable id of the Timeline that owns the hover. */
+  sourceId: string;
+}
+
+export const timelineHoverAtom = atom<TimelineHoverState | null>(null);
 
 /** Start time in milliseconds — set once per query, never changes */
 export const startTimeMsAtom = atom(0);

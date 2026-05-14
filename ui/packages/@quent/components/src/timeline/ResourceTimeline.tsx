@@ -12,9 +12,12 @@ import {
   useSelectedNodeIds,
   useSelectedOperatorLabel,
   useDeferredReady,
+  useSetTimelineHover,
 } from '@quent/hooks';
 import { TimelineSkeleton } from './TimelineSkeleton';
-import { useMemo, useRef, lazy, Suspense } from 'react';
+import { TimelineTooltipPortal } from './TimelineTooltipPortal';
+import type { TimelineHoverPosition } from './Timeline';
+import { useCallback, useEffect, useId, useMemo, useRef, lazy, Suspense } from 'react';
 import {
   buildBinnedTimelineSeries,
   buildTimelineMarks,
@@ -264,6 +267,33 @@ export function ResourceTimeline({
     paletteTheme,
   ]);
 
+  // Bridge the chart's atom-unaware `onHoverChange` callback into the shared
+  // `timelineHoverAtom` that the global tooltip portal subscribes to. The
+  // stable per-row `ownerId` (from React's `useId`) tags writes so cleanups
+  // (pointerleave, drag start, unmount) only clear the atom when *this* row
+  // is the current owner — preventing a stale leave from clobbering a fresh
+  // enter on a neighbouring row during fast pointer transitions.
+  //
+  // Declared before any conditional `return` so hook order stays stable
+  // across the loading / error / data render branches.
+  const ownerId = useId();
+  const setTimelineHover = useSetTimelineHover();
+  const handleHoverChange = useCallback(
+    (position: TimelineHoverPosition | null) => {
+      if (position == null) {
+        setTimelineHover(prev => (prev?.sourceId === ownerId ? null : prev));
+      } else {
+        setTimelineHover({ ...position, sourceId: ownerId });
+      }
+    },
+    [ownerId, setTimelineHover]
+  );
+  useEffect(() => {
+    return () => {
+      setTimelineHover(prev => (prev?.sourceId === ownerId ? null : prev));
+    };
+  }, [ownerId, setTimelineHover]);
+
   if (!preloadedData && (!deferredReady || isLoading)) {
     return <TimelineSkeleton />;
   }
@@ -276,6 +306,8 @@ export function ResourceTimeline({
     );
   }
 
+  const effectiveMarks = hideTasks ? undefined : marks;
+
   return (
     <Suspense fallback={<TimelineSkeleton />}>
       <Timeline
@@ -284,9 +316,19 @@ export function ResourceTimeline({
         startTime={startTime}
         durationSeconds={durationSeconds}
         showTooltip={showTooltip}
-        marks={hideTasks ? undefined : marks}
+        marks={effectiveMarks}
         isDark={isDark}
+        onHoverChange={handleHoverChange}
       />
+      {showTooltip && (
+        <TimelineTooltipPortal
+          ownerId={ownerId}
+          series={series}
+          timestamps={timestamps ?? []}
+          marks={effectiveMarks}
+          startTime={startTime}
+        />
+      )}
     </Suspense>
   );
 }
