@@ -2096,6 +2096,8 @@ dependencies = [
  "quent-exporter",
  "quent-model",
  "quent-query-engine-model",
+ "quent-simulator-instrumentation",
+ "quent-stdlib",
  "quent-time",
  "uuid",
 ]

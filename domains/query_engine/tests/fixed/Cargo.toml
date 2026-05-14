@@ -11,4 +11,6 @@ quent-model = { path = "../../../../crates/model" }
 quent-attributes = { path = "../../../../crates/attributes" }
 quent-exporter = { path = "../../../../crates/exporter" }
 quent-query-engine-model = { path = "../../model" }
+quent-simulator-instrumentation = { path = "../../../../examples/simulator/instrumentation" }
+quent-stdlib = { path = "../../../../crates/stdlib" }
 uuid = { workspace = true }
