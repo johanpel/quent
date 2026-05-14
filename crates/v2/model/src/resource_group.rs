@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::entity::{EntityDeclaration, EntityRef, IntoErased, RegularRef};
+use crate::entity::{EntityDeclaration, EntityRef, IntoErased, PlainRef};
 
 use std::marker::PhantomData;
 
@@ -26,14 +26,14 @@ impl ResourceGroupDeclaration for AnyRg {}
 
 // Typed conversion from a regular reference to a reference representing a
 // resource group parent-child relation.
-impl<R> From<EntityRef<R, RegularRef>> for EntityRef<R, RgParentRef>
+impl<R> From<EntityRef<R, PlainRef>> for EntityRef<R, RgParentRef>
 where
     R: ResourceGroupDeclaration,
 {
-    fn from(value: EntityRef<R, RegularRef>) -> Self {
+    fn from(value: EntityRef<R, PlainRef>) -> Self {
         Self {
             _entity: PhantomData,
-            _ref_kind: PhantomData,
+            _role: PhantomData,
             id: value.id,
         }
     }
@@ -44,14 +44,14 @@ where
 //
 // This variant is useful when a resource group parent-child relation supports
 // multiple types of parents.
-impl<R> IntoErased<EntityRef<AnyRg, RgParentRef>> for EntityRef<R, RegularRef>
+impl<R> IntoErased<EntityRef<AnyRg, RgParentRef>> for EntityRef<R, PlainRef>
 where
     R: ResourceGroupDeclaration,
 {
     fn into_erased(self) -> EntityRef<AnyRg, RgParentRef> {
         EntityRef {
             _entity: PhantomData,
-            _ref_kind: PhantomData,
+            _role: PhantomData,
             id: self.id,
         }
     }

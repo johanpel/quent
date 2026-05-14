@@ -1,8 +1,24 @@
-use crate::ir::attributes::{EntityRefKind, EntityRefTarget};
+use crate::{
+    AnyEntity, AnyRg, EntityDeclaration, EntityRef, PlainRef, RgParentRef,
+    ir::{
+        attributes::{EntityRefKind, EntityRefTarget},
+        qualifications::{QualificationKind, QualificationRefKind, resource_group::RgRefKind},
+    },
+};
 
 /// Trait to obtain the IR of a Rust type.
 pub trait ModelValueType {
     fn model_value_type() -> ValueType;
+}
+
+/// Trait to obtain the IR of an [`crate::entity::EntityRef`] target.
+pub trait ModelEntityRefTarget {
+    fn entity_ref_target() -> EntityRefTarget;
+}
+
+/// Trait to obtain the IR of an [`crate::entity::EntityRef`] role.
+pub trait ModelEntityRefKind {
+    fn entity_ref_kind() -> EntityRefKind;
 }
 
 /// Types of attribute values.
@@ -25,10 +41,10 @@ pub enum ValueType {
     List(Box<ValueType>),
     /// A (run-time) reference to another entity.
     EntityRef {
-        /// The type of entity this reference can target.
-        target: EntityRefTarget,
-        /// The semantic relation of this reference.
-        kind: EntityRefKind,
+        /// The entity type this reference can target.
+        entity_type: EntityRefTarget,
+        /// The role type used to bestow a certain meaning upon this reference.
+        role_type: EntityRefKind,
     },
     /// A usage of a resource.
     Usage {
@@ -92,5 +108,42 @@ impl<T: ModelValueType> ModelValueType for Option<T> {
 impl<T: ModelValueType> ModelValueType for Vec<T> {
     fn model_value_type() -> ValueType {
         ValueType::List(Box::new(T::model_value_type()))
+    }
+}
+
+impl<E, R> ModelValueType for EntityRef<E, R>
+where
+    E: EntityDeclaration + ModelEntityRefTarget,
+    R: ModelEntityRefKind,
+{
+    fn model_value_type() -> ValueType {
+        ValueType::EntityRef {
+            entity_type: E::entity_ref_target(),
+            role_type: R::entity_ref_kind(),
+        }
+    }
+}
+
+impl ModelEntityRefTarget for AnyEntity {
+    fn entity_ref_target() -> EntityRefTarget {
+        EntityRefTarget::Any
+    }
+}
+
+impl ModelEntityRefTarget for AnyRg {
+    fn entity_ref_target() -> EntityRefTarget {
+        EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup)
+    }
+}
+
+impl ModelEntityRefKind for PlainRef {
+    fn entity_ref_kind() -> EntityRefKind {
+        EntityRefKind::Plain
+    }
+}
+
+impl ModelEntityRefKind for RgParentRef {
+    fn entity_ref_kind() -> EntityRefKind {
+        EntityRefKind::Qualification(QualificationRefKind::ResourceGroup(RgRefKind::Parent))
     }
 }

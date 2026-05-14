@@ -48,7 +48,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // Iterator over token streams representing field defs.
     let fields = fields.iter().map(|f| {
         // Safety: should be safe to unwrap since we rejected tuple structs.
-        let field_name = (&f.ident).as_ref().unwrap().to_string();
+        let field_name = &f.ident.as_ref().unwrap().to_string();
         let field_type = &f.ty;
         quote! {
             ::quent_v2_model::ir::attributes::Field {

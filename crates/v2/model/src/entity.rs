@@ -17,16 +17,16 @@ pub struct AnyEntity;
 impl EntityDeclaration for AnyEntity {}
 
 /// Type to tag an [`EntityRef`] of being of no particular meaning.
-pub struct RegularRef;
+pub struct PlainRef;
 
 /// A reference to another entity.
 ///
-/// `E` restricts the entity type to which this reference refers. This can also
-/// be type-erased by using `E = AnyEntity`, such that at run-time, any entity
-/// can be provided.
+/// `EntityType` defines the entity type to which this reference refers. This
+/// can also be type-erased by using `EntityType = AnyEntity`, such that at
+/// run-time, any entity's handle can be provided.
 ///
-/// `R` restricts the semantics of the reference. By default, it is a regular
-/// reference (`RegularRef`) which holds no particular meaning. But, for
+/// `RoleType` defines the role type of the reference. By default, it is a
+/// regular reference (`RegularRef`) which holds no particular meaning. But, for
 /// example, it can be set to [`super::resource_group::RgParentRef`] to specify
 /// it carries a parent relation of a child resource group entity in the
 /// resource hierarchy. The latter is a requirement of the ResourceGroup
@@ -37,11 +37,12 @@ pub struct RegularRef;
     derive(serde::Serialize, serde::Deserialize),
     serde(transparent)
 )]
-pub struct EntityRef<E: EntityDeclaration, R = RegularRef> {
+pub struct EntityRef<EntityType: EntityDeclaration, RoleType = PlainRef> {
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub _entity: PhantomData<E>,
+    pub _entity: PhantomData<EntityType>,
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub _ref_kind: PhantomData<R>,
+    pub _role: PhantomData<RoleType>,
+
     pub id: Uuid,
 }
 
@@ -66,7 +67,7 @@ pub trait EntityHandle {
     fn entity_ref(&self) -> EntityRef<Self::DeclarationType> {
         EntityRef {
             _entity: PhantomData,
-            _ref_kind: PhantomData,
+            _role: PhantomData,
             id: self.id(),
         }
     }

@@ -13,7 +13,7 @@ mod brainstorm;
 
 // user facing exports
 pub use entity::{
-    AnyEntity, EntityDeclaration, EntityHandle, EntityRef, IntoErased, ObserverError, RegularRef,
+    AnyEntity, EntityDeclaration, EntityHandle, EntityRef, IntoErased, ObserverError, PlainRef,
 };
 pub use fsm::Transition;
 pub use resource::{

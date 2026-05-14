@@ -74,7 +74,7 @@ mod entity_rg {
                 // emit event goes here.
                 Ok(EntityRef {
                     _entity: PhantomData,
-                    _ref_kind: PhantomData,
+                    _role: PhantomData,
                     id,
                 })
             }
@@ -94,7 +94,7 @@ mod entity_rg {
                 // emit event goes here.
                 Ok(EntityRef {
                     _entity: PhantomData,
-                    _ref_kind: PhantomData,
+                    _role: PhantomData,
                     id,
                 })
             }
