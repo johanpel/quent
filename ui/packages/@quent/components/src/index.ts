@@ -142,6 +142,7 @@ export { TimelineSkeleton } from './timeline/TimelineSkeleton';
 export { TimelineToolbar } from './timeline/TimelineToolbar';
 export { QueryToolbar } from './timeline/QueryToolbar';
 export { TooltipContent } from './timeline/TimelineTooltip';
+export { TimelineTooltipPortal } from './timeline/TimelineTooltipPortal';
 export {
   useTimelineEchartsTheme,
   TIMELINE_MONO_FONT,

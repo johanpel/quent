@@ -92,3 +92,10 @@ complex distributed topologies with heterogeneous hardware (CPUs,
 accelerators, networked storage). The model captures how stateful things use
 resources and where run-time trade-offs are made (e.g. spilling to disk when
 memory is saturated, or re-scheduling work across nodes).
+
+## What is the overhead of emitting events?
+
+See the [microbenchmark](../crates/instrumentation/benches/README.md) for
+measurements and how to run them. The caller-side hot path is a timestamp
+acquisition plus an `mpsc` push; serialization and I/O happen asynchronously
+in a `forwarder` task.

@@ -17,13 +17,12 @@ export { useHoveredWorkerId, useSetHoveredWorkerId } from './dag/useHoveredWorke
 // Timeline hooks
 export {
   useTimelineData,
-  useIsTimelineHovered,
   useZoomRange,
   useSetZoomRange,
   useDebouncedZoomRange,
   useSetDebouncedZoomRange,
-  useHoveredTimelineId,
-  useSetHoveredTimelineId,
+  useTimelineHover,
+  useSetTimelineHover,
   useStartTimeMs,
   useSetStartTimeMs,
   useBulkInitialized,
@@ -37,7 +36,7 @@ export {
 
 // Timeline cache key helper (consumers need this to address per-item data)
 export { timelineCacheKey } from './atoms/timeline';
-export type { TimelineCacheParams } from './atoms/timeline';
+export type { TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
 
 // Complex timeline hooks
 export { useBulkTimelines } from './timeline/useBulkTimelines';

@@ -1,15 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useMemo, useRef, useEffect, useState } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import ReactEChartsComponent from 'echarts-for-react';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
 import type { LineSeriesOption } from 'echarts/charts';
 import type { EChartsInstance } from 'echarts-for-react';
-import { useZoomRange } from '@quent/hooks';
-import { TooltipContent } from './TimelineTooltip';
 import { withOpacity } from '@quent/utils';
 import type { TimelineSeriesEntry } from './types';
 import {
@@ -29,9 +26,22 @@ import {
 } from './timelineEchartsTheme';
 import { MIN_ZOOM_WINDOW_S, nanosToMs } from '../lib/timeline.utils';
 import { useChartConnect } from '../lib/useChartConnect';
+import { Opts } from 'echarts-for-react/lib/types';
 
 export const CHART_GROUP = 'timeline-sync-group';
 const DIMMED_OPACITY = 0.25;
+
+/**
+ * Pointer position over the chart, expressed in coordinates the parent can
+ * use to drive a tooltip outside the chart.
+ */
+export interface TimelineHoverPosition {
+  dataIndex: number;
+  timestampMs: number;
+  clientX: number;
+  clientY: number;
+}
+
 /** Stacked-area timeline chart backed by ECharts, with zoom sync and optional tooltip. */
 export function Timeline({
   startTime,
@@ -42,6 +52,7 @@ export function Timeline({
   showTooltip = true,
   marks,
   isDark,
+  onHoverChange,
 }: {
   startTime: bigint;
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
@@ -54,12 +65,10 @@ export function Timeline({
   marks?: TimelineMark[];
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  /** Pointer-state callback. */
+  onHoverChange?: (position: TimelineHoverPosition | null) => void;
 }) {
   const { themeName } = useTimelineEchartsTheme(isDark);
-
-  const zoomRange = useZoomRange();
-  const windowMsRef = useRef(0);
-  windowMsRef.current = (zoomRange.end - zoomRange.start) * 1000;
 
   const maxMarkCountRef = useRef(0);
 
@@ -168,7 +177,7 @@ export function Timeline({
     }
 
     return allSeries;
-  }, [series, timestamps, marks]);
+  }, [series, timestamps, marks, isDark]);
 
   const yAxisFormatter = useMemo(() => {
     const firstEntry: TimelineSeriesEntry | undefined = Object.values(series)[0];
@@ -230,70 +239,18 @@ export function Timeline({
   minZoomSpanPctRef.current = minZoomSpanPct;
   const atZoomLimitRef = useRef(false);
 
-  // Seed the chart's dataZoom from the controller on the first option build so
-  // the chart paints already aligned with the active zoom. Without this a
-  // freshly-mounted (e.g. just-virtualized-into-view) chart paints at 0/100
-  // and then snaps to the real range once `connectChart` dispatches a zoom
-  // action
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
-  const initialZoomPct = useMemo(() => {
-    if (hasMounted || durationSeconds <= 0) return null;
-    const start = (zoomRange.start / durationSeconds) * 100;
-    const end = (zoomRange.end / durationSeconds) * 100;
-    return { start, end };
-  }, [hasMounted, durationSeconds, zoomRange]);
-
+  // ECharts' built-in tooltip is reduced to crosshair only (`showContent: false`).
+  // Tooltip content is rendered by the parent via `onHoverChange` — keeping
+  // `connect()` mirroring `showTip` harmless (only the crosshair paints,
+  // never tooltip DOM.
   const eChartOptions: EChartsOption = useMemo(() => {
     return {
       animation: false,
       tooltip: {
         show: true,
-        showContent: showTooltip,
+        showContent: false,
         trigger: 'axis',
         transitionDuration: 0,
-        backgroundColor: 'transparent',
-        borderWidth: 0,
-        padding: 0,
-        textStyle: {},
-        confine: true,
-        appendToBody: true,
-        formatter: function (hoveredSeries: unknown) {
-          if (isDraggingRef.current) return '';
-          if (!Array.isArray(hoveredSeries) || hoveredSeries.length === 0) return '';
-          const timestamp = Number(hoveredSeries[0].axisValue);
-          const seriesValues = hoveredSeries
-            .filter(
-              (p: { seriesName: string; data?: number[] }) =>
-                !p.seriesName.startsWith('__mark_') && p.data != null
-            )
-            .map((p: { color: string; seriesName: string; data: number[] }) => {
-              return {
-                color: p.color,
-                name: p.seriesName,
-                value: p.data[1],
-                isOverlay: series[p.seriesName]?.isOverlay ?? false,
-                isDimmed: series[p.seriesName]?.isDimmed ?? false,
-              };
-            });
-          const activeMarks = marks
-            ?.filter(m => timestamp >= m.xStart && timestamp <= m.xEnd)
-            .map(m => ({ label: m.label, stateName: m.stateName, color: m.color }));
-          const fmt = Object.values(series)[0]?.formatter;
-          return renderToStaticMarkup(
-            <TooltipContent
-              timestamp={timestamp}
-              series={seriesValues}
-              startTime={startTime}
-              fmt={fmt}
-              windowMs={windowMsRef.current}
-              activeMarks={activeMarks && activeMarks.length > 0 ? activeMarks : undefined}
-            />
-          );
-        },
       },
       title: {
         left: 'center',
@@ -312,7 +269,6 @@ export function Timeline({
           realtime: true,
           filterMode: 'none',
           minSpan: minZoomSpanPct,
-          ...(initialZoomPct ?? {}),
         },
         {
           type: 'inside',
@@ -333,26 +289,79 @@ export function Timeline({
         },
       ],
     } as EChartsOption;
-  }, [
-    showTooltip,
-    gridOptions,
-    minZoomSpanPct,
-    xAxisOptions,
-    yAxisOptions,
-    seriesOptions,
-    startTime,
-    series,
-    marks,
-    initialZoomPct,
-  ]);
+  }, [gridOptions, minZoomSpanPct, xAxisOptions, yAxisOptions, seriesOptions]);
 
   const isDraggingRef = useRef(false);
 
+  // `onChartReady` runs exactly once per chart instance, so its closures
+  // capture the initial values of `showTooltip` / `onHoverChange`. Refs let
+  // those closures read the current values on every event without re-binding
+  // listeners or making `onChartReady` re-run.
+  const showTooltipRef = useRef(showTooltip);
+  showTooltipRef.current = showTooltip;
+  const onHoverChangeRef = useRef(onHoverChange);
+  onHoverChangeRef.current = onHoverChange;
+  // The listeners attached in `onChartReady` close over `timestamps` for
+  // bin snapping; mirror it into a ref so they always see the current array
+  // (zoom changes can replace it) without re-binding.
+  const timestampsRef = useRef(timestamps);
+  timestampsRef.current = timestamps;
+
   const onChartReady = useCallback((instance: EChartsInstance) => {
     const dom = instance.getDom();
+    const outsideTimelineViz = (e: PointerEvent) => {
+      const rect = dom.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      return (
+        offsetX < TIMELINE_SPACING.left ||
+        offsetX > rect.width - TIMELINE_SPACING.right ||
+        offsetY < TIMELINE_SPACING.top ||
+        offsetY > rect.height - TIMELINE_SPACING.bottom
+      );
+    };
+
+    // Pointer activity is reported up via `onHoverChange`. The parent owns
+    // the tooltip-rendering / shared-state concerns; this component only
+    // converts pointer pixels into a snapped bin index so the parent can
+    // sample series data without re-doing the search.
+    const reportHover = (e: PointerEvent) => {
+      if (!showTooltipRef.current) return;
+      if (isDraggingRef.current) return;
+      if (instance.isDisposed?.()) return;
+      const rect = dom.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      // Don't report hover if the pointer is outside the timeline
+      if (outsideTimelineViz(e)) {
+        onHoverChangeRef.current?.(null);
+        return;
+      }
+      let tsMs: number;
+      try {
+        const v = instance.convertFromPixel({ xAxisIndex: 0 }, offsetX);
+        if (v == null || !isFinite(v as number)) return;
+        tsMs = v as number;
+      } catch {
+        return;
+      }
+      const idx = snapToBinIndex(timestampsRef.current, tsMs);
+      if (idx < 0) return;
+      onHoverChangeRef.current?.({
+        dataIndex: idx,
+        timestampMs: tsMs,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      });
+    };
+
+    const reportLeave = () => onHoverChangeRef.current?.(null);
+
+    dom.addEventListener('pointermove', reportHover);
+    dom.addEventListener('pointerleave', reportLeave);
+    dom.addEventListener('pointercancel', reportLeave);
     dom.addEventListener('pointerdown', () => {
       isDraggingRef.current = true;
-      instance.dispatchAction({ type: 'hideTip' });
+      reportLeave();
     });
     dom.addEventListener('pointerup', () => {
       isDraggingRef.current = false;
@@ -395,6 +404,19 @@ export function Timeline({
     );
   }, []);
 
+  // If this Timeline is unmounted while the pointer is over it (e.g. a tree
+  // row is virtualized away mid-hover, or ResourceTimeline swaps to a
+  // skeleton on refetch), no DOM `pointerleave` will fire. Tell the parent
+  // explicitly so it can clear any tooltip state it owns.
+  useEffect(() => {
+    return () => {
+      onHoverChangeRef.current?.(null);
+    };
+  }, []);
+
+  const style = useMemo(() => ({ width: '100%', height: `${height}px` }), [height]);
+  const opts = useMemo(() => ({ renderer: 'svg' }) as Opts, []);
+
   const { handleChartReady } = useChartConnect({
     durationSeconds,
     chartGroup: CHART_GROUP,
@@ -405,12 +427,36 @@ export function Timeline({
     <ReactEChartsComponent
       echarts={echarts}
       theme={themeName}
+      opts={opts}
       option={eChartOptions}
-      style={{ width: '100%', height: `${height}px` }}
+      style={style}
       onChartReady={handleChartReady}
       notMerge={false}
       lazyUpdate={false}
       replaceMerge={['series']}
     />
   );
+}
+
+/**
+ * Snap a continuous x-axis time (ms) to the nearest bin index by binary
+ * search. dataIndex from echarts cannot be trusted at tiny bin sizes.
+ */
+function snapToBinIndex(timestamps: number[], ts: number): number {
+  const n = timestamps.length;
+  if (n === 0) return -1;
+  if (n === 1) return 0;
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((timestamps[mid] ?? 0) < ts) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo > 0) {
+    const a = timestamps[lo - 1] ?? 0;
+    const b = timestamps[lo] ?? 0;
+    if (Math.abs(a - ts) < Math.abs(b - ts)) return lo - 1;
+  }
+  return lo;
 }
