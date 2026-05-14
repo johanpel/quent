@@ -1,18 +1,18 @@
 use std::collections::HashSet;
 
 use crate::{
-    ir::{event::EventDef, qualifications::Qualification},
+    ir::{event::Event, qualifications::Qualification},
     validator::qualifications::QualificationCheck,
 };
 
-pub struct EntityDef {
+pub struct Entity {
     pub name: String,
     pub rust_path: String,
-    pub events: Vec<EventDef>,
+    pub events: Vec<Event>,
     pub qualifications: HashSet<Qualification>,
 }
 
-impl EntityDef {
+impl Entity {
     pub fn qualification<T>(&self) -> Option<&T>
     where
         T: QualificationCheck,

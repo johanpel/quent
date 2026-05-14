@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ts_rs::TS;
 
-/// Error type for Value conversions.
+/// Error type for attribute value conversions.
 #[derive(Error, Debug)]
 pub enum ValueError {
     #[error("not numeric: {0}")]
@@ -177,11 +177,12 @@ impl Attribute {
 }
 
 /// An attribute set of which the keys are determined at run-time.
+// TODO(johanpel): (breaking) rename this
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[serde(transparent)]
-pub struct RuntimeAttributes(pub Vec<Attribute>);
+pub struct CustomAttributes(pub Vec<Attribute>);
 
-impl RuntimeAttributes {
+impl CustomAttributes {
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -218,21 +219,21 @@ impl RuntimeAttributes {
     }
 }
 
-impl std::ops::Deref for RuntimeAttributes {
+impl std::ops::Deref for CustomAttributes {
     type Target = Vec<Attribute>;
     fn deref(&self) -> &Vec<Attribute> {
         &self.0
     }
 }
 
-impl From<Vec<Attribute>> for RuntimeAttributes {
+impl From<Vec<Attribute>> for CustomAttributes {
     fn from(v: Vec<Attribute>) -> Self {
         Self(v)
     }
 }
 
-impl From<RuntimeAttributes> for Vec<Attribute> {
-    fn from(v: RuntimeAttributes) -> Self {
+impl From<CustomAttributes> for Vec<Attribute> {
+    fn from(v: CustomAttributes) -> Self {
         v.0
     }
 }

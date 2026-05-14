@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::ir::{ModelDef, entity::EntityDef};
+use crate::ir::{Model, entity::Entity};
 
 mod fsm;
 mod resource;
@@ -17,5 +17,5 @@ pub enum QualificationError {
 /// A Qualifiation represents constraints of entity events.
 pub trait QualificationCheck {
     /// Checks whether 'entity` qualifies as [`Self`].
-    fn qualifies(model: &ModelDef, entity: &EntityDef) -> Result<(), QualificationError>;
+    fn qualifies(model: &Model, entity: &Entity) -> Result<(), QualificationError>;
 }

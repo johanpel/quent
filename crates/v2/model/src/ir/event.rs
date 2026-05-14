@@ -1,4 +1,4 @@
-use crate::ir::attributes::{FieldDef, ValueType};
+use crate::ir::{attributes::Field, value_type::ValueType};
 
 /// The cardinality of an event.
 pub enum Cardinality {
@@ -10,11 +10,11 @@ pub enum Cardinality {
 pub enum Payload {
     Unit,
     Value(ValueType),
-    Named(Vec<FieldDef>),
+    Named(Vec<Field>),
 }
 
 /// An event.
-pub struct EventDef {
+pub struct Event {
     /// The name of the event.
     pub name: String,
     /// The cardinality of the event.

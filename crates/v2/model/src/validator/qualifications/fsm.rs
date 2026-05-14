@@ -26,8 +26,8 @@ impl<'a> TryFrom<&'a Qualification> for &'a Fsm {
 
 impl QualificationCheck for Fsm {
     fn qualifies(
-        _model: &crate::ir::ModelDef,
-        entity: &crate::ir::entity::EntityDef,
+        _model: &crate::ir::Model,
+        entity: &crate::ir::entity::Entity,
     ) -> Result<(), QualificationError> {
         // Sanity check:
         let fsm: &Fsm = entity

@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use crate::{
     ir::{
-        ModelDef,
+        Model,
         qualifications::{
             Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup,
         },
@@ -18,7 +18,7 @@ pub enum ValidationError {
     Qualification(#[from] QualificationError),
 }
 
-impl ModelDef {
+impl Model {
     pub fn validate(&self) -> Result<(), Vec<ValidationError>> {
         // TODO: validate other stuff, like unknown identifiers etc.
 

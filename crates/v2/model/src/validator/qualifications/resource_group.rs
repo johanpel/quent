@@ -4,8 +4,8 @@ use crate::{
 
 impl QualificationCheck for ResourceGroup {
     fn qualifies(
-        model: &crate::ir::ModelDef,
-        entity: &crate::ir::entity::EntityDef,
+        model: &crate::ir::Model,
+        entity: &crate::ir::entity::Entity,
     ) -> Result<(), super::QualificationError> {
         todo!()
     }

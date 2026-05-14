@@ -12,12 +12,12 @@ pub struct Declaration {
     pub parent_operator_ids: Vec<Ref<super::operator::Operator>>,
     pub instance_name: String,
     pub type_name: String,
-    pub custom_attributes: quent_attributes::RuntimeAttributes,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 #[derive(Debug, Attributes, Deserialize, Serialize)]
 pub struct Statistics {
-    pub custom_attributes: quent_attributes::RuntimeAttributes,
+    pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
 entity! {

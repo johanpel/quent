@@ -38,7 +38,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             syn::Fields::Unnamed(_) => {
                 return Err(syn::Error::new_spanned(
                     &input,
-                    "#[derive(Attributes)] requires a struct with named fields",
+                    "#[derive(Attributes)] requires a unit struct or a struct with named fields",
                 ));
             }
             _ => &s.fields,
@@ -46,35 +46,35 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     };
 
     // Iterator over token streams representing field defs.
-    let field_defs = fields.iter().map(|f| {
+    let fields = fields.iter().map(|f| {
         // Safety: should be safe to unwrap since we rejected tuple structs.
         let field_name = (&f.ident).as_ref().unwrap().to_string();
         let field_type = &f.ty;
         quote! {
-            ::quent_v2_model::ir::attributes::FieldDef {
+            ::quent_v2_model::ir::attributes::Field {
                 name: #field_name.to_string(),
-                value_type: <#field_type as ::quent_v2_model::HasValueType>::value_type(),
+                ty: <#field_type as ::quent_v2_model::ir::value_type::ModelValueType>::model_value_type(),
             }
         }
     });
 
-    // Emit HasAttributesDef and HasValueType traits.
+    // Emit the traits that produce the IR from this type
     Ok(quote! {
-        impl ::quent_v2_model::HasAttributesDef for #name_ident {
-            fn attributes_def() -> ::quent_v2_model::ir::attributes::AttributesDef {
-                ::quent_v2_model::ir::attributes::AttributesDef {
+        impl ::quent_v2_model::ir::attributes::ModelAttributes for #name_ident {
+            fn model_attributes() -> ::quent_v2_model::ir::attributes::Attributes {
+                ::quent_v2_model::ir::attributes::Attributes {
                     name: #name_string.to_string(),
                     rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
                     fields: ::std::vec![
-                        #(#field_defs),*
+                        #(#fields),*
                     ],
                 }
             }
         }
 
-        impl ::quent_v2_model::HasValueType for #name_ident {
-            fn value_type() -> ::quent_v2_model::ir::attributes::ValueType {
-                ::quent_v2_model::ir::attributes::ValueType::Attributes(#name_string.to_string())
+        impl ::quent_v2_model::ir::value_type::ModelValueType for #name_ident {
+            fn model_value_type() -> ::quent_v2_model::ir::value_type::ValueType {
+                ::quent_v2_model::ir::value_type::ValueType::Attributes(#name_string.to_string())
             }
         }
     })

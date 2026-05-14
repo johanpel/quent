@@ -1,29 +1,140 @@
 use quent_v2_model::{
     Attributes,
-    attributes::{ModelAttributes, ModelValueType},
+    ir::{
+        attributes::{Attributes, Field, ModelAttributes},
+        value_type::{ModelValueType, ValueType},
+    },
 };
 
-#[derive(Attributes)]
-struct Checksum {
-    algorithm: String,
-    value: String,
-}
+mod utils;
 
+// Unit structs
 #[test]
-fn checksum_attributes_def() {
-    let def = Checksum::attributes_def();
-    assert_eq!(def.name, "Checksum");
-    assert!(def.rust_path.ends_with("::Checksum"));
-    assert_eq!(def.fields.len(), 2);
-    assert_eq!(def.fields[0].name, "algorithm");
-}
-
-#[test]
-fn checksum_value_type() {
-    match Checksum::value_type() {
-        quent_v2_model::ir::attributes::ValueType::Attributes(name) => {
-            assert_eq!(name, "Checksum");
+fn unit() {
+    #[derive(Attributes)]
+    struct Unit0;
+    assert_eq!(
+        Unit0::model_attributes(),
+        Attributes {
+            name: String::from("Unit0"),
+            fields: vec![],
+            rust_path: utils::rust_path!("Unit0"),
         }
-        _ => panic!("expected Attributes variant"),
+    );
+    assert_eq!(Unit0::model_value_type(), ValueType::attributes("Unit0"));
+
+    #[derive(Attributes)]
+    struct Unit1 {}
+    assert_eq!(
+        Unit1::model_attributes(),
+        Attributes {
+            name: String::from("Unit1"),
+            fields: vec![],
+            rust_path: utils::rust_path!("Unit1"),
+        }
+    );
+}
+
+// Single field structs
+#[test]
+fn single() {
+    #[derive(Attributes)]
+    struct SinglePrimitive {
+        a: u8,
     }
+    assert_eq!(
+        SinglePrimitive::model_attributes(),
+        Attributes {
+            name: String::from("SinglePrimitive"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::U8,
+            }],
+            rust_path: utils::rust_path!("SinglePrimitive"),
+        }
+    );
+
+    #[derive(Attributes)]
+    struct SingleNested {
+        a: SinglePrimitive,
+    }
+    assert_eq!(
+        SingleNested::model_attributes(),
+        Attributes {
+            name: String::from("SingleNested"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::Attributes(String::from("SinglePrimitive")),
+            }],
+            rust_path: utils::rust_path!("SingleNested"),
+        }
+    );
+
+    #[derive(Attributes)]
+    struct SingleList {
+        a: Vec<u8>,
+    }
+    assert_eq!(
+        SingleList::model_attributes(),
+        Attributes {
+            name: String::from("SingleList"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::List(Box::new(ValueType::U8)),
+            }],
+            rust_path: utils::rust_path!("SingleList"),
+        }
+    );
+
+    #[derive(Attributes)]
+    struct SingleListNested {
+        a: Vec<SinglePrimitive>,
+    }
+    assert_eq!(
+        SingleListNested::model_attributes(),
+        Attributes {
+            name: String::from("SingleListNested"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::List(Box::new(ValueType::Attributes(String::from(
+                    "SinglePrimitive"
+                ),))),
+            }],
+            rust_path: utils::rust_path!("SingleListNested"),
+        }
+    );
+
+    #[derive(Attributes)]
+    struct SingleListListPrimitive {
+        a: Vec<Vec<u8>>,
+    }
+    assert_eq!(
+        SingleListListPrimitive::model_attributes(),
+        Attributes {
+            name: String::from("SingleListListPrimitive"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8,)))),
+            }],
+            rust_path: utils::rust_path!("SingleListListPrimitive"),
+        }
+    );
+
+    #[derive(Attributes)]
+    struct SingleListListNested {
+        a: Vec<Vec<SinglePrimitive>>,
+    }
+    assert_eq!(
+        SingleListListNested::model_attributes(),
+        Attributes {
+            name: String::from("SingleListListNested"),
+            fields: vec![Field {
+                name: String::from("a"),
+                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
+                    String::from("SinglePrimitive")
+                ),)))),
+            }],
+            rust_path: utils::rust_path!("SingleListListNested"),
+        }
+    );
 }

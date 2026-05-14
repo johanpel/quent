@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod attributes;
 pub mod entity;
 pub mod fsm;
 pub mod ir;
@@ -13,7 +12,6 @@ pub mod validator;
 mod brainstorm;
 
 // user facing exports
-pub use attributes::{ModelAttributes, Type};
 pub use entity::{
     AnyEntity, EntityDeclaration, EntityHandle, EntityRef, IntoErased, ObserverError, RegularRef,
 };
