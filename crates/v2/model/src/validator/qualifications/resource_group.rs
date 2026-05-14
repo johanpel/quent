@@ -1,5 +1,6 @@
 use crate::{
-    ir::qualifications::resource_group::ResourceGroup, validator::qualifications::QualificationCheck,
+    ir::qualifications::resource_group::ResourceGroup,
+    validator::qualifications::QualificationCheck,
 };
 
 impl QualificationCheck for ResourceGroup {

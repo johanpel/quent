@@ -33,10 +33,12 @@ fn unit() {
             rust_path: utils::rust_path!("Unit1"),
         }
     );
+    assert_eq!(Unit1::model_value_type(), ValueType::attributes("Unit1"));
 }
 
 // Single field structs
 #[test]
+#[allow(unused)]
 fn single() {
     #[derive(Attributes)]
     struct SinglePrimitive {
@@ -52,6 +54,10 @@ fn single() {
             }],
             rust_path: utils::rust_path!("SinglePrimitive"),
         }
+    );
+    assert_eq!(
+        SinglePrimitive::model_value_type(),
+        ValueType::attributes("SinglePrimitive")
     );
 
     #[derive(Attributes)]
@@ -69,6 +75,10 @@ fn single() {
             rust_path: utils::rust_path!("SingleNested"),
         }
     );
+    assert_eq!(
+        SingleNested::model_value_type(),
+        ValueType::attributes("SingleNested")
+    );
 
     #[derive(Attributes)]
     struct SingleList {
@@ -84,6 +94,10 @@ fn single() {
             }],
             rust_path: utils::rust_path!("SingleList"),
         }
+    );
+    assert_eq!(
+        SingleList::model_value_type(),
+        ValueType::attributes("SingleList")
     );
 
     #[derive(Attributes)]
@@ -103,6 +117,10 @@ fn single() {
             rust_path: utils::rust_path!("SingleListNested"),
         }
     );
+    assert_eq!(
+        SingleListNested::model_value_type(),
+        ValueType::attributes("SingleListNested")
+    );
 
     #[derive(Attributes)]
     struct SingleListListPrimitive {
@@ -118,6 +136,10 @@ fn single() {
             }],
             rust_path: utils::rust_path!("SingleListListPrimitive"),
         }
+    );
+    assert_eq!(
+        SingleListListPrimitive::model_value_type(),
+        ValueType::attributes("SingleListListPrimitive")
     );
 
     #[derive(Attributes)]
@@ -136,5 +158,9 @@ fn single() {
             }],
             rust_path: utils::rust_path!("SingleListListNested"),
         }
+    );
+    assert_eq!(
+        SingleListListNested::model_value_type(),
+        ValueType::attributes("SingleListListNested")
     );
 }
