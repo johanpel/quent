@@ -26,14 +26,20 @@
 //!
 use std::collections::HashMap;
 
+use self::{attributes::Attributes, entity::Entity};
+
 pub mod attributes;
 pub mod entity;
 pub mod event;
 pub mod qualifications;
 pub mod value_type;
 
+/// IR of an application model.
 pub struct Model {
+    /// The name of the model.
     pub name: String,
-    pub entities: HashMap<String, entity::Entity>,
-    pub attributes: HashMap<String, attributes::Attributes>,
+    /// The [`Entity`]s of the model.
+    pub entities: HashMap<String, Entity>,
+    /// The [`Attributes`] sets of the model.
+    pub attributes: HashMap<String, Attributes>,
 }

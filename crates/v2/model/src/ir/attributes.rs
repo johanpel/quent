@@ -5,7 +5,6 @@ use crate::ir::{
 
 /// Trait to obtain the IR of a type representing an attribute set.
 pub trait ModelAttributes {
-    /// Return the IR [`Attributes`] of this type.
     fn model_attributes() -> Attributes;
 }
 
@@ -16,7 +15,7 @@ pub struct Field {
     pub ty: ValueType,
 }
 
-/// A set of attributes.
+/// IR of a set of attributes.
 // TODO(johanpel): consider naming this Record or something else
 #[derive(Debug, PartialEq)]
 pub struct Attributes {
@@ -29,8 +28,8 @@ pub struct Attributes {
     pub rust_path: String,
 }
 
-/// The types of entities targeted by an entity reference.
-#[derive(Debug, PartialEq)]
+/// IR of the types of entities targeted by an entity reference.
+#[derive(Debug, PartialEq, Eq)]
 pub enum EntityRefTarget {
     /// The entity reference targets one specific entity type.
     Specific(String),
@@ -40,8 +39,8 @@ pub enum EntityRefTarget {
     AnyQualified(QualificationKind),
 }
 
-/// The semantics conveyed by an entity reference.
-#[derive(Debug, PartialEq)]
+/// IR of the role of an entity reference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntityRefKind {
     /// The entity reference has no specialized meaning.
     Plain,

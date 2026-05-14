@@ -1,8 +1,9 @@
+#[derive(Debug, PartialEq, Eq)]
 pub struct ResourceGroup;
 
-/// Meaning bestowed upon references used by entities to qualify as a
+/// IR of marking an entity reference is to be used by entities to qualify as a
 /// ResourceGroup.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RgRefKind {
     /// The reference is referring to the parent resource group.
     Parent,

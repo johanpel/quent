@@ -2,6 +2,7 @@ use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
 mod attributes;
+mod entity;
 
 #[proc_macro_derive(Attributes)]
 pub fn derive_attributes(input: TokenStream) -> TokenStream {
@@ -13,8 +14,11 @@ pub fn derive_attributes(input: TokenStream) -> TokenStream {
 
 // TODO
 #[proc_macro_derive(Entity, attributes(quent))]
-pub fn derive_entity(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
+pub fn derive_entity(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    entity::expand(input)
+        .unwrap_or_else(|err| err.to_compile_error())
+        .into()
 }
 
 #[proc_macro_derive(Fsm, attributes(quent))]

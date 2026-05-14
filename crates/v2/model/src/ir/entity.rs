@@ -1,15 +1,25 @@
-use std::collections::HashSet;
-
 use crate::{
     ir::{event::Event, qualifications::Qualification},
     validator::qualifications::QualificationCheck,
 };
 
+/// Trait to obtain the IR of a type representing an entity.
+pub trait ModelEntity {
+    fn model_entity() -> Entity;
+}
+
+/// IR of an Entity
+#[derive(Debug, PartialEq)]
 pub struct Entity {
+    /// The name of the entity.
     pub name: String,
-    pub rust_path: String,
+    /// The [`Event`]s types that this entity can emit.
     pub events: Vec<Event>,
-    pub qualifications: HashSet<Qualification>,
+    /// The [`Qualification`]s of the entity.
+    pub qualifications: Vec<Qualification>,
+
+    /// The Rust path of the entity.
+    pub rust_path: String,
 }
 
 impl Entity {

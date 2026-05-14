@@ -13,16 +13,16 @@ pub trait ModelValueType {
 
 /// Trait to obtain the IR of an [`crate::entity::EntityRef`] target.
 pub trait ModelEntityRefTarget {
-    fn entity_ref_target() -> EntityRefTarget;
+    fn model_entity_ref_target() -> EntityRefTarget;
 }
 
 /// Trait to obtain the IR of an [`crate::entity::EntityRef`] role.
 pub trait ModelEntityRefKind {
-    fn entity_ref_kind() -> EntityRefKind;
+    fn model_entity_ref_kind() -> EntityRefKind;
 }
 
 /// Types of attribute values.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ValueType {
     Bool,
     Uuid,
@@ -118,32 +118,32 @@ where
 {
     fn model_value_type() -> ValueType {
         ValueType::EntityRef {
-            entity_type: E::entity_ref_target(),
-            role_type: R::entity_ref_kind(),
+            entity_type: E::model_entity_ref_target(),
+            role_type: R::model_entity_ref_kind(),
         }
     }
 }
 
 impl ModelEntityRefTarget for AnyEntity {
-    fn entity_ref_target() -> EntityRefTarget {
+    fn model_entity_ref_target() -> EntityRefTarget {
         EntityRefTarget::Any
     }
 }
 
 impl ModelEntityRefTarget for AnyRg {
-    fn entity_ref_target() -> EntityRefTarget {
+    fn model_entity_ref_target() -> EntityRefTarget {
         EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup)
     }
 }
 
 impl ModelEntityRefKind for PlainRef {
-    fn entity_ref_kind() -> EntityRefKind {
+    fn model_entity_ref_kind() -> EntityRefKind {
         EntityRefKind::Plain
     }
 }
 
 impl ModelEntityRefKind for RgParentRef {
-    fn entity_ref_kind() -> EntityRefKind {
+    fn model_entity_ref_kind() -> EntityRefKind {
         EntityRefKind::Qualification(QualificationRefKind::ResourceGroup(RgRefKind::Parent))
     }
 }

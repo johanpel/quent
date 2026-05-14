@@ -8,7 +8,7 @@ pub mod fsm;
 pub mod resource;
 pub mod resource_group;
 
-/// Entity qualifications
+/// IR of entity qualifications
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QualificationKind {
     /// Finite-State-Machine
@@ -25,15 +25,15 @@ pub enum QualificationKind {
     ResourceGroup,
 }
 
-/// Types of entity references that have meaning specialized by the
+/// IR of the types of entity references that have meaning specialized by the
 /// qualification of the entity that emits them.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QualificationRefKind {
     Resource(ResourceRefKind),
     ResourceGroup(RgRefKind),
 }
 
-/// Qualifications of Entities.
+/// IR of a Qualification of an [`crate::ir::entity::Entity`].
 ///
 /// Qualifications can be considered requirements of entity events. These
 /// requirements can include constraints on any of the properties of events,
@@ -55,6 +55,10 @@ pub enum QualificationRefKind {
 ///
 /// Qualifications are somewhat similar in spirit to Rust traits, but are named
 /// differently to prevent the obvious terminology clashing.
+///
+/// Qualifications are mostly visible in the IR and code generation to capture
+/// constraints.
+#[derive(Debug, PartialEq, Eq)]
 pub enum Qualification {
     Fsm(Fsm),
     Resource(Resource),
