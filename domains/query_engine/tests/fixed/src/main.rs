@@ -1,109 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Fixed query-engine event emitter — a deterministic, mnemonic test fixture.
+//! Fixed query-engine event emitter.
 //!
-//! Emits a byte-stable event stream that drives one tiny query through a full
-//! lifecycle on two workers. Every UUID, timestamp, and payload is hard-coded
-//! so two runs produce identical output. Used as a golden-file fixture for
-//! integration tests and as a deterministic scenario for manual UI debugging.
-//! The sibling `examples/simulator/` emits the same model surface with
-//! runtime entropy.
+//! Hardcoded 7-second scenario for tests and manual UI debugging.
+//! Phase boundaries land on whole-second ticks:
 //!
-//! # What you will see in the UI
+//! - 0–1s: init (engine, 2 workers, memories, thread pools, threads, channel)
+//! - 1–2s: query planning (logical plan + two physical sub-plans)
+//! - 2–3s / 3–4s / 4–5s / 5–6s: ScanFilter / PartialAggregate / FinalAggregate / Limit tasks
+//! - 6–7s: statistics, query exit, resource teardown
 //!
-//! Eight seconds, end to end. Major phase boundaries land on whole-second ticks.
+//! Plan is split across workers: W0 (driver) owns FinalAggregate → Limit →
+//! Output. W1's PartialAggregate tasks ship their partition to W0's
+//! FinalAggregate over a channel.
 //!
-//! ```text
-//!  0s ─ 1s    init       engine, 2 workers, per-worker memory + thread
-//!                         pool + 2 threads, cross-worker channel
-//!  1s ─ 2s    Init (Q)   query enters Init state
-//!  2s ─ 3s    Planning   logical plan + two physical sub-plans declared
-//!  3s ─ 4s    SCAN       4 ScanFilter tasks (2 per worker, parallel)
-//!  4s ─ 5s    PARTIAL    4 PartialAggregate tasks (2 per worker, parallel);
-//!                         worker-1's two tasks ship their output over the
-//!                         channel from 4.5s onwards
-//!  5s ─ 6s    FINAL      2 FinalAggregate tasks (worker-0 only)
-//!  6s ─ 7s    LIMIT      2 Limit tasks (worker-0 only)
-//!  7s ─ 8s    cleanup    operator + port statistics, then query exit and
-//!                         resource teardown in reverse-init order
-//! ```
-//!
-//! Output is declared but contributes no execution.
-//!
-//! # Task shape
-//!
-//! Each task occupies exactly 1s. Non-sender tasks (10 of 12):
-//!
-//! ```text
-//! 0ms          250ms                              1000ms
-//! ├ allocating ┼─────────── computing ────────────┤ exit
-//! ```
-//!
-//! Sender tasks (TASK_6 and TASK_7, worker-1's PartialAggregate, 2 of 12):
-//!
-//! ```text
-//! 0ms          250ms        500ms                 1000ms
-//! ├ allocating ┼─ computing ┼─────── sending ─────┤ exit
-//! ```
-//!
-//! Sender tasks use their own thread plus CHANNEL_W1_W0 (256 bytes) during
-//! their sending state, shipping worker-1's partial aggregate over to
-//! worker-0's FinalAggregate.
-//!
-//! # Topology
-//!
-//! ```text
-//! engine
-//! ├─ worker-0 (driver)
-//! │   ├─ memory          (1 KiB)
-//! │   └─ thread-pool
-//! │       ├─ thread-0
-//! │       └─ thread-1
-//! ├─ worker-1 (contributor)
-//! │   ├─ memory          (1 KiB)
-//! │   └─ thread-pool
-//! │       ├─ thread-0
-//! │       └─ thread-1
-//! └─ channel: worker-1's memory → worker-0's memory  (parented to engine)
-//! ```
-//!
-//! # Query plan
-//!
-//! Logical (5 operators, linear):
-//!
-//! ```text
-//! Scan → Filter → Aggregate → Limit → Output
-//! ```
-//!
-//! Physical, split across workers (two sub-plans of the same logical plan):
-//!
-//! ```text
-//! worker-0:  ScanFilter ─► PartialAggregate ─► FinalAggregate ─► Limit ─► Output
-//! worker-1:  ScanFilter ─► PartialAggregate ─┐
-//!                                             └─ channel to worker-0's FinalAggregate
-//! ```
-//!
-//! Lowering patterns demonstrated:
-//!
-//! - `Scan + Filter → ScanFilter`                    (2:1, predicate pushdown)
-//! - `Aggregate → PartialAggregate + FinalAggregate` (1:2, partial agg split)
-//! - `Limit → Limit`, `Output → Output`              (1:1)
-//!
-//! # Mnemonic decoder ring
-//!
-//! - **UUIDs**: flat 1-based hex numbering in the trailing byte. Take the
-//!   last 1–2 hex digits of any UUID seen in a log or the UI and grep this
-//!   file for `00000001`, `00000002`, etc. Every UUID is a named const.
-//! - **Timestamps**: virtual nanoseconds anchored at 0. Whole-second ticks
-//!   are the phase boundaries listed above. Numbers are written as plain
-//!   numeric literals so they grep cleanly.
-//! - **Payloads**: trivial. `custom_attributes: Default::default()` almost
-//!   everywhere. The single exception: operator statistics carry a
-//!   `type: <kind_name>` string attribute matching the operator's declared
-//!   `type_name`, so each stats event is self-identifying.
-//!
-//! Read on if you want details.
+//! UUIDs and timestamps are plain numeric literals — grep them. Sibling:
+//! `examples/simulator/` (same model, runtime entropy).
 
 use clap::Parser;
 use quent_attributes::Attribute;
@@ -117,7 +30,6 @@ use quent_query_engine_model::{
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use quent_time::TimeUnixNanoSec;
 use uuid::{Uuid, uuid};
 
 // Top-level entities
@@ -204,9 +116,7 @@ const TASK_9: Uuid = uuid!("00000000-0000-0000-0000-000000000038");
 const TASK_10: Uuid = uuid!("00000000-0000-0000-0000-000000000039");
 const TASK_11: Uuid = uuid!("00000000-0000-0000-0000-00000000003a");
 
-// ts!(N, expr) arms the deterministic clock to N then runs expr. The first
-// timestamp() call inside expr consumes N and the override clears. ts!(N)
-// just arms the clock without running anything.
+// ts!(N, expr) sets the next timestamp() to N, then runs expr.
 macro_rules! ts {
     ($ts:expr, $($body:tt)+) => {{
         ::quent_time::set_timestamp($ts);
@@ -233,9 +143,8 @@ struct Args {
     output_dir: String,
 }
 
-// emit() reads top-to-bottom as the story of the scenario. Init creates
-// every resource handle inline (the handles drive teardown later), then
-// short helpers handle the bulky declarative phases.
+// Resource handles live in emit() so teardown at the bottom can call
+// finalizing()/exit() on them. Bulky declaration phases are in helpers below.
 fn emit(ctx: &SimulatorContext) {
     let engine_obs = ctx.engine_observer();
     let worker_obs = ctx.worker_observer();
@@ -246,8 +155,8 @@ fn emit(ctx: &SimulatorContext) {
     let tp_obs = ctx.thread_pool_observer();
     let ch_obs = ctx.channel_observer();
 
-    // Init phase (0–1s). Events spread evenly across the second so the
-    // init slot is visibly populated in the UI.
+    // Init phase (0–1s).
+    // All declarations and resource init at 0; all resource operating at 500ms.
     ts!(
         0,
         engine_obs.create(ENGINE).init(engine::Init {
@@ -260,69 +169,47 @@ fn emit(ctx: &SimulatorContext) {
         })
     );
     ts!(
-        50_000_000,
+        0,
         worker_obs.create(WORKER_0).init(worker::Init {
             parent_engine_id: Ref::new(ENGINE),
             instance_name: "worker-0".into(),
         })
     );
     ts!(
-        100_000_000,
+        0,
         worker_obs.create(WORKER_1).init(worker::Init {
             parent_engine_id: Ref::new(ENGINE),
             instance_name: "worker-1".into(),
         })
     );
-
-    // Per-worker memory (1 KiB capacity each).
-    let mut mem_w0 = ts!(
-        150_000_000,
-        mem_obs.initializing(MEMORY_W0, "memory", WORKER_0)
-    );
-    ts!(200_000_000, mem_w0.operating(Some(1024)));
-    let mut mem_w1 = ts!(
-        250_000_000,
-        mem_obs.initializing(MEMORY_W1, "memory", WORKER_1)
-    );
-    ts!(300_000_000, mem_w1.operating(Some(1024)));
-
-    // One thread pool per worker; threads parent to the pool, the pool to the worker.
+    let mut mem_w0 = ts!(0, mem_obs.initializing(MEMORY_W0, "memory", WORKER_0));
+    let mut mem_w1 = ts!(0, mem_obs.initializing(MEMORY_W1, "memory", WORKER_1));
     ts!(
-        350_000_000,
+        0,
         tp_obs.thread_pool(THREAD_POOL_W0, "thread-pool", WORKER_0)
     );
     ts!(
-        400_000_000,
+        0,
         tp_obs.thread_pool(THREAD_POOL_W1, "thread-pool", WORKER_1)
     );
-
-    // Two threads per worker.
     let mut th_w0_t0 = ts!(
-        450_000_000,
+        0,
         proc_obs.initializing(THREAD_W0_T0, "thread-0", THREAD_POOL_W0)
     );
-    ts!(500_000_000, th_w0_t0.operating());
     let mut th_w0_t1 = ts!(
-        550_000_000,
+        0,
         proc_obs.initializing(THREAD_W0_T1, "thread-1", THREAD_POOL_W0)
     );
-    ts!(600_000_000, th_w0_t1.operating());
     let mut th_w1_t0 = ts!(
-        650_000_000,
+        0,
         proc_obs.initializing(THREAD_W1_T0, "thread-0", THREAD_POOL_W1)
     );
-    ts!(700_000_000, th_w1_t0.operating());
     let mut th_w1_t1 = ts!(
-        750_000_000,
+        0,
         proc_obs.initializing(THREAD_W1_T1, "thread-1", THREAD_POOL_W1)
     );
-    ts!(800_000_000, th_w1_t1.operating());
-
-    // Channel from worker-1's memory to worker-0's memory. Parented to the
-    // engine since it crosses worker boundaries. Used by TASK_6 and TASK_7
-    // during their sending state.
     let mut channel = ts!(
-        850_000_000,
+        0,
         ch_obs.initializing(
             CHANNEL_W1_W0,
             "worker-1 → worker-0",
@@ -331,7 +218,14 @@ fn emit(ctx: &SimulatorContext) {
             MEMORY_W0
         )
     );
-    ts!(900_000_000, channel.operating(None));
+
+    ts!(500_000_000, mem_w0.operating(Some(1024)));
+    ts!(500_000_000, mem_w1.operating(Some(1024)));
+    ts!(500_000_000, th_w0_t0.operating());
+    ts!(500_000_000, th_w0_t1.operating());
+    ts!(500_000_000, th_w1_t0.operating());
+    ts!(500_000_000, th_w1_t1.operating());
+    ts!(500_000_000, channel.operating(None));
 
     // Query group declaration, just before the query starts.
     ts!(
@@ -345,63 +239,58 @@ fn emit(ctx: &SimulatorContext) {
         )
     );
 
-    // Query Init (1–2s) and Planning (2–3s). Each state lasts exactly 1s.
+    // Query init + planning at 1s; executing at 2s.
     let mut query = ts!(
         1_000_000_000,
         query_obs.init(QUERY, "test-query", Ref::new(QUERY_GROUP))
     );
-    ts!(2_000_000_000, query.planning());
+    ts!(1_000_000_000, query.planning());
 
-    // Plan declarations stagger inside the Planning second:
-    //   2.100s — logical plan + 5 ops + 8 ports
-    //   2.200s — physical plan W0 + 5 ops + 8 ports
-    //   2.300s — physical plan W1 + 2 ops + 3 ports
+    // Plan declarations: logical @ 1.1s; both physical plans @ 1.2s.
     declare_logical_plan(ctx);
     declare_physical_plan_w0(ctx);
     declare_physical_plan_w1(ctx);
 
-    // Task execution (3–7s). Operators run sequentially across the four
-    // task seconds; within each second, the two tasks per operator run in
-    // parallel on the two threads of their worker.
-    ts!(3_000_000_000, query.executing());
+    // Task execution (2–6s).
+    ts!(2_000_000_000, query.executing());
     execute_tasks(ctx);
 
-    // Statistics for every operator and port (7.001s – 7.031s), each on its
-    // own millisecond tick.
+    // Statistics at 6.1s (op + port stats share one timestamp).
     emit_operator_statistics(ctx);
     emit_port_statistics(ctx);
 
-    // Teardown (7.1–8s). Query exit first, then resources in reverse-init
-    // order (channel, threads, memories), then workers, then engine.
-    // engine.exit lands on exactly 8s.
-    ts!(7_100_000_000, query.exit());
-    ts!(7_150_000_000, channel.finalizing());
-    ts!(7_200_000_000, channel.exit());
-    ts!(7_250_000_000, th_w1_t1.finalizing());
-    ts!(7_300_000_000, th_w1_t1.exit());
-    ts!(7_350_000_000, th_w1_t0.finalizing());
-    ts!(7_400_000_000, th_w1_t0.exit());
-    ts!(7_450_000_000, th_w0_t1.finalizing());
-    ts!(7_500_000_000, th_w0_t1.exit());
-    ts!(7_550_000_000, th_w0_t0.finalizing());
-    ts!(7_600_000_000, th_w0_t0.exit());
-    ts!(7_650_000_000, mem_w1.finalizing());
-    ts!(7_700_000_000, mem_w1.exit());
-    ts!(7_750_000_000, mem_w0.finalizing());
-    ts!(7_800_000_000, mem_w0.exit());
+    // Teardown: query exit @ 6.3s; all resource finalizing @ 6.5s; all
+    // resource exit @ 6.7s; both worker exits @ 6.9s; engine exit @ 7s.
+    ts!(6_300_000_000, query.exit());
+
+    ts!(6_500_000_000, channel.finalizing());
+    ts!(6_500_000_000, th_w1_t1.finalizing());
+    ts!(6_500_000_000, th_w1_t0.finalizing());
+    ts!(6_500_000_000, th_w0_t1.finalizing());
+    ts!(6_500_000_000, th_w0_t0.finalizing());
+    ts!(6_500_000_000, mem_w1.finalizing());
+    ts!(6_500_000_000, mem_w0.finalizing());
+
+    ts!(6_700_000_000, channel.exit());
+    ts!(6_700_000_000, th_w1_t1.exit());
+    ts!(6_700_000_000, th_w1_t0.exit());
+    ts!(6_700_000_000, th_w0_t1.exit());
+    ts!(6_700_000_000, th_w0_t0.exit());
+    ts!(6_700_000_000, mem_w1.exit());
+    ts!(6_700_000_000, mem_w0.exit());
+
     ts!(
-        7_850_000_000,
+        6_900_000_000,
         worker_obs.create(WORKER_1).exit(worker::Exit)
     );
     ts!(
-        7_900_000_000,
+        6_900_000_000,
         worker_obs.create(WORKER_0).exit(worker::Exit)
     );
-    ts!(8_000_000_000, engine_obs.create(ENGINE).exit(engine::Exit));
+    ts!(7_000_000_000, engine_obs.create(ENGINE).exit(engine::Exit));
 }
 
 // Logical plan: Scan → Filter → Aggregate → Limit → Output.
-// All emitted in a 13 µs window inside the Planning second.
 fn declare_logical_plan(ctx: &SimulatorContext) {
     let plan_obs = ctx.plan_observer();
     let op_obs = ctx.operator_observer();
@@ -426,7 +315,7 @@ fn declare_logical_plan(ctx: &SimulatorContext) {
         },
     ];
     ts!(
-        2_100_000_000,
+        1_100_000_000,
         plan_obs.declaration(
             LOGICAL_PLAN,
             plan::Declaration {
@@ -441,16 +330,16 @@ fn declare_logical_plan(ctx: &SimulatorContext) {
         )
     );
 
-    let ops: [(TimeUnixNanoSec, Uuid, &str); 5] = [
-        (2_100_001_000, LOG_SCAN, "Scan"),
-        (2_100_002_000, LOG_FILTER, "Filter"),
-        (2_100_003_000, LOG_AGGREGATE, "Aggregate"),
-        (2_100_004_000, LOG_LIMIT, "Limit"),
-        (2_100_005_000, LOG_OUTPUT, "Output"),
+    let ops: [(Uuid, &str); 5] = [
+        (LOG_SCAN, "Scan"),
+        (LOG_FILTER, "Filter"),
+        (LOG_AGGREGATE, "Aggregate"),
+        (LOG_LIMIT, "Limit"),
+        (LOG_OUTPUT, "Output"),
     ];
-    for (t, id, name) in ops {
+    for (id, name) in ops {
         ts!(
-            t,
+            1_100_000_000,
             op_obs.create(id).declaration(operator::Declaration {
                 plan_id: Ref::new(LOGICAL_PLAN),
                 parent_operator_ids: vec![],
@@ -461,19 +350,19 @@ fn declare_logical_plan(ctx: &SimulatorContext) {
         );
     }
 
-    let ports: [(TimeUnixNanoSec, Uuid, Uuid, &str); 8] = [
-        (2_100_006_000, PORT_LOG_SCAN_OUT, LOG_SCAN, "out"),
-        (2_100_007_000, PORT_LOG_FILTER_IN, LOG_FILTER, "in"),
-        (2_100_008_000, PORT_LOG_FILTER_OUT, LOG_FILTER, "out"),
-        (2_100_009_000, PORT_LOG_AGGREGATE_IN, LOG_AGGREGATE, "in"),
-        (2_100_010_000, PORT_LOG_AGGREGATE_OUT, LOG_AGGREGATE, "out"),
-        (2_100_011_000, PORT_LOG_LIMIT_IN, LOG_LIMIT, "in"),
-        (2_100_012_000, PORT_LOG_LIMIT_OUT, LOG_LIMIT, "out"),
-        (2_100_013_000, PORT_LOG_OUTPUT_IN, LOG_OUTPUT, "in"),
+    let ports: [(Uuid, Uuid, &str); 8] = [
+        (PORT_LOG_SCAN_OUT, LOG_SCAN, "out"),
+        (PORT_LOG_FILTER_IN, LOG_FILTER, "in"),
+        (PORT_LOG_FILTER_OUT, LOG_FILTER, "out"),
+        (PORT_LOG_AGGREGATE_IN, LOG_AGGREGATE, "in"),
+        (PORT_LOG_AGGREGATE_OUT, LOG_AGGREGATE, "out"),
+        (PORT_LOG_LIMIT_IN, LOG_LIMIT, "in"),
+        (PORT_LOG_LIMIT_OUT, LOG_LIMIT, "out"),
+        (PORT_LOG_OUTPUT_IN, LOG_OUTPUT, "in"),
     ];
-    for (t, id, op_id, name) in ports {
+    for (id, op_id, name) in ports {
         ts!(
-            t,
+            1_100_000_000,
             port_obs.create(id).declaration(port::Declaration {
                 operator_id: Ref::new(op_id),
                 instance_name: name.into(),
@@ -484,8 +373,6 @@ fn declare_logical_plan(ctx: &SimulatorContext) {
 
 // Physical plan W0 (the driver):
 //   ScanFilter_W0 → PartialAggregate_W0 → FinalAggregate → Limit → Output
-// Parent plan is the logical plan; worker_id = WORKER_0. parent_operator_ids
-// on each physical op points back at the logical op(s) it lowered from.
 fn declare_physical_plan_w0(ctx: &SimulatorContext) {
     let plan_obs = ctx.plan_observer();
     let op_obs = ctx.operator_observer();
@@ -510,7 +397,7 @@ fn declare_physical_plan_w0(ctx: &SimulatorContext) {
         },
     ];
     ts!(
-        2_200_000_000,
+        1_200_000_000,
         plan_obs.declaration(
             PHYSICAL_PLAN_W0,
             plan::Declaration {
@@ -525,31 +412,16 @@ fn declare_physical_plan_w0(ctx: &SimulatorContext) {
         )
     );
 
-    let ops: [(TimeUnixNanoSec, Uuid, &str, &[Uuid]); 5] = [
-        (
-            2_200_001_000,
-            PHYS_SCAN_FILTER_W0,
-            "ScanFilter",
-            &[LOG_SCAN, LOG_FILTER],
-        ),
-        (
-            2_200_002_000,
-            PHYS_PARTIAL_AGG_W0,
-            "PartialAggregate",
-            &[LOG_AGGREGATE],
-        ),
-        (
-            2_200_003_000,
-            PHYS_FINAL_AGG,
-            "FinalAggregate",
-            &[LOG_AGGREGATE],
-        ),
-        (2_200_004_000, PHYS_LIMIT, "Limit", &[LOG_LIMIT]),
-        (2_200_005_000, PHYS_OUTPUT, "Output", &[LOG_OUTPUT]),
+    let ops: [(Uuid, &str, &[Uuid]); 5] = [
+        (PHYS_SCAN_FILTER_W0, "ScanFilter", &[LOG_SCAN, LOG_FILTER]),
+        (PHYS_PARTIAL_AGG_W0, "PartialAggregate", &[LOG_AGGREGATE]),
+        (PHYS_FINAL_AGG, "FinalAggregate", &[LOG_AGGREGATE]),
+        (PHYS_LIMIT, "Limit", &[LOG_LIMIT]),
+        (PHYS_OUTPUT, "Output", &[LOG_OUTPUT]),
     ];
-    for (t, id, name, parents) in ops {
+    for (id, name, parents) in ops {
         ts!(
-            t,
+            1_200_000_000,
             op_obs.create(id).declaration(operator::Declaration {
                 plan_id: Ref::new(PHYSICAL_PLAN_W0),
                 parent_operator_ids: parents.iter().map(|p| Ref::new(*p)).collect(),
@@ -560,39 +432,19 @@ fn declare_physical_plan_w0(ctx: &SimulatorContext) {
         );
     }
 
-    let ports: [(TimeUnixNanoSec, Uuid, Uuid, &str); 8] = [
-        (
-            2_200_006_000,
-            PORT_PHYS_SCAN_FILTER_W0_OUT,
-            PHYS_SCAN_FILTER_W0,
-            "out",
-        ),
-        (
-            2_200_007_000,
-            PORT_PHYS_PARTIAL_AGG_W0_IN,
-            PHYS_PARTIAL_AGG_W0,
-            "in",
-        ),
-        (
-            2_200_008_000,
-            PORT_PHYS_PARTIAL_AGG_W0_OUT,
-            PHYS_PARTIAL_AGG_W0,
-            "out",
-        ),
-        (2_200_009_000, PORT_PHYS_FINAL_AGG_IN, PHYS_FINAL_AGG, "in"),
-        (
-            2_200_010_000,
-            PORT_PHYS_FINAL_AGG_OUT,
-            PHYS_FINAL_AGG,
-            "out",
-        ),
-        (2_200_011_000, PORT_PHYS_LIMIT_IN, PHYS_LIMIT, "in"),
-        (2_200_012_000, PORT_PHYS_LIMIT_OUT, PHYS_LIMIT, "out"),
-        (2_200_013_000, PORT_PHYS_OUTPUT_IN, PHYS_OUTPUT, "in"),
+    let ports: [(Uuid, Uuid, &str); 8] = [
+        (PORT_PHYS_SCAN_FILTER_W0_OUT, PHYS_SCAN_FILTER_W0, "out"),
+        (PORT_PHYS_PARTIAL_AGG_W0_IN, PHYS_PARTIAL_AGG_W0, "in"),
+        (PORT_PHYS_PARTIAL_AGG_W0_OUT, PHYS_PARTIAL_AGG_W0, "out"),
+        (PORT_PHYS_FINAL_AGG_IN, PHYS_FINAL_AGG, "in"),
+        (PORT_PHYS_FINAL_AGG_OUT, PHYS_FINAL_AGG, "out"),
+        (PORT_PHYS_LIMIT_IN, PHYS_LIMIT, "in"),
+        (PORT_PHYS_LIMIT_OUT, PHYS_LIMIT, "out"),
+        (PORT_PHYS_OUTPUT_IN, PHYS_OUTPUT, "in"),
     ];
-    for (t, id, op_id, name) in ports {
+    for (id, op_id, name) in ports {
         ts!(
-            t,
+            1_200_000_000,
             port_obs.create(id).declaration(port::Declaration {
                 operator_id: Ref::new(op_id),
                 instance_name: name.into(),
@@ -603,7 +455,7 @@ fn declare_physical_plan_w0(ctx: &SimulatorContext) {
 
 // Physical plan W1 (the contributor):
 //   ScanFilter_W1 → PartialAggregate_W1
-// Cross-worker edge to FinalAggregate is implicit; data flows via CHANNEL_W1_W0.
+// PartialAggregate_W1's output goes to W0's FinalAggregate via CHANNEL_W1_W0.
 fn declare_physical_plan_w1(ctx: &SimulatorContext) {
     let plan_obs = ctx.plan_observer();
     let op_obs = ctx.operator_observer();
@@ -614,7 +466,7 @@ fn declare_physical_plan_w1(ctx: &SimulatorContext) {
         target: Ref::new(PORT_PHYS_PARTIAL_AGG_W1_IN),
     }];
     ts!(
-        2_300_000_000,
+        1_200_000_000,
         plan_obs.declaration(
             PHYSICAL_PLAN_W1,
             plan::Declaration {
@@ -629,23 +481,13 @@ fn declare_physical_plan_w1(ctx: &SimulatorContext) {
         )
     );
 
-    let ops: [(TimeUnixNanoSec, Uuid, &str, &[Uuid]); 2] = [
-        (
-            2_300_001_000,
-            PHYS_SCAN_FILTER_W1,
-            "ScanFilter",
-            &[LOG_SCAN, LOG_FILTER],
-        ),
-        (
-            2_300_002_000,
-            PHYS_PARTIAL_AGG_W1,
-            "PartialAggregate",
-            &[LOG_AGGREGATE],
-        ),
+    let ops: [(Uuid, &str, &[Uuid]); 2] = [
+        (PHYS_SCAN_FILTER_W1, "ScanFilter", &[LOG_SCAN, LOG_FILTER]),
+        (PHYS_PARTIAL_AGG_W1, "PartialAggregate", &[LOG_AGGREGATE]),
     ];
-    for (t, id, name, parents) in ops {
+    for (id, name, parents) in ops {
         ts!(
-            t,
+            1_200_000_000,
             op_obs.create(id).declaration(operator::Declaration {
                 plan_id: Ref::new(PHYSICAL_PLAN_W1),
                 parent_operator_ids: parents.iter().map(|p| Ref::new(*p)).collect(),
@@ -656,29 +498,14 @@ fn declare_physical_plan_w1(ctx: &SimulatorContext) {
         );
     }
 
-    let ports: [(TimeUnixNanoSec, Uuid, Uuid, &str); 3] = [
-        (
-            2_300_003_000,
-            PORT_PHYS_SCAN_FILTER_W1_OUT,
-            PHYS_SCAN_FILTER_W1,
-            "out",
-        ),
-        (
-            2_300_004_000,
-            PORT_PHYS_PARTIAL_AGG_W1_IN,
-            PHYS_PARTIAL_AGG_W1,
-            "in",
-        ),
-        (
-            2_300_005_000,
-            PORT_PHYS_PARTIAL_AGG_W1_OUT,
-            PHYS_PARTIAL_AGG_W1,
-            "out",
-        ),
+    let ports: [(Uuid, Uuid, &str); 3] = [
+        (PORT_PHYS_SCAN_FILTER_W1_OUT, PHYS_SCAN_FILTER_W1, "out"),
+        (PORT_PHYS_PARTIAL_AGG_W1_IN, PHYS_PARTIAL_AGG_W1, "in"),
+        (PORT_PHYS_PARTIAL_AGG_W1_OUT, PHYS_PARTIAL_AGG_W1, "out"),
     ];
-    for (t, id, op_id, name) in ports {
+    for (id, op_id, name) in ports {
         ts!(
-            t,
+            1_200_000_000,
             port_obs.create(id).declaration(port::Declaration {
                 operator_id: Ref::new(op_id),
                 instance_name: name.into(),
@@ -687,34 +514,32 @@ fn declare_physical_plan_w1(ctx: &SimulatorContext) {
     }
 }
 
-// 12 tasks on a clean 1-second grid. Operators run sequentially (3s ScanFilter,
-// 4s PartialAggregate, 5s FinalAggregate, 6s Limit); within each operator's
-// second the two tasks run in parallel on the two threads of their worker.
-// Each task: queueing + allocating at slot start, computing at +250ms,
-// exit at slot end. Sender tasks (TASK_6/7 on PartialAggregate_W1) add a
-// `sending` transition at slot+500ms.
+// 12 tasks, one operator per second (Scan 2s, PA 3s, FA 4s, Limit 5s).
+// Each operator's two tasks run in parallel on its worker's two threads.
+// Per-task: queueing + allocating at slot start, computing at +250ms,
+// exit at slot end. The two PA_W1 tasks also emit a `sending` at slot+500ms.
 fn execute_tasks(ctx: &SimulatorContext) {
     let task_obs = ctx.task_observer();
 
     #[rustfmt::skip]
     let tasks = [
         // (task, operator, t_q, t_a, t_c, t_e, thread, memory)
-        // ScanFilter: 3–4s, parallel on both workers' threads.
-        (TASK_0,  PHYS_SCAN_FILTER_W0, 3_000_000_000_u64, 3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W0_T0, MEMORY_W0),
-        (TASK_1,  PHYS_SCAN_FILTER_W0, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W0_T1, MEMORY_W0),
-        (TASK_2,  PHYS_SCAN_FILTER_W1, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W1_T0, MEMORY_W1),
-        (TASK_3,  PHYS_SCAN_FILTER_W1, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W1_T1, MEMORY_W1),
-        // PartialAggregate: 4–5s, parallel on both workers' threads.
-        (TASK_4,  PHYS_PARTIAL_AGG_W0, 4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W0_T0, MEMORY_W0),
-        (TASK_5,  PHYS_PARTIAL_AGG_W0, 4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W0_T1, MEMORY_W0),
-        (TASK_6,  PHYS_PARTIAL_AGG_W1, 4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W1_T0, MEMORY_W1),
-        (TASK_7,  PHYS_PARTIAL_AGG_W1, 4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W1_T1, MEMORY_W1),
-        // FinalAggregate: 5–6s, parallel on worker-0's threads.
-        (TASK_8,  PHYS_FINAL_AGG,      5_000_000_000,     5_000_000_000, 5_250_000_000, 6_000_000_000, THREAD_W0_T0, MEMORY_W0),
-        (TASK_9,  PHYS_FINAL_AGG,      5_000_000_000,     5_000_000_000, 5_250_000_000, 6_000_000_000, THREAD_W0_T1, MEMORY_W0),
-        // Limit: 6–7s, parallel on worker-0's threads.
-        (TASK_10, PHYS_LIMIT,          6_000_000_000,     6_000_000_000, 6_250_000_000, 7_000_000_000, THREAD_W0_T0, MEMORY_W0),
-        (TASK_11, PHYS_LIMIT,          6_000_000_000,     6_000_000_000, 6_250_000_000, 7_000_000_000, THREAD_W0_T1, MEMORY_W0),
+        // ScanFilter: 2–3s, parallel on both workers' threads.
+        (TASK_0,  PHYS_SCAN_FILTER_W0, 2_000_000_000_u64, 2_000_000_000, 2_250_000_000, 3_000_000_000, THREAD_W0_T0, MEMORY_W0),
+        (TASK_1,  PHYS_SCAN_FILTER_W0, 2_000_000_000,     2_000_000_000, 2_250_000_000, 3_000_000_000, THREAD_W0_T1, MEMORY_W0),
+        (TASK_2,  PHYS_SCAN_FILTER_W1, 2_000_000_000,     2_000_000_000, 2_250_000_000, 3_000_000_000, THREAD_W1_T0, MEMORY_W1),
+        (TASK_3,  PHYS_SCAN_FILTER_W1, 2_000_000_000,     2_000_000_000, 2_250_000_000, 3_000_000_000, THREAD_W1_T1, MEMORY_W1),
+        // PartialAggregate: 3–4s, parallel on both workers' threads.
+        (TASK_4,  PHYS_PARTIAL_AGG_W0, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W0_T0, MEMORY_W0),
+        (TASK_5,  PHYS_PARTIAL_AGG_W0, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W0_T1, MEMORY_W0),
+        (TASK_6,  PHYS_PARTIAL_AGG_W1, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W1_T0, MEMORY_W1),
+        (TASK_7,  PHYS_PARTIAL_AGG_W1, 3_000_000_000,     3_000_000_000, 3_250_000_000, 4_000_000_000, THREAD_W1_T1, MEMORY_W1),
+        // FinalAggregate: 4–5s, parallel on worker-0's threads.
+        (TASK_8,  PHYS_FINAL_AGG,      4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W0_T0, MEMORY_W0),
+        (TASK_9,  PHYS_FINAL_AGG,      4_000_000_000,     4_000_000_000, 4_250_000_000, 5_000_000_000, THREAD_W0_T1, MEMORY_W0),
+        // Limit: 5–6s, parallel on worker-0's threads.
+        (TASK_10, PHYS_LIMIT,          5_000_000_000,     5_000_000_000, 5_250_000_000, 6_000_000_000, THREAD_W0_T0, MEMORY_W0),
+        (TASK_11, PHYS_LIMIT,          5_000_000_000,     5_000_000_000, 5_250_000_000, 6_000_000_000, THREAD_W0_T1, MEMORY_W0),
     ];
     for (task_id, op_id, t_q, t_a, t_c, t_e, thread, memory) in tasks {
         let mut task = ts!(t_q, task_obs.queueing(task_id, "task", op_id));
@@ -739,30 +564,28 @@ fn execute_tasks(ctx: &SimulatorContext) {
     }
 }
 
-// Operator statistics — one event per operator (5 logical + 7 physical = 12),
-// emitted on 1ms ticks starting at 7.001s. The `type` attribute matches the
-// operator's declared type_name so each stats event is self-identifying.
+// Operator statistics — one per operator (12 total), all at 6.1s.
+// The `type` attribute echoes the operator's type_name.
 fn emit_operator_statistics(ctx: &SimulatorContext) {
     let op_obs = ctx.operator_observer();
 
-    #[rustfmt::skip]
-    let op_stats: [(TimeUnixNanoSec, Uuid, &str); 12] = [
-        (7_001_000_000, LOG_SCAN,             "Scan"),
-        (7_002_000_000, LOG_FILTER,           "Filter"),
-        (7_003_000_000, LOG_AGGREGATE,        "Aggregate"),
-        (7_004_000_000, LOG_LIMIT,            "Limit"),
-        (7_005_000_000, LOG_OUTPUT,           "Output"),
-        (7_006_000_000, PHYS_SCAN_FILTER_W0,  "ScanFilter"),
-        (7_007_000_000, PHYS_SCAN_FILTER_W1,  "ScanFilter"),
-        (7_008_000_000, PHYS_PARTIAL_AGG_W0,  "PartialAggregate"),
-        (7_009_000_000, PHYS_PARTIAL_AGG_W1,  "PartialAggregate"),
-        (7_010_000_000, PHYS_FINAL_AGG,       "FinalAggregate"),
-        (7_011_000_000, PHYS_LIMIT,           "Limit"),
-        (7_012_000_000, PHYS_OUTPUT,          "Output"),
+    let op_stats: [(Uuid, &str); 12] = [
+        (LOG_SCAN, "Scan"),
+        (LOG_FILTER, "Filter"),
+        (LOG_AGGREGATE, "Aggregate"),
+        (LOG_LIMIT, "Limit"),
+        (LOG_OUTPUT, "Output"),
+        (PHYS_SCAN_FILTER_W0, "ScanFilter"),
+        (PHYS_SCAN_FILTER_W1, "ScanFilter"),
+        (PHYS_PARTIAL_AGG_W0, "PartialAggregate"),
+        (PHYS_PARTIAL_AGG_W1, "PartialAggregate"),
+        (PHYS_FINAL_AGG, "FinalAggregate"),
+        (PHYS_LIMIT, "Limit"),
+        (PHYS_OUTPUT, "Output"),
     ];
-    for (t, op_id, type_name) in op_stats {
+    for (op_id, type_name) in op_stats {
         ts!(
-            t,
+            6_100_000_000,
             op_obs.create(op_id).statistics(operator::Statistics {
                 custom_attributes: vec![Attribute::string("type", type_name)].into(),
             })
@@ -770,35 +593,34 @@ fn emit_operator_statistics(ctx: &SimulatorContext) {
     }
 }
 
-// Port statistics — one event per port (8 logical + 11 physical = 19),
-// emitted on 1ms ticks starting at 7.013s. Empty payload.
+// Port statistics — one per port (19 total), all at 6.1s (same group as op stats).
 fn emit_port_statistics(ctx: &SimulatorContext) {
     let port_obs = ctx.port_observer();
 
-    let port_stats: [(TimeUnixNanoSec, Uuid); 19] = [
-        (7_013_000_000, PORT_LOG_SCAN_OUT),
-        (7_014_000_000, PORT_LOG_FILTER_IN),
-        (7_015_000_000, PORT_LOG_FILTER_OUT),
-        (7_016_000_000, PORT_LOG_AGGREGATE_IN),
-        (7_017_000_000, PORT_LOG_AGGREGATE_OUT),
-        (7_018_000_000, PORT_LOG_LIMIT_IN),
-        (7_019_000_000, PORT_LOG_LIMIT_OUT),
-        (7_020_000_000, PORT_LOG_OUTPUT_IN),
-        (7_021_000_000, PORT_PHYS_SCAN_FILTER_W0_OUT),
-        (7_022_000_000, PORT_PHYS_SCAN_FILTER_W1_OUT),
-        (7_023_000_000, PORT_PHYS_PARTIAL_AGG_W0_IN),
-        (7_024_000_000, PORT_PHYS_PARTIAL_AGG_W1_IN),
-        (7_025_000_000, PORT_PHYS_PARTIAL_AGG_W0_OUT),
-        (7_026_000_000, PORT_PHYS_PARTIAL_AGG_W1_OUT),
-        (7_027_000_000, PORT_PHYS_FINAL_AGG_IN),
-        (7_028_000_000, PORT_PHYS_FINAL_AGG_OUT),
-        (7_029_000_000, PORT_PHYS_LIMIT_IN),
-        (7_030_000_000, PORT_PHYS_LIMIT_OUT),
-        (7_031_000_000, PORT_PHYS_OUTPUT_IN),
+    let port_stats: [Uuid; 19] = [
+        PORT_LOG_SCAN_OUT,
+        PORT_LOG_FILTER_IN,
+        PORT_LOG_FILTER_OUT,
+        PORT_LOG_AGGREGATE_IN,
+        PORT_LOG_AGGREGATE_OUT,
+        PORT_LOG_LIMIT_IN,
+        PORT_LOG_LIMIT_OUT,
+        PORT_LOG_OUTPUT_IN,
+        PORT_PHYS_SCAN_FILTER_W0_OUT,
+        PORT_PHYS_SCAN_FILTER_W1_OUT,
+        PORT_PHYS_PARTIAL_AGG_W0_IN,
+        PORT_PHYS_PARTIAL_AGG_W1_IN,
+        PORT_PHYS_PARTIAL_AGG_W0_OUT,
+        PORT_PHYS_PARTIAL_AGG_W1_OUT,
+        PORT_PHYS_FINAL_AGG_IN,
+        PORT_PHYS_FINAL_AGG_OUT,
+        PORT_PHYS_LIMIT_IN,
+        PORT_PHYS_LIMIT_OUT,
+        PORT_PHYS_OUTPUT_IN,
     ];
-    for (t, port_id) in port_stats {
+    for port_id in port_stats {
         ts!(
-            t,
+            6_100_000_000,
             port_obs.create(port_id).statistics(port::Statistics {
                 custom_attributes: Default::default(),
             })
