@@ -2271,6 +2271,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-v2-instrumentation"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "quent-exporter",
+ "quent-exporter-types",
+ "thiserror 2.0.18",
+ "uuid",
+]
+
+[[package]]
 name = "quent-v2-model"
 version = "0.1.0"
 dependencies = [

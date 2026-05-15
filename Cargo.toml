@@ -22,6 +22,7 @@ members = [
     "crates/time",
     "crates/ui",
     # temporary crates, to become the above later
+    "crates/v2/instrumentation",
     "crates/v2/model",
     "crates/v2/model-ir",
     "crates/v2/model-macros",

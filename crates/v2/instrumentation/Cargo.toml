@@ -1,0 +1,12 @@
+[package]
+name = "quent-v2-instrumentation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-events = { path = "../../events" }
+quent-exporter = { path = "../../exporter" }
+quent-exporter-types = { path = "../../exporter/types" }
+thiserror.workspace = true
+uuid = { workspace = true, features = ["v7"] }

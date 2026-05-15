@@ -2,29 +2,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
 
-pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
-    let name = &input.ident;
-    let name_str = name.to_string();
-
-    if !input.generics.params.is_empty() {
-        return Err(syn::Error::new_spanned(
-            &input.generics,
-            "#[derive(Entity)] does not support generics",
-        ));
-    }
-
-    match &input.data {
-        syn::Data::Struct(s) => expand_struct(name, &name_str, &s.fields, &input),
-        syn::Data::Enum(e) => expand_enum(name, &name_str, &e.variants, &input),
-        syn::Data::Union(u) => Err(syn::Error::new_spanned(
-            u.union_token,
-            "#[derive(Entity)] not supported for union, use struct or enum",
-        )),
-    }
-}
-
 /// Expand a struct into a single-event entity.
-fn expand_struct(
+pub fn expand_struct(
     name: &syn::Ident,
     name_str: &str,
     fields: &syn::Fields,
@@ -111,7 +90,7 @@ fn expand_struct(
 // - Named fields: at least one called payload, plus others depending on the
 // entity qualification. To simplify things for now :tm:, this validation is not
 // done in this derive macro yet.
-fn expand_enum(
+pub fn expand_enum(
     name: &syn::Ident,
     name_str: &str,
     variants: &Punctuated<Variant, Token![,]>,
