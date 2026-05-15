@@ -2287,10 +2287,9 @@ version = "0.1.0"
 dependencies = [
  "petgraph",
  "quent-attributes",
- "quent-events",
  "quent-exporter",
- "quent-instrumentation",
  "quent-time",
+ "quent-v2-instrumentation",
  "quent-v2-model-ir",
  "quent-v2-model-macros",
  "serde",

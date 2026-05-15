@@ -1,3 +1,5 @@
+use quent_exporter::NdjsonExporterOptions;
+use quent_v2_instrumentation::{ExporterOptions, Observer};
 use quent_v2_model::{Attributes, Entity};
 use quent_v2_model_ir::{
     attributes::EntityRefTarget,
@@ -5,6 +7,7 @@ use quent_v2_model_ir::{
     event::{Cardinality, Event, Field},
     value_type::{ModelEntityRefTarget, ValueType},
 };
+use uuid::Uuid;
 
 mod utils;
 
@@ -29,6 +32,16 @@ fn unit_struct() {
         Unit0::model_entity_ref_target(),
         EntityRefTarget::Specific("Unit0".into())
     );
+
+    let foo_obs = Unit0Observer::new(
+        Uuid::now_v7(),
+        ExporterOptions::Ndjson(NdjsonExporterOptions {
+            output_dir: "foo".into(),
+        }),
+    )
+    .unwrap();
+    let foo_inst = foo_obs.handle();
+    foo_inst.emit(Unit0).unwrap();
 
     #[derive(Entity)]
     struct Unit1 {}
