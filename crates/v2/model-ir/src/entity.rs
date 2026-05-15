@@ -1,6 +1,6 @@
 use crate::{
-    ir::{event::Event, qualifications::Qualification},
     validator::qualifications::QualificationCheck,
+    {event::Event, qualifications::Qualification},
 };
 
 /// Trait to obtain the IR of a type representing an entity.

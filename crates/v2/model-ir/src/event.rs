@@ -1,4 +1,4 @@
-use crate::ir::value_type::ValueType;
+use crate::value_type::ValueType;
 
 /// IR of the cardinality of an event.
 #[derive(Debug, PartialEq, Eq)]

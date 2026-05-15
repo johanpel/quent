@@ -6,7 +6,9 @@ use petgraph::{
 };
 
 use crate::{
-    ir::qualifications::{
+    Model,
+    entity::Entity,
+    qualifications::{
         Qualification,
         fsm::{Fsm, State},
     },
@@ -25,10 +27,7 @@ impl<'a> TryFrom<&'a Qualification> for &'a Fsm {
 }
 
 impl QualificationCheck for Fsm {
-    fn qualifies(
-        _model: &crate::ir::Model,
-        entity: &crate::ir::entity::Entity,
-    ) -> Result<(), QualificationError> {
+    fn qualifies(_model: &Model, entity: &Entity) -> Result<(), QualificationError> {
         // Sanity check:
         let fsm: &Fsm = entity
             .qualification()

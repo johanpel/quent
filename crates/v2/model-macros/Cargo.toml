@@ -16,3 +16,4 @@ convert_case = "0.8"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
+quent-v2-model-ir = { path = "../model-ir" }

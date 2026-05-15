@@ -2,19 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod entity;
+pub mod entity_ref;
 pub mod fsm;
-pub mod ir;
 pub mod resource;
 pub mod resource_group;
-pub mod validator;
 
 // TODO: remove when done
 // mod brainstorm;
 
 // user facing exports
-pub use entity::{
-    AnyEntity, EntityDeclaration, EntityHandle, EntityRef, IntoErased, ObserverError, PlainRef,
-};
+pub use entity::{EntityDeclaration, EntityHandle, ObserverError};
 pub use fsm::Transition;
 pub use resource::{
     Bounded, Capacity, CapacityValue, Fixed, Occupancy, OccupancyBound, Rate, RateBound, Resizable,

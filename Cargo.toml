@@ -23,6 +23,7 @@ members = [
     "crates/ui",
     # temporary crates, to become the above later
     "crates/v2/model",
+    "crates/v2/model-ir",
     "crates/v2/model-macros",
     # Domain-specific crates
     "domains/query_engine/analyzer",

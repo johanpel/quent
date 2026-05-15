@@ -1,4 +1,4 @@
-use crate::ir::qualifications::{
+use crate::qualifications::{
     fsm::Fsm,
     resource::{Resource, ResourceRefKind},
     resource_group::{ResourceGroup, RgRefKind},

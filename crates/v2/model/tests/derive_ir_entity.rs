@@ -1,11 +1,9 @@
-use quent_v2_model::{
-    Attributes, Entity,
-    ir::{
-        attributes::EntityRefTarget,
-        entity::{Entity, ModelEntity},
-        event::{Cardinality, Event, Field},
-        value_type::{ModelEntityRefTarget, ValueType},
-    },
+use quent_v2_model::{Attributes, Entity};
+use quent_v2_model_ir::{
+    attributes::EntityRefTarget,
+    entity::{Entity, ModelEntity},
+    event::{Cardinality, Event, Field},
+    value_type::{ModelEntityRefTarget, ValueType},
 };
 
 mod utils;

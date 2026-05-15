@@ -51,18 +51,18 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         let field_name = &f.ident.as_ref().unwrap().to_string();
         let field_type = &f.ty;
         quote! {
-            ::quent_v2_model::ir::attributes::Field {
+            ::quent_v2_model_ir::attributes::Field {
                 name: #field_name.to_string(),
-                ty: <#field_type as ::quent_v2_model::ir::value_type::ModelValueType>::model_value_type(),
+                ty: <#field_type as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
             }
         }
     });
 
     // Emit the traits that produce the IR from this type
     Ok(quote! {
-        impl ::quent_v2_model::ir::attributes::ModelAttributes for #name_ident {
-            fn model_attributes() -> ::quent_v2_model::ir::attributes::Attributes {
-                ::quent_v2_model::ir::attributes::Attributes {
+        impl ::quent_v2_model_ir::attributes::ModelAttributes for #name_ident {
+            fn model_attributes() -> ::quent_v2_model_ir::attributes::Attributes {
+                ::quent_v2_model_ir::attributes::Attributes {
                     name: #name_string.to_string(),
                     rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
                     fields: ::std::vec![
@@ -72,9 +72,9 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::quent_v2_model::ir::value_type::ModelValueType for #name_ident {
-            fn model_value_type() -> ::quent_v2_model::ir::value_type::ValueType {
-                ::quent_v2_model::ir::value_type::ValueType::Attributes(#name_string.to_string())
+        impl ::quent_v2_model_ir::value_type::ModelValueType for #name_ident {
+            fn model_value_type() -> ::quent_v2_model_ir::value_type::ValueType {
+                ::quent_v2_model_ir::value_type::ValueType::Attributes(#name_string.to_string())
             }
         }
     })

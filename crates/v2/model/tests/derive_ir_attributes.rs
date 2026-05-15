@@ -1,9 +1,10 @@
 use quent_v2_model::{
-    AnyEntity, Attributes, EntityRef, Usage,
-    ir::{
-        attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
-        value_type::{ModelValueType, ValueType},
-    },
+    Attributes,
+    entity_ref::{AnyEntity, EntityRef},
+};
+use quent_v2_model_ir::{
+    attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
+    value_type::{ModelValueType, ValueType},
 };
 
 mod utils;

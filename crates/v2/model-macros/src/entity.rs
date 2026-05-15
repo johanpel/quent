@@ -44,9 +44,9 @@ fn expand_struct(
         impl ::quent_v2_model::EntityDeclaration for #name {}
     };
     let entity_ref_target = quote! {
-        impl ::quent_v2_model::ir::value_type::ModelEntityRefTarget for #name {
-            fn model_entity_ref_target() -> ::quent_v2_model::ir::attributes::EntityRefTarget {
-                ::quent_v2_model::ir::attributes::EntityRefTarget::Specific(
+        impl ::quent_v2_model_ir::value_type::ModelEntityRefTarget for #name {
+            fn model_entity_ref_target() -> ::quent_v2_model_ir::attributes::EntityRefTarget {
+                ::quent_v2_model_ir::attributes::EntityRefTarget::Specific(
                     #name_str.to_string()
                 )
             }
@@ -54,18 +54,18 @@ fn expand_struct(
     };
 
     let entity = quote! {
-        impl ::quent_v2_model::ir::entity::ModelEntity for #name {
-            fn model_entity() -> ::quent_v2_model::ir::entity::Entity {
-                ::quent_v2_model::ir::entity::Entity {
+        impl ::quent_v2_model_ir::entity::ModelEntity for #name {
+            fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
+                ::quent_v2_model_ir::entity::Entity {
                     name: #name_str.to_string(),
                     events: ::std::vec![
-                        ::quent_v2_model::ir::event::Event {
+                        ::quent_v2_model_ir::event::Event {
                             name: #name_str.to_string(),
-                            cardinality: ::quent_v2_model::ir::event::Cardinality::Once,
+                            cardinality: ::quent_v2_model_ir::event::Cardinality::Once,
                             payload: ::std::vec![
-                                ::quent_v2_model::ir::event::Field::new(
+                                ::quent_v2_model_ir::event::Field::new(
                                     "payload",
-                                    ::quent_v2_model::ir::value_type::ValueType::Attributes(
+                                    ::quent_v2_model_ir::value_type::ValueType::Attributes(
                                         #name_str.to_string()
                                     ),
                                 )
@@ -129,9 +129,9 @@ fn expand_enum(
         impl ::quent_v2_model::EntityDeclaration for #name {}
     };
     let entity_ref_target = quote! {
-        impl ::quent_v2_model::ir::value_type::ModelEntityRefTarget for #name {
-            fn model_entity_ref_target() -> ::quent_v2_model::ir::attributes::EntityRefTarget {
-                ::quent_v2_model::ir::attributes::EntityRefTarget::Specific(
+        impl ::quent_v2_model_ir::value_type::ModelEntityRefTarget for #name {
+            fn model_entity_ref_target() -> ::quent_v2_model_ir::attributes::EntityRefTarget {
+                ::quent_v2_model_ir::attributes::EntityRefTarget::Specific(
                     #name_str.to_string()
                 )
             }
@@ -145,9 +145,9 @@ fn expand_enum(
         .collect::<syn::Result<_>>()?;
 
     let entity = quote! {
-        impl ::quent_v2_model::ir::entity::ModelEntity for #name {
-            fn model_entity() -> ::quent_v2_model::ir::entity::Entity {
-                ::quent_v2_model::ir::entity::Entity {
+        impl ::quent_v2_model_ir::entity::ModelEntity for #name {
+            fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
+                ::quent_v2_model_ir::entity::Entity {
                     name: #name_str.to_string(),
                     events: ::std::vec![ #(#events),* ],
                     qualifications: ::std::vec::Vec::new(),
@@ -174,7 +174,7 @@ fn expand_variant(v: &Variant) -> syn::Result<TokenStream> {
     let payload = expand_variant_payload(&v.fields, v)?;
 
     Ok(quote! {
-        ::quent_v2_model::ir::event::Event {
+        ::quent_v2_model_ir::event::Event {
             name: #variant_name.to_string(),
             cardinality: #cardinality,
             payload: #payload,
@@ -202,9 +202,9 @@ fn parse_cardinality(attrs: &[syn::Attribute]) -> syn::Result<TokenStream> {
     }
 
     Ok(if is_multi {
-        quote! { ::quent_v2_model::ir::event::Cardinality::Multi }
+        quote! { ::quent_v2_model_ir::event::Cardinality::Multi }
     } else {
-        quote! { ::quent_v2_model::ir::event::Cardinality::Once }
+        quote! { ::quent_v2_model_ir::event::Cardinality::Once }
     })
 }
 
@@ -215,9 +215,9 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
             let ty = &u.unnamed.first().unwrap().ty;
             Ok(quote! {
                 ::std::vec![
-                    ::quent_v2_model::ir::event::Field::new(
+                    ::quent_v2_model_ir::event::Field::new(
                         "payload",
-                        <#ty as ::quent_v2_model::ir::value_type::ModelValueType>::model_value_type(),
+                        <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
                     )
                 ]
             })
@@ -231,9 +231,9 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
                 let field_name = f.ident.as_ref().unwrap().to_string();
                 let ty = &f.ty;
                 quote! {
-                    ::quent_v2_model::ir::event::Field::new(
+                    ::quent_v2_model_ir::event::Field::new(
                         #field_name.to_string(),
-                        <#ty as ::quent_v2_model::ir::value_type::ModelValueType>::model_value_type(),
+                        <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
                     )
                 }
             });

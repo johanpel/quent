@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::entity::{EntityDeclaration, EntityRef, IntoErased, PlainRef};
+use crate::{
+    entity::EntityDeclaration,
+    entity_ref::{EntityRef, IntoErased, PlainRef},
+};
 
 use std::marker::PhantomData;
 

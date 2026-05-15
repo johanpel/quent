@@ -32,6 +32,7 @@ pub mod attributes;
 pub mod entity;
 pub mod event;
 pub mod qualifications;
+pub mod validator;
 pub mod value_type;
 
 /// IR of an application model.

@@ -1,10 +1,4 @@
-use crate::{
-    AnyEntity, AnyRg, EntityDeclaration, EntityRef, PlainRef, RgParentRef,
-    ir::{
-        attributes::{EntityRefKind, EntityRefTarget},
-        qualifications::{QualificationKind, QualificationRefKind, resource_group::RgRefKind},
-    },
-};
+use crate::attributes::{EntityRefKind, EntityRefTarget};
 
 /// Trait to obtain the IR of a Rust type.
 pub trait ModelValueType {
@@ -112,42 +106,5 @@ impl<T: ModelValueType> ModelValueType for Option<T> {
 impl<T: ModelValueType> ModelValueType for Vec<T> {
     fn model_value_type() -> ValueType {
         ValueType::List(Box::new(T::model_value_type()))
-    }
-}
-
-impl<E, R> ModelValueType for EntityRef<E, R>
-where
-    E: EntityDeclaration + ModelEntityRefTarget,
-    R: ModelEntityRefKind,
-{
-    fn model_value_type() -> ValueType {
-        ValueType::EntityRef {
-            entity_type: E::model_entity_ref_target(),
-            role_type: R::model_entity_ref_kind(),
-        }
-    }
-}
-
-impl ModelEntityRefTarget for AnyEntity {
-    fn model_entity_ref_target() -> EntityRefTarget {
-        EntityRefTarget::Any
-    }
-}
-
-impl ModelEntityRefTarget for AnyRg {
-    fn model_entity_ref_target() -> EntityRefTarget {
-        EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup)
-    }
-}
-
-impl ModelEntityRefKind for PlainRef {
-    fn model_entity_ref_kind() -> EntityRefKind {
-        EntityRefKind::Plain
-    }
-}
-
-impl ModelEntityRefKind for RgParentRef {
-    fn model_entity_ref_kind() -> EntityRefKind {
-        EntityRefKind::Qualification(QualificationRefKind::ResourceGroup(RgRefKind::Parent))
     }
 }

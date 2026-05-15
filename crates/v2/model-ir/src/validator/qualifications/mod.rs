@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::ir::{Model, entity::Entity};
+use crate::{Model, entity::Entity};
 
 mod fsm;
 mod resource;

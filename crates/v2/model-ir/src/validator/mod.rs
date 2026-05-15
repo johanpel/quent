@@ -1,12 +1,8 @@
 use thiserror::Error;
 
 use crate::{
-    ir::{
-        Model,
-        qualifications::{
-            Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup,
-        },
-    },
+    Model,
+    qualifications::{Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup},
     validator::qualifications::{QualificationCheck, QualificationError},
 };
 

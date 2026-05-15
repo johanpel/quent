@@ -1,4 +1,4 @@
-use crate::ir::{
+use crate::{
     qualifications::{QualificationKind, QualificationRefKind},
     value_type::ValueType,
 };

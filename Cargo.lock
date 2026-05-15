@@ -2280,7 +2280,25 @@ dependencies = [
  "quent-exporter",
  "quent-instrumentation",
  "quent-time",
+ "quent-v2-model-ir",
  "quent-v2-model-macros",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "trybuild",
+ "uuid",
+]
+
+[[package]]
+name = "quent-v2-model-ir"
+version = "0.1.0"
+dependencies = [
+ "petgraph",
+ "quent-attributes",
+ "quent-events",
+ "quent-exporter",
+ "quent-instrumentation",
+ "quent-time",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2294,6 +2312,7 @@ version = "0.1.0"
 dependencies = [
  "convert_case",
  "proc-macro2",
+ "quent-v2-model-ir",
  "quote",
  "syn",
 ]
