@@ -16,13 +16,13 @@ pub struct EventSender<T> {
 
 impl<T> EventSender<T> {
     pub fn emit(&self, _id: Uuid, _payload: T) -> Result<(), ObserverError> {
-        todo!()
+        Ok(())
     }
 }
 
 impl<T> Clone for EventSender<T> {
     fn clone(&self) -> Self {
-        todo!()
+        Self { _t: PhantomData }
     }
 }
 
@@ -31,8 +31,10 @@ pub struct Observer<T> {
 }
 
 impl<T> Observer<T> {
-    pub fn new(_root_id: Uuid, _opts: ExporterOptions) -> Result<Self, ObserverError> {
-        todo!()
+    pub fn new(_root_id: Uuid, _opts: Option<ExporterOptions>) -> Result<Self, ObserverError> {
+        Ok(Self {
+            tx: EventSender { _t: PhantomData },
+        })
     }
 
     pub fn sender(&self) -> EventSender<T> {

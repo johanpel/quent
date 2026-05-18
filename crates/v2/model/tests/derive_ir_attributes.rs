@@ -1,168 +1,140 @@
-use quent_v2_model::{
-    Attributes,
-    entity_ref::{AnyEntity, EntityRef},
-};
 use quent_v2_model_ir::{
     attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
     value_type::{ModelValueType, ValueType},
 };
 
+mod source;
 mod utils;
+
+use source::attributes::*;
 
 // Unit structs
 #[test]
 fn unit() {
-    #[derive(Attributes)]
-    struct Unit0;
     assert_eq!(
-        Unit0::model_attributes(),
+        Unit::model_attributes(),
         Attributes {
-            name: String::from("Unit0"),
+            name: String::from("Unit"),
             fields: vec![],
-            rust_path: utils::rust_path!("Unit0"),
+            rust_path: utils::rust_path!("source::attributes::Unit"),
         }
     );
-    assert_eq!(Unit0::model_value_type(), ValueType::attributes("Unit0"));
+    assert_eq!(Unit::model_value_type(), ValueType::attributes("Unit"));
 
-    #[derive(Attributes)]
-    struct Unit1 {}
     assert_eq!(
-        Unit1::model_attributes(),
+        UnitBraces::model_attributes(),
         Attributes {
-            name: String::from("Unit1"),
+            name: String::from("UnitBraces"),
             fields: vec![],
-            rust_path: utils::rust_path!("Unit1"),
+            rust_path: utils::rust_path!("source::attributes::UnitBraces"),
         }
     );
-    assert_eq!(Unit1::model_value_type(), ValueType::attributes("Unit1"));
+    assert_eq!(
+        UnitBraces::model_value_type(),
+        ValueType::attributes("UnitBraces")
+    );
 }
 
 // Single field structs
 #[test]
 #[allow(unused)]
 fn single() {
-    #[derive(Attributes)]
-    struct SinglePrimitive {
-        a: u8,
-    }
     assert_eq!(
-        SinglePrimitive::model_attributes(),
+        OnePrim::model_attributes(),
         Attributes {
-            name: String::from("SinglePrimitive"),
+            name: String::from("OnePrim"),
             fields: vec![Field {
                 name: String::from("a"),
                 ty: ValueType::U8,
             }],
-            rust_path: utils::rust_path!("SinglePrimitive"),
+            rust_path: utils::rust_path!("source::attributes::OnePrim"),
         }
     );
     assert_eq!(
-        SinglePrimitive::model_value_type(),
-        ValueType::attributes("SinglePrimitive")
+        OnePrim::model_value_type(),
+        ValueType::attributes("OnePrim")
     );
 
-    #[derive(Attributes)]
-    struct SingleNested {
-        a: SinglePrimitive,
-    }
     assert_eq!(
-        SingleNested::model_attributes(),
+        OneNested::model_attributes(),
         Attributes {
-            name: String::from("SingleNested"),
+            name: String::from("OneNested"),
             fields: vec![Field {
                 name: String::from("a"),
-                ty: ValueType::Attributes(String::from("SinglePrimitive")),
+                ty: ValueType::Attributes(String::from("OnePrim")),
             }],
-            rust_path: utils::rust_path!("SingleNested"),
+            rust_path: utils::rust_path!("source::attributes::OneNested"),
         }
     );
     assert_eq!(
-        SingleNested::model_value_type(),
-        ValueType::attributes("SingleNested")
+        OneNested::model_value_type(),
+        ValueType::attributes("OneNested")
     );
 
-    #[derive(Attributes)]
-    struct SingleList {
-        a: Vec<u8>,
-    }
     assert_eq!(
-        SingleList::model_attributes(),
+        OneList::model_attributes(),
         Attributes {
-            name: String::from("SingleList"),
+            name: String::from("OneList"),
             fields: vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::U8)),
             }],
-            rust_path: utils::rust_path!("SingleList"),
+            rust_path: utils::rust_path!("source::attributes::OneList"),
         }
     );
     assert_eq!(
-        SingleList::model_value_type(),
-        ValueType::attributes("SingleList")
+        OneList::model_value_type(),
+        ValueType::attributes("OneList")
     );
 
-    #[derive(Attributes)]
-    struct SingleListNested {
-        a: Vec<SinglePrimitive>,
-    }
     assert_eq!(
-        SingleListNested::model_attributes(),
+        OneListNested::model_attributes(),
         Attributes {
-            name: String::from("SingleListNested"),
+            name: String::from("OneListNested"),
             fields: vec![Field {
                 name: String::from("a"),
-                ty: ValueType::List(Box::new(ValueType::Attributes(String::from(
-                    "SinglePrimitive"
-                ),))),
+                ty: ValueType::List(Box::new(ValueType::Attributes(String::from("OnePrim"),))),
             }],
-            rust_path: utils::rust_path!("SingleListNested"),
+            rust_path: utils::rust_path!("source::attributes::OneListNested"),
         }
     );
     assert_eq!(
-        SingleListNested::model_value_type(),
-        ValueType::attributes("SingleListNested")
+        OneListNested::model_value_type(),
+        ValueType::attributes("OneListNested")
     );
 
-    #[derive(Attributes)]
-    struct SingleListListPrimitive {
-        a: Vec<Vec<u8>>,
-    }
     assert_eq!(
-        SingleListListPrimitive::model_attributes(),
+        OneListListPrim::model_attributes(),
         Attributes {
-            name: String::from("SingleListListPrimitive"),
+            name: String::from("OneListListPrim"),
             fields: vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8,)))),
             }],
-            rust_path: utils::rust_path!("SingleListListPrimitive"),
+            rust_path: utils::rust_path!("source::attributes::OneListListPrim"),
         }
     );
     assert_eq!(
-        SingleListListPrimitive::model_value_type(),
-        ValueType::attributes("SingleListListPrimitive")
+        OneListListPrim::model_value_type(),
+        ValueType::attributes("OneListListPrim")
     );
 
-    #[derive(Attributes)]
-    struct SingleListListNested {
-        a: Vec<Vec<SinglePrimitive>>,
-    }
     assert_eq!(
-        SingleListListNested::model_attributes(),
+        OneListListNested::model_attributes(),
         Attributes {
-            name: String::from("SingleListListNested"),
+            name: String::from("OneListListNested"),
             fields: vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
-                    String::from("SinglePrimitive")
+                    String::from("OnePrim")
                 ),)))),
             }],
-            rust_path: utils::rust_path!("SingleListListNested"),
+            rust_path: utils::rust_path!("source::attributes::OneListListNested"),
         }
     );
     assert_eq!(
-        SingleListListNested::model_value_type(),
-        ValueType::attributes("SingleListListNested")
+        OneListListNested::model_value_type(),
+        ValueType::attributes("OneListListNested")
     );
 }
 
@@ -170,15 +142,10 @@ fn single() {
 #[test]
 #[allow(unused)]
 fn multi() {
-    #[derive(Attributes)]
-    struct MultiPrimitives {
-        a: u8,
-        b: String,
-    }
     assert_eq!(
-        MultiPrimitives::model_attributes(),
+        MultiPrim::model_attributes(),
         Attributes {
-            name: String::from("MultiPrimitives"),
+            name: String::from("MultiPrim"),
             fields: vec![
                 Field {
                     name: String::from("a"),
@@ -189,25 +156,18 @@ fn multi() {
                     ty: ValueType::String,
                 },
             ],
-            rust_path: utils::rust_path!("MultiPrimitives"),
+            rust_path: utils::rust_path!("source::attributes::MultiPrim"),
         }
     );
     assert_eq!(
-        MultiPrimitives::model_value_type(),
-        ValueType::attributes("MultiPrimitives")
+        MultiPrim::model_value_type(),
+        ValueType::attributes("MultiPrim")
     );
 
-    #[derive(Attributes)]
-    struct MultiMixed {
-        a: u8,
-        b: MultiPrimitives,
-        c: Vec<u16>,
-        d: String,
-    }
     assert_eq!(
-        MultiMixed::model_attributes(),
+        MultiNested::model_attributes(),
         Attributes {
-            name: String::from("MultiMixed"),
+            name: String::from("MultiNested"),
             fields: vec![
                 Field {
                     name: String::from("a"),
@@ -215,7 +175,7 @@ fn multi() {
                 },
                 Field {
                     name: String::from("b"),
-                    ty: ValueType::Attributes(String::from("MultiPrimitives")),
+                    ty: ValueType::Attributes(String::from("MultiPrim")),
                 },
                 Field {
                     name: String::from("c"),
@@ -226,23 +186,18 @@ fn multi() {
                     ty: ValueType::String,
                 },
             ],
-            rust_path: utils::rust_path!("MultiMixed"),
+            rust_path: utils::rust_path!("source::attributes::MultiNested"),
         }
     );
     assert_eq!(
-        MultiMixed::model_value_type(),
-        ValueType::attributes("MultiMixed")
+        MultiNested::model_value_type(),
+        ValueType::attributes("MultiNested")
     );
 
-    #[derive(Attributes)]
-    struct MultiWithOption {
-        a: u8,
-        b: Option<String>,
-    }
     assert_eq!(
-        MultiWithOption::model_attributes(),
+        MultiOption::model_attributes(),
         Attributes {
-            name: String::from("MultiWithOption"),
+            name: String::from("MultiOption"),
             fields: vec![
                 Field {
                     name: String::from("a"),
@@ -253,12 +208,12 @@ fn multi() {
                     ty: ValueType::Option(Box::new(ValueType::String)),
                 },
             ],
-            rust_path: utils::rust_path!("MultiWithOption"),
+            rust_path: utils::rust_path!("source::attributes::MultiOption"),
         }
     );
     assert_eq!(
-        MultiWithOption::model_value_type(),
-        ValueType::attributes("MultiWithOption")
+        MultiOption::model_value_type(),
+        ValueType::attributes("MultiOption")
     );
 }
 
@@ -266,42 +221,10 @@ fn multi() {
 #[test]
 #[allow(unused)]
 fn all_value_types() {
-    #[derive(Attributes)]
-    struct Nested {
-        x: u8,
-    }
-
-    // TODO(johanpel):
-    // #[derive(Resource)]
-    // struct UnitResource;
-
-    #[derive(Attributes)]
-    struct AllValues {
-        a_bool: bool,
-        a_uuid: uuid::Uuid,
-        a_string: String,
-        a_u8: u8,
-        a_u16: u16,
-        a_u32: u32,
-        a_u64: u64,
-        a_i8: i8,
-        a_i16: i16,
-        a_i32: i32,
-        a_i64: i64,
-        a_f32: f32,
-        a_f64: f64,
-        a_option: Option<u64>,
-        a_list: Vec<u64>,
-        a_nested: Nested,
-        a_custom: quent_attributes::CustomAttributes,
-        a_entity_ref: EntityRef<AnyEntity>,
-        // a_usage: Usage<UnitResource>,
-    }
-
     assert_eq!(
-        AllValues::model_attributes(),
+        AllTypes::model_attributes(),
         Attributes {
-            name: String::from("AllValues"),
+            name: String::from("AllTypes"),
             fields: vec![
                 Field {
                     name: String::from("a_bool"),
@@ -365,7 +288,7 @@ fn all_value_types() {
                 },
                 Field {
                     name: String::from("a_nested"),
-                    ty: ValueType::Attributes(String::from("Nested")),
+                    ty: ValueType::Attributes(String::from("MultiNested")),
                 },
                 Field {
                     name: String::from("a_custom"),
@@ -379,11 +302,11 @@ fn all_value_types() {
                     },
                 },
             ],
-            rust_path: utils::rust_path!("AllValues"),
+            rust_path: utils::rust_path!("source::attributes::AllTypes"),
         }
     );
     assert_eq!(
-        AllValues::model_value_type(),
-        ValueType::attributes("AllValues")
+        AllTypes::model_value_type(),
+        ValueType::attributes("AllTypes")
     );
 }

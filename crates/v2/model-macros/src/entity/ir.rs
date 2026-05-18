@@ -18,6 +18,27 @@ pub fn expand_struct(
         ));
     }
 
+    let has_payload = match fields {
+        syn::Fields::Unit => false,
+        syn::Fields::Named(n) => !n.named.is_empty(),
+        syn::Fields::Unnamed(_) => unreachable!(),
+    };
+
+    let payload = if has_payload {
+        quote! {
+            ::std::vec![
+                ::quent_v2_model_ir::event::Field::new(
+                    "payload",
+                    ::quent_v2_model_ir::value_type::ValueType::Attributes(
+                        #name_str.to_string()
+                    ),
+                )
+            ]
+        }
+    } else {
+        quote! { ::std::vec::Vec::new() }
+    };
+
     // Ensure the type is considered an entity for entity references.
     let entity_decl = quote! {
         impl ::quent_v2_model::EntityDeclaration for #name {}
@@ -41,14 +62,7 @@ pub fn expand_struct(
                         ::quent_v2_model_ir::event::Event {
                             name: #name_str.to_string(),
                             cardinality: ::quent_v2_model_ir::event::Cardinality::Once,
-                            payload: ::std::vec![
-                                ::quent_v2_model_ir::event::Field::new(
-                                    "payload",
-                                    ::quent_v2_model_ir::value_type::ValueType::Attributes(
-                                        #name_str.to_string()
-                                    ),
-                                )
-                            ],
+                            payload: #payload,
                         }
                     ],
                     qualifications: ::std::vec::Vec::new(),

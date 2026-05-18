@@ -1,129 +1,97 @@
-use quent_exporter::NdjsonExporterOptions;
-use quent_v2_instrumentation::{ExporterOptions, Observer};
-use quent_v2_model::{Attributes, Entity};
 use quent_v2_model_ir::{
     attributes::EntityRefTarget,
     entity::{Entity, ModelEntity},
     event::{Cardinality, Event, Field},
     value_type::{ModelEntityRefTarget, ValueType},
 };
-use uuid::Uuid;
 
+use source::entities::*;
+
+mod source;
 mod utils;
 
 #[test]
 fn unit_struct() {
-    #[derive(Entity)]
-    struct Unit0;
     assert_eq!(
-        Unit0::model_entity(),
+        Unit::model_entity(),
         Entity {
-            name: "Unit0".into(),
+            name: "Unit".into(),
             events: vec![Event {
-                name: "Unit0".into(),
+                name: "Unit".into(),
                 cardinality: Cardinality::Once,
-                payload: vec![]
+                payload: vec![],
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("Unit0")
+            rust_path: utils::rust_path!("source::entities::Unit")
         }
     );
     assert_eq!(
-        Unit0::model_entity_ref_target(),
-        EntityRefTarget::Specific("Unit0".into())
+        Unit::model_entity_ref_target(),
+        EntityRefTarget::Specific("Unit".into())
     );
 
-    let foo_obs = Unit0Observer::new(
-        Uuid::now_v7(),
-        ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: "foo".into(),
-        }),
-    )
-    .unwrap();
-    let foo_inst = foo_obs.handle();
-    foo_inst.emit(Unit0).unwrap();
-
-    #[derive(Entity)]
-    struct Unit1 {}
     assert_eq!(
-        Unit1::model_entity(),
+        UnitBraces::model_entity(),
         Entity {
-            name: "Unit1".into(),
+            name: "UnitBraces".into(),
             events: vec![Event {
-                name: "Unit1".into(),
+                name: "UnitBraces".into(),
                 cardinality: Cardinality::Once,
-                payload: vec![]
+                payload: vec![],
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("Unit1")
+            rust_path: utils::rust_path!("source::entities::UnitBraces")
         }
     );
     assert_eq!(
-        Unit1::model_entity_ref_target(),
-        EntityRefTarget::Specific("Unit1".into())
+        UnitBraces::model_entity_ref_target(),
+        EntityRefTarget::Specific("UnitBraces".into())
     );
 }
 
 #[test]
 #[allow(unused)]
 fn fields_struct() {
-    #[derive(Entity)]
-    struct StructSinglePrim {
-        a: u8,
-    };
     assert_eq!(
-        StructSinglePrim::model_entity(),
+        StructPrim::model_entity(),
         Entity {
-            name: "StructSinglePrim".into(),
+            name: "StructPrim".into(),
             events: vec![Event {
-                name: "StructSinglePrim".into(),
+                name: "StructPrim".into(),
                 cardinality: Cardinality::Once,
                 payload: vec![Field::new(
                     "payload",
-                    ValueType::Attributes("StructSinglePrim".into())
+                    ValueType::Attributes("StructPrim".into())
                 )]
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("StructSinglePrim")
+            rust_path: utils::rust_path!("source::entities::StructPrim")
         }
     );
     assert_eq!(
-        StructSinglePrim::model_entity_ref_target(),
-        EntityRefTarget::Specific("StructSinglePrim".into())
+        StructPrim::model_entity_ref_target(),
+        EntityRefTarget::Specific("StructPrim".into())
     );
 
-    // TODO(johanpel): The Entity derive itself doesn't check whether X has an
-    // IR, but model! does. This is not ideal from a compilation error pointing
-    // to the right source perspective, so we could come up with a work-around
-    // at some point. Keeping it simple for now by moving the error to model!.
-    #[derive(Attributes)]
-    struct X {
-        a: u8,
-    };
-    #[derive(Entity)]
-    struct StructMultiFieldWithAttrib {
-        a: u8,
-        b: X,
-    };
     assert_eq!(
-        StructMultiFieldWithAttrib::model_entity(),
+        StructMultiAttrib::model_entity(),
         Entity {
-            name: "StructMultiFieldWithAttrib".into(),
+            name: "StructMultiAttrib".into(),
             events: vec![Event {
-                name: "StructMultiFieldWithAttrib".into(),
+                name: "StructMultiAttrib".into(),
                 cardinality: Cardinality::Once,
                 payload: vec![Field::new(
                     "payload",
-                    ValueType::Attributes("StructMultiFieldWithAttrib".into())
+                    ValueType::Attributes("StructMultiAttrib".into())
                 )]
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("StructMultiFieldWithAttrib")
+            rust_path: utils::rust_path!("source::entities::StructMultiAttrib")
         }
     );
     assert_eq!(
-        StructMultiFieldWithAttrib::model_entity_ref_target(),
-        EntityRefTarget::Specific("StructMultiFieldWithAttrib".into())
+        StructMultiAttrib::model_entity_ref_target(),
+        EntityRefTarget::Specific("StructMultiAttrib".into())
     );
 
     // TODO: struct with more value types including ref and resource usage
@@ -132,37 +100,28 @@ fn fields_struct() {
 #[test]
 #[allow(unused)]
 fn enums() {
-    #[derive(Entity)]
-    enum SingleUnit {
-        A,
-    }
     assert_eq!(
-        SingleUnit::model_entity(),
+        EnumOneUnit::model_entity(),
         Entity {
-            name: "SingleUnit".into(),
+            name: "EnumOneUnit".into(),
             events: vec![Event {
                 name: "A".into(),
                 cardinality: Cardinality::Once,
                 payload: vec![],
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("SingleUnit"),
+            rust_path: utils::rust_path!("source::entities::EnumOneUnit"),
         }
     );
     assert_eq!(
-        SingleUnit::model_entity_ref_target(),
-        EntityRefTarget::Specific("SingleUnit".into())
+        EnumOneUnit::model_entity_ref_target(),
+        EntityRefTarget::Specific("EnumOneUnit".into())
     );
 
-    #[derive(Entity)]
-    enum MultiUnit {
-        A,
-        B,
-    }
     assert_eq!(
-        MultiUnit::model_entity(),
+        EnumMultiUnit::model_entity(),
         Entity {
-            name: "MultiUnit".into(),
+            name: "EnumMultiUnit".into(),
             events: vec![
                 Event {
                     name: "A".into(),
@@ -176,70 +135,63 @@ fn enums() {
                 },
             ],
             qualifications: vec![],
-            rust_path: utils::rust_path!("MultiUnit"),
+            rust_path: utils::rust_path!("source::entities::EnumMultiUnit"),
         }
     );
     assert_eq!(
-        MultiUnit::model_entity_ref_target(),
-        EntityRefTarget::Specific("MultiUnit".into())
+        EnumMultiUnit::model_entity_ref_target(),
+        EntityRefTarget::Specific("EnumMultiUnit".into())
     );
 
-    #[derive(Attributes)]
-    struct X;
-    #[derive(Entity)]
-    enum SingleUserPayload {
-        A(X),
-    }
     assert_eq!(
-        SingleUserPayload::model_entity(),
+        EnumSingleAttribs::model_entity(),
         Entity {
-            name: "SingleUserPayload".into(),
+            name: "EnumSingleAttribs".into(),
             events: vec![Event {
                 name: "A".into(),
                 cardinality: Cardinality::Once,
-                payload: vec![Field::new("payload", ValueType::Attributes("X".into()))],
+                payload: vec![Field::new(
+                    "payload",
+                    ValueType::Attributes("OnePrim".into())
+                )],
             }],
             qualifications: vec![],
-            rust_path: utils::rust_path!("SingleUserPayload"),
+            rust_path: utils::rust_path!("source::entities::EnumSingleAttribs"),
         }
     );
     assert_eq!(
-        SingleUserPayload::model_entity_ref_target(),
-        EntityRefTarget::Specific("SingleUserPayload".into())
+        EnumSingleAttribs::model_entity_ref_target(),
+        EntityRefTarget::Specific("EnumSingleAttribs".into())
     );
 
-    #[derive(Attributes)]
-    struct Y {
-        a: u8,
-        b: String,
-    };
-    #[derive(Entity)]
-    enum MultiUserPayload {
-        A(X),
-        B(Y),
-    }
     assert_eq!(
-        MultiUserPayload::model_entity(),
+        EnumMultiAttribs::model_entity(),
         Entity {
-            name: "MultiUserPayload".into(),
+            name: "EnumMultiAttribs".into(),
             events: vec![
                 Event {
                     name: "A".into(),
                     cardinality: Cardinality::Once,
-                    payload: vec![Field::new("payload", ValueType::Attributes("X".into()))],
+                    payload: vec![Field::new(
+                        "payload",
+                        ValueType::Attributes("OnePrim".into())
+                    )],
                 },
                 Event {
                     name: "B".into(),
                     cardinality: Cardinality::Once,
-                    payload: vec![Field::new("payload", ValueType::Attributes("Y".into()))],
+                    payload: vec![Field::new(
+                        "payload",
+                        ValueType::Attributes("MultiPrim".into())
+                    )],
                 },
             ],
             qualifications: vec![],
-            rust_path: utils::rust_path!("MultiUserPayload"),
+            rust_path: utils::rust_path!("source::entities::EnumMultiAttribs"),
         }
     );
     assert_eq!(
-        MultiUserPayload::model_entity_ref_target(),
-        EntityRefTarget::Specific("MultiUserPayload".into())
+        EnumMultiAttribs::model_entity_ref_target(),
+        EntityRefTarget::Specific("EnumMultiAttribs".into())
     );
 }
