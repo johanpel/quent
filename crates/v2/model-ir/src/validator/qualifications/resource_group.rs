@@ -6,7 +6,7 @@ use crate::{
 };
 
 impl QualificationCheck for ResourceGroup {
-    fn qualifies(_model: &Model, entity: &Entity) -> Result<(), QualificationError> {
+    fn qualifies(entity: &Entity) -> Result<(), QualificationError> {
         // Constraint: an entity can't be both a resource group and a resource.
         if entity
             .qualifications

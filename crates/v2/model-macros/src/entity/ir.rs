@@ -56,22 +56,22 @@ pub fn expand_struct(
     let entity = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
-                ::quent_v2_model_ir::entity::Entity {
-                    name: #name_str.to_string(),
-                    events: ::std::vec![
-                        ::quent_v2_model_ir::event::Event {
-                            name: #name_str.to_string(),
-                            cardinality: ::quent_v2_model_ir::event::Cardinality::Once,
-                            payload: #payload,
-                        }
+                ::quent_v2_model_ir::entity::Entity::new(
+                    #name_str,
+                    ::std::vec![
+                        ::quent_v2_model_ir::event::Event::new(
+                            #name_str,
+                            ::quent_v2_model_ir::event::Cardinality::Once,
+                            #payload,
+                        )
                     ],
-                    qualifications: ::std::vec::Vec::new(),
-                    rust_path: ::std::format!(
+                    ::std::vec::Vec::new(),
+                    ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
-                        #name_str
+                        #name_str,
                     ),
-                }
+                )
             }
         }
     };
@@ -140,16 +140,16 @@ pub fn expand_enum(
     let entity = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
-                ::quent_v2_model_ir::entity::Entity {
-                    name: #name_str.to_string(),
-                    events: ::std::vec![ #(#events),* ],
-                    qualifications: ::std::vec::Vec::new(),
-                    rust_path: ::std::format!(
+                ::quent_v2_model_ir::entity::Entity::new(
+                    #name_str,
+                    ::std::vec![ #(#events),* ],
+                    ::std::vec::Vec::new(),
+                    ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
-                        #name_str
+                        #name_str,
                     ),
-                }
+                )
             }
         }
     };
@@ -167,11 +167,11 @@ fn expand_variant(v: &Variant) -> syn::Result<TokenStream> {
     let payload = expand_variant_payload(&v.fields, v)?;
 
     Ok(quote! {
-        ::quent_v2_model_ir::event::Event {
-            name: #variant_name.to_string(),
-            cardinality: #cardinality,
-            payload: #payload,
-        }
+        ::quent_v2_model_ir::event::Event::new(
+            #variant_name,
+            #cardinality,
+            #payload,
+        )
     })
 }
 

@@ -16,7 +16,7 @@ pub trait ModelEntityRefKind {
 }
 
 /// Types of attribute values.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum ValueType {
     Bool,
     Uuid,

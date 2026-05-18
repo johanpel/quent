@@ -21,13 +21,13 @@ impl Model {
         // Validate all entity qualifications
         let qualifications = self
             .entities
-            .values()
+            .iter()
             .flat_map(|entity| entity.qualifications.iter().map(move |q| (entity, q)))
             .filter_map(|(entity, q)| {
                 match q {
-                    Qualification::Fsm(_) => Fsm::qualifies(self, entity),
-                    Qualification::Resource(_) => Resource::qualifies(self, entity),
-                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(self, entity),
+                    Qualification::Fsm(_) => Fsm::qualifies(entity),
+                    Qualification::Resource(_) => Resource::qualifies(entity),
+                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(entity),
                 }
                 .err()
             })

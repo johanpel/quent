@@ -30,11 +30,11 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         }
         syn::Data::Struct(s) => match &s.fields {
             // Using Rust's convention for unnamed fields (enumerating them)
-            // would violate the modeling spec, which sort of follows ANSI C
-            // field naming rules as a common denominator across all sorts of
-            // target languages. We could choose to prefix it with _ or
-            // something, but that would mean the event data would have a
-            // mangled field name vs. the Rust struct declaration.
+            // would violate the modeling spec, which follows ANSI C identifier
+            // rules as a common denominator across all sorts of target
+            // languages. We could choose to prefix it with _ or something, but
+            // that would mean the event data would have a mangled field name
+            // vs. the Rust struct declaration.
             syn::Fields::Unnamed(_) => {
                 return Err(syn::Error::new_spanned(
                     &input,
@@ -74,7 +74,9 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 
         impl ::quent_v2_model_ir::value_type::ModelValueType for #name_ident {
             fn model_value_type() -> ::quent_v2_model_ir::value_type::ValueType {
-                ::quent_v2_model_ir::value_type::ValueType::Attributes(#name_string.to_string())
+                ::quent_v2_model_ir::value_type::ValueType::Attributes(
+                    #name_string.to_string(),
+                )
             }
         }
     })

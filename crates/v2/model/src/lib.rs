@@ -21,6 +21,4 @@ pub use resource_group::{AnyRg, ResourceGroupDeclaration, RgParentRef};
 
 // third party crate re-exporters
 pub use quent_exporter as exporter;
-pub use quent_v2_model_macros::{
-    Attributes, Entity, Fsm, Resource, ResourceGroup, RootResourceGroup,
-};
+pub use quent_v2_model_macros::{Attributes, Entity};

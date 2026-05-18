@@ -3,6 +3,7 @@ use syn::{DeriveInput, parse_macro_input};
 
 mod attributes;
 mod entity;
+mod value_type;
 
 #[proc_macro_derive(Attributes)]
 pub fn derive_attributes(input: TokenStream) -> TokenStream {
@@ -12,31 +13,11 @@ pub fn derive_attributes(input: TokenStream) -> TokenStream {
         .into()
 }
 
-// TODO
 #[proc_macro_derive(Entity, attributes(quent))]
 pub fn derive_entity(input: TokenStream) -> TokenStream {
+    // TokenStream::new()
     let input = parse_macro_input!(input as DeriveInput);
     entity::expand(input)
         .unwrap_or_else(|err| err.to_compile_error())
         .into()
-}
-
-#[proc_macro_derive(Fsm, attributes(quent))]
-pub fn derive_fsm(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
-}
-
-#[proc_macro_derive(Resource, attributes(quent))]
-pub fn derive_resource(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
-}
-
-#[proc_macro_derive(ResourceGroup, attributes(quent))]
-pub fn derive_resource_group(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
-}
-
-#[proc_macro_derive(RootResourceGroup, attributes(quent))]
-pub fn derive_root_resource_group(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
 }

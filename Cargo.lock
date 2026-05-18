@@ -2304,6 +2304,7 @@ name = "quent-v2-model-ir"
 version = "0.1.0"
 dependencies = [
  "petgraph",
+ "proc-macro2",
  "quent-attributes",
  "quent-events",
  "quent-exporter",

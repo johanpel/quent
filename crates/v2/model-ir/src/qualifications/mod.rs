@@ -9,7 +9,7 @@ pub mod resource;
 pub mod resource_group;
 
 /// IR of entity qualifications
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum QualificationKind {
     /// Finite-State-Machine
     ///
@@ -27,7 +27,7 @@ pub enum QualificationKind {
 
 /// IR of the types of entity references that have meaning specialized by the
 /// qualification of the entity that emits them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum QualificationRefKind {
     Resource(ResourceRefKind),
     ResourceGroup(RgRefKind),

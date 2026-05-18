@@ -13,21 +13,21 @@ use source::attributes::*;
 fn unit() {
     assert_eq!(
         Unit::model_attributes(),
-        Attributes {
-            name: String::from("Unit"),
-            fields: vec![],
-            rust_path: utils::rust_path!("source::attributes::Unit"),
-        }
+        Attributes::new(
+            "Unit",
+            vec![],
+            utils::rust_path!("source::attributes::Unit")
+        )
     );
     assert_eq!(Unit::model_value_type(), ValueType::attributes("Unit"));
 
     assert_eq!(
         UnitBraces::model_attributes(),
-        Attributes {
-            name: String::from("UnitBraces"),
-            fields: vec![],
-            rust_path: utils::rust_path!("source::attributes::UnitBraces"),
-        }
+        Attributes::new(
+            "UnitBraces",
+            vec![],
+            utils::rust_path!("source::attributes::UnitBraces"),
+        )
     );
     assert_eq!(
         UnitBraces::model_value_type(),
@@ -41,14 +41,14 @@ fn unit() {
 fn single() {
     assert_eq!(
         OnePrim::model_attributes(),
-        Attributes {
-            name: String::from("OnePrim"),
-            fields: vec![Field {
+        Attributes::new(
+            "OnePrim",
+            vec![Field {
                 name: String::from("a"),
                 ty: ValueType::U8,
             }],
-            rust_path: utils::rust_path!("source::attributes::OnePrim"),
-        }
+            utils::rust_path!("source::attributes::OnePrim"),
+        )
     );
     assert_eq!(
         OnePrim::model_value_type(),
@@ -57,14 +57,14 @@ fn single() {
 
     assert_eq!(
         OneNested::model_attributes(),
-        Attributes {
-            name: String::from("OneNested"),
-            fields: vec![Field {
+        Attributes::new(
+            "OneNested",
+            vec![Field {
                 name: String::from("a"),
                 ty: ValueType::Attributes(String::from("OnePrim")),
             }],
-            rust_path: utils::rust_path!("source::attributes::OneNested"),
-        }
+            utils::rust_path!("source::attributes::OneNested"),
+        )
     );
     assert_eq!(
         OneNested::model_value_type(),
@@ -73,14 +73,14 @@ fn single() {
 
     assert_eq!(
         OneList::model_attributes(),
-        Attributes {
-            name: String::from("OneList"),
-            fields: vec![Field {
+        Attributes::new(
+            "OneList",
+            vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::U8)),
             }],
-            rust_path: utils::rust_path!("source::attributes::OneList"),
-        }
+            utils::rust_path!("source::attributes::OneList"),
+        )
     );
     assert_eq!(
         OneList::model_value_type(),
@@ -89,14 +89,14 @@ fn single() {
 
     assert_eq!(
         OneListNested::model_attributes(),
-        Attributes {
-            name: String::from("OneListNested"),
-            fields: vec![Field {
+        Attributes::new(
+            "OneListNested",
+            vec![Field {
                 name: String::from("a"),
-                ty: ValueType::List(Box::new(ValueType::Attributes(String::from("OnePrim"),))),
+                ty: ValueType::List(Box::new(ValueType::Attributes(String::from("OnePrim")))),
             }],
-            rust_path: utils::rust_path!("source::attributes::OneListNested"),
-        }
+            utils::rust_path!("source::attributes::OneListNested"),
+        )
     );
     assert_eq!(
         OneListNested::model_value_type(),
@@ -105,14 +105,14 @@ fn single() {
 
     assert_eq!(
         OneListListPrim::model_attributes(),
-        Attributes {
-            name: String::from("OneListListPrim"),
-            fields: vec![Field {
+        Attributes::new(
+            "OneListListPrim",
+            vec![Field {
                 name: String::from("a"),
-                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8,)))),
+                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8)))),
             }],
-            rust_path: utils::rust_path!("source::attributes::OneListListPrim"),
-        }
+            utils::rust_path!("source::attributes::OneListListPrim"),
+        )
     );
     assert_eq!(
         OneListListPrim::model_value_type(),
@@ -121,16 +121,16 @@ fn single() {
 
     assert_eq!(
         OneListListNested::model_attributes(),
-        Attributes {
-            name: String::from("OneListListNested"),
-            fields: vec![Field {
+        Attributes::new(
+            "OneListListNested",
+            vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
-                    String::from("OnePrim")
-                ),)))),
+                    String::from("OnePrim"),
+                ))))),
             }],
-            rust_path: utils::rust_path!("source::attributes::OneListListNested"),
-        }
+            utils::rust_path!("source::attributes::OneListListNested"),
+        )
     );
     assert_eq!(
         OneListListNested::model_value_type(),
@@ -144,9 +144,9 @@ fn single() {
 fn multi() {
     assert_eq!(
         MultiPrim::model_attributes(),
-        Attributes {
-            name: String::from("MultiPrim"),
-            fields: vec![
+        Attributes::new(
+            "MultiPrim",
+            vec![
                 Field {
                     name: String::from("a"),
                     ty: ValueType::U8,
@@ -156,8 +156,8 @@ fn multi() {
                     ty: ValueType::String,
                 },
             ],
-            rust_path: utils::rust_path!("source::attributes::MultiPrim"),
-        }
+            utils::rust_path!("source::attributes::MultiPrim"),
+        )
     );
     assert_eq!(
         MultiPrim::model_value_type(),
@@ -166,9 +166,9 @@ fn multi() {
 
     assert_eq!(
         MultiNested::model_attributes(),
-        Attributes {
-            name: String::from("MultiNested"),
-            fields: vec![
+        Attributes::new(
+            "MultiNested",
+            vec![
                 Field {
                     name: String::from("a"),
                     ty: ValueType::U8,
@@ -186,8 +186,8 @@ fn multi() {
                     ty: ValueType::String,
                 },
             ],
-            rust_path: utils::rust_path!("source::attributes::MultiNested"),
-        }
+            utils::rust_path!("source::attributes::MultiNested"),
+        )
     );
     assert_eq!(
         MultiNested::model_value_type(),
@@ -196,9 +196,9 @@ fn multi() {
 
     assert_eq!(
         MultiOption::model_attributes(),
-        Attributes {
-            name: String::from("MultiOption"),
-            fields: vec![
+        Attributes::new(
+            "MultiOption",
+            vec![
                 Field {
                     name: String::from("a"),
                     ty: ValueType::U8,
@@ -208,8 +208,8 @@ fn multi() {
                     ty: ValueType::Option(Box::new(ValueType::String)),
                 },
             ],
-            rust_path: utils::rust_path!("source::attributes::MultiOption"),
-        }
+            utils::rust_path!("source::attributes::MultiOption"),
+        )
     );
     assert_eq!(
         MultiOption::model_value_type(),
@@ -223,9 +223,9 @@ fn multi() {
 fn all_value_types() {
     assert_eq!(
         AllTypes::model_attributes(),
-        Attributes {
-            name: String::from("AllTypes"),
-            fields: vec![
+        Attributes::new(
+            "AllTypes",
+            vec![
                 Field {
                     name: String::from("a_bool"),
                     ty: ValueType::Bool,
@@ -302,8 +302,8 @@ fn all_value_types() {
                     },
                 },
             ],
-            rust_path: utils::rust_path!("source::attributes::AllTypes"),
-        }
+            utils::rust_path!("source::attributes::AllTypes"),
+        )
     );
     assert_eq!(
         AllTypes::model_value_type(),

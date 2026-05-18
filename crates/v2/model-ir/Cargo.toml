@@ -18,6 +18,7 @@ quent-exporter = { path = "../../exporter" }
 quent-instrumentation = { path = "../../instrumentation" }
 quent-time = { path = "../../time" }
 thiserror.workspace = true
+proc-macro2.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

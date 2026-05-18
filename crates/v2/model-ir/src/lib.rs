@@ -24,8 +24,6 @@
 //! - the Rust instrumentation API generator,
 //! - cross-language bridge generators for C++ and Python
 //!
-use std::collections::HashMap;
-
 use self::{attributes::Attributes, entity::Entity};
 
 pub mod attributes;
@@ -40,7 +38,29 @@ pub struct Model {
     /// The name of the model.
     pub name: String,
     /// The [`Entity`]s of the model.
-    pub entities: HashMap<String, Entity>,
+    pub entities: Vec<Entity>,
     /// The [`Attributes`] sets of the model.
-    pub attributes: HashMap<String, Attributes>,
+    pub attributes: Vec<Attributes>,
 }
+
+/// Checked identifier
+// must adhere to [A-Za-z][A-Za-z0-9_]*`
+
+/// Optional span for when the IR is used from within proc macros.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Span(pub Option<proc_macro2::Span>);
+
+impl std::ops::Deref for Span {
+    type Target = Option<proc_macro2::Span>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq for Span {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+impl Eq for Span {}

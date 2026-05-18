@@ -1,4 +1,5 @@
 use crate::{
+    Span,
     qualifications::{QualificationKind, QualificationRefKind},
     value_type::ValueType,
 };
@@ -26,10 +27,37 @@ pub struct Attributes {
 
     /// The Rust path to the attributes.
     pub rust_path: String,
+
+    /// Optional span for use within proc macros
+    pub span: Span,
+}
+
+impl Attributes {
+    pub fn new(
+        name: impl Into<String>,
+        fields: Vec<Field>,
+        rust_path: impl Into<String>,
+    ) -> Self {
+        Self::with_span(name, fields, rust_path, Span::default())
+    }
+
+    pub fn with_span(
+        name: impl Into<String>,
+        fields: Vec<Field>,
+        rust_path: impl Into<String>,
+        span: Span,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            fields,
+            rust_path: rust_path.into(),
+            span,
+        }
+    }
 }
 
 /// IR of the types of entities targeted by an entity reference.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum EntityRefTarget {
     /// The entity reference targets one specific entity type.
     Specific(String),
@@ -40,7 +68,7 @@ pub enum EntityRefTarget {
 }
 
 /// IR of the role of an entity reference.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EntityRefKind {
     /// The entity reference has no specialized meaning.
     Plain,

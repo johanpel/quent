@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 //
 // Inline doc strings are kept.
 /// A thread running tasks.
-#[derive(Resource)]
+#[derive(Entity)]
+#[quent(resource)]
 pub struct Thread;
 
 // A resource with a capacity.
@@ -27,7 +28,8 @@ pub struct Thread;
 //
 // The maximum capacity is set in the transition to operating.
 /// A cache holding on to recent things.
-#[derive(Resource)]
+#[derive(Entity)]
+#[quent(resource)]
 pub struct Cache {
     pub slots: Capacity<u64>,
 }
@@ -39,7 +41,8 @@ pub struct Cache {
 //
 // initializing -> operating <-> resizing -> finalizing -> exit
 /// A memory pool providing space to do things.
-#[derive(Resource)]
+#[derive(Entity)]
+#[quent(resource)]
 pub struct MemoryPool {
     pub bytes: Capacity<u64, Occupancy, Resizable>,
 }
@@ -48,7 +51,8 @@ pub struct MemoryPool {
 //
 // In the instrumentation API, in the operating state, no bound is supplied.
 /// A queue to enqueue stuff.
-#[derive(Resource)]
+#[derive(Entity)]
+#[quent(resource)]
 pub struct Queue {
     pub entries: Capacity<u64, Occupancy, Fixed, Unbounded>,
 }
@@ -58,7 +62,7 @@ pub struct Queue {
 // Note that this is a demonstration of how Quent can even be used to sink
 // structured logs.
 /// An info message.
-#[derive(Entity, Serialize, Deserialize)]
+#[derive(Entity)]
 pub struct Info {
     pub message: String,
     pub source: Option<String>,
@@ -106,7 +110,8 @@ pub struct Details {
 //
 // If it can only have one type of parent T, this is expressed by carrying a
 // field of type EntityRef<T, RgParentRef>.
-#[derive(Entity, ResourceGroup, Serialize, Deserialize)]
+#[derive(Entity, Serialize, Deserialize)]
+#[quent(resource_group)]
 pub struct Worker {
     pub instance_name: String,
     pub details: Details,
@@ -114,7 +119,8 @@ pub struct Worker {
 }
 
 // There must be at least one root resource group.
-#[derive(Entity, RootResourceGroup, Serialize, Deserialize)]
+#[derive(Entity, Serialize, Deserialize)]
+#[quent(resource_group(root))]
 pub struct Cluster {
     pub instance_name: String,
 }
@@ -125,7 +131,8 @@ pub struct Cluster {
 #[derive(Serialize, Deserialize)]
 pub struct MyEvent {}
 
-#[derive(Entity, ResourceGroup, Serialize, Deserialize)]
+#[derive(Entity, Serialize, Deserialize)]
+#[quent(resource_group)]
 pub enum Example {
     A {
         event: MyEvent,
@@ -134,9 +141,9 @@ pub enum Example {
     B(MyEvent),
 }
 
-// An FSM state.
+// Attributes of an FSM state
 //
-// Can have attributes and resource usages.
+// Can have resource usages.
 #[derive(Serialize, Deserialize)]
 pub struct Queued {
     pub instance_name: String,
@@ -157,41 +164,13 @@ pub struct Computing {
 // and its possible transitions. Each enum variant is a state; its payload is
 // the state's attributes.
 #[derive(Fsm, Serialize, Deserialize)]
-#[quent(transitions = {
+#[quent(fsm(
     entry -> Queued,
     Queued -> Computing,
     Computing -> Computing,
     Computing -> exit,
-})]
+))]
 pub enum Task {
     Queued(Queued),
     Computing(Computing),
 }
-
-// Generates all event-related types.
-//
-// There must always be exactly one root resource group. This requirement exists
-// in order to provide an entry-point for a top-down analysis flow, which starts
-// at the UUID of this root resource group.
-//
-// If we do not supply a root, we would get the following error:
-//
-// ```
-// model! requires at least a root resource group
-// ```
-model! {
-    App {
-        root: Cluster,
-        Worker,
-        Thread,
-        Cache,
-        MemoryPool,
-        Queue,
-        FileStats,
-        Task,
-        Info,
-    }
-}
-
-// Generates the instrumentation API
-instrumentation!(App);
