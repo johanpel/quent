@@ -1,21 +1,25 @@
-use quent_v2_model::Fsm;
+#![allow(unused)]
 
-#[derive(Fsm)]
-#[quent(transitions(
+use quent_v2_model::Entity;
+
+#[derive(Entity)]
+#[quent(fsm(
     entry -> A,
     A -> exit
 ))]
-enum OneUnit {
+pub enum OneUnit {
     A,
 }
 
-#[derive(Fsm)]
-#[quent(transitions(
+#[derive(Entity)]
+#[quent(fsm(
     entry -> A,
     A -> B,
-    B -> exit
+    B -> C,
+    C -> exit
 ))]
-enum TwoUnit {
+pub enum MultiUnit {
     A,
     B,
+    C,
 }

@@ -68,7 +68,7 @@ pub mod attributes;
 pub mod entity;
 pub mod event;
 pub mod identifier;
-pub mod proc;
+// pub mod proc;
 pub mod qualifications;
 pub mod validator;
 pub mod value_type;

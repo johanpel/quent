@@ -13,12 +13,7 @@ uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
 petgraph.workspace = true
 quent-attributes = { path = "../../attributes" }
-quent-events = { path = "../../events" }
-quent-exporter = { path = "../../exporter" }
-quent-instrumentation = { path = "../../instrumentation" }
-quent-time = { path = "../../time" }
 thiserror.workspace = true
-proc-macro2.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

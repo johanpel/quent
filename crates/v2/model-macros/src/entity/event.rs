@@ -1,5 +1,4 @@
 use quent_v2_model_ir::{
-    Span,
     event::{Cardinality, Event, Field},
     value_type::ValueType,
 };
@@ -34,32 +33,21 @@ fn parse_struct_events(
     let name_str = name.to_string();
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
-        vec![Field::with_span(
+        vec![Field::new(
             "payload",
             ValueType::Attributes(name_str.clone()),
-            Span(Some(name.span())),
         )]
     } else {
         Vec::new()
     };
-    Ok(vec![Event::with_span(
-        name_str,
-        Cardinality::Once,
-        payload,
-        Span(Some(name.span())),
-    )])
+    Ok(vec![Event::new(name_str, Cardinality::Once, payload)])
 }
 
 fn parse_enum_variant_event(v: &Variant) -> syn::Result<Event> {
     let variant_name = v.ident.to_string();
     let cardinality = parse_cardinality(&v.attrs)?;
     let payload = parse_variant_payloads(&v.fields, v)?;
-    Ok(Event::with_span(
-        variant_name,
-        cardinality,
-        payload,
-        Span(Some(v.ident.span())),
-    ))
+    Ok(Event::new(variant_name, cardinality, payload))
 }
 
 fn parse_cardinality(attrs: &[syn::Attribute]) -> syn::Result<Cardinality> {
@@ -90,18 +78,12 @@ fn parse_cardinality(attrs: &[syn::Attribute]) -> syn::Result<Cardinality> {
 }
 
 fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::Result<Vec<Field>> {
-    use syn::spanned::Spanned;
-
     match fields {
         syn::Fields::Unit => Ok(Vec::new()),
         syn::Fields::Unnamed(u) if u.unnamed.len() == 1 => {
             let unnamed_field = u.unnamed.first().unwrap();
             let ty = &unnamed_field.ty;
-            Ok(vec![Field::with_span(
-                "payload",
-                parse_value_type(ty)?,
-                Span(Some(unnamed_field.span())),
-            )])
+            Ok(vec![Field::new("payload", parse_value_type(ty)?)])
         }
         syn::Fields::Unnamed(_) => Err(syn::Error::new_spanned(
             span_source,
@@ -113,11 +95,7 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
             .map(|f| {
                 let field_name = f.ident.as_ref().unwrap();
                 let ty = &f.ty;
-                Ok(Field::with_span(
-                    field_name.to_string(),
-                    parse_value_type(ty)?,
-                    Span(Some(field_name.span())),
-                ))
+                Ok(Field::new(field_name.to_string(), parse_value_type(ty)?))
             })
             .collect(),
     }

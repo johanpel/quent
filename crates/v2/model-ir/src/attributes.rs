@@ -1,5 +1,4 @@
 use crate::{
-    Span,
     qualifications::{QualificationKind, QualificationRefKind},
     value_type::ValueType,
 };
@@ -27,31 +26,14 @@ pub struct Attributes {
 
     /// The Rust path to the attributes.
     pub rust_path: String,
-
-    /// Optional span for use within proc macros
-    pub span: Span,
 }
 
 impl Attributes {
-    pub fn new(
-        name: impl Into<String>,
-        fields: Vec<Field>,
-        rust_path: impl Into<String>,
-    ) -> Self {
-        Self::with_span(name, fields, rust_path, Span::default())
-    }
-
-    pub fn with_span(
-        name: impl Into<String>,
-        fields: Vec<Field>,
-        rust_path: impl Into<String>,
-        span: Span,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, fields: Vec<Field>, rust_path: impl Into<String>) -> Self {
         Self {
             name: name.into(),
             fields,
             rust_path: rust_path.into(),
-            span,
         }
     }
 }

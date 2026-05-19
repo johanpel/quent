@@ -17,3 +17,4 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2.workspace = true
 quent-v2-model-ir = { path = "../model-ir" }
+indexmap = "2"

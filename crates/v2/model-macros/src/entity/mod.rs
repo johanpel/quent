@@ -1,20 +1,25 @@
 use proc_macro2::TokenStream;
-use quent_v2_model_ir::{Span, entity::Entity, qualifications::fsm::Fsm};
+use quent_v2_model_ir::{
+    entity::Entity,
+    identifier::{Identifier, IdentifierError},
+};
+use quote::quote;
 use syn::DeriveInput;
 
 use crate::entity::{event::parse_events, qualifications::parse_qualifications};
 
 mod event;
+mod instrumentation;
 mod qualifications;
-
-// mod ir;
-// mod obs;
 
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
-    let name_str = name.to_string();
+    let name_ir: Identifier = name
+        .to_string()
+        .try_into()
+        .map_err(|e: IdentifierError| syn::Error::new(name.span(), e.to_string()))?;
 
-    // Reject generics, they are not support (yet).
+    // Fail quickly if there are generics.
     if !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
             &input.generics,
@@ -22,43 +27,31 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         ));
     }
 
-    // Obtain and parse quent attributes
-    let quent_attrs: Vec<&syn::Attribute> = input
+    // Parse into IR entity and validate.
+    let attributes: Vec<&syn::Attribute> = input
         .attrs
         .iter()
         .filter(|a| a.path().is_ident("quent"))
         .collect();
-
     let events = parse_events(&input)?;
-    let qualifications = parse_qualifications(&quent_attrs)?;
+    let qualifications = parse_qualifications(&attributes)?;
+    let entity = Entity::new(name_ir, events, qualifications, name.to_string());
+    // TODO(johanpel): run validation goes here
 
-    let entity = Entity::with_span(
-        name_str,
-        events,
-        qualifications,
-        String::new(),
-        Span(Some(name.span())),
-    );
+    // Emit the instrumentation library
+    let instrumentation = match &input.data {
+        syn::Data::Struct(s) => instrumentation::expand_struct(name, &s.fields, &input),
+        syn::Data::Enum(e) => instrumentation::expand_enum(name, &e.variants, &input, &entity),
+        syn::Data::Union(u) => Err(syn::Error::new_spanned(
+            u.union_token,
+            "#[derive(Entity)] not supported for union, use struct or enum",
+        )),
+    }?;
 
-    // let (obs, ir) = match &input.data {
-    //     syn::Data::Struct(s) => Ok((
-    //         obs::expand_struct(name, &name_str, &s.fields, &input)?,
-    //         ir::expand_struct(name, &name_str, &s.fields, &input)?,
-    //     )),
-    //     syn::Data::Enum(e) => Ok((
-    //         obs::expand_enum(name, &name_str, &e.variants, &input)?,
-    //         ir::expand_enum(name, &name_str, &e.variants, &input)?,
-    //     )),
-    //     syn::Data::Union(u) => Err(syn::Error::new_spanned(
-    //         u.union_token,
-    //         "#[derive(Entity)] not supported for union, use struct or enum",
-    //     )),
-    // }?;
+    // Ok(TokenStream::new())
 
-    Ok(TokenStream::new())
-
-    // Ok(quote! {
-    //     #obs
-    //     #ir
-    // })
+    Ok(quote! {
+        #instrumentation
+        // #ir
+    })
 }

@@ -2304,12 +2304,7 @@ name = "quent-v2-model-ir"
 version = "0.1.0"
 dependencies = [
  "petgraph",
- "proc-macro2",
  "quent-attributes",
- "quent-events",
- "quent-exporter",
- "quent-instrumentation",
- "quent-time",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -2322,6 +2317,7 @@ name = "quent-v2-model-macros"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "indexmap",
  "proc-macro2",
  "quent-v2-model-ir",
  "quote",

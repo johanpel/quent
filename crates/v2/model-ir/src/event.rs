@@ -1,4 +1,4 @@
-use crate::{Span, value_type::ValueType};
+use crate::value_type::ValueType;
 
 /// IR of the cardinality of an event.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -23,21 +23,13 @@ pub struct Field {
     pub name: String,
     /// The type of the field.
     pub ty: ValueType,
-
-    /// Optional span for use within proc macros
-    pub span: Span,
 }
 
 impl Field {
     pub fn new(name: impl Into<String>, ty: ValueType) -> Self {
-        Self::with_span(name, ty, Span::default())
-    }
-
-    pub fn with_span(name: impl Into<String>, ty: ValueType, span: Span) -> Self {
         Self {
             name: name.into(),
             ty,
-            span,
         }
     }
 }
@@ -51,31 +43,14 @@ pub struct Event {
     pub cardinality: Cardinality,
     /// The fields of the [`Payload`] of the event.
     pub payload: Vec<Field>,
-
-    /// Optional span for use within proc macros
-    pub span: Span,
 }
 
 impl Event {
-    pub fn new(
-        name: impl Into<String>,
-        cardinality: Cardinality,
-        payload: Vec<Field>,
-    ) -> Self {
-        Self::with_span(name, cardinality, payload, Span::default())
-    }
-
-    pub fn with_span(
-        name: impl Into<String>,
-        cardinality: Cardinality,
-        payload: Vec<Field>,
-        span: Span,
-    ) -> Self {
+    pub fn new(name: impl Into<String>, cardinality: Cardinality, payload: Vec<Field>) -> Self {
         Self {
             name: name.into(),
             cardinality,
             payload,
-            span,
         }
     }
 }

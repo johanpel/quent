@@ -1,5 +1,4 @@
 use crate::{
-    Model,
     entity::Entity,
     qualifications::{Qualification, resource::Resource},
     validator::qualifications::{QualificationCheck, QualificationError},

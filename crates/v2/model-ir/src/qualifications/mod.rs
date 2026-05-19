@@ -13,7 +13,8 @@ pub mod resource_group;
 pub enum QualificationKind {
     /// Finite-State-Machine
     ///
-    /// The entity emits events in an order prescribed by a topology of states and transitions.
+    /// The entity emits events in an order prescribed by a topology of states
+    /// and transitions.
     Fsm,
     /// The entity qualifies  as a Resource.
     ///
@@ -21,7 +22,8 @@ pub enum QualificationKind {
     Resource,
     /// The entity qualifies as a ResourceGroup.
     ///
-    /// At least one event holds an attribute field that refers to its parent resource group.
+    /// At least one event holds an attribute field that refers to its parent
+    /// resource group.
     ResourceGroup,
 }
 

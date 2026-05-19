@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use uuid::Uuid;
 
+pub mod handle;
+
 pub use quent_exporter::ExporterOptions;
 
 #[derive(Debug, thiserror::Error)]
@@ -39,20 +41,5 @@ impl<T> Observer<T> {
 
     pub fn sender(&self) -> EventSender<T> {
         self.tx.clone()
-    }
-}
-
-pub struct Handle<T> {
-    tx: EventSender<T>,
-    id: Uuid,
-}
-
-impl<T> Handle<T> {
-    pub fn new(tx: EventSender<T>, id: Uuid) -> Self {
-        Self { tx, id }
-    }
-
-    pub fn emit(&self, payload: T) -> Result<(), ObserverError> {
-        self.tx.emit(self.id, payload)
     }
 }
