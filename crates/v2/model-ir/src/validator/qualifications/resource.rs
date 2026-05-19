@@ -10,8 +10,7 @@ impl QualificationCheck for Resource {
         if entity
             .qualifications
             .iter()
-            .find(|q| matches!(q, Qualification::ResourceGroup(_)))
-            .is_some()
+            .any(|q| matches!(&q, Qualification::ResourceGroup(_)))
         {
             Err(QualificationError::Violations(vec![format!(
                 "entity {} cannot qualify as both resource and resource group",

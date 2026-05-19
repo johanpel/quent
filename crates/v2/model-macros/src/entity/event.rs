@@ -1,12 +1,11 @@
 use quent_v2_model_ir::{
     event::{Cardinality, Event, Field},
+    identifier::Identifier,
     value_type::ValueType,
 };
 use syn::{DeriveInput, Fields, Variant};
 
 use crate::value_type::parse_value_type;
-
-// use crate::value_type::parse_value_type;
 
 pub fn parse_events(input: &DeriveInput) -> syn::Result<Vec<Event>> {
     match &input.data {
@@ -30,21 +29,23 @@ fn parse_struct_events(
             "#[derive(Entity)] on a struct requires a unit struct or a struct with named fields",
         ));
     }
-    let name_str = name.to_string();
+    let name_ident = Identifier::try_new(name.to_string())
+        .map_err(|e| syn::Error::new(name.span(), e.to_string()))?;
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
         vec![Field::new(
             "payload",
-            ValueType::Attributes(name_str.clone()),
+            ValueType::Attributes(name_ident.to_string()),
         )]
     } else {
         Vec::new()
     };
-    Ok(vec![Event::new(name_str, Cardinality::Once, payload)])
+    Ok(vec![Event::new(name_ident, Cardinality::Once, payload)])
 }
 
 fn parse_enum_variant_event(v: &Variant) -> syn::Result<Event> {
-    let variant_name = v.ident.to_string();
+    let variant_name = Identifier::try_new(v.ident.to_string())
+        .map_err(|e| syn::Error::new(v.ident.span(), e.to_string()))?;
     let cardinality = parse_cardinality(&v.attrs)?;
     let payload = parse_variant_payloads(&v.fields, v)?;
     Ok(Event::new(variant_name, cardinality, payload))

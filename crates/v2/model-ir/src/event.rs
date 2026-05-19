@@ -1,4 +1,4 @@
-use crate::value_type::ValueType;
+use crate::{identifier::Identifier, value_type::ValueType};
 
 /// IR of the cardinality of an event.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,7 +38,7 @@ impl Field {
 #[derive(Debug, PartialEq)]
 pub struct Event {
     /// The name of the event.
-    pub name: String,
+    pub name: Identifier,
     /// The [`Cardinality`] of the event.
     pub cardinality: Cardinality,
     /// The fields of the [`Payload`] of the event.
@@ -46,9 +46,9 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn new(name: impl Into<String>, cardinality: Cardinality, payload: Vec<Field>) -> Self {
+    pub fn new(name: Identifier, cardinality: Cardinality, payload: Vec<Field>) -> Self {
         Self {
-            name: name.into(),
+            name,
             cardinality,
             payload,
         }

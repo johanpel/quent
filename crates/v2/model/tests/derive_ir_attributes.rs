@@ -1,5 +1,6 @@
 use quent_v2_model_ir::{
     attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
+    identifier::Identifier,
     value_type::{ModelValueType, ValueType},
 };
 
@@ -8,13 +9,17 @@ mod utils;
 
 use source::attributes::*;
 
+fn ident(s: &str) -> Identifier {
+    Identifier::try_new(s).unwrap()
+}
+
 // Unit structs
 #[test]
 fn unit() {
     assert_eq!(
         Unit::model_attributes(),
         Attributes::new(
-            "Unit",
+            ident("Unit"),
             vec![],
             utils::rust_path!("source::attributes::Unit")
         )
@@ -24,7 +29,7 @@ fn unit() {
     assert_eq!(
         UnitBraces::model_attributes(),
         Attributes::new(
-            "UnitBraces",
+            ident("UnitBraces"),
             vec![],
             utils::rust_path!("source::attributes::UnitBraces"),
         )
@@ -42,7 +47,7 @@ fn single() {
     assert_eq!(
         OnePrim::model_attributes(),
         Attributes::new(
-            "OnePrim",
+            ident("OnePrim"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::U8,
@@ -58,7 +63,7 @@ fn single() {
     assert_eq!(
         OneNested::model_attributes(),
         Attributes::new(
-            "OneNested",
+            ident("OneNested"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::Attributes(String::from("OnePrim")),
@@ -74,7 +79,7 @@ fn single() {
     assert_eq!(
         OneList::model_attributes(),
         Attributes::new(
-            "OneList",
+            ident("OneList"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::U8)),
@@ -90,7 +95,7 @@ fn single() {
     assert_eq!(
         OneListNested::model_attributes(),
         Attributes::new(
-            "OneListNested",
+            ident("OneListNested"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::Attributes(String::from("OnePrim")))),
@@ -106,7 +111,7 @@ fn single() {
     assert_eq!(
         OneListListPrim::model_attributes(),
         Attributes::new(
-            "OneListListPrim",
+            ident("OneListListPrim"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8)))),
@@ -122,7 +127,7 @@ fn single() {
     assert_eq!(
         OneListListNested::model_attributes(),
         Attributes::new(
-            "OneListListNested",
+            ident("OneListListNested"),
             vec![Field {
                 name: String::from("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
@@ -145,7 +150,7 @@ fn multi() {
     assert_eq!(
         MultiPrim::model_attributes(),
         Attributes::new(
-            "MultiPrim",
+            ident("MultiPrim"),
             vec![
                 Field {
                     name: String::from("a"),
@@ -167,7 +172,7 @@ fn multi() {
     assert_eq!(
         MultiNested::model_attributes(),
         Attributes::new(
-            "MultiNested",
+            ident("MultiNested"),
             vec![
                 Field {
                     name: String::from("a"),
@@ -197,7 +202,7 @@ fn multi() {
     assert_eq!(
         MultiOption::model_attributes(),
         Attributes::new(
-            "MultiOption",
+            ident("MultiOption"),
             vec![
                 Field {
                     name: String::from("a"),
@@ -224,7 +229,7 @@ fn all_value_types() {
     assert_eq!(
         AllTypes::model_attributes(),
         Attributes::new(
-            "AllTypes",
+            ident("AllTypes"),
             vec![
                 Field {
                     name: String::from("a_bool"),

@@ -1,10 +1,15 @@
 use proc_macro2::TokenStream;
+use quent_v2_model_ir::identifier::Identifier;
 use quote::quote;
 use syn::DeriveInput;
 
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let name_ident = &input.ident;
-    let name_string = &input.ident.to_string();
+    let name_string = input.ident.to_string();
+
+    // Validate the name of this type is a valid identifier in Quent:
+    Identifier::try_new(name_string.clone())
+        .map_err(|e| syn::Error::new(name_ident.span(), e.to_string()))?;
 
     // Generics are not supported for now :tm:.
     if !input.generics.params.is_empty() {
@@ -29,12 +34,8 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
             ));
         }
         syn::Data::Struct(s) => match &s.fields {
-            // Using Rust's convention for unnamed fields (enumerating them)
-            // would violate the modeling spec, which follows ANSI C identifier
-            // rules as a common denominator across all sorts of target
-            // languages. We could choose to prefix it with _ or something, but
-            // that would mean the event data would have a mangled field name
-            // vs. the Rust struct declaration.
+            // Using Rust's convention for unnamed fields (enumerating them as
+            // "0", "1", ...) would violate rules of forming a valid Identifier.
             syn::Fields::Unnamed(_) => {
                 return Err(syn::Error::new_spanned(
                     &input,
@@ -59,11 +60,13 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     });
 
     // Emit the traits that produce the IR from this type
+    //
+    // Generating the unwrap below is safe as we've validated the type name to be a valid identifier above.
     Ok(quote! {
         impl ::quent_v2_model_ir::attributes::ModelAttributes for #name_ident {
             fn model_attributes() -> ::quent_v2_model_ir::attributes::Attributes {
                 ::quent_v2_model_ir::attributes::Attributes {
-                    name: #name_string.to_string(),
+                    name: ::quent_v2_model_ir::identifier::Identifier::try_new(#name_string).unwrap(),
                     rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
                     fields: ::std::vec![
                         #(#fields),*

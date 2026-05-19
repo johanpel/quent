@@ -44,8 +44,7 @@ impl QualificationCheck for Fsm {
         if entity
             .events
             .iter()
-            .find(|e| e.name.eq_ignore_ascii_case("entry"))
-            .is_some()
+            .any(|e| e.name.eq_ignore_ascii_case("entry"))
         {
             violation("\"entry\" is a reserved state name")
         }
@@ -54,8 +53,7 @@ impl QualificationCheck for Fsm {
         if entity
             .events
             .iter()
-            .find(|e| e.name.eq_ignore_ascii_case("exit"))
-            .is_some()
+            .any(|e| e.name.eq_ignore_ascii_case("exit"))
         {
             violation("\"exit\" is a reserved state name")
         }

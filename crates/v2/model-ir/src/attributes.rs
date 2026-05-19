@@ -1,4 +1,5 @@
 use crate::{
+    identifier::Identifier,
     qualifications::{QualificationKind, QualificationRefKind},
     value_type::ValueType,
 };
@@ -20,7 +21,7 @@ pub struct Field {
 #[derive(Debug, PartialEq)]
 pub struct Attributes {
     /// The name of the attributes.
-    pub name: String,
+    pub name: Identifier,
     /// The fields of the attributes.
     pub fields: Vec<Field>,
 
@@ -29,9 +30,9 @@ pub struct Attributes {
 }
 
 impl Attributes {
-    pub fn new(name: impl Into<String>, fields: Vec<Field>, rust_path: impl Into<String>) -> Self {
+    pub fn new(name: Identifier, fields: Vec<Field>, rust_path: impl Into<String>) -> Self {
         Self {
-            name: name.into(),
+            name,
             fields,
             rust_path: rust_path.into(),
         }
