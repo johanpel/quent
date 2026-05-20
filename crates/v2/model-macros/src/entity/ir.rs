@@ -1,12 +1,32 @@
 use proc_macro2::TokenStream;
+use quent_v2_model_ir::{entity::Entity, qualifications::Qualification};
 use quote::quote;
 use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
+
+fn qualification_marker_impls(name: &syn::Ident, entity: &Entity) -> TokenStream {
+    let mut out = TokenStream::new();
+    for q in &entity.qualifications {
+        match q {
+            Qualification::ResourceGroup(rg) => {
+                let is_root = rg.is_root;
+                out.extend(quote! {
+                    impl ::quent_v2_model::ResourceGroupDeclaration for #name {
+                        const IS_ROOT: bool = #is_root;
+                    }
+                });
+            }
+            Qualification::Fsm(_) | Qualification::Resource(_) => {}
+        }
+    }
+    out
+}
 
 /// Expand a struct into a single-event entity.
 pub fn expand_struct(
     name: &syn::Ident,
     fields: &syn::Fields,
     input: &DeriveInput,
+    entity: &Entity,
 ) -> syn::Result<TokenStream> {
     // TODO(johanpel): this would be caught at IR validation already so could remove
     if matches!(fields, syn::Fields::Unnamed(_)) {
@@ -28,7 +48,7 @@ pub fn expand_struct(
         quote! {
             ::std::vec![
                 ::quent_v2_model_ir::event::Field::new(
-                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked("payload"),
+                    ::quent_v2_model_ir::event::FieldRole::Payload,
                     ::quent_v2_model_ir::value_type::ValueType::Attributes(
                         ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                     ),
@@ -53,7 +73,7 @@ pub fn expand_struct(
         }
     };
 
-    let entity = quote! {
+    let entity_impl = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
@@ -76,10 +96,13 @@ pub fn expand_struct(
         }
     };
 
+    let qualification_markers = qualification_marker_impls(name, entity);
+
     Ok(quote! {
         #entity_decl
         #entity_ref_target
-        #entity
+        #entity_impl
+        #qualification_markers
     })
 }
 
@@ -108,6 +131,7 @@ pub fn expand_enum(
     name: &syn::Ident,
     variants: &Punctuated<Variant, Token![,]>,
     input: &DeriveInput,
+    entity: &Entity,
 ) -> syn::Result<TokenStream> {
     // TODO(johanpel): this would be caught at IR validation already so could remove
     if variants.is_empty() {
@@ -139,7 +163,7 @@ pub fn expand_enum(
         .map(expand_variant)
         .collect::<syn::Result<_>>()?;
 
-    let entity = quote! {
+    let entity_impl = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
@@ -156,10 +180,13 @@ pub fn expand_enum(
         }
     };
 
+    let qualification_markers = qualification_marker_impls(name, entity);
+
     Ok(quote! {
         #entity_decl
         #entity_ref_target
-        #entity
+        #entity_impl
+        #qualification_markers
     })
 }
 
@@ -211,7 +238,7 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
             Ok(quote! {
                 ::std::vec![
                     ::quent_v2_model_ir::event::Field::new(
-                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked("payload"),
+                        ::quent_v2_model_ir::event::FieldRole::Payload,
                         <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
                     )
                 ]
@@ -222,19 +249,35 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
             "#[derive(Entity)] does not support enum variants with more than one unnamed field",
         )),
         syn::Fields::Named(named) => {
-            let field_defs = named.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap().to_string();
-                let ty = &f.ty;
-                quote! {
-                    ::quent_v2_model_ir::event::Field::new(
-                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
-                        <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
-                    )
-                }
-            });
+            let field_defs = named
+                .named
+                .iter()
+                .map(|f| {
+                    let field_name = f.ident.as_ref().unwrap();
+                    let role_tokens = field_role_tokens(field_name)?;
+                    let ty = &f.ty;
+                    Ok::<TokenStream, syn::Error>(quote! {
+                        ::quent_v2_model_ir::event::Field::new(
+                            #role_tokens,
+                            <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
+                        )
+                    })
+                })
+                .collect::<syn::Result<Vec<_>>>()?;
             Ok(quote! {
                 ::std::vec![ #(#field_defs),* ]
             })
         }
+    }
+}
+
+fn field_role_tokens(name: &syn::Ident) -> syn::Result<TokenStream> {
+    match name.to_string().as_str() {
+        "payload" => Ok(quote! { ::quent_v2_model_ir::event::FieldRole::Payload }),
+        "parent" => Ok(quote! { ::quent_v2_model_ir::event::FieldRole::Parent }),
+        other => Err(syn::Error::new(
+            name.span(),
+            format!("`{other}` is not a reserved event field name (allowed: payload, parent)"),
+        )),
     }
 }

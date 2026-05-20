@@ -1,6 +1,7 @@
 use quent_v2_model_ir::qualifications::Qualification;
 
 mod fsm;
+mod resource_group;
 
 pub fn parse(quent_attrs: &[&syn::Attribute]) -> syn::Result<Vec<Qualification>> {
     let mut result: Vec<Qualification> = Vec::new();
@@ -15,7 +16,8 @@ pub fn parse(quent_attrs: &[&syn::Attribute]) -> syn::Result<Vec<Qualification>>
             } else if meta.path.is_ident("resource") {
                 todo!()
             } else if meta.path.is_ident("resource_group") {
-                todo!()
+                let rg = resource_group::parse(meta.input)?;
+                result.push(Qualification::ResourceGroup(rg));
             } else {
                 let key = meta
                     .path

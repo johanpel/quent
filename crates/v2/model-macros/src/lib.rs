@@ -23,7 +23,6 @@ pub fn derive_attributes(input: TokenStream) -> TokenStream {
             .unwrap_or_else(|err| err.to_compile_error())
             .into()
     } else {
-
         TokenStream::new()
     }
 }

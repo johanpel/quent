@@ -1,4 +1,4 @@
-use crate::{identifier::Identifier, value_type::ValueType};
+use crate::{IrError, identifier::Identifier, value_type::ValueType};
 
 /// IR of the cardinality of an event.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,6 +31,18 @@ impl From<FieldRole> for Identifier {
         match value {
             FieldRole::Payload => Identifier::new_unchecked(FieldRole::PAYLOAD),
             FieldRole::Parent => Identifier::new_unchecked(FieldRole::PARENT),
+        }
+    }
+}
+
+impl TryFrom<&str> for FieldRole {
+    type Error = IrError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            FieldRole::PAYLOAD => Ok(FieldRole::Payload),
+            FieldRole::PARENT => Ok(FieldRole::Parent),
+            other => Err(IrError::UnknownFieldRole(other.to_string())),
         }
     }
 }

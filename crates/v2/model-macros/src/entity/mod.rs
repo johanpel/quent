@@ -1,3 +1,5 @@
+//! #[derive(Entity)] implementation
+
 use proc_macro2::TokenStream;
 use quent_v2_model_ir::{
     entity::Entity,
@@ -31,7 +33,7 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         ));
     }
 
-    // Parse into IR entity and validate.
+    // Parse into IR entity.
     let attributes: Vec<&syn::Attribute> = input
         .attrs
         .iter()
@@ -40,7 +42,16 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let events = parse::events::parse(&input)?;
     let qualifications = parse::qualifications::parse(&attributes)?;
     let entity = Entity::new(name_ir, events, qualifications, name.to_string());
-    // TODO(johanpel): run validation goes here
+    // Run IR entity validation.
+    if let Err(errs) = entity.validate() {
+        return Err(syn::Error::new_spanned(
+            name,
+            errs.into_iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ));
+    }
 
     // Emit the instrumentation library
     let instrumentation = if cfg!(feature = "instrumentation") {
@@ -56,15 +67,14 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // Emit the IR trait impls
     let ir = if cfg!(feature = "ir") {
         match &input.data {
-            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input),
-            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input),
+            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input, &entity),
+            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input, &entity),
             syn::Data::Union(_) => unreachable!(),
         }?
     } else {
         TokenStream::new()
     };
 
-    // Ok(TokenStream::new())
     Ok(quote! {
         #instrumentation
 

@@ -1,5 +1,5 @@
 use quent_v2_model_ir::{
-    event::{Cardinality, Event, Field},
+    event::{Cardinality, Event, Field, FieldRole},
     identifier::Identifier,
     value_type::ValueType,
 };
@@ -33,7 +33,7 @@ fn parse_struct_events(
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
         vec![Field::new(
-            Identifier::new_unchecked("payload"),
+            FieldRole::Payload,
             ValueType::Attributes(name_ident.clone()),
         )]
     } else {
@@ -82,10 +82,7 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
         syn::Fields::Unnamed(u) if u.unnamed.len() == 1 => {
             let unnamed_field = u.unnamed.first().unwrap();
             let ty = &unnamed_field.ty;
-            Ok(vec![Field::new(
-                Identifier::new_unchecked("payload"),
-                parse_value_type(ty)?,
-            )])
+            Ok(vec![Field::new(FieldRole::Payload, parse_value_type(ty)?)])
         }
         syn::Fields::Unnamed(_) => Err(syn::Error::new_spanned(
             span_source,
@@ -96,12 +93,15 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
             .iter()
             .map(|f| {
                 let field_name = f.ident.as_ref().unwrap();
+                let role = parse_field_role(field_name)?;
                 let ty = &f.ty;
-                Ok(Field::new(
-                    Identifier::new_unchecked(field_name.to_string()),
-                    parse_value_type(ty)?,
-                ))
+                Ok(Field::new(role, parse_value_type(ty)?))
             })
             .collect(),
     }
+}
+
+fn parse_field_role(name: &syn::Ident) -> syn::Result<FieldRole> {
+    FieldRole::try_from(name.to_string().as_str())
+        .map_err(|e| syn::Error::new(name.span(), e.to_string()))
 }

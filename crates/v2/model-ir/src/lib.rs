@@ -87,6 +87,8 @@ pub struct Model {
 pub enum IrError {
     #[error("invalid identifier: {0}")]
     InvalidIdentifier(#[from] IdentifierError),
+    #[error("unknown event field role: `{0}`")]
+    UnknownFieldRole(String),
 }
 
 pub type Result<T> = std::result::Result<T, IrError>;

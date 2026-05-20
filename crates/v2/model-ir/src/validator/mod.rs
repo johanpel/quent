@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 use crate::{
-    Model,
+    entity::Entity,
     qualifications::{Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup},
     validator::qualifications::{QualificationCheck, QualificationError},
 };
@@ -14,33 +14,21 @@ pub enum ValidationError {
     Qualification(#[from] QualificationError),
 }
 
-impl Model {
+impl Entity {
     pub fn validate(&self) -> Result<(), Vec<ValidationError>> {
-        // TODO: validate other stuff, like unknown identifiers etc.
-
-        // Validate all entity qualifications
-        let qualifications = self
-            .entities
+        let errs: Vec<_> = self
+            .qualifications
             .iter()
-            .flat_map(|entity| entity.qualifications.iter().map(move |q| (entity, q)))
-            .filter_map(|(entity, q)| {
+            .filter_map(|q| {
                 match q {
-                    Qualification::Fsm(_) => Fsm::qualifies(entity),
-                    Qualification::Resource(_) => Resource::qualifies(entity),
-                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(entity),
+                    Qualification::Fsm(_) => Fsm::qualifies(self),
+                    Qualification::Resource(_) => Resource::qualifies(self),
+                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(self),
                 }
                 .err()
             })
-            .collect::<Vec<_>>();
-
-        if qualifications.is_empty() {
-            // and other checks resulted in no violations
-            Ok(())
-        } else {
-            Err(qualifications
-                .into_iter()
-                .map(ValidationError::from)
-                .collect())
-        }
+            .map(ValidationError::from)
+            .collect();
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 }
