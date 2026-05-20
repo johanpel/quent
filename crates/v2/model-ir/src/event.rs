@@ -20,17 +20,14 @@ pub enum Cardinality {
 #[derive(Debug, PartialEq)]
 pub struct Field {
     /// The name of the field.
-    pub name: String,
+    pub name: Identifier,
     /// The type of the field.
     pub ty: ValueType,
 }
 
 impl Field {
-    pub fn new(name: impl Into<String>, ty: ValueType) -> Self {
-        Self {
-            name: name.into(),
-            ty,
-        }
+    pub fn new(name: Identifier, ty: ValueType) -> Self {
+        Self { name, ty }
     }
 }
 

@@ -1,6 +1,5 @@
 use quent_v2_model_ir::{
     attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
-    identifier::Identifier,
     value_type::{ModelValueType, ValueType},
 };
 
@@ -9,9 +8,7 @@ mod utils;
 
 use source::attributes::*;
 
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
-}
+use crate::utils::ident;
 
 // Unit structs
 #[test]
@@ -24,7 +21,10 @@ fn unit() {
             utils::rust_path!("source::attributes::Unit")
         )
     );
-    assert_eq!(Unit::model_value_type(), ValueType::attributes("Unit"));
+    assert_eq!(
+        Unit::model_value_type(),
+        ValueType::Attributes(ident("Unit"))
+    );
 
     assert_eq!(
         UnitBraces::model_attributes(),
@@ -36,7 +36,7 @@ fn unit() {
     );
     assert_eq!(
         UnitBraces::model_value_type(),
-        ValueType::attributes("UnitBraces")
+        ValueType::Attributes(ident("UnitBraces"))
     );
 }
 
@@ -49,7 +49,7 @@ fn single() {
         Attributes::new(
             ident("OnePrim"),
             vec![Field {
-                name: String::from("a"),
+                name: ident("a"),
                 ty: ValueType::U8,
             }],
             utils::rust_path!("source::attributes::OnePrim"),
@@ -57,7 +57,7 @@ fn single() {
     );
     assert_eq!(
         OnePrim::model_value_type(),
-        ValueType::attributes("OnePrim")
+        ValueType::Attributes(ident("OnePrim"))
     );
 
     assert_eq!(
@@ -65,15 +65,15 @@ fn single() {
         Attributes::new(
             ident("OneNested"),
             vec![Field {
-                name: String::from("a"),
-                ty: ValueType::Attributes(String::from("OnePrim")),
+                name: ident("a"),
+                ty: ValueType::Attributes(ident("OnePrim")),
             }],
             utils::rust_path!("source::attributes::OneNested"),
         )
     );
     assert_eq!(
         OneNested::model_value_type(),
-        ValueType::attributes("OneNested")
+        ValueType::Attributes(ident("OneNested"))
     );
 
     assert_eq!(
@@ -81,7 +81,7 @@ fn single() {
         Attributes::new(
             ident("OneList"),
             vec![Field {
-                name: String::from("a"),
+                name: ident("a"),
                 ty: ValueType::List(Box::new(ValueType::U8)),
             }],
             utils::rust_path!("source::attributes::OneList"),
@@ -89,7 +89,7 @@ fn single() {
     );
     assert_eq!(
         OneList::model_value_type(),
-        ValueType::attributes("OneList")
+        ValueType::Attributes(ident("OneList"))
     );
 
     assert_eq!(
@@ -97,15 +97,15 @@ fn single() {
         Attributes::new(
             ident("OneListNested"),
             vec![Field {
-                name: String::from("a"),
-                ty: ValueType::List(Box::new(ValueType::Attributes(String::from("OnePrim")))),
+                name: ident("a"),
+                ty: ValueType::List(Box::new(ValueType::Attributes(ident("OnePrim")))),
             }],
             utils::rust_path!("source::attributes::OneListNested"),
         )
     );
     assert_eq!(
         OneListNested::model_value_type(),
-        ValueType::attributes("OneListNested")
+        ValueType::Attributes(ident("OneListNested"))
     );
 
     assert_eq!(
@@ -113,7 +113,7 @@ fn single() {
         Attributes::new(
             ident("OneListListPrim"),
             vec![Field {
-                name: String::from("a"),
+                name: ident("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8)))),
             }],
             utils::rust_path!("source::attributes::OneListListPrim"),
@@ -121,7 +121,7 @@ fn single() {
     );
     assert_eq!(
         OneListListPrim::model_value_type(),
-        ValueType::attributes("OneListListPrim")
+        ValueType::Attributes(ident("OneListListPrim"))
     );
 
     assert_eq!(
@@ -129,17 +129,17 @@ fn single() {
         Attributes::new(
             ident("OneListListNested"),
             vec![Field {
-                name: String::from("a"),
+                name: ident("a"),
                 ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
-                    String::from("OnePrim"),
-                ))))),
+                    ident("OnePrim")
+                )))))
             }],
             utils::rust_path!("source::attributes::OneListListNested"),
         )
     );
     assert_eq!(
         OneListListNested::model_value_type(),
-        ValueType::attributes("OneListListNested")
+        ValueType::Attributes(ident("OneListListNested"))
     );
 }
 
@@ -153,11 +153,11 @@ fn multi() {
             ident("MultiPrim"),
             vec![
                 Field {
-                    name: String::from("a"),
+                    name: ident("a"),
                     ty: ValueType::U8,
                 },
                 Field {
-                    name: String::from("b"),
+                    name: ident("b"),
                     ty: ValueType::String,
                 },
             ],
@@ -166,7 +166,7 @@ fn multi() {
     );
     assert_eq!(
         MultiPrim::model_value_type(),
-        ValueType::attributes("MultiPrim")
+        ValueType::Attributes(ident("MultiPrim"))
     );
 
     assert_eq!(
@@ -175,19 +175,19 @@ fn multi() {
             ident("MultiNested"),
             vec![
                 Field {
-                    name: String::from("a"),
+                    name: ident("a"),
                     ty: ValueType::U8,
                 },
                 Field {
-                    name: String::from("b"),
-                    ty: ValueType::Attributes(String::from("MultiPrim")),
+                    name: ident("b"),
+                    ty: ValueType::Attributes(ident("MultiPrim")),
                 },
                 Field {
-                    name: String::from("c"),
+                    name: ident("c"),
                     ty: ValueType::List(Box::new(ValueType::U16)),
                 },
                 Field {
-                    name: String::from("d"),
+                    name: ident("d"),
                     ty: ValueType::String,
                 },
             ],
@@ -196,7 +196,7 @@ fn multi() {
     );
     assert_eq!(
         MultiNested::model_value_type(),
-        ValueType::attributes("MultiNested")
+        ValueType::Attributes(ident("MultiNested"))
     );
 
     assert_eq!(
@@ -205,11 +205,11 @@ fn multi() {
             ident("MultiOption"),
             vec![
                 Field {
-                    name: String::from("a"),
+                    name: ident("a"),
                     ty: ValueType::U8,
                 },
                 Field {
-                    name: String::from("b"),
+                    name: ident("b"),
                     ty: ValueType::Option(Box::new(ValueType::String)),
                 },
             ],
@@ -218,7 +218,7 @@ fn multi() {
     );
     assert_eq!(
         MultiOption::model_value_type(),
-        ValueType::attributes("MultiOption")
+        ValueType::Attributes(ident("MultiOption"))
     );
 }
 
@@ -232,75 +232,75 @@ fn all_value_types() {
             ident("AllTypes"),
             vec![
                 Field {
-                    name: String::from("a_bool"),
+                    name: ident("a_bool"),
                     ty: ValueType::Bool,
                 },
                 Field {
-                    name: String::from("a_uuid"),
+                    name: ident("a_uuid"),
                     ty: ValueType::Uuid,
                 },
                 Field {
-                    name: String::from("a_string"),
+                    name: ident("a_string"),
                     ty: ValueType::String,
                 },
                 Field {
-                    name: String::from("a_u8"),
+                    name: ident("a_u8"),
                     ty: ValueType::U8,
                 },
                 Field {
-                    name: String::from("a_u16"),
+                    name: ident("a_u16"),
                     ty: ValueType::U16,
                 },
                 Field {
-                    name: String::from("a_u32"),
+                    name: ident("a_u32"),
                     ty: ValueType::U32,
                 },
                 Field {
-                    name: String::from("a_u64"),
+                    name: ident("a_u64"),
                     ty: ValueType::U64,
                 },
                 Field {
-                    name: String::from("a_i8"),
+                    name: ident("a_i8"),
                     ty: ValueType::I8,
                 },
                 Field {
-                    name: String::from("a_i16"),
+                    name: ident("a_i16"),
                     ty: ValueType::I16,
                 },
                 Field {
-                    name: String::from("a_i32"),
+                    name: ident("a_i32"),
                     ty: ValueType::I32,
                 },
                 Field {
-                    name: String::from("a_i64"),
+                    name: ident("a_i64"),
                     ty: ValueType::I64,
                 },
                 Field {
-                    name: String::from("a_f32"),
+                    name: ident("a_f32"),
                     ty: ValueType::F32,
                 },
                 Field {
-                    name: String::from("a_f64"),
+                    name: ident("a_f64"),
                     ty: ValueType::F64,
                 },
                 Field {
-                    name: String::from("a_option"),
+                    name: ident("a_option"),
                     ty: ValueType::Option(Box::new(ValueType::U64)),
                 },
                 Field {
-                    name: String::from("a_list"),
+                    name: ident("a_list"),
                     ty: ValueType::List(Box::new(ValueType::U64)),
                 },
                 Field {
-                    name: String::from("a_nested"),
-                    ty: ValueType::Attributes(String::from("MultiNested")),
+                    name: ident("a_nested"),
+                    ty: ValueType::Attributes(ident("MultiNested")),
                 },
                 Field {
-                    name: String::from("a_custom"),
+                    name: ident("a_custom"),
                     ty: ValueType::CustomAttributes,
                 },
                 Field {
-                    name: String::from("a_entity_ref"),
+                    name: ident("a_entity_ref"),
                     ty: ValueType::EntityRef {
                         entity_type: EntityRefTarget::Any,
                         role_type: EntityRefKind::Plain,
@@ -312,6 +312,6 @@ fn all_value_types() {
     );
     assert_eq!(
         AllTypes::model_value_type(),
-        ValueType::attributes("AllTypes")
+        ValueType::Attributes(ident("AllTypes"))
     );
 }

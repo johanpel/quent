@@ -8,7 +8,9 @@ publish.workspace = true
 proc-macro = true
 
 [features]
-default = ["serde"]
+default = ["instrumentation", "ir"]
+instrumentation = []
+ir = []
 serde = []
 
 [dependencies]

@@ -28,6 +28,10 @@ impl Identifier {
         Ok(Self(s))
     }
 
+    pub fn new_unchecked(s: impl Into<String>) -> Self {
+        Self::try_new(s).unwrap()
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0
     }

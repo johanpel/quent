@@ -1,4 +1,7 @@
-use crate::attributes::{EntityRefKind, EntityRefTarget};
+use crate::{
+    attributes::{EntityRefKind, EntityRefTarget},
+    identifier::Identifier,
+};
 
 /// Trait to obtain the IR of a Rust type.
 pub trait ModelValueType {
@@ -46,18 +49,12 @@ pub enum ValueType {
     // grand reference type that could also hold data like this, which depends
     // on the qualities of the entity referenced to.
     Usage {
-        resource: String,
+        resource: Identifier,
     },
-    /// A (compile-time) reference to an attributes set.
-    Attributes(String),
+    /// A reference to an attributes set.
+    Attributes(Identifier),
     /// A set of attributes determined by the instrumentation client at run-time.
     CustomAttributes,
-}
-
-impl ValueType {
-    pub fn attributes(ident: impl Into<String>) -> Self {
-        Self::Attributes(ident.into())
-    }
 }
 
 macro_rules! impl_model_value_type {

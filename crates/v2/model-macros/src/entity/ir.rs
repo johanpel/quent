@@ -5,18 +5,18 @@ use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
 /// Expand a struct into a single-event entity.
 pub fn expand_struct(
     name: &syn::Ident,
-    name_str: &str,
     fields: &syn::Fields,
     input: &DeriveInput,
 ) -> syn::Result<TokenStream> {
-    // Same reason to reject as attribute derives. Rust's naming convention
-    // leading with a digit clashes with the spec.
+    // TODO(johanpel): this would be caught at IR validation already so could remove
     if matches!(fields, syn::Fields::Unnamed(_)) {
         return Err(syn::Error::new_spanned(
             input,
             "#[derive(Entity)] on a struct requires a unit struct or a struct with named fields",
         ));
     }
+
+    let name_string = name.to_string();
 
     let has_payload = match fields {
         syn::Fields::Unit => false,
@@ -28,9 +28,9 @@ pub fn expand_struct(
         quote! {
             ::std::vec![
                 ::quent_v2_model_ir::event::Field::new(
-                    "payload",
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked("payload"),
                     ::quent_v2_model_ir::value_type::ValueType::Attributes(
-                        #name_str.to_string()
+                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                     ),
                 )
             ]
@@ -47,7 +47,7 @@ pub fn expand_struct(
         impl ::quent_v2_model_ir::value_type::ModelEntityRefTarget for #name {
             fn model_entity_ref_target() -> ::quent_v2_model_ir::attributes::EntityRefTarget {
                 ::quent_v2_model_ir::attributes::EntityRefTarget::Specific(
-                    #name_str.to_string()
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                 )
             }
         }
@@ -57,10 +57,10 @@ pub fn expand_struct(
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
-                    #name_str,
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     ::std::vec![
                         ::quent_v2_model_ir::event::Event::new(
-                            #name_str,
+                            ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                             ::quent_v2_model_ir::event::Cardinality::Once,
                             #payload,
                         )
@@ -69,7 +69,7 @@ pub fn expand_struct(
                     ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
-                        #name_str,
+                        #name_string,
                     ),
                 )
             }
@@ -106,16 +106,18 @@ pub fn expand_struct(
 // done in this derive macro yet.
 pub fn expand_enum(
     name: &syn::Ident,
-    name_str: &str,
     variants: &Punctuated<Variant, Token![,]>,
     input: &DeriveInput,
 ) -> syn::Result<TokenStream> {
+    // TODO(johanpel): this would be caught at IR validation already so could remove
     if variants.is_empty() {
         return Err(syn::Error::new_spanned(
             input,
             "#[derive(Entity)] requires the enum to have at least one variant, otherwise it would have no event",
         ));
     }
+
+    let name_string = name.to_string();
 
     // Ensure the type is considered an entity for entity references.
     let entity_decl = quote! {
@@ -125,7 +127,7 @@ pub fn expand_enum(
         impl ::quent_v2_model_ir::value_type::ModelEntityRefTarget for #name {
             fn model_entity_ref_target() -> ::quent_v2_model_ir::attributes::EntityRefTarget {
                 ::quent_v2_model_ir::attributes::EntityRefTarget::Specific(
-                    #name_str.to_string()
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                 )
             }
         }
@@ -141,13 +143,13 @@ pub fn expand_enum(
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
-                    #name_str,
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     ::std::vec![ #(#events),* ],
                     ::std::vec::Vec::new(),
                     ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
-                        #name_str,
+                        #name_string,
                     ),
                 )
             }
@@ -168,7 +170,7 @@ fn expand_variant(v: &Variant) -> syn::Result<TokenStream> {
 
     Ok(quote! {
         ::quent_v2_model_ir::event::Event::new(
-            #variant_name,
+            ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#variant_name),
             #cardinality,
             #payload,
         )
@@ -209,7 +211,7 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
             Ok(quote! {
                 ::std::vec![
                     ::quent_v2_model_ir::event::Field::new(
-                        "payload",
+                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked("payload"),
                         <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
                     )
                 ]
@@ -225,7 +227,7 @@ fn expand_variant_payload(fields: &syn::Fields, span_source: &Variant) -> syn::R
                 let ty = &f.ty;
                 quote! {
                     ::quent_v2_model_ir::event::Field::new(
-                        #field_name.to_string(),
+                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
                         <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
                     )
                 }

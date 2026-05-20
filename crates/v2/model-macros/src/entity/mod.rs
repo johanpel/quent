@@ -6,11 +6,9 @@ use quent_v2_model_ir::{
 use quote::quote;
 use syn::DeriveInput;
 
-use crate::entity::{event::parse_events, qualifications::parse_qualifications};
-
-mod event;
 mod instrumentation;
-mod qualifications;
+mod ir;
+mod parse;
 
 pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
@@ -19,11 +17,17 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         .try_into()
         .map_err(|e: IdentifierError| syn::Error::new(name.span(), e.to_string()))?;
 
-    // Fail quickly if there are generics.
+    // Fail quickly if there are generics or if this is used on a union.
     if !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
             &input.generics,
             "#[derive(Entity)] does not support generics",
+        ));
+    }
+    if let syn::Data::Union(u) = input.data {
+        return Err(syn::Error::new_spanned(
+            u.union_token,
+            "#[derive(Entity)] not supported for union, use struct or enum",
         ));
     }
 
@@ -33,25 +37,37 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         .iter()
         .filter(|a| a.path().is_ident("quent"))
         .collect();
-    let events = parse_events(&input)?;
-    let qualifications = parse_qualifications(&attributes)?;
+    let events = parse::events::parse(&input)?;
+    let qualifications = parse::qualifications::parse(&attributes)?;
     let entity = Entity::new(name_ir, events, qualifications, name.to_string());
     // TODO(johanpel): run validation goes here
 
     // Emit the instrumentation library
-    let instrumentation = match &input.data {
-        syn::Data::Struct(s) => instrumentation::expand_struct(name, &s.fields, &input),
-        syn::Data::Enum(e) => instrumentation::expand_enum(name, &e.variants, &input, &entity),
-        syn::Data::Union(u) => Err(syn::Error::new_spanned(
-            u.union_token,
-            "#[derive(Entity)] not supported for union, use struct or enum",
-        )),
-    }?;
+    let instrumentation = if cfg!(feature = "instrumentation") {
+        match &input.data {
+            syn::Data::Struct(s) => instrumentation::expand_struct(name, &s.fields, &input),
+            syn::Data::Enum(e) => instrumentation::expand_enum(name, &e.variants, &input, &entity),
+            syn::Data::Union(_) => unreachable!(),
+        }?
+    } else {
+        TokenStream::new()
+    };
+
+    // Emit the IR trait impls
+    let ir = if cfg!(feature = "ir") {
+        match &input.data {
+            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input),
+            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input),
+            syn::Data::Union(_) => unreachable!(),
+        }?
+    } else {
+        TokenStream::new()
+    };
 
     // Ok(TokenStream::new())
-
     Ok(quote! {
         #instrumentation
-        // #ir
+
+        #ir
     })
 }

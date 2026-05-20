@@ -12,7 +12,7 @@ pub trait ModelAttributes {
 /// Definition of a field in an attribute set.
 #[derive(Debug, PartialEq)]
 pub struct Field {
-    pub name: String,
+    pub name: Identifier,
     pub ty: ValueType,
 }
 
@@ -43,7 +43,7 @@ impl Attributes {
 #[derive(Debug, PartialEq)]
 pub enum EntityRefTarget {
     /// The entity reference targets one specific entity type.
-    Specific(String),
+    Specific(Identifier),
     /// The entity reference targets any entity.
     Any,
     /// The entity reference targets an entity with some qualification.

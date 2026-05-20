@@ -11,6 +11,7 @@
 //!
 use quent_v2_model_ir::{
     attributes::{EntityRefKind, EntityRefTarget},
+    identifier::Identifier,
     qualifications::{QualificationKind, QualificationRefKind, resource_group::RgRefKind},
     value_type::ValueType,
 };
@@ -70,7 +71,9 @@ pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
         }
         "EntityRef" => {
             let syn::PathArguments::AngleBracketed(args) = &last.arguments else {
-                return Ok(ValueType::Attributes(name));
+                return Ok(ValueType::Attributes(Identifier::new_unchecked(
+                    name.as_str(),
+                )));
             };
             let mut type_args = args.args.iter().filter_map(|a| match a {
                 syn::GenericArgument::Type(t) => Some(t),
@@ -95,7 +98,7 @@ pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
             // Ok(ValueType::Attributes(name))
         }
         // Assume a user-defined Attributes-derived type for anything else.
-        _ => Ok(ValueType::Attributes(name)),
+        _ => Ok(ValueType::Attributes(Identifier::new_unchecked(name))),
     }
 }
 
@@ -121,7 +124,7 @@ fn parse_entity_ref_target(ty: &syn::Type) -> syn::Result<EntityRefTarget> {
     Ok(match name.as_str() {
         "AnyEntity" => EntityRefTarget::Any,
         "AnyRg" => EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup),
-        _ => EntityRefTarget::Specific(name),
+        _ => EntityRefTarget::Specific(Identifier::new_unchecked(name)),
     })
 }
 

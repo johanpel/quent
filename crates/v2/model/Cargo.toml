@@ -15,7 +15,7 @@ petgraph.workspace = true
 quent-attributes = { path = "../../attributes" }
 quent-v2-instrumentation = { path = "../instrumentation" }
 quent-v2-model-ir = { path = "../model-ir" }
-quent-v2-model-macros = { path = "../model-macros" }
+quent-v2-model-macros = { path = "../model-macros", features = ["instrumentation", "ir"]}
 quent-exporter = { path = "../../exporter" }
 quent-time = { path = "../../time" }
 thiserror.workspace = true

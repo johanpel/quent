@@ -2,7 +2,7 @@ use quent_v2_model_ir::qualifications::Qualification;
 
 mod fsm;
 
-pub fn parse_qualifications(quent_attrs: &[&syn::Attribute]) -> syn::Result<Vec<Qualification>> {
+pub fn parse(quent_attrs: &[&syn::Attribute]) -> syn::Result<Vec<Qualification>> {
     let mut result: Vec<Qualification> = Vec::new();
 
     for attr in quent_attrs {

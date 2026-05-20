@@ -7,7 +7,7 @@ use syn::{DeriveInput, Fields, Variant};
 
 use crate::value_type::parse_value_type;
 
-pub fn parse_events(input: &DeriveInput) -> syn::Result<Vec<Event>> {
+pub fn parse(input: &DeriveInput) -> syn::Result<Vec<Event>> {
     match &input.data {
         syn::Data::Struct(s) => parse_struct_events(&input.ident, &s.fields, input),
         syn::Data::Enum(e) => e.variants.iter().map(parse_enum_variant_event).collect(),
@@ -29,13 +29,12 @@ fn parse_struct_events(
             "#[derive(Entity)] on a struct requires a unit struct or a struct with named fields",
         ));
     }
-    let name_ident = Identifier::try_new(name.to_string())
-        .map_err(|e| syn::Error::new(name.span(), e.to_string()))?;
+    let name_ident = Identifier::new_unchecked(name.to_string());
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
         vec![Field::new(
-            "payload",
-            ValueType::Attributes(name_ident.to_string()),
+            Identifier::new_unchecked("payload"),
+            ValueType::Attributes(name_ident.clone()),
         )]
     } else {
         Vec::new()
@@ -44,8 +43,7 @@ fn parse_struct_events(
 }
 
 fn parse_enum_variant_event(v: &Variant) -> syn::Result<Event> {
-    let variant_name = Identifier::try_new(v.ident.to_string())
-        .map_err(|e| syn::Error::new(v.ident.span(), e.to_string()))?;
+    let variant_name = Identifier::new_unchecked(v.ident.to_string());
     let cardinality = parse_cardinality(&v.attrs)?;
     let payload = parse_variant_payloads(&v.fields, v)?;
     Ok(Event::new(variant_name, cardinality, payload))
@@ -84,7 +82,10 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
         syn::Fields::Unnamed(u) if u.unnamed.len() == 1 => {
             let unnamed_field = u.unnamed.first().unwrap();
             let ty = &unnamed_field.ty;
-            Ok(vec![Field::new("payload", parse_value_type(ty)?)])
+            Ok(vec![Field::new(
+                Identifier::new_unchecked("payload"),
+                parse_value_type(ty)?,
+            )])
         }
         syn::Fields::Unnamed(_) => Err(syn::Error::new_spanned(
             span_source,
@@ -96,7 +97,10 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
             .map(|f| {
                 let field_name = f.ident.as_ref().unwrap();
                 let ty = &f.ty;
-                Ok(Field::new(field_name.to_string(), parse_value_type(ty)?))
+                Ok(Field::new(
+                    Identifier::new_unchecked(field_name.to_string()),
+                    parse_value_type(ty)?,
+                ))
             })
             .collect(),
     }
