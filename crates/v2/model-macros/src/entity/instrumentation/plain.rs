@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
 use proc_macro2::TokenStream;
@@ -63,10 +66,20 @@ pub(crate) fn emit_handle(
             #(#handle_methods)*
         }
     };
+    let entity_handle_impl = quote! {
+        impl ::quent_v2_model::EntityHandle for #handle_name {
+            type DeclarationType = #name;
+            fn id(&self) -> ::uuid::Uuid {
+                self.inner.id()
+            }
+        }
+    };
     Ok(quote! {
         #handle_type
 
         #handle_impl
+
+        #entity_handle_impl
     })
 }
 

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! Support to parse a syn::Type into an IR type.
 //!
 //! This is necessary to be able to build the IR in the entity derive macro for

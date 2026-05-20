@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 use proc_macro2::TokenStream;
 use quent_v2_model_ir::identifier::Identifier;
 use quote::quote;

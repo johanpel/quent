@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 /// A checked identifier adhering to the grammar `[A-Za-z][A-Za-z0-9_]*`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier(String);
