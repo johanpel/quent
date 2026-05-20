@@ -40,13 +40,13 @@ pub struct EntityRef<EntityType: EntityDeclaration, RoleType = PlainRef> {
     pub id: Uuid,
 }
 
-/// Type to tag an [`EntityRef`] can be to any type of entity, to be determined
+/// Type to mark an [`EntityRef`] can be to any type of entity, to be determined
 /// at run-time.
 pub struct AnyEntity;
 // Special case:
 impl EntityDeclaration for AnyEntity {}
 
-/// Type to tag an [`EntityRef`] of being of no particular meaning.
+/// Type to mark an [`EntityRef`] of being of no particular meaning.
 pub struct PlainRef;
 
 impl<E: EntityDeclaration, R> Clone for EntityRef<E, R> {

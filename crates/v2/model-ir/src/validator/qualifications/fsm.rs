@@ -149,3 +149,5 @@ impl<'a> FsmGraphNode<'a> {
         }
     }
 }
+
+// TODO(johanpel): test

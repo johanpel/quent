@@ -9,6 +9,32 @@ pub enum Cardinality {
     Multi,
 }
 
+/// The role of an event field
+#[derive(Debug, PartialEq)]
+pub enum FieldRole {
+    /// The field carries the user payload.
+    // TODO(johanpel): bad name, since a parent field will also be part of the event payload, so change later
+    Payload,
+    /// The field carries a parent relation, e.g. for resource or resource group.
+    Parent,
+}
+
+impl FieldRole {
+    /// Required field name for the user payload field of an event.
+    pub const PAYLOAD: &'static str = "payload";
+    /// Required field name for events that carry a parent-child relation, e.g. for resource group trees.
+    pub const PARENT: &'static str = "parent";
+}
+
+impl From<FieldRole> for Identifier {
+    fn from(value: FieldRole) -> Self {
+        match value {
+            FieldRole::Payload => Identifier::new_unchecked(FieldRole::PAYLOAD),
+            FieldRole::Parent => Identifier::new_unchecked(FieldRole::PARENT),
+        }
+    }
+}
+
 /// IR of a type of event payload field
 ///
 /// Not to be confused with fields of attribute sets, which are always
@@ -19,15 +45,15 @@ pub enum Cardinality {
 // more logic into the derive macro.
 #[derive(Debug, PartialEq)]
 pub struct Field {
-    /// The name of the field.
-    pub name: Identifier,
+    /// The role of the field.
+    pub role: FieldRole,
     /// The type of the field.
     pub ty: ValueType,
 }
 
 impl Field {
-    pub fn new(name: Identifier, ty: ValueType) -> Self {
-        Self { name, ty }
+    pub fn new(role: FieldRole, ty: ValueType) -> Self {
+        Self { role, ty }
     }
 }
 

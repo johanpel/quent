@@ -18,10 +18,10 @@
 //! they would be very awkward to encode (e.g. FSM state reachability). Since
 //! the IR is necessary for cross-language code generation, the IR validator
 //! checks these requirements instead, even in a pure Rust flow (see below).
-//! This is an opinionated trade-off between Rust-purity and ease of declaring
-//! an application model. That said, constraints may migrate to the type system
-//! over time, because in an ideal world the Rust compiler would validate
-//! everything.
+//! This is an opinionated trade-off between Rust-purity, ease of encoding the
+//! modeling requirements, and ease of declaring an application model.
+//! Constraints may migrate to the type system over time, because in an ideal
+//! world, the Rust compiler would validate everything.
 //!
 //! # IR usage overview
 //!

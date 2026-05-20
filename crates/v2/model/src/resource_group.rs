@@ -23,13 +23,13 @@ pub trait ResourceGroupDeclaration: EntityDeclaration {
     const IS_ROOT: bool;
 }
 
-/// Tag type to convey an [`EntityRef`] refers to a resource group's parent.
+/// Marker to convey an [`EntityRef`] refers to a resource group's parent.
 ///
-/// [`EntityRef`]s with this tag should only be able to be created from
+/// [`EntityRef`]s with this marker should only be able to be created from
 /// references to entities that are resource groups.
 pub struct RgParentRef;
 
-/// Tag type to convey an [`EntityRef`] can be made to any type of resource
+/// Marker to convey an [`EntityRef`] can be made to any type of resource
 /// group.
 pub struct AnyRg;
 impl EntityDeclaration for AnyRg {}

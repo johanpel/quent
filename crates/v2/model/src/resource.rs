@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 // TODO: seal traits below
 
-// Trait + tag types for whether capacities are bounded or unbounded
+// Trait + markers for whether capacities are bounded or unbounded
 pub trait Boundedness {}
 /// The resource capacity is bounded.
 pub struct Bounded;
@@ -24,7 +24,7 @@ impl Boundedness for Bounded {}
 pub struct Unbounded;
 impl Boundedness for Unbounded {}
 
-// Trait + tag type for capacities that after resource init are either fixed or dynamically resizable.
+// Trait + markers for capacities that after resource init are either fixed or dynamically resizable.
 pub trait Resizeability {}
 /// The resource capacity is fixed after initialization.
 pub struct Fixed;
@@ -33,7 +33,7 @@ impl Resizeability for Fixed {}
 pub struct Resizable;
 impl Resizeability for Resizable {}
 
-// Trait + tag type for the kind of capacity.
+// Trait + markers for the kind of capacity.
 pub trait CapacityKind {}
 /// The resource capacity is fixed after initialization.
 pub struct Occupancy;
@@ -44,8 +44,8 @@ impl CapacityKind for Rate {}
 
 // User-facing types used during modeling While K, R, and B are two-valued
 // properties, which would technically allow for the use of a const bool
-// generic, it would make the declaration site less readable, hence we favor tag
-// types.
+// generic, it would make the declaration site less readable, hence we favor
+// marker types.
 //
 // TODO: since not all combinations of R and B are allowed, consider making it a
 // single three-valued generic.
