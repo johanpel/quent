@@ -13,7 +13,7 @@ pub mod qualifications;
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
-    #[error("qualification {0}")]
+    #[error("qualification error: {0}")]
     Qualification(#[from] QualificationError),
 }
 

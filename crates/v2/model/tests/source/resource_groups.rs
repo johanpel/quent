@@ -24,8 +24,8 @@ pub struct RootStructPrim {
 #[derive(Entity)]
 #[quent(resource_group(root))]
 pub struct RootStructMultiAttrib {
-    a: u8,
-    b: String,
+    pub a: u8,
+    pub b: String,
 }
 
 #[derive(Entity)]
@@ -55,6 +55,7 @@ pub enum RootEnumMultiAttribs {
 }
 
 // Things that shouldn't compile because they dont set the parent role field
+// TODO: move to compile fail tests
 // #[derive(Entity)]
 // #[quent(resource_group)]
 // pub struct Unit;

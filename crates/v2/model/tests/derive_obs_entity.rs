@@ -3,10 +3,11 @@
 
 use source::attributes;
 use source::entities::*;
-use uuid::Uuid;
+
+use crate::utils::ROOT;
 mod source;
 
-const ROOT: Uuid = Uuid::nil();
+mod utils;
 
 #[test]
 fn unit_structs() -> std::result::Result<(), Box<dyn std::error::Error>> {
