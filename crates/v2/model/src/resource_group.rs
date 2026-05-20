@@ -6,18 +6,26 @@ use crate::{
     entity_ref::{EntityRef, IntoErased, PlainRef},
 };
 
+use quent_v2_model_ir::{
+    attributes::{EntityRefKind, EntityRefTarget},
+    qualifications::{QualificationKind, QualificationRefKind, resource_group::RgRefKind},
+    value_type::{ModelEntityRefKind, ModelEntityRefTarget},
+};
 use std::marker::PhantomData;
 
 /// Trait to convey an [`EntityDeclaration`] satisfies the requirements of being
 /// considered a resource group declaration.
 ///
-/// The requierement is that the entity has an event with attributes in which
-/// the resource group's parent is set.
-pub trait ResourceGroupDeclaration: EntityDeclaration {}
+/// The requirement is that the entity has an event field in which the resource
+/// group's parent is set, unless it is a root resource group.
+pub trait ResourceGroupDeclaration: EntityDeclaration {
+    /// Whether this resource group is a root, i.e. has no parent.
+    const IS_ROOT: bool;
+}
 
 /// Tag type to convey an [`EntityRef`] refers to a resource group's parent.
 ///
-/// [`EntityRefs`] with this tag should only be able to be created from
+/// [`EntityRef`]s with this tag should only be able to be created from
 /// references to entities that are resource groups.
 pub struct RgParentRef;
 
@@ -25,7 +33,9 @@ pub struct RgParentRef;
 /// group.
 pub struct AnyRg;
 impl EntityDeclaration for AnyRg {}
-impl ResourceGroupDeclaration for AnyRg {}
+impl ResourceGroupDeclaration for AnyRg {
+    const IS_ROOT: bool = false;
+}
 
 // Typed conversion from a regular reference to a reference representing a
 // resource group parent-child relation.
@@ -57,5 +67,17 @@ where
             _role: PhantomData,
             id: self.id,
         }
+    }
+}
+
+impl ModelEntityRefTarget for AnyRg {
+    fn model_entity_ref_target() -> EntityRefTarget {
+        EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup)
+    }
+}
+
+impl ModelEntityRefKind for RgParentRef {
+    fn model_entity_ref_kind() -> EntityRefKind {
+        EntityRefKind::Qualification(QualificationRefKind::ResourceGroup(RgRefKind::Parent))
     }
 }
