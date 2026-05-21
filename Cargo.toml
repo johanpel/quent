@@ -26,6 +26,7 @@ members = [
     "crates/v2/model",
     "crates/v2/model-ir",
     "crates/v2/model-macros",
+    "crates/v2/query_engine/model",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",

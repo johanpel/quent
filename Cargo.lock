@@ -2325,6 +2325,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-v2-query-engine-model"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-v2-instrumentation",
+ "quent-v2-model",
+ "quent-v2-model-ir",
+ "uuid",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

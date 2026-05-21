@@ -1,0 +1,32 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Operator entity: a node inside a query plan.
+
+use quent_attributes::CustomAttributes;
+use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, resource_group::RgParentRef};
+
+use crate::plan;
+
+#[derive(Attributes)]
+pub struct OperatorDeclaration {
+    pub parent_plan_operators: Vec<EntityRef<Operator>>,
+    pub instance_name: String,
+    pub type_name: String,
+    pub custom_attributes: CustomAttributes,
+}
+
+#[derive(Attributes)]
+pub struct OperatorStatistics {
+    pub custom_attributes: CustomAttributes,
+}
+
+#[derive(Entity)]
+#[quent(resource_group)]
+pub enum Operator {
+    Declaration {
+        payload: OperatorDeclaration,
+        parent: EntityRef<plan::Plan, RgParentRef>,
+    },
+    Statistics(OperatorStatistics),
+}
