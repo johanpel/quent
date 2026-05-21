@@ -78,17 +78,17 @@ pub struct CapacityValue<ValueType> {
     pub value: ValueType,
 }
 
-/// A trait for resources that allows setting the usage amounts of the capacities during instrumentation run time.
+/// A trait for resources that allows setting the usage amounts of the
+/// capacities during instrumentation run time.
 pub trait Resource {
     type UsageValueType; // this must be serde/narrow/etc. compatible
 }
 
-/// A type for FSMs to convey they have a Usage of a resource.
-// this must be serde/narrow/etc. compatible
-pub struct Usage<ResourceType>
+/// A type serving as an [`crate::entity_ref::EntityRef`] role for FSMs to
+/// convey they are using a resource for the duration of some state.
+pub struct Usage<R>
 where
-    ResourceType: Resource,
+    R: Resource,
 {
-    pub instance: Uuid,
-    pub amounts: ResourceType::UsageValueType,
+    pub amounts: R::UsageValueType,
 }

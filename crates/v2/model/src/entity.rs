@@ -8,7 +8,7 @@ use quent_v2_model_ir::value_type::{
 };
 use uuid::Uuid;
 
-use crate::entity_ref::EntityRef;
+use crate::entity_ref::{EntityRef, PlainRef};
 
 /// Trait to mark a type satisfies the requirements to be considered an entity.
 ///
@@ -24,7 +24,7 @@ pub trait EntityHandle {
     fn entity_ref(&self) -> EntityRef<Self::DeclarationType> {
         EntityRef {
             _entity: PhantomData,
-            _role: PhantomData,
+            role: PlainRef,
             id: self.id(),
         }
     }

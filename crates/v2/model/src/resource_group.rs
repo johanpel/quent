@@ -27,10 +27,12 @@ pub trait ResourceGroupDeclaration: EntityDeclaration {
 ///
 /// [`EntityRef`]s with this marker should only be able to be created from
 /// references to entities that are resource groups.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct RgParentRef;
 
 /// Marker to convey an [`EntityRef`] can be made to any type of resource
 /// group.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct AnyRg;
 impl EntityDeclaration for AnyRg {}
 impl ResourceGroupDeclaration for AnyRg {
@@ -46,7 +48,7 @@ where
     fn from(value: EntityRef<R, PlainRef>) -> Self {
         Self {
             _entity: PhantomData,
-            _role: PhantomData,
+            role: RgParentRef,
             id: value.id,
         }
     }
@@ -64,7 +66,7 @@ where
     fn into_erased(self) -> EntityRef<AnyRg, RgParentRef> {
         EntityRef {
             _entity: PhantomData,
-            _role: PhantomData,
+            role: RgParentRef,
             id: self.id,
         }
     }

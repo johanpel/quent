@@ -41,23 +41,3 @@ impl Attributes {
         }
     }
 }
-
-/// IR of the types of entities targeted by an entity reference.
-#[derive(Debug, PartialEq)]
-pub enum EntityRefTarget {
-    /// The entity reference targets one specific entity type.
-    Specific(Identifier),
-    /// The entity reference targets any entity.
-    Any,
-    /// The entity reference targets an entity with some qualification.
-    AnyQualified(QualificationKind),
-}
-
-/// IR of the role of an entity reference.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EntityRefKind {
-    /// The entity reference has no specialized meaning.
-    Plain,
-    /// The entity reference has specialized meaning required by the referring entities' qualification.
-    Qualification(QualificationRefKind),
-}

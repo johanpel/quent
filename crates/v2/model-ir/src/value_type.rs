@@ -16,10 +16,37 @@ pub trait ModelEntityRefTarget {
     fn model_entity_ref_target() -> EntityRefTarget;
 }
 
-/// Trait to obtain the IR of an [`crate::entity::EntityRef`] role.
-pub trait ModelEntityRefKind {
-    fn model_entity_ref_kind() -> EntityRefKind;
+/// Trait to obtain the IR of an [`quent_v2_model::EntityRef`] role.
+pub trait ModelEntityRefScope {
+    fn model_entity_ref_scope() -> EntityRefScope;
 }
+
+/// IR of the types of entities targeted by an entity reference.
+#[derive(Debug, PartialEq)]
+pub enum EntityRefTarget {
+    /// The entity reference targets one specific entity type.
+    Specific(Identifier),
+    /// The entity reference targets any entity.
+    Any,
+    /// The entity reference targets an entity with some qualification.
+    AnyQualified(QualificationKind),
+}
+
+///
+pub enum EntityRefScope {
+    ///
+    Root,
+    Resource
+}
+
+/// IR of the role of an entity reference.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EntityRefRole {
+    /// The entity reference has no specialized meaning, so it carries no data
+    Unit,
+    ///
+}
+
 
 /// Types of attribute values.
 #[derive(Debug, PartialEq)]
@@ -43,16 +70,10 @@ pub enum ValueType {
     EntityRef {
         /// The entity type this reference can target.
         entity_type: EntityRefTarget,
-        /// The role type used to bestow a certain meaning upon this reference.
-        role_type: EntityRefKind,
-    },
-    /// A usage of a resource.
-    // TODO(johanpel): since Usage is also a type of reference, but a little bit
-    // richer in terms of it also adding quantities etc., we may consider one
-    // grand reference type that could also hold data like this, which depends
-    // on the qualities of the entity referenced to.
-    Usage {
-        resource: Identifier,
+        /// The scope of the reference.
+        scope_type: EntityRefScope,
+        /// The type of the data associated with the role of this reference
+        role_type: EntityRefRole,
     },
     /// A reference to an attributes set.
     Attributes(Identifier),
