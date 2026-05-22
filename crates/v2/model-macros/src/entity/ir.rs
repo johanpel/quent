@@ -2,6 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use proc_macro2::TokenStream;
+use quent_v2_model_ir::{
+    entity::Entity,
+    qualifications::{
+        Qualification,
+        fsm::{Fsm, State},
+        resource::{Boundedness, CapacityKind, Resource},
+    },
+};
 use quote::quote;
 use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
 
@@ -10,6 +18,7 @@ pub fn expand_struct(
     name: &syn::Ident,
     fields: &syn::Fields,
     input: &DeriveInput,
+    entity: &Entity,
 ) -> syn::Result<TokenStream> {
     if matches!(fields, syn::Fields::Unnamed(_)) {
         return Err(syn::Error::new_spanned(
@@ -55,6 +64,8 @@ pub fn expand_struct(
         }
     };
 
+    let qualifications = emit_qualifications(entity);
+
     let entity_impl = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
@@ -67,7 +78,7 @@ pub fn expand_struct(
                             #payload,
                         )
                     ],
-                    ::std::vec::Vec::new(),
+                    #qualifications,
                     ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
@@ -89,6 +100,7 @@ pub fn expand_enum(
     name: &syn::Ident,
     variants: &Punctuated<Variant, Token![,]>,
     input: &DeriveInput,
+    entity: &Entity,
 ) -> syn::Result<TokenStream> {
     if variants.is_empty() {
         return Err(syn::Error::new_spanned(
@@ -117,13 +129,15 @@ pub fn expand_enum(
         .map(expand_variant)
         .collect::<syn::Result<_>>()?;
 
+    let qualifications = emit_qualifications(entity);
+
     let entity_impl = quote! {
         impl ::quent_v2_model_ir::entity::ModelEntity for #name {
             fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     ::std::vec![ #(#events),* ],
-                    ::std::vec::Vec::new(),
+                    #qualifications,
                     ::std::format!(
                         "{}::{}",
                         ::std::module_path!(),
@@ -217,6 +231,100 @@ fn expand_variant_event_fields(
             Ok(quote! {
                 ::std::vec![ #(#field_defs),* ]
             })
+        }
+    }
+}
+
+fn emit_qualifications(entity: &Entity) -> TokenStream {
+    let quals = entity.qualifications.iter().filter_map(emit_qualification);
+    quote! { ::std::vec![ #(#quals),* ] }
+}
+
+fn emit_qualification(q: &Qualification) -> Option<TokenStream> {
+    match q {
+        Qualification::Fsm(fsm) => Some(emit_fsm(fsm)),
+        Qualification::Resource(resource) => Some(emit_resource(resource)),
+    }
+}
+
+fn emit_resource(resource: &Resource) -> TokenStream {
+    let capacities = resource.capacities.iter().map(|c| {
+        let name = c.name.as_str();
+        let kind = emit_capacity_kind(&c.kind);
+        let boundedness = emit_boundedness(&c.boundedness);
+        quote! {
+            ::quent_v2_model_ir::qualifications::resource::Capacity {
+                name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name),
+                kind: #kind,
+                boundedness: #boundedness,
+            }
+        }
+    });
+    quote! {
+        ::quent_v2_model_ir::qualifications::Qualification::Resource(
+            ::quent_v2_model_ir::qualifications::resource::Resource {
+                capacities: ::std::vec![ #(#capacities),* ],
+            },
+        )
+    }
+}
+
+fn emit_capacity_kind(k: &CapacityKind) -> TokenStream {
+    match k {
+        CapacityKind::Occupancy => quote! {
+            ::quent_v2_model_ir::qualifications::resource::CapacityKind::Occupancy
+        },
+        CapacityKind::Rate => quote! {
+            ::quent_v2_model_ir::qualifications::resource::CapacityKind::Rate
+        },
+    }
+}
+
+fn emit_boundedness(b: &Boundedness) -> TokenStream {
+    match b {
+        Boundedness::Fixed => quote! {
+            ::quent_v2_model_ir::qualifications::resource::Boundedness::Fixed
+        },
+        Boundedness::Resizable => quote! {
+            ::quent_v2_model_ir::qualifications::resource::Boundedness::Resizable
+        },
+        Boundedness::Unbounded => quote! {
+            ::quent_v2_model_ir::qualifications::resource::Boundedness::Unbounded
+        },
+    }
+}
+
+fn emit_fsm(fsm: &Fsm) -> TokenStream {
+    let transitions = fsm.transitions.iter().map(|t| {
+        let source = emit_state(&t.source);
+        let target = emit_state(&t.target);
+        quote! {
+            ::quent_v2_model_ir::qualifications::fsm::Transition {
+                source: #source,
+                target: #target,
+            }
+        }
+    });
+    quote! {
+        ::quent_v2_model_ir::qualifications::Qualification::Fsm(
+            ::quent_v2_model_ir::qualifications::fsm::Fsm {
+                transitions: ::std::vec![ #(#transitions),* ],
+            },
+        )
+    }
+}
+
+fn emit_state(s: &State) -> TokenStream {
+    match s {
+        State::Entry => quote! { ::quent_v2_model_ir::qualifications::fsm::State::Entry },
+        State::Exit => quote! { ::quent_v2_model_ir::qualifications::fsm::State::Exit },
+        State::State(id) => {
+            let name = id.as_str();
+            quote! {
+                ::quent_v2_model_ir::qualifications::fsm::State::State(
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name)
+                )
+            }
         }
     }
 }

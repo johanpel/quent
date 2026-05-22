@@ -70,8 +70,8 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // Emit the IR trait impls.
     let ir = if cfg!(feature = "ir") {
         match &input.data {
-            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input),
-            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input),
+            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input, &entity),
+            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input, &entity),
             syn::Data::Union(_) => unreachable!(),
         }?
     } else {

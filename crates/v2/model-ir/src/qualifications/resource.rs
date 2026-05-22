@@ -18,11 +18,11 @@ pub enum Boundedness {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Capacity {
-    name: Identifier,
-    kind: CapacityKind,
-    boundedness: Boundedness,
+    pub name: Identifier,
+    pub kind: CapacityKind,
+    pub boundedness: Boundedness,
     // TODO(johanpel): consider introducing this, but for now everything is u64
-    // value_type
+    // value_type: ValueType
 }
 
 /// Resource qualification.
@@ -31,15 +31,14 @@ pub struct Capacity {
 ///
 /// 1. It has at least one [`Capacity`].
 /// 2. It is an FSM.
-/// 3. Depending on the capacities, its FSM topology is equal to,
+/// 3. Depending on the capacities, its FSM topology is:
 ///    - If none of its capacities have [`Boundedness::Resizable`]:
 ///       - entry -> init -> operating -> finalizing -> exit
 ///    - If at least one of its capacities have [`Boundedness::Resizable`]:
 ///       - entry -> init -> operating -> finalizing -> exit
 ///       - operating -> resizing -> operating
-/// 4. ???
-/// 5. Profit
+/// 4. TODO(johanpel): feels like im forgetting something
 #[derive(Debug, PartialEq, Eq)]
 pub struct Resource {
-    capacities: Vec<Capacity>,
+    pub capacities: Vec<Capacity>,
 }
