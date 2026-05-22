@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_v2_model_ir::value_type::{ModelValueType, ValueType};
 use uuid::Uuid;
 
 use crate::entity_ref::{EntityRef, Plain};

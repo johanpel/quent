@@ -68,7 +68,7 @@ pub(crate) fn emit_handle(
     };
     let entity_handle_impl = quote! {
         impl ::quent_v2_model::EntityHandle for #handle_name {
-            type DeclarationType = #name;
+            type EntityType = #name;
             fn id(&self) -> ::uuid::Uuid {
                 self.inner.id()
             }

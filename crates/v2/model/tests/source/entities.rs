@@ -4,7 +4,11 @@
 #![allow(unused)]
 
 //! Types used in tests
-use quent_v2_model::Entity;
+use quent_v2_model::{
+    Entity, EntityRef,
+    entity_ref::{Plain, Scope},
+};
+use uuid::Uuid;
 
 use crate::source::attributes;
 
@@ -45,4 +49,23 @@ pub enum EnumSingleAttribs {
 pub enum EnumMultiAttribs {
     A(attributes::OnePrim),
     B(attributes::MultiPrim),
+}
+
+#[derive(Entity)]
+pub enum EnumInlineAttribs {
+    A { x: u8, y: String },
+    B,
+}
+
+#[derive(Entity)]
+pub enum EnumBuiltinAttribs {
+    A {
+        x: u8,
+        y: String,
+        z: EntityRef<Plain, EnumInlineAttribs>,
+        d: EntityRef<Scope, Unit>,
+    },
+    B {
+        k: Uuid,
+    },
 }

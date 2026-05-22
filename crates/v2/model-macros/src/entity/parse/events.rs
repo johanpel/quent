@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model_ir::{
-    event::{Cardinality, Event, Field},
+    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldType},
     identifier::Identifier,
     value_type::ValueType,
 };
-use syn::{DeriveInput, Fields, Variant};
+use syn::{DeriveInput, Fields, Variant, spanned::Spanned};
 
 use crate::value_type::parse_value_type;
 
@@ -29,16 +29,15 @@ fn parse_struct_events(
     if matches!(fields, Fields::Unnamed(_)) {
         return Err(syn::Error::new_spanned(
             input,
-            "#[derive(Entity)] on a struct requires a unit struct or a struct with named fields",
+            "#[derive(Entity)] on struct requires a unit struct or a struct with named fields",
         ));
     }
     let name_ident = Identifier::new_unchecked(name.to_string());
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
-        vec![Field::new(
-            EventValueType::Attribute,
+        vec![EventField::from_type(EventFieldType::Payload(
             ValueType::Attributes(name_ident.clone()),
-        )]
+        ))]
     } else {
         Vec::new()
     };
@@ -79,16 +78,16 @@ fn parse_cardinality(attrs: &[syn::Attribute]) -> syn::Result<Cardinality> {
     })
 }
 
-fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::Result<Vec<Field>> {
+fn parse_variant_payloads(
+    fields: &syn::Fields,
+    span_source: &Variant,
+) -> syn::Result<Vec<EventField>> {
     match fields {
         syn::Fields::Unit => Ok(Vec::new()),
         syn::Fields::Unnamed(u) if u.unnamed.len() == 1 => {
-            let unnamed_field = u.unnamed.first().unwrap();
-            let ty = &unnamed_field.ty;
-            Ok(vec![Field::new(
-                EventValueType::Attribute,
-                parse_value_type(ty)?,
-            )])
+            // Safety: unwrap, len is checked above:
+            let ty = parse_event_field_type(&u.unnamed.first().unwrap().ty)?;
+            Ok(vec![EventField::from_type(ty)])
         }
         syn::Fields::Unnamed(_) => Err(syn::Error::new_spanned(
             span_source,
@@ -98,16 +97,95 @@ fn parse_variant_payloads(fields: &syn::Fields, span_source: &Variant) -> syn::R
             .named
             .iter()
             .map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                let role = parse_field_role(field_name)?;
+                // Safety: Fields::Named always carry an ident.
+                let ident = f.ident.as_ref().unwrap();
+                let name = Identifier::try_from(ident.to_string().as_str())
+                    .map_err(|e| syn::Error::new(ident.span(), e.to_string()))?;
                 let ty = &f.ty;
-                Ok(Field::new(role, parse_value_type(ty)?))
+                Ok(EventField::new(name, parse_event_field_type(ty)?))
             })
             .collect(),
     }
 }
 
-fn parse_field_role(name: &syn::Ident) -> syn::Result<EventValueType> {
-    EventValueType::try_from(name.to_string().as_str())
-        .map_err(|e| syn::Error::new(name.span(), e.to_string()))
+fn parse_event_field_type(ty: &syn::Type) -> syn::Result<EventFieldType> {
+    let syn::Type::Path(type_path) = ty else {
+        return Ok(EventFieldType::Payload(parse_value_type(ty)?));
+    };
+    let Some(last) = type_path.path.segments.last() else {
+        return Ok(EventFieldType::Payload(parse_value_type(ty)?));
+    };
+    match last.ident.to_string().as_str() {
+        "EntityRef" => parse_entity_ref(&last.arguments),
+        "Usage" => parse_usage(&last.arguments),
+        _ => Ok(EventFieldType::Payload(parse_value_type(ty)?)),
+    }
+}
+
+fn parse_entity_ref(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
+    // This must match the defaults set in the model crate:
+    let mut role_type = EntityRefRole::Plain;
+    let mut entity_type = EntityRefTarget::Any;
+
+    if let syn::PathArguments::AngleBracketed(args) = args {
+        let mut type_args = args.args.iter().filter_map(|a| match a {
+            syn::GenericArgument::Type(t) => Some(t),
+            _ => None,
+        });
+        if let Some(t) = type_args.next() {
+            role_type = parse_entity_ref_role(t)?;
+        }
+        if let Some(t) = type_args.next() {
+            entity_type = parse_entity_ref_target(t)?;
+        }
+    }
+    Ok(EventFieldType::EntityRef {
+        role_type,
+        entity_type,
+    })
+}
+
+fn parse_usage(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
+    if let syn::PathArguments::AngleBracketed(args) = args
+        && let Some(syn::GenericArgument::Type(t)) = args.args.first()
+    {
+        Ok(EventFieldType::ResourceUsage {
+            resource: parse_type_ident(t)?,
+        })
+    } else {
+        Err(syn::Error::new(
+            args.span(),
+            "invalid type name of non-Quent Usage type in event field type",
+        ))
+    }
+}
+
+fn parse_entity_ref_role(ty: &syn::Type) -> syn::Result<EntityRefRole> {
+    let name = parse_type_ident(ty)?;
+    Ok(match name.as_str() {
+        "Plain" => EntityRefRole::Plain,
+        "Scope" => EntityRefRole::Scope,
+        _ => EntityRefRole::User(name),
+    })
+}
+
+fn parse_entity_ref_target(ty: &syn::Type) -> syn::Result<EntityRefTarget> {
+    let name = parse_type_ident(ty)?;
+    Ok(match name.as_str() {
+        "AnyEntity" => EntityRefTarget::Any,
+        _ => EntityRefTarget::Specific(name),
+    })
+}
+
+fn parse_type_ident(ty: &syn::Type) -> syn::Result<Identifier> {
+    let syn::Type::Path(type_path) = ty else {
+        return Err(syn::Error::new_spanned(ty, "expected a named path type"));
+    };
+    let last = type_path
+        .path
+        .segments
+        .last()
+        .ok_or_else(|| syn::Error::new_spanned(ty, "type has no path segments"))?;
+    Identifier::try_from(last.ident.to_string().as_str())
+        .map_err(|e| syn::Error::new_spanned(ty, e.to_string()))
 }

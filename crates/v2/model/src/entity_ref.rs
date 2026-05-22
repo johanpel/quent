@@ -8,11 +8,6 @@ use uuid::Uuid;
 
 use crate::entity::Entity;
 
-/// Trait allowing specific [`EntityRef`]s to be type-erased.
-pub trait IntoErased<T> {
-    fn into_erased(self) -> T;
-}
-
 /// Trait to declare a type can be used to define the role of an entity
 /// reference
 pub trait EntityRefRole {}
@@ -60,7 +55,11 @@ pub trait EntityRefRoleTarget<T: Entity>: EntityRefRole {}
 ///
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy)]
-pub struct EntityRef<R = Plain, E: Entity = AnyEntity> {
+pub struct EntityRef<R = Plain, E = AnyEntity>
+where
+    E: Entity,
+    R: EntityRefRole + EntityRefRoleTarget<E>,
+{
     _target_type: PhantomData<E>,
 
     /// The ID of the entity being referred to.
@@ -77,18 +76,32 @@ pub struct AnyEntity;
 
 /// [`EntityRefRole`] where the reference is of no particular meaning.
 ///
-/// This reference role accepts any type of entity, including [`AnyEntity`].
+/// This reference role accepts any type of entity, including at run-time
+/// through [`AnyEntity`].
 ///
 /// Thus, the weakest possible form of referencing another entity is by using
 /// `EntityRef<AnyEntity, Plain>`, which represents a relation to any other
 /// entity without any particular meaning.
 pub struct Plain;
 
-// E must be an entity.
-// R must be a role.
-// E must be an acceptible target for the role R.
-impl<R, E: Entity> EntityRef<R, E>
+/// [`EntityRefRole`] to mark the [`EntityRef`] refers to the parent in the
+/// application's entity tree.
+///
+/// This reference role accepts any type of entity, including [`AnyEntity`].
+///
+/// Thus, the weakest possible form of referencing another entity is by using
+/// `EntityRef<AnyEntity, Plain>`, which represents a relation to any other
+/// entity without any particular meaning.
+pub struct Scope;
+
+/// In order for an `EntityRef` to be constructible:
+///
+/// `E` must be an entity.
+/// `R` must be a role.
+/// `E` must be an acceptible target for the role R.
+impl<R, E> EntityRef<R, E>
 where
+    E: Entity,
     R: EntityRefRole + EntityRefRoleTarget<E>,
 {
     pub fn new(id: Uuid, role: R) -> Self {
@@ -108,18 +121,30 @@ where
     }
 }
 
-// Plain is a reference role.
 impl EntityRefRole for Plain {}
-// Plain can target anything that is an entity.
+/// Plain references can target anything that is an entity.
 impl<E: Entity> EntityRefRoleTarget<E> for Plain {}
 
-// Any entity is a special case of an entity.
+impl EntityRefRole for Scope {}
+/// Scope references can target anything that is an entity. The difference from
+/// the [`Plain`] role is that an entity can only have at most one reference with
+/// the [`Scope`] role, enforced at compile-time.
+impl<E: Entity> EntityRefRoleTarget<E> for Scope {}
+
+/// AnyEntity is a special case of an entity.
 impl Entity for AnyEntity {}
 
 // The IR has a special case for Plain reference roles.
 impl ir::ModelEntityRefRole for Plain {
     fn model_entity_ref_role() -> ir::EntityRefRole {
         ir::EntityRefRole::Plain
+    }
+}
+
+// The IR has a special case for Scope reference roles.
+impl ir::ModelEntityRefRole for Scope {
+    fn model_entity_ref_role() -> ir::EntityRefRole {
+        ir::EntityRefRole::Scope
     }
 }
 

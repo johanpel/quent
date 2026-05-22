@@ -6,7 +6,6 @@ pub mod entity_ref;
 pub mod event;
 pub mod fsm;
 pub mod resource;
-pub mod scope;
 
 // TODO: remove when done
 // mod brainstorm;
@@ -19,7 +18,6 @@ pub use entity_ref::EntityRef;
 //     Bounded, Capacity, CapacityValue, Fixed, Occupancy, OccupancyBound, Rate, RateBound, Resizable,
 //     Resource, Unbounded, Usage,
 // };
-pub use scope::Scope;
 
 // third party crate re-exporters
 pub use quent_exporter as exporter;

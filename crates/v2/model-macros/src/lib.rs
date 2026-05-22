@@ -5,7 +5,7 @@ use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
 mod attributes;
-// mod entity;
+mod entity;
 mod value_type;
 
 /// TODO(johanpel): general docs in addition to diving into details below.

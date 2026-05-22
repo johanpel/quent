@@ -13,7 +13,6 @@ use source::attributes::*;
 
 use crate::utils::ident;
 
-// Unit structs
 #[test]
 fn unit() {
     assert_eq!(
@@ -28,7 +27,10 @@ fn unit() {
         Unit::model_value_type(),
         ValueType::Attributes(ident("Unit"))
     );
+}
 
+#[test]
+fn unit_braces() {
     assert_eq!(
         UnitBraces::model_attributes(),
         Attributes::new(
@@ -43,10 +45,8 @@ fn unit() {
     );
 }
 
-// Single field structs
 #[test]
-#[allow(unused)]
-fn single() {
+fn one_prim() {
     assert_eq!(
         OnePrim::model_attributes(),
         Attributes::new(
@@ -62,7 +62,10 @@ fn single() {
         OnePrim::model_value_type(),
         ValueType::Attributes(ident("OnePrim"))
     );
+}
 
+#[test]
+fn one_nested() {
     assert_eq!(
         OneNested::model_attributes(),
         Attributes::new(
@@ -78,7 +81,10 @@ fn single() {
         OneNested::model_value_type(),
         ValueType::Attributes(ident("OneNested"))
     );
+}
 
+#[test]
+fn one_list() {
     assert_eq!(
         OneList::model_attributes(),
         Attributes::new(
@@ -94,7 +100,10 @@ fn single() {
         OneList::model_value_type(),
         ValueType::Attributes(ident("OneList"))
     );
+}
 
+#[test]
+fn one_list_nested() {
     assert_eq!(
         OneListNested::model_attributes(),
         Attributes::new(
@@ -110,7 +119,10 @@ fn single() {
         OneListNested::model_value_type(),
         ValueType::Attributes(ident("OneListNested"))
     );
+}
 
+#[test]
+fn one_list_list_prim() {
     assert_eq!(
         OneListListPrim::model_attributes(),
         Attributes::new(
@@ -126,7 +138,10 @@ fn single() {
         OneListListPrim::model_value_type(),
         ValueType::Attributes(ident("OneListListPrim"))
     );
+}
 
+#[test]
+fn one_list_list_nested() {
     assert_eq!(
         OneListListNested::model_attributes(),
         Attributes::new(
@@ -146,10 +161,8 @@ fn single() {
     );
 }
 
-// Multiple field structs
 #[test]
-#[allow(unused)]
-fn multi() {
+fn multi_prim() {
     assert_eq!(
         MultiPrim::model_attributes(),
         Attributes::new(
@@ -171,7 +184,10 @@ fn multi() {
         MultiPrim::model_value_type(),
         ValueType::Attributes(ident("MultiPrim"))
     );
+}
 
+#[test]
+fn multi_nested() {
     assert_eq!(
         MultiNested::model_attributes(),
         Attributes::new(
@@ -201,7 +217,10 @@ fn multi() {
         MultiNested::model_value_type(),
         ValueType::Attributes(ident("MultiNested"))
     );
+}
 
+#[test]
+fn multi_option() {
     assert_eq!(
         MultiOption::model_attributes(),
         Attributes::new(
@@ -225,10 +244,8 @@ fn multi() {
     );
 }
 
-// All value types
 #[test]
-#[allow(unused)]
-fn all_value_types() {
+fn all_types() {
     assert_eq!(
         AllTypes::model_attributes(),
         Attributes::new(

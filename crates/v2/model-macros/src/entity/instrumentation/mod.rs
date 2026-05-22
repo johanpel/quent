@@ -54,6 +54,13 @@ pub fn expand_struct(
                 self.inner.emit(#event_value)
             }
         }
+
+        impl ::quent_v2_model::EntityHandle for #handle_name {
+            type EntityType = #name;
+            fn id(&self) -> ::uuid::Uuid {
+                self.inner.id()
+            }
+        }
     })
 }
 
