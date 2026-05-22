@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use crate::{
     entity::Entity,
-    qualifications::{Qualification, fsm::Fsm, resource::Resource, resource_group::ResourceGroup},
+    qualifications::{Qualification, fsm::Fsm, resource::Resource},
     validator::qualifications::{QualificationCheck, QualificationError},
 };
 
@@ -26,7 +26,6 @@ impl Entity {
                 match q {
                     Qualification::Fsm(_) => Fsm::qualifies(self),
                     Qualification::Resource(_) => Resource::qualifies(self),
-                    Qualification::ResourceGroup(_) => ResourceGroup::qualifies(self),
                 }
                 .err()
             })

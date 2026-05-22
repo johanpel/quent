@@ -3,7 +3,7 @@
 
 //! Worker FSM: a node-local execution context, child of Engine.
 
-use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, resource_group::RgParentRef};
+use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef};
 
 use crate::engine;
 

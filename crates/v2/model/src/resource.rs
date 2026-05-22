@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::marker::PhantomData;
 
-use uuid::Uuid;
+use quent_v2_model_ir::event as ir;
+
+use crate::{
+    Entity,
+    entity_ref::{EntityRefRole, EntityRefRoleTarget},
+};
 
 // Notes:
 //
@@ -13,33 +18,39 @@ use uuid::Uuid;
 
 // TODO: seal traits below
 
-// Trait + markers for whether capacities are bounded or unbounded
+// Trait for markers defining how a capacity's bounds are to be perceived.
 pub trait Boundedness {}
-/// The resource capacity is bounded.
-pub struct Bounded;
-impl Boundedness for Bounded {}
-/// The resource capacity is unbounded.
+// Trait for markers defining the kind of capacity.
+pub trait CapacityKind {}
+
+/// The resource capacity is fixed-size and bounded.
+pub struct Fixed;
+
+/// The resource capacity is resizeable and bounded.
 ///
 /// It is physically always bounded, but the bounds may be unknown.
+pub struct Resizeable;
+
+/// The resource capacity is unbounded.
+///
+/// While in reality capacities are always subject to physical limits, the
+/// bounds are unknown as the application model is concerned. This can be used
+/// for abstractions of resources where it is non-trivial to obtain the bounds
+/// (e.g. data transfer rates over an unknown physical network interface
+/// abstracted as a rate capacity channel resource).
 pub struct Unbounded;
+
+impl Boundedness for Fixed {}
+impl Boundedness for Resizeable {}
 impl Boundedness for Unbounded {}
 
-// Trait + markers for capacities that after resource init are either fixed or dynamically resizable.
-pub trait Resizeability {}
-/// The resource capacity is fixed after initialization.
-pub struct Fixed;
-impl Resizeability for Fixed {}
-/// The resource capacity is resizable after initialization.
-pub struct Resizable;
-impl Resizeability for Resizable {}
-
-// Trait + markers for the kind of capacity.
-pub trait CapacityKind {}
 /// The resource capacity is fixed after initialization.
 pub struct Occupancy;
-impl CapacityKind for Occupancy {}
+
 /// The resource capacity is resizable after initialization.
 pub struct Rate;
+
+impl CapacityKind for Occupancy {}
 impl CapacityKind for Rate {}
 
 // User-facing types used during modeling While K, R, and B are two-valued
@@ -51,16 +62,14 @@ impl CapacityKind for Rate {}
 // single three-valued generic.
 //
 // Would be nice if we could use plain enums as const generics, but we can't.
-pub struct Capacity<T, K = Occupancy, R = Fixed, B = Bounded>
+pub struct Capacity<T, K = Occupancy, B = Fixed>
 where
     K: CapacityKind,
-    R: Resizeability,
     B: Boundedness,
 {
     _value_type: PhantomData<T>,
     _kind: PhantomData<K>,
     _bounded: PhantomData<B>,
-    _resizable: PhantomData<R>,
 }
 
 // User-facing types used in the instrumentation API:
@@ -78,10 +87,10 @@ pub struct CapacityValue<ValueType> {
     pub value: ValueType,
 }
 
-/// A trait for resources that allows setting the usage amounts of the
-/// capacities during instrumentation run time.
-pub trait Resource {
-    type UsageValueType; // this must be serde/narrow/etc. compatible
+/// A trait for entities that are resources.
+pub trait Resource: Entity {
+    type UsageType;
+    type BoundsType;
 }
 
 /// A type serving as an [`crate::entity_ref::EntityRef`] role for FSMs to
@@ -90,5 +99,26 @@ pub struct Usage<R>
 where
     R: Resource,
 {
-    pub amounts: R::UsageValueType,
+    pub amounts: R::UsageType,
+}
+
+pub struct Bounds<R>
+where
+    R: Resource,
+{
+    pub bounds: R::BoundsType,
+}
+
+// Usage is a role of a reference
+impl<R: Resource> EntityRefRole for Usage<R> {}
+// A reference with a resource usage role can only target resource entities
+impl<R: Resource> EntityRefRoleTarget<R> for Usage<R> {}
+// The IR of a usage role is a set of attributes
+impl<R: Resource> ir::ModelEntityRefRole for Usage<R> {
+    fn model_entity_ref_role() -> ir::EntityRefRole {
+        // ir::EntityRefRole::Value(ValueType::Attributes(Box::new(Identifier::new_unchecked(
+        //     "",
+        // ))))
+        todo!()
+    }
 }

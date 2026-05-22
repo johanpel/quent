@@ -1,32 +1,24 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::marker::PhantomData;
-
-use quent_v2_model_ir::value_type::{
-    ModelEntityRefKind, ModelEntityRefTarget, ModelValueType, ValueType,
-};
+use quent_v2_model_ir::value_type::{ModelValueType, ValueType};
 use uuid::Uuid;
 
-use crate::entity_ref::{EntityRef, PlainRef};
+use crate::entity_ref::{EntityRef, Plain};
 
 /// Trait to mark a type satisfies the requirements to be considered an entity.
 ///
 /// The requirements are that it has a UUID and emits at least one event.
-pub trait EntityDeclaration {}
+pub trait Entity {}
 
 /// Trait for handles to run-time instantiated entities.
 pub trait EntityHandle {
-    type DeclarationType: EntityDeclaration;
+    type EntityType: Entity;
 
     fn id(&self) -> Uuid;
 
-    fn entity_ref(&self) -> EntityRef<Self::DeclarationType> {
-        EntityRef {
-            _entity: PhantomData,
-            role: PlainRef,
-            id: self.id(),
-        }
+    fn entity_ref(&self) -> EntityRef<Plain, Self::EntityType> {
+        EntityRef::new(self.id(), Plain)
     }
 }
 
@@ -39,16 +31,3 @@ impl std::fmt::Display for ObserverError {
     }
 }
 impl std::error::Error for ObserverError {}
-
-impl<E, R> ModelValueType for EntityRef<E, R>
-where
-    E: EntityDeclaration + ModelEntityRefTarget,
-    R: ModelEntityRefKind,
-{
-    fn model_value_type() -> ValueType {
-        ValueType::EntityRef {
-            entity_type: E::model_entity_ref_target(),
-            role_type: R::model_entity_ref_kind(),
-        }
-    }
-}

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model::{
-    AnyRg, Attributes, Entity, entity_ref::EntityRef, resource_group::RgParentRef,
+    AnyRg, Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef,
 };
 
 use crate::port;

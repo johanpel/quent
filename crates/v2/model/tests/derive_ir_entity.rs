@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model_ir::{
-    attributes::EntityRefTarget,
     entity::{Entity, ModelEntity},
-    event::{Cardinality, Event, Field, FieldRole},
-    value_type::{ModelEntityRefTarget, ValueType},
+    event::{Cardinality, Event, Field},
+    value_type::ValueType,
 };
 
 use source::entities::*;
@@ -57,7 +56,7 @@ fn fields_struct() {
                 ident("StructPrim"),
                 Cardinality::Once,
                 vec![Field::new(
-                    FieldRole::Payload,
+                    EventValueType::Attribute,
                     ValueType::Attributes(ident("StructPrim")),
                 )],
             )],
@@ -78,7 +77,7 @@ fn fields_struct() {
                 ident("StructMultiAttrib"),
                 Cardinality::Once,
                 vec![Field::new(
-                    FieldRole::Payload,
+                    EventValueType::Attribute,
                     ValueType::Attributes(ident("StructMultiAttrib")),
                 )],
             )],
@@ -136,7 +135,7 @@ fn enums() {
                 ident("A"),
                 Cardinality::Once,
                 vec![Field::new(
-                    FieldRole::Payload,
+                    EventValueType::Attribute,
                     ValueType::Attributes(ident("OnePrim")),
                 )],
             )],
@@ -158,7 +157,7 @@ fn enums() {
                     ident("A"),
                     Cardinality::Once,
                     vec![Field::new(
-                        FieldRole::Payload,
+                        EventValueType::Attribute,
                         ValueType::Attributes(ident("OnePrim")),
                     )],
                 ),
@@ -166,7 +165,7 @@ fn enums() {
                     ident("B"),
                     Cardinality::Once,
                     vec![Field::new(
-                        FieldRole::Payload,
+                        EventValueType::Attribute,
                         ValueType::Attributes(ident("MultiPrim")),
                     )],
                 ),

@@ -13,7 +13,7 @@
 //! - Identifiers are accepted by the specified identifier grammar (see docs).
 //! - All FSM states are reachable from the entry transition and an exit
 //!   transition is reachable from all states.
-//! - Resource groups have an event declaring their parent.
+//! - An entity has at most one structural reference.
 //!
 //! Rust's powerful type system is used to enforce as many requirements as
 //! possible, as long as the model declaration stays compact and straightforward

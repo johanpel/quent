@@ -3,7 +3,7 @@
 
 //! Port entity: an input/output of an operator.
 
-use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, resource_group::RgParentRef};
+use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef};
 
 use crate::operator;
 

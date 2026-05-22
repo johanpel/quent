@@ -7,7 +7,6 @@ use crate::entity::Entity;
 
 mod fsm;
 mod resource;
-mod resource_group;
 
 #[derive(Debug, Error)]
 pub enum QualificationError {

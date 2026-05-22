@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_v2_model::{Entity, entity_ref::EntityRef, resource_group::RgParentRef};
+use quent_v2_model::{Entity, entity_ref::EntityRef, scope::RgParentRef};
 
 use crate::query_group;
 

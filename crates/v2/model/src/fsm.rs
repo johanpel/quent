@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
 // All rights reserved. SPDX-License-Identifier: Apache-2.0
 
-// Type representing the FSM transition event payload.
+// Type carrying the payload of an FSM event.
 //
 // Every FSM transition will be accompanied by a sequence number. The order of
 // transitions can be determined by looking at the sequence number because most

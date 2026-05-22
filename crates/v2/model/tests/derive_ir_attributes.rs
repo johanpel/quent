@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model_ir::{
-    attributes::{Attributes, EntityRefKind, EntityRefTarget, Field, ModelAttributes},
+    attributes::{Attributes, Field, ModelAttributes},
     value_type::{ModelValueType, ValueType},
 };
 
@@ -301,13 +301,6 @@ fn all_value_types() {
                 Field {
                     name: ident("a_custom"),
                     ty: ValueType::CustomAttributes,
-                },
-                Field {
-                    name: ident("a_entity_ref"),
-                    ty: ValueType::EntityRef {
-                        entity_type: EntityRefTarget::Any,
-                        role_type: EntityRefKind::Plain,
-                    },
                 },
             ],
             utils::rust_path!("source::attributes::AllTypes"),

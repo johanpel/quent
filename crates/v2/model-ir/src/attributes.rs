@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    identifier::Identifier,
-    qualifications::{QualificationKind, QualificationRefKind},
-    value_type::ValueType,
-};
+use crate::{identifier::Identifier, value_type::ValueType};
 
 /// Trait to obtain the IR of a type representing an attribute set.
 pub trait ModelAttributes {

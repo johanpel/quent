@@ -1,15 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::qualifications::{
-    fsm::Fsm,
-    resource::{Resource, ResourceRefKind},
-    resource_group::{ResourceGroup, RgRefKind},
-};
+use crate::qualifications::{fsm::Fsm, resource::Resource};
 
 pub mod fsm;
 pub mod resource;
-pub mod resource_group;
 
 /// IR of entity qualifications
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -23,19 +18,6 @@ pub enum QualificationKind {
     ///
     /// It is an FSM that goes through states determined by its capacities.
     Resource,
-    /// The entity qualifies as a ResourceGroup.
-    ///
-    /// At least one event holds an attribute field that refers to its parent
-    /// resource group.
-    ResourceGroup,
-}
-
-/// IR of the types of entity references that have meaning specialized by the
-/// qualification of the entity that emits them.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum QualificationRefKind {
-    Resource(ResourceRefKind),
-    ResourceGroup(RgRefKind),
 }
 
 /// IR of a Qualification of an [`crate::ir::entity::Entity`].
@@ -89,7 +71,6 @@ pub enum QualificationRefKind {
 pub enum Qualification {
     Fsm(Fsm),
     Resource(Resource),
-    ResourceGroup(ResourceGroup),
 }
 
 impl Qualification {
@@ -97,7 +78,6 @@ impl Qualification {
         match self {
             Qualification::Fsm(_) => QualificationKind::Fsm,
             Qualification::Resource(_) => QualificationKind::Resource,
-            Qualification::ResourceGroup(_) => QualificationKind::ResourceGroup,
         }
     }
 }

@@ -1,55 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    attributes::{EntityRefKind, EntityRefTarget},
-    identifier::Identifier,
-};
+use crate::identifier::Identifier;
 
 /// Trait to obtain the IR of a Rust type.
 pub trait ModelValueType {
     fn model_value_type() -> ValueType;
 }
 
-/// Trait to obtain the IR of an [`crate::entity::EntityRef`] target.
-pub trait ModelEntityRefTarget {
-    fn model_entity_ref_target() -> EntityRefTarget;
-}
-
-/// Trait to obtain the IR of an [`quent_v2_model::EntityRef`] role.
-pub trait ModelEntityRefScope {
-    fn model_entity_ref_scope() -> EntityRefScope;
-}
-
-/// IR of the types of entities targeted by an entity reference.
-#[derive(Debug, PartialEq)]
-pub enum EntityRefTarget {
-    /// The entity reference targets one specific entity type.
-    Specific(Identifier),
-    /// The entity reference targets any entity.
-    Any,
-    /// The entity reference targets an entity with some qualification.
-    AnyQualified(QualificationKind),
-}
-
-///
-pub enum EntityRefScope {
-    ///
-    Root,
-    Resource
-}
-
-/// IR of the role of an entity reference.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EntityRefRole {
-    /// The entity reference has no specialized meaning, so it carries no data
-    Unit,
-    ///
-}
-
-
 /// Types of attribute values.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ValueType {
     Bool,
     Uuid,
@@ -66,15 +26,6 @@ pub enum ValueType {
     F64,
     Option(Box<ValueType>),
     List(Box<ValueType>),
-    /// A (run-time) reference to another entity.
-    EntityRef {
-        /// The entity type this reference can target.
-        entity_type: EntityRefTarget,
-        /// The scope of the reference.
-        scope_type: EntityRefScope,
-        /// The type of the data associated with the role of this reference
-        role_type: EntityRefRole,
-    },
     /// A reference to an attributes set.
     Attributes(Identifier),
     /// A set of attributes determined by the instrumentation client at run-time.

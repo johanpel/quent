@@ -3,110 +3,129 @@
 
 use std::marker::PhantomData;
 
-use quent_v2_model_ir::{
-    attributes::{EntityRefKind, EntityRefTarget},
-    value_type::{ModelEntityRefKind, ModelEntityRefTarget},
-};
+use quent_v2_model_ir::event as ir;
 use uuid::Uuid;
 
-use crate::EntityDeclaration;
+use crate::entity::Entity;
 
 /// Trait allowing specific [`EntityRef`]s to be type-erased.
 pub trait IntoErased<T> {
     fn into_erased(self) -> T;
 }
 
-/// A directed reference to another entity.
+/// Trait to declare a type can be used to define the role of an entity
+/// reference
+pub trait EntityRefRole {}
+
+/// Trait to convey T can be the target of a reference with the Self role.
+pub trait EntityRefRoleTarget<T: Entity>: EntityRefRole {}
+
+/// A directed reference to another entity with a particular role.
 ///
-/// # The Entity Type `E`
+/// # Role Type `R`
+///
+/// `R` defines type of role of the [`EntityRef`]. The type `R` may carry
+/// data detailing the relation. By default, `R = Plain`.
+///
+/// # Entity Type `E`
 ///
 /// Specifies the type of entity referring to.
 ///
 /// If multiple of entities are allowed, the marker type [`AnyEntity`] can be
-/// used.
+/// used, which is the default.
 ///
-/// # The Scope Type `S`
+/// ## Built-in Role Types
 ///
-/// Specifies the scope in which this entity is referred to.
+/// ### [`Scope`]
 ///
-/// Entities of an application model form an entity-relation graph where
-/// entities are vertices and [`EntityRef`]s are edges.
+/// A reference role for "structural" references, used to form a hierarchical
+/// tree of entities. An entity can have at most one reference with this role.
+/// An entity with no references with this role is considered a root entity.
 ///
-/// Scopes are sub-graphs of the entity-relation graph that can be reached from
-/// the root entity.
+/// ### [`Plain`]
 ///
-/// Formally speaking, scopes include:
+/// A reference role for references of no particular meaning, other than that
+/// the entities are somehow related.
 ///
-/// 1. the set of all [`EntityRef`]s of `S` and their source and target
-///    entities
-/// 2. any set of [`EntityRef`]s and entities that allow traversing the
-///    entity-relation graph in reverse direction from the root to arrive
-///    at the entities included in 1
+/// ### [`crate::resource::Usage<R>`]
 ///
-/// ## The `Root` Scope
+/// A reference role for the usage of some resource type `R`.
 ///
-/// Every [`EntityRef`] is implicitly part of the pre-defined [`Root`] scope, even
-/// if S is not [`Root`].
+/// ## Restricting which entities a role may target
 ///
-/// If the [`Root`] scope (i.e. the graph of all entities) is disconnected, then
-/// the application model is invalid. Colloquially speaking, this would mean that
-/// there would be no way to relate an entity's events back to the top-level
-/// application instance ID, making them "orphans".
+/// Some roles only make sense with certain target entity types. For
+/// example, a [`Scope`] reference must not point at a resource (so
+/// resources are leaves of the scope tree), and a `Usage<R>` reference
+/// must only point at the resource `R` it consumes.
 ///
-/// # The Reference Role Type `R`
-///
-/// `R` defines type of role of the [`EntityRef`]. By default, it is a plain
-/// reference ([`Plain`]) which holds no particular meaning besides the
-/// entities being somehow related.
-///
-/// `R` can also carry data in case a reference is richer than just a way of
-/// pointing to another entity. For example, FSM states can use a resource, in
-/// which case they must emit data about the amount used, also see the
-/// [`crate::resource::Usage`] role type.
-///
-///
-/// # Forming Tree-Like Scopes
-///
-/// Tree-like scopes can be formed by restricting some reference role `R` to be
-/// applied within a certain scope `S`.
-///
-/// For example, to enforce an application model to have a "resource tree", define:
-/// - A scope `S = ResourceScope`
-/// - A role `R = ResourceParent`
-///
-/// Then ensure that if an `EntityRef` has `T = Resource`
-
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy)]
-pub struct EntityRef<E: EntityDeclaration, R = PlainRef> {
-    pub _target_type: PhantomData<E>,
+pub struct EntityRef<R = Plain, E: Entity = AnyEntity> {
+    _target_type: PhantomData<E>,
 
     /// The ID of the entity being referred to.
-    pub id: Uuid,
+    id: Uuid,
     /// Data (or a marker) specific to the role of this reference.
-    pub role: R,
+    role: R,
 }
 
-pub struct EntityRefs<E: EntityDeclaration, R = PlainRef>(pub Vec<EntityRef<E, R>>);
-
-/// Type to mark an [`EntityRef`] can point to any type of entity, to be
-/// determined at run-time.
+/// Marker type for a type-erased entity target of an [`EntityRef`].
+///
+/// In other words, use this if the reference can be made to any type of entity,
+/// to be determined at instrumentatiton run-time.
 pub struct AnyEntity;
 
-/// Type to mark an [`EntityRef`] of being of no particular meaning.
-pub struct PlainRef;
+/// [`EntityRefRole`] where the reference is of no particular meaning.
+///
+/// This reference role accepts any type of entity, including [`AnyEntity`].
+///
+/// Thus, the weakest possible form of referencing another entity is by using
+/// `EntityRef<AnyEntity, Plain>`, which represents a relation to any other
+/// entity without any particular meaning.
+pub struct Plain;
 
-// Special case:
-impl EntityDeclaration for AnyEntity {}
+// E must be an entity.
+// R must be a role.
+// E must be an acceptible target for the role R.
+impl<R, E: Entity> EntityRef<R, E>
+where
+    R: EntityRefRole + EntityRefRoleTarget<E>,
+{
+    pub fn new(id: Uuid, role: R) -> Self {
+        Self {
+            id,
+            role,
+            _target_type: PhantomData,
+        }
+    }
 
-impl ModelEntityRefTarget for AnyEntity {
-    fn model_entity_ref_target() -> EntityRefTarget {
-        EntityRefTarget::Any
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    pub fn role(&self) -> &R {
+        &self.role
     }
 }
 
-impl ModelEntityRefKind for PlainRef {
-    fn model_entity_ref_kind() -> EntityRefKind {
-        EntityRefKind::Plain
+// Plain is a reference role.
+impl EntityRefRole for Plain {}
+// Plain can target anything that is an entity.
+impl<E: Entity> EntityRefRoleTarget<E> for Plain {}
+
+// Any entity is a special case of an entity.
+impl Entity for AnyEntity {}
+
+// The IR has a special case for Plain reference roles.
+impl ir::ModelEntityRefRole for Plain {
+    fn model_entity_ref_role() -> ir::EntityRefRole {
+        ir::EntityRefRole::Plain
+    }
+}
+
+// The IR has a special case for Any entity reference targets.
+impl ir::ModelEntityRefTarget for AnyEntity {
+    fn model_entity_ref_target() -> ir::EntityRefTarget {
+        ir::EntityRefTarget::Any
     }
 }

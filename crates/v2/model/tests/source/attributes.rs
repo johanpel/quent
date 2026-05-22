@@ -87,6 +87,4 @@ pub struct AllTypes {
     a_list: Vec<u64>,
     a_nested: MultiNested,
     a_custom: quent_attributes::CustomAttributes,
-    a_entity_ref: EntityRef<AnyEntity>,
-    // pub a_usage: Usage<UnitResource>,
 }

@@ -1,29 +1,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Support to parse a syn::Type into an IR type.
+//! Support to parse a syn::Type into an IR [`ValueType`].
 //!
-//! This is necessary to be able to build the IR in the entity derive macro for
-//! validation.
+//! [`ValueType`] intentionally does not include any built-in types related to
+//! framework concepts (`EntityRef`, `Usage`, etc.). These belong at the
+//! event-field level and are parsed into
+//! [`quent_v2_model_ir::event::FieldType`]s.
 //!
 //! TODO(johanpel): Proc macros run before name resolution so if a user does
-//! something like use x::String; #[derive(entity)] struct Foo { bar: String },
+//! something like use x::String; #[derive(Entity)] struct Foo { bar: String },
 //! then when we parse String, we just see those tokens, but not the use
 //! declaration. So it should have been parsed into ValueType::Attributes, but
 //! instead it will parse as ValueType::String.
-//!
-use quent_v2_model_ir::{
-    attributes::{EntityRefKind, EntityRefTarget},
-    identifier::Identifier,
-    qualifications::{QualificationKind, QualificationRefKind, resource_group::RgRefKind},
-    value_type::ValueType,
-};
+use quent_v2_model_ir::{identifier::Identifier, value_type::ValueType};
 
 pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
     let syn::Type::Path(type_path) = ty else {
         return Err(syn::Error::new_spanned(
             ty,
-            "unsupported type: entity payload fields must be a named path type",
+            "unsupported type: must be a named path type",
         ));
     };
 
@@ -72,94 +68,12 @@ pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
             let inner = parse_generic(&last.arguments, ty)?;
             Ok(ValueType::List(Box::new(parse_value_type(inner)?)))
         }
-        "EntityRef" => {
-            let syn::PathArguments::AngleBracketed(args) = &last.arguments else {
-                return Ok(ValueType::Attributes(Identifier::new_unchecked(
-                    name.as_str(),
-                )));
-            };
-            let mut type_args = args.args.iter().filter_map(|a| match a {
-                syn::GenericArgument::Type(t) => Some(t),
-                _ => None,
-            });
-            let entity_type = type_args
-                .next()
-                .ok_or_else(|| syn::Error::new_spanned(args, "EntityRef target type missing"))
-                .and_then(parse_entity_ref_target)?;
-            let role_type = match type_args.next() {
-                Some(t) => parse_entity_ref_kind(t)?,
-                None => EntityRefKind::Plain,
-            };
-            Ok(ValueType::EntityRef {
-                entity_type,
-                role_type,
-            })
-        }
-        "Usage" => {
-            todo!()
-            // let _inner = single_generic_arg(&last.arguments, ty)?;
-            // Ok(ValueType::Attributes(name))
-        }
+        "EntityRef" | "Usage" => Err(syn::Error::new_spanned(
+            ty,
+            format!("`{name}` is only valid in a named field of an entity event variant"),
+        )),
         // Assume a user-defined Attributes-derived type for anything else.
         _ => Ok(ValueType::Attributes(Identifier::new_unchecked(name))),
-    }
-}
-
-fn parse_entity_ref_target(ty: &syn::Type) -> syn::Result<EntityRefTarget> {
-    let syn::Type::Path(type_path) = ty else {
-        return Err(syn::Error::new_spanned(
-            ty,
-            "EntityRef target must be a named path type",
-        ));
-    };
-    let last = type_path
-        .path
-        .segments
-        .last()
-        .ok_or_else(|| syn::Error::new_spanned(ty, "EntityRef target has no path segments"))?;
-    if !last.arguments.is_empty() {
-        return Err(syn::Error::new_spanned(
-            &last.arguments,
-            "EntityRef target type does not take type arguments",
-        ));
-    }
-    let name = last.ident.to_string();
-    Ok(match name.as_str() {
-        "AnyEntity" => EntityRefTarget::Any,
-        "AnyRg" => EntityRefTarget::AnyQualified(QualificationKind::ResourceGroup),
-        _ => EntityRefTarget::Specific(Identifier::new_unchecked(name)),
-    })
-}
-
-fn parse_entity_ref_kind(ty: &syn::Type) -> syn::Result<EntityRefKind> {
-    let syn::Type::Path(type_path) = ty else {
-        return Err(syn::Error::new_spanned(
-            ty,
-            "EntityRef role must be a named path type",
-        ));
-    };
-    let last = type_path
-        .path
-        .segments
-        .last()
-        .ok_or_else(|| syn::Error::new_spanned(ty, "EntityRef role has no path segments"))?;
-    if !last.arguments.is_empty() {
-        return Err(syn::Error::new_spanned(
-            &last.arguments,
-            "EntityRef role type does not take type arguments",
-        ));
-    }
-    let name = last.ident.to_string();
-    match name.as_str() {
-        "PlainRef" => Ok(EntityRefKind::Plain),
-        "RgParentRef" => Ok(EntityRefKind::Qualification(
-            QualificationRefKind::ResourceGroup(RgRefKind::Parent),
-        )),
-        // Future ref kinds for Resource and others land here.
-        _ => Err(syn::Error::new_spanned(
-            ty,
-            format!("unknown EntityRef role type: `{name}`"),
-        )),
     }
 }
 

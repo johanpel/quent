@@ -3,21 +3,23 @@
 
 pub mod entity;
 pub mod entity_ref;
+pub mod event;
 pub mod fsm;
 pub mod resource;
-pub mod resource_group;
+pub mod scope;
 
 // TODO: remove when done
 // mod brainstorm;
 
 // user facing exports
-pub use entity::{EntityDeclaration, EntityHandle, ObserverError};
-pub use fsm::Transition;
-pub use resource::{
-    Bounded, Capacity, CapacityValue, Fixed, Occupancy, OccupancyBound, Rate, RateBound, Resizable,
-    Resource, Unbounded, Usage,
-};
-pub use resource_group::{AnyRg, ResourceGroupDeclaration, RgParentRef};
+pub use entity::{Entity, EntityHandle, ObserverError};
+pub use entity_ref::EntityRef;
+// pub use fsm::Transition;
+// pub use resource::{
+//     Bounded, Capacity, CapacityValue, Fixed, Occupancy, OccupancyBound, Rate, RateBound, Resizable,
+//     Resource, Unbounded, Usage,
+// };
+pub use scope::Scope;
 
 // third party crate re-exporters
 pub use quent_exporter as exporter;
