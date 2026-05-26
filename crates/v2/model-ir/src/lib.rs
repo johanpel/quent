@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Intermediate Representation of an application model.
+//! Intermediate Representation of an application event model.
 //!
 //! This module holds definitions for an Intermediate Representation (IR) of
-//! what an application model looks like in-memory. This module also holds
+//! what an application event model looks like in-memory. This module also holds
 //! traits that types can implement to emit their IR. This is useful for
 //! validation in proc macros as well as generating wrappers for other target
 //! language bindings.
@@ -27,6 +27,8 @@
 //! world, the Rust compiler would validate everything.
 //!
 //! # IR usage overview
+//!
+//! The IR is used in the following four possible code generation flows.
 //!
 //! ## A. Rust model source, Rust target
 //!
@@ -63,6 +65,7 @@
 //! 4. The build.rs also emits target-language source from the IR.
 //! 5. The build.rs emits glue between the Rust instrumentation and the target language.
 //! 6. The user's target-language app uses the emitted glue + links the Rust bridge crate as a static library.
+//!
 use crate::identifier::{Identifier, IdentifierError};
 
 use self::{attributes::Attributes, entity::Entity};
@@ -71,7 +74,6 @@ pub mod attributes;
 pub mod entity;
 pub mod event;
 pub mod identifier;
-// pub mod proc;
 pub mod qualifications;
 pub mod validator;
 pub mod value_type;
@@ -90,8 +92,10 @@ pub struct Model {
 pub enum IrError {
     #[error("invalid identifier: {0}")]
     InvalidIdentifier(#[from] IdentifierError),
-    #[error("unknown event field role: `{0}`")]
-    UnknownFieldRole(String),
+    #[error("entity doesn't hold the specified qualification.")]
+    MissingQualification,
+    #[error("qualification error: {}", .0.join("\n"))]
+    Qualification(Vec<String>),
 }
 
 pub type Result<T> = std::result::Result<T, IrError>;

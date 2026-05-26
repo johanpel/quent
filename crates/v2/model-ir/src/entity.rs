@@ -2,14 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    event::Event, identifier::Identifier, qualifications::Qualification,
+    IrError, event::Event, identifier::Identifier, qualifications::Qualification,
     validator::qualifications::QualificationCheck,
 };
-
-/// Trait to obtain the IR of a type representing an entity.
-pub trait ModelEntity {
-    fn model_entity() -> Entity;
-}
 
 /// IR of an Entity
 #[derive(Debug, PartialEq)]
@@ -40,7 +35,7 @@ impl Entity {
         }
     }
 
-    pub fn qualification<T>(&self) -> Option<&T>
+    pub fn qualification<T>(&self) -> Result<&T, IrError>
     where
         T: QualificationCheck,
         for<'a> &'a T: TryFrom<&'a Qualification>,
@@ -48,5 +43,6 @@ impl Entity {
         self.qualifications
             .iter()
             .find_map(|q| <&T>::try_from(q).ok())
+            .ok_or(IrError::MissingQualification)
     }
 }

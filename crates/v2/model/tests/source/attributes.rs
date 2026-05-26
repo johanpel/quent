@@ -52,10 +52,10 @@ pub struct MultiPrim {
 
 #[derive(Attributes)]
 pub struct MultiNested {
-    a: u8,
-    b: MultiPrim,
-    c: Vec<u16>,
-    d: String,
+    pub a: u8,
+    pub b: MultiPrim,
+    pub c: Vec<u16>,
+    pub d: String,
 }
 
 #[derive(Attributes)]

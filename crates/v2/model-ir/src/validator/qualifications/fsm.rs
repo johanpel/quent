@@ -9,12 +9,13 @@ use petgraph::{
 };
 
 use crate::{
+    IrError,
     entity::Entity,
     qualifications::{
         Qualification,
         fsm::{Fsm, State},
     },
-    validator::qualifications::{QualificationCheck, QualificationError},
+    validator::qualifications::QualificationCheck,
 };
 
 impl<'a> TryFrom<&'a Qualification> for &'a Fsm {
@@ -29,11 +30,8 @@ impl<'a> TryFrom<&'a Qualification> for &'a Fsm {
 }
 
 impl QualificationCheck for Fsm {
-    fn qualifies(entity: &Entity) -> Result<(), QualificationError> {
-        // Sanity check:
-        let fsm: &Fsm = entity
-            .qualification()
-            .ok_or(QualificationError::NotSpecified)?;
+    fn qualifies(entity: &Entity) -> Result<(), IrError> {
+        let fsm: &Fsm = entity.qualification()?;
 
         let mut violations: Vec<String> = vec![];
         let mut violation = |reason: &str| {
@@ -43,7 +41,7 @@ impl QualificationCheck for Fsm {
             ))
         };
 
-        // Requirement: state name "entry" is reserved
+        // Constraint: state name must not be "entry"
         if entity
             .events
             .iter()
@@ -51,8 +49,7 @@ impl QualificationCheck for Fsm {
         {
             violation("\"entry\" is a reserved state name")
         }
-
-        // Requirement: state name "exit" is reserved
+        // Constraint: state name must not be "exit"
         if entity
             .events
             .iter()
@@ -61,7 +58,7 @@ impl QualificationCheck for Fsm {
             violation("\"exit\" is a reserved state name")
         }
 
-        // Requirement: there must be exactly one transition into the entry state.
+        // Constraint: there must be exactly one transition into the entry state.
         let num_entry_transitions = fsm
             .transitions
             .iter()
@@ -71,7 +68,7 @@ impl QualificationCheck for Fsm {
             violation(format!("entry transitions: {num_entry_transitions}, expected: 1").as_str());
         }
 
-        // Requirement: there must be at least one exit transition.
+        // Constraint: there must be at least one exit transition.
         let num_exit_transitions = fsm
             .transitions
             .iter()
@@ -105,7 +102,7 @@ impl QualificationCheck for Fsm {
             })
             .collect();
 
-        // Requirement: every state must be reachable.
+        // Constraint: every state must be reachable.
         let reachable_from_entry: HashSet<FsmGraphNode> =
             Bfs::new(&graph, FsmGraphNode::Entry).iter(&graph).collect();
         for name in &named_states {
@@ -114,7 +111,7 @@ impl QualificationCheck for Fsm {
             }
         }
 
-        // Requirement: an exit transition must be reachable from every state.
+        // Constraint: an exit transition must be reachable from every state.
         let reversed = Reversed(&graph);
         let states_reaching_exit: HashSet<FsmGraphNode> = Bfs::new(reversed, FsmGraphNode::Exit)
             .iter(reversed)
@@ -125,13 +122,13 @@ impl QualificationCheck for Fsm {
             }
         }
 
-        // Requirmeent: an exit transition cannot have a Usage.
+        // Constraint: an exit transition cannot have a Usage.
         // TODO
 
         if violations.is_empty() {
             Ok(())
         } else {
-            Err(QualificationError::Violations(violations))
+            Err(IrError::Qualification(violations))
         }
     }
 }

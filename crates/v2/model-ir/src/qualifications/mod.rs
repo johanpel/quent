@@ -61,12 +61,12 @@ pub enum QualificationKind {
 ///       constraint that one event must declare which entity is its parent is
 ///       met through the existence of the `parent` field.
 ///
-/// Qualifications CANNOT require types other than the entity to capture the
-/// necessary properties, because the `#[derive(Entity)]` macro can only inspect
-/// the tokens stream of the type it is applied to, but not of other types. If
-/// such properties exist, they must be expressed and validated through
-/// constraints imposed by the Rust type system and the compiler's type system
-/// validation checks instead.
+/// Qualifications CANNOT require types other than the entity declaration type
+/// to capture the necessary properties, because the `#[derive(Entity)]` macro
+/// can only inspect the tokens stream of the type it is applied to, but not of
+/// other types. If such properties exist, they must be expressed and validated
+/// through constraints imposed by the Rust type system and the compiler's type
+/// system validation checks instead.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Qualification {
     Fsm(Fsm),

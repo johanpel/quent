@@ -4,11 +4,11 @@
 use crate::{
     entity::Entity,
     qualifications::resource::Resource,
-    validator::qualifications::{QualificationCheck, QualificationError},
+    validator::qualifications::{IrError, QualificationCheck},
 };
 
 impl QualificationCheck for Resource {
-    fn qualifies(_entity: &Entity) -> Result<(), QualificationError> {
+    fn qualifies(_entity: &Entity) -> Result<(), IrError> {
         // Constraint: an entity can't be both a resource and a resource group.
         // if entity
         //     .qualifications

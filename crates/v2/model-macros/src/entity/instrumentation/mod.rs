@@ -85,7 +85,7 @@ pub fn expand_enum(
     let observer_name = format_ident!("{}Observer", name);
     let handle_name = format_ident!("{}Handle", name);
 
-    let (observer, handle) = if let Some(fsm) = entity.qualification::<Fsm>() {
+    let (observer, handle) = if let Ok(fsm) = entity.qualification::<Fsm>() {
         (
             fsm::emit_observer(name, &observer_name, &handle_name, vis, &variants, fsm)?,
             fsm::emit_handle(name, &handle_name, vis, &variants, fsm)?,

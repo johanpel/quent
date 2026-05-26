@@ -4,7 +4,7 @@
 //! Operator entity: a node inside a query plan.
 
 use quent_attributes::CustomAttributes;
-use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef};
+use quent_v2_model::{entity_ref::EntityRef, scope::RgParentRef, Attributes, Entity};
 
 use crate::plan;
 

@@ -1,25 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    identifier::Identifier,
-    value_type::{ModelValueType, ValueType},
-};
-
-/// Trait to obtain the IR of types that can be used as event fields.
-pub trait ModelEventFieldType {
-    fn model_event_field_type() -> EventFieldType;
-}
-
-/// Trait to obtain the IR of an [`crate::entity::EntityRef`] target.
-pub trait ModelEntityRefTarget {
-    fn model_entity_ref_target() -> EntityRefTarget;
-}
-
-/// Trait to obtain the IR of an [`quent_v2_model::EntityRef`] role.
-pub trait ModelEntityRefRole {
-    fn model_entity_ref_role() -> EntityRefRole;
-}
+use crate::{identifier::Identifier, value_type::ValueType};
 
 /// IR of the cardinality of an event.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -52,7 +34,7 @@ pub enum EntityRefRole {
 
 /// The type of an event field.
 #[derive(Debug, PartialEq)]
-pub enum EventFieldType {
+pub enum EventFieldValueType {
     /// An arbitrary payload event field, application-specific.
     Payload(ValueType),
     /// A reference to another entity.
@@ -76,24 +58,15 @@ pub enum EventFieldType {
     },
 }
 
-impl EventFieldType {
+impl EventFieldValueType {
     /// Returns the default name for a field with this type.
     pub fn default_name(&self) -> &'static str {
         match self {
-            EventFieldType::Payload(_) => "payload",
-            EventFieldType::EntityRef { .. } => "entity",
-            EventFieldType::ResourceUsage { .. } => "usage",
-            EventFieldType::ResourceBound { .. } => "bound",
+            EventFieldValueType::Payload(_) => "payload",
+            EventFieldValueType::EntityRef { .. } => "entity",
+            EventFieldValueType::ResourceUsage { .. } => "usage",
+            EventFieldValueType::ResourceBound { .. } => "bound",
         }
-    }
-}
-
-/// Anything that's a [`ModelValueType`] is wrapped into
-/// [`EventFieldType::Payload`] if used as an event field type, as it is an
-/// application-specific type.
-impl<T: ModelValueType> ModelEventFieldType for T {
-    fn model_event_field_type() -> EventFieldType {
-        EventFieldType::Payload(T::model_value_type())
     }
 }
 
@@ -106,17 +79,17 @@ pub struct EventField {
     /// The name of the event field.
     pub name: Identifier,
     /// The type of the event field.
-    pub ty: EventFieldType,
+    pub ty: EventFieldValueType,
 }
 
 impl EventField {
-    pub fn new(name: Identifier, ty: EventFieldType) -> Self {
+    pub fn new(name: Identifier, ty: EventFieldValueType) -> Self {
         Self { name, ty }
     }
 
-    /// Construct an EventField using the [`EventFieldType::default_name`] of
+    /// Construct an EventField using the [`EventFieldValueType::default_name`] of
     /// the type `ty`.
-    pub fn from_type(ty: EventFieldType) -> Self {
+    pub fn from_type(ty: EventFieldValueType) -> Self {
         Self {
             name: Identifier::new_unchecked(ty.default_name()),
             ty,

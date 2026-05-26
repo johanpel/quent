@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model_ir::{
-    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldType},
+    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldValueType},
     identifier::Identifier,
     value_type::ValueType,
 };
@@ -35,7 +35,7 @@ fn parse_struct_events(
     let name_ident = Identifier::new_unchecked(name.to_string());
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
-        vec![EventField::from_type(EventFieldType::Payload(
+        vec![EventField::from_type(EventFieldValueType::Payload(
             ValueType::Attributes(name_ident.clone()),
         ))]
     } else {
@@ -108,21 +108,21 @@ fn parse_variant_payloads(
     }
 }
 
-fn parse_event_field_type(ty: &syn::Type) -> syn::Result<EventFieldType> {
+fn parse_event_field_type(ty: &syn::Type) -> syn::Result<EventFieldValueType> {
     let syn::Type::Path(type_path) = ty else {
-        return Ok(EventFieldType::Payload(parse_value_type(ty)?));
+        return Ok(EventFieldValueType::Payload(parse_value_type(ty)?));
     };
     let Some(last) = type_path.path.segments.last() else {
-        return Ok(EventFieldType::Payload(parse_value_type(ty)?));
+        return Ok(EventFieldValueType::Payload(parse_value_type(ty)?));
     };
     match last.ident.to_string().as_str() {
         "EntityRef" => parse_entity_ref(&last.arguments),
         "Usage" => parse_usage(&last.arguments),
-        _ => Ok(EventFieldType::Payload(parse_value_type(ty)?)),
+        _ => Ok(EventFieldValueType::Payload(parse_value_type(ty)?)),
     }
 }
 
-fn parse_entity_ref(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
+fn parse_entity_ref(args: &syn::PathArguments) -> syn::Result<EventFieldValueType> {
     // This must match the defaults set in the model crate:
     let mut role_type = EntityRefRole::Plain;
     let mut entity_type = EntityRefTarget::Any;
@@ -139,17 +139,17 @@ fn parse_entity_ref(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
             entity_type = parse_entity_ref_target(t)?;
         }
     }
-    Ok(EventFieldType::EntityRef {
+    Ok(EventFieldValueType::EntityRef {
         role_type,
         entity_type,
     })
 }
 
-fn parse_usage(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
+fn parse_usage(args: &syn::PathArguments) -> syn::Result<EventFieldValueType> {
     if let syn::PathArguments::AngleBracketed(args) = args
         && let Some(syn::GenericArgument::Type(t)) = args.args.first()
     {
-        Ok(EventFieldType::ResourceUsage {
+        Ok(EventFieldValueType::ResourceUsage {
             resource: parse_type_ident(t)?,
         })
     } else {

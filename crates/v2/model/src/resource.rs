@@ -110,15 +110,14 @@ where
 }
 
 // Usage is a role of a reference
-impl<R: Resource> EntityRefRole for Usage<R> {}
-// A reference with a resource usage role can only target resource entities
-impl<R: Resource> EntityRefRoleTarget<R> for Usage<R> {}
-// The IR of a usage role is a set of attributes
-impl<R: Resource> ir::ModelEntityRefRole for Usage<R> {
-    fn model_entity_ref_role() -> ir::EntityRefRole {
+impl<R: Resource> EntityRefRole for Usage<R> {
+    #[cfg(feature = "ir")]
+    fn ir() -> ir::EntityRefRole {
         // ir::EntityRefRole::Value(ValueType::Attributes(Box::new(Identifier::new_unchecked(
         //     "",
         // ))))
         todo!()
     }
 }
+// A reference with a resource usage role can only target resource entities
+impl<R: Resource> EntityRefRoleTarget<R> for Usage<R> {}

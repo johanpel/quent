@@ -6,9 +6,9 @@ use crate::{IrError, identifier::Identifier};
 /// IR of an FSM state
 #[derive(Debug, PartialEq, Eq)]
 pub enum State {
-    /// The special entry state for transitions where FSMs come into existence.
+    /// Special state from which FSMs transition to comes into existence.
     Entry,
-    /// The special exit state for transitions where FSMs go out of existence.
+    /// Special state to which FSMs transition to go out of existence.
     Exit,
     /// A regular state.
     State(Identifier),
@@ -36,14 +36,15 @@ pub struct Transition {
     pub target: State,
 }
 
-/// IR of an FSM qualification.
+/// IR of the FSM [`super::Qualification`].
 #[derive(Debug, PartialEq, Eq)]
 pub struct Fsm {
-    /// The possible transitions.
+    /// The state transition topology of the FSM
     pub transitions: Vec<Transition>,
 }
 
 impl Fsm {
+    /// Return the name of the initial state.
     pub fn initial_state(&self) -> Option<&Identifier> {
         self.transitions
             .iter()

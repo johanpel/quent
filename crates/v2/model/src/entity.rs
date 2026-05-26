@@ -5,17 +5,22 @@ use uuid::Uuid;
 
 use crate::entity_ref::{EntityRef, Plain};
 
-/// Trait to mark a type satisfies the requirements to be considered an entity.
-///
-/// The requirements are that it has a UUID and emits at least one event.
-pub trait Entity {}
+/// Trait to mark a type is considered an entity.
+pub trait Entity {
+    #[cfg(feature = "ir")]
+    fn ir() -> quent_v2_model_ir::entity::Entity;
+    #[cfg(feature = "ir")]
+    fn ir_ref_target() -> quent_v2_model_ir::event::EntityRefTarget;
+}
 
 /// Trait for handles to run-time instantiated entities.
 pub trait EntityHandle {
     type EntityType: Entity;
 
+    /// Return the universally unique identifier of the entity.
     fn id(&self) -> Uuid;
 
+    /// Return a [`Plain`] reference to the entity.
     fn entity_ref(&self) -> EntityRef<Plain, Self::EntityType> {
         EntityRef::new(self.id(), Plain)
     }

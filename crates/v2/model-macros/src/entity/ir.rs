@@ -39,7 +39,7 @@ pub fn expand_struct(
         quote! {
             ::std::vec![
                 ::quent_v2_model_ir::event::EventField::from_type(
-                    ::quent_v2_model_ir::event::EventFieldType::Payload(
+                    ::quent_v2_model_ir::event::EventFieldValueType::Payload(
                         ::quent_v2_model_ir::value_type::ValueType::Attributes(
                             ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                         ),
@@ -51,24 +51,11 @@ pub fn expand_struct(
         quote! { ::std::vec::Vec::new() }
     };
 
-    let entity_decl = quote! {
-        impl ::quent_v2_model::Entity for #name {}
-    };
-    let entity_ref_target = quote! {
-        impl ::quent_v2_model_ir::event::ModelEntityRefTarget for #name {
-            fn model_entity_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
-                ::quent_v2_model_ir::event::EntityRefTarget::Specific(
-                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
-                )
-            }
-        }
-    };
-
     let qualifications = emit_qualifications(entity);
 
     let entity_impl = quote! {
-        impl ::quent_v2_model_ir::entity::ModelEntity for #name {
-            fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
+        impl ::quent_v2_model::entity::Entity for #name {
+            fn ir() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     ::std::vec![
@@ -86,12 +73,15 @@ pub fn expand_struct(
                     ),
                 )
             }
+            fn ir_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
+                ::quent_v2_model_ir::event::EntityRefTarget::Specific(
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
+                )
+            }
         }
     };
 
     Ok(quote! {
-        #entity_decl
-        #entity_ref_target
         #entity_impl
     })
 }
@@ -111,19 +101,6 @@ pub fn expand_enum(
 
     let name_string = name.to_string();
 
-    let entity_decl = quote! {
-        impl ::quent_v2_model::Entity for #name {}
-    };
-    let entity_ref_target = quote! {
-        impl ::quent_v2_model_ir::event::ModelEntityRefTarget for #name {
-            fn model_entity_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
-                ::quent_v2_model_ir::event::EntityRefTarget::Specific(
-                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
-                )
-            }
-        }
-    };
-
     let events: Vec<TokenStream> = variants
         .iter()
         .map(expand_variant)
@@ -132,8 +109,8 @@ pub fn expand_enum(
     let qualifications = emit_qualifications(entity);
 
     let entity_impl = quote! {
-        impl ::quent_v2_model_ir::entity::ModelEntity for #name {
-            fn model_entity() -> ::quent_v2_model_ir::entity::Entity {
+        impl ::quent_v2_model::entity::Entity for #name {
+            fn ir() -> ::quent_v2_model_ir::entity::Entity {
                 ::quent_v2_model_ir::entity::Entity::new(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     ::std::vec![ #(#events),* ],
@@ -145,12 +122,15 @@ pub fn expand_enum(
                     ),
                 )
             }
+            fn ir_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
+                ::quent_v2_model_ir::event::EntityRefTarget::Specific(
+                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
+                )
+            }
         }
     };
 
     Ok(quote! {
-        #entity_decl
-        #entity_ref_target
         #entity_impl
     })
 }
@@ -204,8 +184,8 @@ fn expand_variant_event_fields(
             Ok(quote! {
                 ::std::vec![
                     ::quent_v2_model_ir::event::EventField::from_type(
-                        ::quent_v2_model_ir::event::EventFieldType::Payload(
-                            <#ty as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
+                        ::quent_v2_model_ir::event::EventFieldValueType::Payload(
+                            <#ty as ::quent_v2_model::attributes::ValueType>::ir(),
                         ),
                     )
                 ]
@@ -216,15 +196,15 @@ fn expand_variant_event_fields(
             "#[derive(Entity)] does not support enum variants with more than one unnamed field",
         )),
         syn::Fields::Named(named) => {
-            // Note the IR crate has a blanket impl of ModelEventFieldType for
-            // application-specific value types, which implement ModelValueType.
+            // The model crate has a blanket impl of EventField for
+            // application-specific value types, which implement ValueType.
             let field_defs = named.named.iter().map(|f| {
                 let field_name = f.ident.as_ref().unwrap().to_string();
                 let ty = &f.ty;
                 quote! {
                     ::quent_v2_model_ir::event::EventField::new(
                         ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
-                        <#ty as ::quent_v2_model_ir::event::ModelEventFieldType>::model_event_field_type(),
+                        <#ty as ::quent_v2_model::event::EventField>::ir(),
                     )
                 }
             });

@@ -3,11 +3,6 @@
 
 use crate::{identifier::Identifier, value_type::ValueType};
 
-/// Trait to obtain the IR of a type representing an attribute set.
-pub trait ModelAttributes {
-    fn model_attributes() -> Attributes;
-}
-
 /// Definition of a field in an attribute set.
 #[derive(Debug, PartialEq)]
 pub struct Field {

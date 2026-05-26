@@ -1,12 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_v2_model::entity::Entity as _;
 use quent_v2_model_ir::{
-    entity::{Entity, ModelEntity},
-    event::{
-        Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldType,
-        ModelEntityRefTarget,
-    },
+    entity::Entity,
+    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldValueType},
     identifier::Identifier,
     value_type::ValueType,
 };
@@ -21,7 +19,7 @@ mod utils;
 #[test]
 fn unit() {
     assert_eq!(
-        Unit::model_entity(),
+        Unit::ir(),
         Entity::new(
             ident("Unit"),
             vec![Event::new(ident("Unit"), Cardinality::Once, vec![])],
@@ -30,7 +28,7 @@ fn unit() {
         )
     );
     assert_eq!(
-        Unit::model_entity_ref_target(),
+        Unit::ir_ref_target(),
         EntityRefTarget::Specific(ident("Unit"))
     );
 }
@@ -38,7 +36,7 @@ fn unit() {
 #[test]
 fn unit_braces() {
     assert_eq!(
-        UnitBraces::model_entity(),
+        UnitBraces::ir(),
         Entity::new(
             ident("UnitBraces"),
             vec![Event::new(ident("UnitBraces"), Cardinality::Once, vec![])],
@@ -47,7 +45,7 @@ fn unit_braces() {
         )
     );
     assert_eq!(
-        UnitBraces::model_entity_ref_target(),
+        UnitBraces::ir_ref_target(),
         EntityRefTarget::Specific(ident("UnitBraces"))
     );
 }
@@ -55,13 +53,13 @@ fn unit_braces() {
 #[test]
 fn struct_prim() {
     assert_eq!(
-        StructPrim::model_entity(),
+        StructPrim::ir(),
         Entity::new(
             ident("StructPrim"),
             vec![Event::new(
                 ident("StructPrim"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldType::Payload(
+                vec![EventField::from_type(EventFieldValueType::Payload(
                     ValueType::Attributes(ident("StructPrim")),
                 ))],
             )],
@@ -70,7 +68,7 @@ fn struct_prim() {
         )
     );
     assert_eq!(
-        StructPrim::model_entity_ref_target(),
+        StructPrim::ir_ref_target(),
         EntityRefTarget::Specific(ident("StructPrim"))
     );
 }
@@ -78,13 +76,13 @@ fn struct_prim() {
 #[test]
 fn struct_multi_attrib() {
     assert_eq!(
-        StructMultiAttrib::model_entity(),
+        StructMultiAttrib::ir(),
         Entity::new(
             ident("StructMultiAttrib"),
             vec![Event::new(
                 ident("StructMultiAttrib"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldType::Payload(
+                vec![EventField::from_type(EventFieldValueType::Payload(
                     ValueType::Attributes(ident("StructMultiAttrib")),
                 ))],
             )],
@@ -93,7 +91,7 @@ fn struct_multi_attrib() {
         )
     );
     assert_eq!(
-        StructMultiAttrib::model_entity_ref_target(),
+        StructMultiAttrib::ir_ref_target(),
         EntityRefTarget::Specific(ident("StructMultiAttrib"))
     );
 }
@@ -101,7 +99,7 @@ fn struct_multi_attrib() {
 #[test]
 fn enum_one_unit() {
     assert_eq!(
-        EnumOneUnit::model_entity(),
+        EnumOneUnit::ir(),
         Entity::new(
             ident("EnumOneUnit"),
             vec![Event::new(ident("A"), Cardinality::Once, vec![])],
@@ -110,7 +108,7 @@ fn enum_one_unit() {
         )
     );
     assert_eq!(
-        EnumOneUnit::model_entity_ref_target(),
+        EnumOneUnit::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumOneUnit"))
     );
 }
@@ -118,7 +116,7 @@ fn enum_one_unit() {
 #[test]
 fn enum_multi_unit() {
     assert_eq!(
-        EnumMultiUnit::model_entity(),
+        EnumMultiUnit::ir(),
         Entity::new(
             ident("EnumMultiUnit"),
             vec![
@@ -130,7 +128,7 @@ fn enum_multi_unit() {
         )
     );
     assert_eq!(
-        EnumMultiUnit::model_entity_ref_target(),
+        EnumMultiUnit::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumMultiUnit"))
     );
 }
@@ -138,13 +136,13 @@ fn enum_multi_unit() {
 #[test]
 fn enum_single_attribs() {
     assert_eq!(
-        EnumSingleAttribs::model_entity(),
+        EnumSingleAttribs::ir(),
         Entity::new(
             ident("EnumSingleAttribs"),
             vec![Event::new(
                 ident("A"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldType::Payload(
+                vec![EventField::from_type(EventFieldValueType::Payload(
                     ValueType::Attributes(ident("OnePrim")),
                 ))],
             )],
@@ -153,7 +151,7 @@ fn enum_single_attribs() {
         )
     );
     assert_eq!(
-        EnumSingleAttribs::model_entity_ref_target(),
+        EnumSingleAttribs::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumSingleAttribs"))
     );
 }
@@ -161,21 +159,21 @@ fn enum_single_attribs() {
 #[test]
 fn enum_multi_attribs() {
     assert_eq!(
-        EnumMultiAttribs::model_entity(),
+        EnumMultiAttribs::ir(),
         Entity::new(
             ident("EnumMultiAttribs"),
             vec![
                 Event::new(
                     ident("A"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldType::Payload(
+                    vec![EventField::from_type(EventFieldValueType::Payload(
                         ValueType::Attributes(ident("OnePrim")),
                     ))],
                 ),
                 Event::new(
                     ident("B"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldType::Payload(
+                    vec![EventField::from_type(EventFieldValueType::Payload(
                         ValueType::Attributes(ident("MultiPrim")),
                     ))],
                 ),
@@ -185,7 +183,7 @@ fn enum_multi_attribs() {
         )
     );
     assert_eq!(
-        EnumMultiAttribs::model_entity_ref_target(),
+        EnumMultiAttribs::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumMultiAttribs"))
     );
 }
@@ -193,7 +191,7 @@ fn enum_multi_attribs() {
 #[test]
 fn enum_inline_attribs() {
     assert_eq!(
-        EnumInlineAttribs::model_entity(),
+        EnumInlineAttribs::ir(),
         Entity::new(
             ident("EnumInlineAttribs"),
             vec![
@@ -203,11 +201,11 @@ fn enum_inline_attribs() {
                     vec![
                         EventField::new(
                             Identifier::new_unchecked("x"),
-                            EventFieldType::Payload(ValueType::U8),
+                            EventFieldValueType::Payload(ValueType::U8),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("y"),
-                            EventFieldType::Payload(ValueType::String),
+                            EventFieldValueType::Payload(ValueType::String),
                         ),
                     ],
                 ),
@@ -218,7 +216,7 @@ fn enum_inline_attribs() {
         )
     );
     assert_eq!(
-        EnumInlineAttribs::model_entity_ref_target(),
+        EnumInlineAttribs::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumInlineAttribs"))
     );
 }
@@ -226,7 +224,7 @@ fn enum_inline_attribs() {
 #[test]
 fn enum_builtin_attribs() {
     assert_eq!(
-        EnumBuiltinAttribs::model_entity(),
+        EnumBuiltinAttribs::ir(),
         Entity::new(
             ident("EnumBuiltinAttribs"),
             vec![
@@ -236,22 +234,22 @@ fn enum_builtin_attribs() {
                     vec![
                         EventField::new(
                             Identifier::new_unchecked("x"),
-                            EventFieldType::Payload(ValueType::U8),
+                            EventFieldValueType::Payload(ValueType::U8),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("y"),
-                            EventFieldType::Payload(ValueType::String),
+                            EventFieldValueType::Payload(ValueType::String),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("z"),
-                            EventFieldType::EntityRef {
+                            EventFieldValueType::EntityRef {
                                 role_type: EntityRefRole::Plain,
                                 entity_type: EntityRefTarget::Specific(ident("EnumInlineAttribs")),
                             },
                         ),
                         EventField::new(
                             Identifier::new_unchecked("d"),
-                            EventFieldType::EntityRef {
+                            EventFieldValueType::EntityRef {
                                 role_type: EntityRefRole::Scope,
                                 entity_type: EntityRefTarget::Specific(ident("Unit")),
                             },
@@ -263,7 +261,7 @@ fn enum_builtin_attribs() {
                     Cardinality::Once,
                     vec![EventField::new(
                         Identifier::new_unchecked("k"),
-                        EventFieldType::Payload(ValueType::Uuid),
+                        EventFieldValueType::Payload(ValueType::Uuid),
                     )],
                 ),
             ],
@@ -272,7 +270,7 @@ fn enum_builtin_attribs() {
         )
     );
     assert_eq!(
-        EnumBuiltinAttribs::model_entity_ref_target(),
+        EnumBuiltinAttribs::ir_ref_target(),
         EntityRefTarget::Specific(ident("EnumBuiltinAttribs"))
     );
 }

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_v2_model::attributes::{Attributes, ValueType};
 use quent_v2_model_ir::{
-    attributes::{Attributes, Field, ModelAttributes},
-    value_type::{ModelValueType, ValueType},
+    attributes::{Attributes as IrAttr, Field},
+    value_type::ValueType as IrValueType,
 };
 
 mod source;
@@ -16,315 +17,315 @@ use crate::utils::ident;
 #[test]
 fn unit() {
     assert_eq!(
-        Unit::model_attributes(),
-        Attributes::new(
+        <Unit as Attributes>::ir(),
+        IrAttr::new(
             ident("Unit"),
             vec![],
             utils::rust_path!("source::attributes::Unit")
         )
     );
     assert_eq!(
-        Unit::model_value_type(),
-        ValueType::Attributes(ident("Unit"))
+        <Unit as ValueType>::ir(),
+        IrValueType::Attributes(ident("Unit"))
     );
 }
 
 #[test]
 fn unit_braces() {
     assert_eq!(
-        UnitBraces::model_attributes(),
-        Attributes::new(
+        <UnitBraces as Attributes>::ir(),
+        IrAttr::new(
             ident("UnitBraces"),
             vec![],
             utils::rust_path!("source::attributes::UnitBraces"),
         )
     );
     assert_eq!(
-        UnitBraces::model_value_type(),
-        ValueType::Attributes(ident("UnitBraces"))
+        <UnitBraces as ValueType>::ir(),
+        IrValueType::Attributes(ident("UnitBraces"))
     );
 }
 
 #[test]
 fn one_prim() {
     assert_eq!(
-        OnePrim::model_attributes(),
-        Attributes::new(
+        <OnePrim as Attributes>::ir(),
+        IrAttr::new(
             ident("OnePrim"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::U8,
+                ty: IrValueType::U8,
             }],
             utils::rust_path!("source::attributes::OnePrim"),
         )
     );
     assert_eq!(
-        OnePrim::model_value_type(),
-        ValueType::Attributes(ident("OnePrim"))
+        <OnePrim as ValueType>::ir(),
+        IrValueType::Attributes(ident("OnePrim"))
     );
 }
 
 #[test]
 fn one_nested() {
     assert_eq!(
-        OneNested::model_attributes(),
-        Attributes::new(
+        <OneNested as Attributes>::ir(),
+        IrAttr::new(
             ident("OneNested"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::Attributes(ident("OnePrim")),
+                ty: IrValueType::Attributes(ident("OnePrim")),
             }],
             utils::rust_path!("source::attributes::OneNested"),
         )
     );
     assert_eq!(
-        OneNested::model_value_type(),
-        ValueType::Attributes(ident("OneNested"))
+        <OneNested as ValueType>::ir(),
+        IrValueType::Attributes(ident("OneNested"))
     );
 }
 
 #[test]
 fn one_list() {
     assert_eq!(
-        OneList::model_attributes(),
-        Attributes::new(
+        <OneList as Attributes>::ir(),
+        IrAttr::new(
             ident("OneList"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::List(Box::new(ValueType::U8)),
+                ty: IrValueType::List(Box::new(IrValueType::U8)),
             }],
             utils::rust_path!("source::attributes::OneList"),
         )
     );
     assert_eq!(
-        OneList::model_value_type(),
-        ValueType::Attributes(ident("OneList"))
+        <OneList as ValueType>::ir(),
+        IrValueType::Attributes(ident("OneList"))
     );
 }
 
 #[test]
 fn one_list_nested() {
     assert_eq!(
-        OneListNested::model_attributes(),
-        Attributes::new(
+        <OneListNested as Attributes>::ir(),
+        IrAttr::new(
             ident("OneListNested"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::List(Box::new(ValueType::Attributes(ident("OnePrim")))),
+                ty: IrValueType::List(Box::new(IrValueType::Attributes(ident("OnePrim")))),
             }],
             utils::rust_path!("source::attributes::OneListNested"),
         )
     );
     assert_eq!(
-        OneListNested::model_value_type(),
-        ValueType::Attributes(ident("OneListNested"))
+        <OneListNested as ValueType>::ir(),
+        IrValueType::Attributes(ident("OneListNested"))
     );
 }
 
 #[test]
 fn one_list_list_prim() {
     assert_eq!(
-        OneListListPrim::model_attributes(),
-        Attributes::new(
+        <OneListListPrim as Attributes>::ir(),
+        IrAttr::new(
             ident("OneListListPrim"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::U8)))),
+                ty: IrValueType::List(Box::new(IrValueType::List(Box::new(IrValueType::U8)))),
             }],
             utils::rust_path!("source::attributes::OneListListPrim"),
         )
     );
     assert_eq!(
-        OneListListPrim::model_value_type(),
-        ValueType::Attributes(ident("OneListListPrim"))
+        <OneListListPrim as ValueType>::ir(),
+        IrValueType::Attributes(ident("OneListListPrim"))
     );
 }
 
 #[test]
 fn one_list_list_nested() {
     assert_eq!(
-        OneListListNested::model_attributes(),
-        Attributes::new(
+        <OneListListNested as Attributes>::ir(),
+        IrAttr::new(
             ident("OneListListNested"),
             vec![Field {
                 name: ident("a"),
-                ty: ValueType::List(Box::new(ValueType::List(Box::new(ValueType::Attributes(
-                    ident("OnePrim")
-                )))))
+                ty: IrValueType::List(Box::new(IrValueType::List(Box::new(
+                    IrValueType::Attributes(ident("OnePrim"))
+                ))))
             }],
             utils::rust_path!("source::attributes::OneListListNested"),
         )
     );
     assert_eq!(
-        OneListListNested::model_value_type(),
-        ValueType::Attributes(ident("OneListListNested"))
+        <OneListListNested as ValueType>::ir(),
+        IrValueType::Attributes(ident("OneListListNested"))
     );
 }
 
 #[test]
 fn multi_prim() {
     assert_eq!(
-        MultiPrim::model_attributes(),
-        Attributes::new(
+        <MultiPrim as Attributes>::ir(),
+        IrAttr::new(
             ident("MultiPrim"),
             vec![
                 Field {
                     name: ident("a"),
-                    ty: ValueType::U8,
+                    ty: IrValueType::U8,
                 },
                 Field {
                     name: ident("b"),
-                    ty: ValueType::String,
+                    ty: IrValueType::String,
                 },
             ],
             utils::rust_path!("source::attributes::MultiPrim"),
         )
     );
     assert_eq!(
-        MultiPrim::model_value_type(),
-        ValueType::Attributes(ident("MultiPrim"))
+        <MultiPrim as ValueType>::ir(),
+        IrValueType::Attributes(ident("MultiPrim"))
     );
 }
 
 #[test]
 fn multi_nested() {
     assert_eq!(
-        MultiNested::model_attributes(),
-        Attributes::new(
+        <MultiNested as Attributes>::ir(),
+        IrAttr::new(
             ident("MultiNested"),
             vec![
                 Field {
                     name: ident("a"),
-                    ty: ValueType::U8,
+                    ty: IrValueType::U8,
                 },
                 Field {
                     name: ident("b"),
-                    ty: ValueType::Attributes(ident("MultiPrim")),
+                    ty: IrValueType::Attributes(ident("MultiPrim")),
                 },
                 Field {
                     name: ident("c"),
-                    ty: ValueType::List(Box::new(ValueType::U16)),
+                    ty: IrValueType::List(Box::new(IrValueType::U16)),
                 },
                 Field {
                     name: ident("d"),
-                    ty: ValueType::String,
+                    ty: IrValueType::String,
                 },
             ],
             utils::rust_path!("source::attributes::MultiNested"),
         )
     );
     assert_eq!(
-        MultiNested::model_value_type(),
-        ValueType::Attributes(ident("MultiNested"))
+        <MultiNested as ValueType>::ir(),
+        IrValueType::Attributes(ident("MultiNested"))
     );
 }
 
 #[test]
 fn multi_option() {
     assert_eq!(
-        MultiOption::model_attributes(),
-        Attributes::new(
+        <MultiOption as Attributes>::ir(),
+        IrAttr::new(
             ident("MultiOption"),
             vec![
                 Field {
                     name: ident("a"),
-                    ty: ValueType::U8,
+                    ty: IrValueType::U8,
                 },
                 Field {
                     name: ident("b"),
-                    ty: ValueType::Option(Box::new(ValueType::String)),
+                    ty: IrValueType::Option(Box::new(IrValueType::String)),
                 },
             ],
             utils::rust_path!("source::attributes::MultiOption"),
         )
     );
     assert_eq!(
-        MultiOption::model_value_type(),
-        ValueType::Attributes(ident("MultiOption"))
+        <MultiOption as ValueType>::ir(),
+        IrValueType::Attributes(ident("MultiOption"))
     );
 }
 
 #[test]
 fn all_types() {
     assert_eq!(
-        AllTypes::model_attributes(),
-        Attributes::new(
+        <AllTypes as Attributes>::ir(),
+        IrAttr::new(
             ident("AllTypes"),
             vec![
                 Field {
                     name: ident("a_bool"),
-                    ty: ValueType::Bool,
+                    ty: IrValueType::Bool,
                 },
                 Field {
                     name: ident("a_uuid"),
-                    ty: ValueType::Uuid,
+                    ty: IrValueType::Uuid,
                 },
                 Field {
                     name: ident("a_string"),
-                    ty: ValueType::String,
+                    ty: IrValueType::String,
                 },
                 Field {
                     name: ident("a_u8"),
-                    ty: ValueType::U8,
+                    ty: IrValueType::U8,
                 },
                 Field {
                     name: ident("a_u16"),
-                    ty: ValueType::U16,
+                    ty: IrValueType::U16,
                 },
                 Field {
                     name: ident("a_u32"),
-                    ty: ValueType::U32,
+                    ty: IrValueType::U32,
                 },
                 Field {
                     name: ident("a_u64"),
-                    ty: ValueType::U64,
+                    ty: IrValueType::U64,
                 },
                 Field {
                     name: ident("a_i8"),
-                    ty: ValueType::I8,
+                    ty: IrValueType::I8,
                 },
                 Field {
                     name: ident("a_i16"),
-                    ty: ValueType::I16,
+                    ty: IrValueType::I16,
                 },
                 Field {
                     name: ident("a_i32"),
-                    ty: ValueType::I32,
+                    ty: IrValueType::I32,
                 },
                 Field {
                     name: ident("a_i64"),
-                    ty: ValueType::I64,
+                    ty: IrValueType::I64,
                 },
                 Field {
                     name: ident("a_f32"),
-                    ty: ValueType::F32,
+                    ty: IrValueType::F32,
                 },
                 Field {
                     name: ident("a_f64"),
-                    ty: ValueType::F64,
+                    ty: IrValueType::F64,
                 },
                 Field {
                     name: ident("a_option"),
-                    ty: ValueType::Option(Box::new(ValueType::U64)),
+                    ty: IrValueType::Option(Box::new(IrValueType::U64)),
                 },
                 Field {
                     name: ident("a_list"),
-                    ty: ValueType::List(Box::new(ValueType::U64)),
+                    ty: IrValueType::List(Box::new(IrValueType::U64)),
                 },
                 Field {
                     name: ident("a_nested"),
-                    ty: ValueType::Attributes(ident("MultiNested")),
+                    ty: IrValueType::Attributes(ident("MultiNested")),
                 },
                 Field {
                     name: ident("a_custom"),
-                    ty: ValueType::CustomAttributes,
+                    ty: IrValueType::CustomAttributes,
                 },
             ],
             utils::rust_path!("source::attributes::AllTypes"),
         )
     );
     assert_eq!(
-        AllTypes::model_value_type(),
-        ValueType::Attributes(ident("AllTypes"))
+        <AllTypes as ValueType>::ir(),
+        IrValueType::Attributes(ident("AllTypes"))
     );
 }

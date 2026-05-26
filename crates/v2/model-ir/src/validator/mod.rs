@@ -1,25 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use thiserror::Error;
-
 use crate::{
+    IrError,
     entity::Entity,
     qualifications::{Qualification, fsm::Fsm, resource::Resource},
-    validator::qualifications::{QualificationCheck, QualificationError},
+    validator::qualifications::QualificationCheck,
 };
 
 pub mod qualifications;
 
-#[derive(Debug, Error)]
-pub enum ValidationError {
-    #[error("qualification error: {0}")]
-    Qualification(#[from] QualificationError),
-}
-
 impl Entity {
-    pub fn validate(&self) -> Result<(), Vec<ValidationError>> {
-        let errs: Vec<_> = self
+    pub fn validate(&self) -> Result<(), Vec<IrError>> {
+        let errors = self
             .qualifications
             .iter()
             .filter_map(|q| {
@@ -29,8 +22,11 @@ impl Entity {
                 }
                 .err()
             })
-            .map(ValidationError::from)
-            .collect();
-        if errs.is_empty() { Ok(()) } else { Err(errs) }
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 }

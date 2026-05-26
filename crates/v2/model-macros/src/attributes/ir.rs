@@ -57,15 +57,15 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         quote! {
             ::quent_v2_model_ir::attributes::Field {
                 name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
-                ty: <#field_type as ::quent_v2_model_ir::value_type::ModelValueType>::model_value_type(),
+                ty: <#field_type as ::quent_v2_model::attributes::ValueType>::ir(),
             }
         }
     });
 
     // Emit the traits that produce the IR from this type
     Ok(quote! {
-        impl ::quent_v2_model_ir::attributes::ModelAttributes for #name_ident {
-            fn model_attributes() -> ::quent_v2_model_ir::attributes::Attributes {
+        impl ::quent_v2_model::attributes::Attributes for #name_ident {
+            fn ir() -> ::quent_v2_model_ir::attributes::Attributes {
                 ::quent_v2_model_ir::attributes::Attributes {
                     name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
@@ -76,8 +76,8 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::quent_v2_model_ir::value_type::ModelValueType for #name_ident {
-            fn model_value_type() -> ::quent_v2_model_ir::value_type::ValueType {
+        impl ::quent_v2_model::attributes::ValueType for #name_ident {
+            fn ir() -> ::quent_v2_model_ir::value_type::ValueType {
                 ::quent_v2_model_ir::value_type::ValueType::Attributes(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                 )
