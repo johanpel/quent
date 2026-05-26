@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use source::attributes::{MultiNested, MultiPrim, OnePrim};
 use source::fsms::*;
+use source::records::{MultiNested, MultiPrim, OnePrim};
 use uuid::Uuid;
 
 mod source;

@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_v2_model::{Attributes, Entity};
+use quent_v2_model::{Entity, Record};
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct EngineImplementationAttributes {
     pub name: Option<String>,
     pub version: Option<String>,
     pub custom_attributes: quent_attributes::CustomAttributes,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct Init {
     pub implementation: EngineImplementationAttributes,
     pub instance_name: Option<String>,

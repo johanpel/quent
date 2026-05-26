@@ -3,13 +3,13 @@
 
 use quent_v2_model::entity::Entity as _;
 use quent_v2_model_ir::{
+    data_type::DataType,
     entity::Entity,
-    event::{Cardinality, EntityRefTarget, Event, EventField, EventFieldValueType},
+    event::{Cardinality, EntityRefTarget, Event, EventField, EventFieldType},
     qualifications::{
         Qualification,
         fsm::{Fsm, State, Transition},
     },
-    value_type::ValueType,
 };
 
 use source::fsms::*;
@@ -96,8 +96,8 @@ fn one_attribs() {
             vec![Event::new(
                 ident("A"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldValueType::Payload(
-                    ValueType::Attributes(ident("OnePrim")),
+                vec![EventField::from_type(EventFieldType::Payload(
+                    DataType::Record(ident("OnePrim")),
                 ))],
             )],
             vec![Qualification::Fsm(Fsm {
@@ -131,15 +131,15 @@ fn multi_attribs() {
                 Event::new(
                     ident("A"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldValueType::Payload(
-                        ValueType::Attributes(ident("OnePrim")),
+                    vec![EventField::from_type(EventFieldType::Payload(
+                        DataType::Record(ident("OnePrim")),
                     ))],
                 ),
                 Event::new(
                     ident("B"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldValueType::Payload(
-                        ValueType::Attributes(ident("MultiNested")),
+                    vec![EventField::from_type(EventFieldType::Payload(
+                        DataType::Record(ident("MultiNested")),
                     ))],
                 ),
             ],

@@ -68,15 +68,15 @@
 //!
 use crate::identifier::{Identifier, IdentifierError};
 
-use self::{attributes::Attributes, entity::Entity};
+use self::{entity::Entity, record::Record};
 
-pub mod attributes;
+pub mod data_type;
 pub mod entity;
 pub mod event;
 pub mod identifier;
 pub mod qualifications;
+pub mod record;
 pub mod validator;
-pub mod value_type;
 
 /// IR of an application model.
 pub struct Model {
@@ -84,8 +84,8 @@ pub struct Model {
     pub name: Identifier,
     /// The [`Entity`]s of the model.
     pub entities: Vec<Entity>,
-    /// The [`Attributes`] sets of the model.
-    pub attributes: Vec<Attributes>,
+    /// The [`Record`]s of the model.
+    pub records: Vec<Record>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

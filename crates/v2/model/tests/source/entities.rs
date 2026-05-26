@@ -10,7 +10,7 @@ use quent_v2_model::{
 };
 use uuid::Uuid;
 
-use crate::source::attributes;
+use crate::source::records;
 
 #[derive(Entity)]
 pub struct Unit;
@@ -26,7 +26,7 @@ pub struct StructPrim {
 #[derive(Entity)]
 pub struct StructMultiAttrib {
     pub a: u8,
-    pub b: attributes::OnePrim,
+    pub b: records::OnePrim,
 }
 
 #[derive(Entity)]
@@ -42,13 +42,13 @@ pub enum EnumMultiUnit {
 
 #[derive(Entity)]
 pub enum EnumSingleAttribs {
-    A(attributes::OnePrim),
+    A(records::OnePrim),
 }
 
 #[derive(Entity)]
 pub enum EnumMultiAttribs {
-    A(attributes::OnePrim),
-    B(attributes::MultiPrim),
+    A(records::OnePrim),
+    B(records::MultiPrim),
 }
 
 #[derive(Entity)]

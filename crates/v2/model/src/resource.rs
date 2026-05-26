@@ -18,10 +18,17 @@ use crate::{
 
 // TODO: seal traits below
 
-// Trait for markers defining how a capacity's bounds are to be perceived.
+/// Trait for markers defining how a capacity's bounds are to be perceived.
 pub trait Boundedness {}
-// Trait for markers defining the kind of capacity.
+
+/// Trait for markers defining the kind of capacity.
 pub trait CapacityKind {}
+
+/// A trait for entities that are resources.
+pub trait Resource: Entity {
+    type UsageType;
+    type BoundsType;
+}
 
 /// The resource capacity is fixed-size and bounded.
 pub struct Fixed;
@@ -73,28 +80,22 @@ where
 }
 
 // User-facing types used in the instrumentation API:
+
+/// A bound of an [`Occupancy`]-type [`Resource`] [`Capacity`].
 pub struct OccupancyBound<T> {
     pub value: T,
 }
 
+/// A bound of a [`Rate`]-type [`Resource`] [`Capacity`].
 pub struct RateBound<T> {
+    /// The number of items in the rate bound expressed as items/nanoseconds
     pub items: T,
+    /// The amount of nanoseconds in the rate bound expressed as items/nanoseconds.
     pub nanoseconds: u64,
 }
 
-/// To convey a new capacity value.
-pub struct CapacityValue<ValueType> {
-    pub value: ValueType,
-}
-
-/// A trait for entities that are resources.
-pub trait Resource: Entity {
-    type UsageType;
-    type BoundsType;
-}
-
-/// A type serving as an [`crate::entity_ref::EntityRef`] role for FSMs to
-/// convey they are using a resource for the duration of some state.
+/// An [`crate::entity_ref::EntityRef`] role for FSMs to convey they are using a
+/// resource for the duration of some state.
 pub struct Usage<R>
 where
     R: Resource,
@@ -102,20 +103,18 @@ where
     pub amounts: R::UsageType,
 }
 
-pub struct Bounds<R>
-where
-    R: Resource,
-{
-    pub bounds: R::BoundsType,
-}
+// /// The capacity bound of a resourtc
+// pub struct Bounds<R>
+// where
+//     R: Resource,
+// {
+//     pub bounds: R::BoundsType,
+// }
 
 // Usage is a role of a reference
 impl<R: Resource> EntityRefRole for Usage<R> {
     #[cfg(feature = "ir")]
     fn ir() -> ir::EntityRefRole {
-        // ir::EntityRefRole::Value(ValueType::Attributes(Box::new(Identifier::new_unchecked(
-        //     "",
-        // ))))
         todo!()
     }
 }

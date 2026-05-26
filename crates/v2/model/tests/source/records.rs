@@ -4,53 +4,53 @@
 #![allow(unused)]
 
 use quent_v2_model::{
-    Attributes,
+    Record,
     entity_ref::{AnyEntity, EntityRef},
 };
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct Unit;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct UnitBraces {}
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OnePrim {
     pub a: u8,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OneNested {
     a: OnePrim,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OneList {
     a: Vec<u8>,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OneListNested {
     a: Vec<OnePrim>,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OneListListPrim {
     a: Vec<Vec<u8>>,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OneListListNested {
     a: Vec<Vec<OnePrim>>,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct MultiPrim {
     pub a: u8,
     pub b: String,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct MultiNested {
     pub a: u8,
     pub b: MultiPrim,
@@ -58,7 +58,7 @@ pub struct MultiNested {
     pub d: String,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct MultiOption {
     a: u8,
     b: Option<String>,
@@ -68,7 +68,7 @@ pub struct MultiOption {
 // #[derive(Resource)]
 // struct UnitResource;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct AllTypes {
     a_bool: bool,
     a_uuid: uuid::Uuid,

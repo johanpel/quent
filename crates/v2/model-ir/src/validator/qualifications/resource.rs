@@ -9,19 +9,6 @@ use crate::{
 
 impl QualificationCheck for Resource {
     fn qualifies(_entity: &Entity) -> Result<(), IrError> {
-        // Constraint: an entity can't be both a resource and a resource group.
-        // if entity
-        //     .qualifications
-        //     .iter()
-        //     .any(|q| matches!(&q, Qualification::ResourceGroup(_)))
-        // {
-        //     Err(QualificationError::Violations(vec![format!(
-        //         "entity {} cannot qualify as both resource and resource group",
-        //         entity.name
-        //     )]))
-        // } else {
-        //     todo!()
-        // }
         Ok(())
     }
 }

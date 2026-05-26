@@ -3,11 +3,11 @@
 
 //! Worker FSM: a node-local execution context, child of Engine.
 
-use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef};
+use quent_v2_model::{Entity, Record, entity_ref::EntityRef, scope::RgParentRef};
 
 use crate::engine;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct WorkerInit {
     pub instance_name: String,
 }

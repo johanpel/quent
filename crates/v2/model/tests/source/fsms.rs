@@ -5,7 +5,7 @@
 
 use quent_v2_model::Entity;
 
-use crate::source::attributes::{MultiNested, OnePrim};
+use crate::source::records::{MultiNested, OnePrim};
 
 #[derive(Entity)]
 #[quent(fsm(

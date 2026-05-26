@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{identifier::Identifier, value_type::ValueType};
+use crate::{data_type::DataType, identifier::Identifier};
 
 /// IR of the cardinality of an event.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -28,15 +28,15 @@ pub enum EntityRefRole {
     Plain,
     /// A structural role.
     Scope,
-    /// A role defined by an arbitrary type that is an attribute set.
+    /// A role defined by an arbitrary type that is a record.
     User(Identifier),
 }
 
 /// The type of an event field.
 #[derive(Debug, PartialEq)]
-pub enum EventFieldValueType {
+pub enum EventFieldType {
     /// An arbitrary payload event field, application-specific.
-    Payload(ValueType),
+    Payload(DataType),
     /// A reference to another entity.
     EntityRef {
         /// The type of the data associated with the role of this reference
@@ -58,38 +58,38 @@ pub enum EventFieldValueType {
     },
 }
 
-impl EventFieldValueType {
+impl EventFieldType {
     /// Returns the default name for a field with this type.
     pub fn default_name(&self) -> &'static str {
         match self {
-            EventFieldValueType::Payload(_) => "payload",
-            EventFieldValueType::EntityRef { .. } => "entity",
-            EventFieldValueType::ResourceUsage { .. } => "usage",
-            EventFieldValueType::ResourceBound { .. } => "bound",
+            EventFieldType::Payload(_) => "payload",
+            EventFieldType::EntityRef { .. } => "entity",
+            EventFieldType::ResourceUsage { .. } => "usage",
+            EventFieldType::ResourceBound { .. } => "bound",
         }
     }
 }
 
 /// IR of a type of event payload field
 ///
-/// Not to be confused with fields of attribute sets, which are always
-/// user-defined and have no special meaning as far as the IR is concerned.
+/// Not to be confused with fields of records, which are always user-defined and
+/// have no special meaning as far as the IR is concerned.
 #[derive(Debug, PartialEq)]
 pub struct EventField {
     /// The name of the event field.
     pub name: Identifier,
     /// The type of the event field.
-    pub ty: EventFieldValueType,
+    pub ty: EventFieldType,
 }
 
 impl EventField {
-    pub fn new(name: Identifier, ty: EventFieldValueType) -> Self {
+    pub fn new(name: Identifier, ty: EventFieldType) -> Self {
         Self { name, ty }
     }
 
-    /// Construct an EventField using the [`EventFieldValueType::default_name`] of
+    /// Construct an EventField using the [`EventFieldType::default_name`] of
     /// the type `ty`.
-    pub fn from_type(ty: EventFieldValueType) -> Self {
+    pub fn from_type(ty: EventFieldType) -> Self {
         Self {
             name: Identifier::new_unchecked(ty.default_name()),
             ty,

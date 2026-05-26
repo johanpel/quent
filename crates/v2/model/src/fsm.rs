@@ -1,5 +1,6 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES.
-// All rights reserved. SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 //! # Finite-State-Machines (FSMs)
 //!
 //! An entitty can qualify as an FSM (Finite State Machine) if their order is

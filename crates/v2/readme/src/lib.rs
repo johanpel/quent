@@ -91,8 +91,8 @@ pub struct Decompressed {
 // without having to necessarily synchronize within the application (as far as
 // emitting these events is concerned).
 //
-// Each variant is a kind of event. Variants are Once (at most one emission)
-// by default; annotate with #[quent(multi)] for zero-or-more semantics.
+// Each variant is a kind of event. Variants are emitted at most once by default
+// unless they are annotated with #[quent(multi)] for any number of times.
 #[derive(Entity, Serialize, Deserialize)]
 pub enum FileStats {
     Checksum(Checksum),

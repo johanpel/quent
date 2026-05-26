@@ -1,29 +1,28 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{identifier::Identifier, value_type::ValueType};
+use crate::{data_type::DataType, identifier::Identifier};
 
-/// Definition of a field in an attribute set.
+/// Definition of a field in a record.
 #[derive(Debug, PartialEq)]
 pub struct Field {
     pub name: Identifier,
-    pub ty: ValueType,
+    pub ty: DataType,
 }
 
-/// IR of a set of attributes.
-// TODO(johanpel): consider naming this Record or something else
+/// IR of a record.
 #[derive(Debug, PartialEq)]
-pub struct Attributes {
-    /// The name of the attributes.
+pub struct Record {
+    /// The name of the record.
     pub name: Identifier,
-    /// The fields of the attributes.
+    /// The fields of the record.
     pub fields: Vec<Field>,
 
-    /// The Rust path to the attributes.
+    /// The Rust path to the record.
     pub rust_path: String,
 }
 
-impl Attributes {
+impl Record {
     pub fn new(name: Identifier, fields: Vec<Field>, rust_path: impl Into<String>) -> Self {
         Self {
             name,

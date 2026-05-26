@@ -1,21 +1,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Support to parse a syn::Type into an IR [`ValueType`].
+//! Support to parse a syn::Type into an IR [`DataType`].
 //!
-//! [`ValueType`] intentionally does not include any built-in types related to
+//! [`DataType`] intentionally does not include any built-in types related to
 //! framework concepts (`EntityRef`, `Usage`, etc.). These belong at the
 //! event-field level and are parsed into
-//! [`quent_v2_model_ir::event::FieldType`]s.
+//! [`quent_v2_model_ir::event::EventFieldType`]s.
 //!
 //! TODO(johanpel): Proc macros run before name resolution so if a user does
 //! something like use x::String; #[derive(Entity)] struct Foo { bar: String },
 //! then when we parse String, we just see those tokens, but not the use
-//! declaration. So it should have been parsed into ValueType::Attributes, but
-//! instead it will parse as ValueType::String.
-use quent_v2_model_ir::{identifier::Identifier, value_type::ValueType};
+//! declaration. So it should have been parsed into DataType::Record, but
+//! instead it will parse as DataType::String.
+use quent_v2_model_ir::{data_type::DataType, identifier::Identifier};
 
-pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
+pub fn parse_data_type(ty: &syn::Type) -> syn::Result<DataType> {
     let syn::Type::Path(type_path) = ty else {
         return Err(syn::Error::new_spanned(
             ty,
@@ -32,20 +32,20 @@ pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
 
     // Primitive types
     let atom = match name.as_str() {
-        "bool" => Some(ValueType::Bool),
-        "u8" => Some(ValueType::U8),
-        "u16" => Some(ValueType::U16),
-        "u32" => Some(ValueType::U32),
-        "u64" => Some(ValueType::U64),
-        "i8" => Some(ValueType::I8),
-        "i16" => Some(ValueType::I16),
-        "i32" => Some(ValueType::I32),
-        "i64" => Some(ValueType::I64),
-        "f32" => Some(ValueType::F32),
-        "f64" => Some(ValueType::F64),
-        "String" => Some(ValueType::String),
-        "Uuid" => Some(ValueType::Uuid),
-        "CustomAttributes" => Some(ValueType::CustomAttributes),
+        "bool" => Some(DataType::Bool),
+        "u8" => Some(DataType::U8),
+        "u16" => Some(DataType::U16),
+        "u32" => Some(DataType::U32),
+        "u64" => Some(DataType::U64),
+        "i8" => Some(DataType::I8),
+        "i16" => Some(DataType::I16),
+        "i32" => Some(DataType::I32),
+        "i64" => Some(DataType::I64),
+        "f32" => Some(DataType::F32),
+        "f64" => Some(DataType::F64),
+        "String" => Some(DataType::String),
+        "Uuid" => Some(DataType::Uuid),
+        "CustomAttributes" => Some(DataType::DynamicRecord),
         _ => None,
     };
     if let Some(v) = atom {
@@ -62,18 +62,18 @@ pub fn parse_value_type(ty: &syn::Type) -> syn::Result<ValueType> {
     match name.as_str() {
         "Option" => {
             let inner = parse_generic(&last.arguments, ty)?;
-            Ok(ValueType::Option(Box::new(parse_value_type(inner)?)))
+            Ok(DataType::Option(Box::new(parse_data_type(inner)?)))
         }
         "Vec" => {
             let inner = parse_generic(&last.arguments, ty)?;
-            Ok(ValueType::List(Box::new(parse_value_type(inner)?)))
+            Ok(DataType::List(Box::new(parse_data_type(inner)?)))
         }
         "EntityRef" | "Usage" => Err(syn::Error::new_spanned(
             ty,
             format!("`{name}` is only valid in a named field of an entity event variant"),
         )),
-        // Assume a user-defined Attributes-derived type for anything else.
-        _ => Ok(ValueType::Attributes(Identifier::new_unchecked(name))),
+        // Assume a user-defined Record-derived type for anything else.
+        _ => Ok(DataType::Record(Identifier::new_unchecked(name))),
     }
 }
 

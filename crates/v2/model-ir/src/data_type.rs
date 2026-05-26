@@ -3,9 +3,9 @@
 
 use crate::identifier::Identifier;
 
-/// Types of attribute values.
+/// Types of data values.
 #[derive(Clone, Debug, PartialEq)]
-pub enum ValueType {
+pub enum DataType {
     Bool,
     Uuid,
     String,
@@ -19,10 +19,10 @@ pub enum ValueType {
     I64,
     F32,
     F64,
-    Option(Box<ValueType>),
-    List(Box<ValueType>),
-    /// A reference to an attributes set.
-    Attributes(Identifier),
-    /// A set of attributes determined by the instrumentation client at run-time.
-    CustomAttributes,
+    Option(Box<DataType>),
+    List(Box<DataType>),
+    /// A reference to a record.
+    Record(Identifier),
+    /// A record whose fields are determined by the instrumentation client at run-time.
+    DynamicRecord,
 }

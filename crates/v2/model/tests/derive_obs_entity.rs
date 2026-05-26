@@ -5,8 +5,8 @@ use quent_v2_model::{
     EntityHandle, EntityRef,
     entity_ref::{Plain, Scope},
 };
-use source::attributes;
 use source::entities::*;
+use source::records;
 use uuid::Uuid;
 
 use crate::utils::ROOT;
@@ -47,7 +47,7 @@ fn struct_multi_attrib() -> std::result::Result<(), Box<dyn std::error::Error>> 
     let struct_multi_attrib_handle: StructMultiAttribHandle = struct_multi_attrib_obs.handle();
     struct_multi_attrib_handle.struct_multi_attrib(StructMultiAttrib {
         a: 0,
-        b: attributes::OnePrim { a: 0 },
+        b: records::OnePrim { a: 0 },
     })?;
 
     Ok(())
@@ -76,7 +76,7 @@ fn enum_multi_unit() -> std::result::Result<(), Box<dyn std::error::Error>> {
 fn enum_single_attribs() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let enum_single_attribs_obs = EnumSingleAttribsObserver::try_new(ROOT, None)?;
     let enum_single_attribs_handle: EnumSingleAttribsHandle = enum_single_attribs_obs.handle();
-    enum_single_attribs_handle.a(attributes::OnePrim { a: 0 })?;
+    enum_single_attribs_handle.a(records::OnePrim { a: 0 })?;
 
     Ok(())
 }
@@ -85,8 +85,8 @@ fn enum_single_attribs() -> std::result::Result<(), Box<dyn std::error::Error>> 
 fn enum_multi_attribs() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let enum_multi_attribs_obs = EnumMultiAttribsObserver::try_new(ROOT, None)?;
     let enum_multi_attribs_handle: EnumMultiAttribsHandle = enum_multi_attribs_obs.handle();
-    enum_multi_attribs_handle.a(attributes::OnePrim { a: 0 })?;
-    enum_multi_attribs_handle.b(attributes::MultiPrim {
+    enum_multi_attribs_handle.a(records::OnePrim { a: 0 })?;
+    enum_multi_attribs_handle.b(records::MultiPrim {
         a: 0,
         b: String::new(),
     })?;

@@ -3,17 +3,17 @@
 
 //! Port entity: an input/output of an operator.
 
-use quent_v2_model::{Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef};
+use quent_v2_model::{Entity, Record, entity_ref::EntityRef, scope::RgParentRef};
 
 use crate::operator;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct PortDeclaration {
     pub operator: EntityRef<operator::Operator>,
     pub instance_name: String,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct PortStatistics {
     pub custom_attributes: quent_attributes::CustomAttributes,
 }

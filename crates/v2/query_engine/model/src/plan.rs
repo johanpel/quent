@@ -2,18 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_v2_model::{
-    AnyRg, Attributes, Entity, entity_ref::EntityRef, scope::RgParentRef,
+    AnyRg, Entity, Record, entity_ref::EntityRef, scope::RgParentRef,
 };
 
 use crate::port;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct Edge {
     pub source: EntityRef<port::Port>,
     pub target: EntityRef<port::Port>,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct PlanAttributes {
     pub instance_name: String,
     pub edges: Vec<Edge>,

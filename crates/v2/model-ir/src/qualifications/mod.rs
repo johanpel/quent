@@ -24,7 +24,7 @@ pub enum QualificationKind {
 ///
 /// Qualifications are constraints an entity's events must satisfy. This may
 /// include constraints on any property an entities' events, either their
-/// attributes or their order. If the constraints of a qualification "X" are
+/// fields or their order. If the constraints of a qualification "X" are
 /// satisfied, an entity is said to "qualify" as an "X".
 ///
 /// Through these requirements, specialized semantics can be added over plain

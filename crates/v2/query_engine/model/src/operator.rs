@@ -4,11 +4,11 @@
 //! Operator entity: a node inside a query plan.
 
 use quent_attributes::CustomAttributes;
-use quent_v2_model::{entity_ref::EntityRef, scope::RgParentRef, Attributes, Entity};
+use quent_v2_model::{entity_ref::EntityRef, scope::RgParentRef, Entity, Record};
 
 use crate::plan;
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OperatorDeclaration {
     pub parent_plan_operators: Vec<EntityRef<Operator>>,
     pub instance_name: String,
@@ -16,7 +16,7 @@ pub struct OperatorDeclaration {
     pub custom_attributes: CustomAttributes,
 }
 
-#[derive(Attributes)]
+#[derive(Record)]
 pub struct OperatorStatistics {
     pub custom_attributes: CustomAttributes,
 }

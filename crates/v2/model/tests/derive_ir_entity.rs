@@ -3,10 +3,10 @@
 
 use quent_v2_model::entity::Entity as _;
 use quent_v2_model_ir::{
+    data_type::DataType,
     entity::Entity,
-    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldValueType},
+    event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldType},
     identifier::Identifier,
-    value_type::ValueType,
 };
 
 use source::entities::*;
@@ -59,8 +59,8 @@ fn struct_prim() {
             vec![Event::new(
                 ident("StructPrim"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldValueType::Payload(
-                    ValueType::Attributes(ident("StructPrim")),
+                vec![EventField::from_type(EventFieldType::Payload(
+                    DataType::Record(ident("StructPrim")),
                 ))],
             )],
             vec![],
@@ -82,8 +82,8 @@ fn struct_multi_attrib() {
             vec![Event::new(
                 ident("StructMultiAttrib"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldValueType::Payload(
-                    ValueType::Attributes(ident("StructMultiAttrib")),
+                vec![EventField::from_type(EventFieldType::Payload(
+                    DataType::Record(ident("StructMultiAttrib")),
                 ))],
             )],
             vec![],
@@ -142,8 +142,8 @@ fn enum_single_attribs() {
             vec![Event::new(
                 ident("A"),
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldValueType::Payload(
-                    ValueType::Attributes(ident("OnePrim")),
+                vec![EventField::from_type(EventFieldType::Payload(
+                    DataType::Record(ident("OnePrim")),
                 ))],
             )],
             vec![],
@@ -166,15 +166,15 @@ fn enum_multi_attribs() {
                 Event::new(
                     ident("A"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldValueType::Payload(
-                        ValueType::Attributes(ident("OnePrim")),
+                    vec![EventField::from_type(EventFieldType::Payload(
+                        DataType::Record(ident("OnePrim")),
                     ))],
                 ),
                 Event::new(
                     ident("B"),
                     Cardinality::Once,
-                    vec![EventField::from_type(EventFieldValueType::Payload(
-                        ValueType::Attributes(ident("MultiPrim")),
+                    vec![EventField::from_type(EventFieldType::Payload(
+                        DataType::Record(ident("MultiPrim")),
                     ))],
                 ),
             ],
@@ -201,11 +201,11 @@ fn enum_inline_attribs() {
                     vec![
                         EventField::new(
                             Identifier::new_unchecked("x"),
-                            EventFieldValueType::Payload(ValueType::U8),
+                            EventFieldType::Payload(DataType::U8),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("y"),
-                            EventFieldValueType::Payload(ValueType::String),
+                            EventFieldType::Payload(DataType::String),
                         ),
                     ],
                 ),
@@ -234,22 +234,22 @@ fn enum_builtin_attribs() {
                     vec![
                         EventField::new(
                             Identifier::new_unchecked("x"),
-                            EventFieldValueType::Payload(ValueType::U8),
+                            EventFieldType::Payload(DataType::U8),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("y"),
-                            EventFieldValueType::Payload(ValueType::String),
+                            EventFieldType::Payload(DataType::String),
                         ),
                         EventField::new(
                             Identifier::new_unchecked("z"),
-                            EventFieldValueType::EntityRef {
+                            EventFieldType::EntityRef {
                                 role_type: EntityRefRole::Plain,
                                 entity_type: EntityRefTarget::Specific(ident("EnumInlineAttribs")),
                             },
                         ),
                         EventField::new(
                             Identifier::new_unchecked("d"),
-                            EventFieldValueType::EntityRef {
+                            EventFieldType::EntityRef {
                                 role_type: EntityRefRole::Scope,
                                 entity_type: EntityRefTarget::Specific(ident("Unit")),
                             },
@@ -261,7 +261,7 @@ fn enum_builtin_attribs() {
                     Cardinality::Once,
                     vec![EventField::new(
                         Identifier::new_unchecked("k"),
-                        EventFieldValueType::Payload(ValueType::Uuid),
+                        EventFieldType::Payload(DataType::Uuid),
                     )],
                 ),
             ],

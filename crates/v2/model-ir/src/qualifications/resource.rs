@@ -22,7 +22,7 @@ pub struct Capacity {
     pub kind: CapacityKind,
     pub boundedness: Boundedness,
     // TODO(johanpel): consider introducing this, but for now everything is u64
-    // value_type: ValueType
+    // data_type: DataType
 }
 
 /// Resource qualification.

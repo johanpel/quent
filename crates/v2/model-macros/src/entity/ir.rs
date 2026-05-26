@@ -39,8 +39,8 @@ pub fn expand_struct(
         quote! {
             ::std::vec![
                 ::quent_v2_model_ir::event::EventField::from_type(
-                    ::quent_v2_model_ir::event::EventFieldValueType::Payload(
-                        ::quent_v2_model_ir::value_type::ValueType::Attributes(
+                    ::quent_v2_model_ir::event::EventFieldType::Payload(
+                        ::quent_v2_model_ir::data_type::DataType::Record(
                             ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                         ),
                     ),
@@ -184,8 +184,8 @@ fn expand_variant_event_fields(
             Ok(quote! {
                 ::std::vec![
                     ::quent_v2_model_ir::event::EventField::from_type(
-                        ::quent_v2_model_ir::event::EventFieldValueType::Payload(
-                            <#ty as ::quent_v2_model::attributes::ValueType>::ir(),
+                        ::quent_v2_model_ir::event::EventFieldType::Payload(
+                            <#ty as ::quent_v2_model::data_type::DataType>::ir(),
                         ),
                     )
                 ]
@@ -197,7 +197,7 @@ fn expand_variant_event_fields(
         )),
         syn::Fields::Named(named) => {
             // The model crate has a blanket impl of EventField for
-            // application-specific value types, which implement ValueType.
+            // application-specific data types, which implement DataType.
             let field_defs = named.named.iter().map(|f| {
                 let field_name = f.ident.as_ref().unwrap().to_string();
                 let ty = &f.ty;

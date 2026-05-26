@@ -18,7 +18,7 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
     if !input.generics.params.is_empty() {
         return Err(syn::Error::new_spanned(
             &input.generics,
-            "#[derive(Attributes)] does not support generic types",
+            "#[derive(Record)] does not support generic types",
         ));
     }
 
@@ -27,13 +27,13 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         syn::Data::Enum(e) => {
             return Err(syn::Error::new_spanned(
                 e.enum_token,
-                "#[derive(Attributes)] not allowed on enum",
+                "#[derive(Record)] not allowed on enum",
             ));
         }
         syn::Data::Union(u) => {
             return Err(syn::Error::new_spanned(
                 u.union_token,
-                "#[derive(Attributes)] not allowed on union",
+                "#[derive(Record)] not allowed on union",
             ));
         }
         syn::Data::Struct(s) => match &s.fields {
@@ -42,7 +42,7 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
             syn::Fields::Unnamed(_) => {
                 return Err(syn::Error::new_spanned(
                     &input,
-                    "#[derive(Attributes)] requires a unit struct or a struct with named fields",
+                    "#[derive(Record)] requires a unit struct or a struct with named fields",
                 ));
             }
             _ => &s.fields,
@@ -55,18 +55,18 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         let field_name = &f.ident.as_ref().unwrap().to_string();
         let field_type = &f.ty;
         quote! {
-            ::quent_v2_model_ir::attributes::Field {
+            ::quent_v2_model_ir::record::Field {
                 name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
-                ty: <#field_type as ::quent_v2_model::attributes::ValueType>::ir(),
+                ty: <#field_type as ::quent_v2_model::data_type::DataType>::ir(),
             }
         }
     });
 
     // Emit the traits that produce the IR from this type
     Ok(quote! {
-        impl ::quent_v2_model::attributes::Attributes for #name_ident {
-            fn ir() -> ::quent_v2_model_ir::attributes::Attributes {
-                ::quent_v2_model_ir::attributes::Attributes {
+        impl ::quent_v2_model::record::Record for #name_ident {
+            fn ir() -> ::quent_v2_model_ir::record::Record {
+                ::quent_v2_model_ir::record::Record {
                     name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                     rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
                     fields: ::std::vec![
@@ -76,9 +76,9 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
             }
         }
 
-        impl ::quent_v2_model::attributes::ValueType for #name_ident {
-            fn ir() -> ::quent_v2_model_ir::value_type::ValueType {
-                ::quent_v2_model_ir::value_type::ValueType::Attributes(
+        impl ::quent_v2_model::data_type::DataType for #name_ident {
+            fn ir() -> ::quent_v2_model_ir::data_type::DataType {
+                ::quent_v2_model_ir::data_type::DataType::Record(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
                 )
             }
