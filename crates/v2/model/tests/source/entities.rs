@@ -57,6 +57,24 @@ pub enum EnumInlineAttribs {
     B,
 }
 
+/// A documented entity.
+/// Line two of the docstring.
+#[derive(Entity)]
+pub struct DocumentedEntity {
+    /// Doc on a field.
+    pub a: u8,
+}
+
+#[derive(Entity)]
+pub enum DocumentedVariantEnum {
+    /// Doc on a variant.
+    Alpha,
+    Beta {
+        /// Doc on an inline event field.
+        x: u8,
+    },
+}
+
 #[derive(Entity)]
 pub enum EnumBuiltinAttribs {
     A {

@@ -4,7 +4,7 @@
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
 use proc_macro2::TokenStream;
-use quent_v2_model_ir::qualifications::fsm::{Fsm, State, Transition};
+use quent_v2_model_ir::fsm::{Fsm, State, Transition};
 use quote::{format_ident, quote};
 use syn::Variant;
 
@@ -19,7 +19,15 @@ pub(crate) fn emit_observer(
     // Safety: if entity validation passes, unwraps in this fn will not panic.
 
     let state_mod_name = format_ident!("{}_state", name.to_string().to_case(Case::Snake));
-    let state_initial_str = fsm.initial_state().unwrap().as_str();
+    let state_initial_ir = fsm
+        .transitions
+        .iter()
+        .find_map(|t| match (&t.source, &t.target) {
+            (State::Entry, State::State(id)) => Some(id),
+            _ => None,
+        })
+        .expect("FSM has an entry transition (validated upstream)");
+    let state_initial_str = state_initial_ir.as_str();
     let state_initial_ident = format_ident!("{}", state_initial_str);
     let obs_handle_construct_ident = format_ident!("{}", state_initial_str.to_case(Case::Snake));
 

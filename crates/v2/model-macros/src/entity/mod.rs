@@ -42,18 +42,23 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         .iter()
         .filter(|a| a.path().is_ident("quent"))
         .collect();
+    let docs = crate::docs::extract_docs(&input.attrs);
     let events = parse::events::parse(&input)?;
-    let qualifications = parse::qualifications::parse(&attributes)?;
-    let entity = Entity::new(name_ir, events, qualifications, name.to_string());
-    // Run IR entity validation.
-    if let Err(errs) = entity.validate() {
-        return Err(syn::Error::new_spanned(
-            name,
-            errs.into_iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join("\n"),
-        ));
+    let (fsm, convention_arms) = parse::conventions::parse(&attributes)?;
+    // The conventions map is populated at runtime via the emitted IR. At
+    // macro time, only FSM topology checks run (the convention data is an
+    // opaque token expression yet to evaluate).
+    let entity = Entity {
+        name: name_ir,
+        docs,
+        events,
+        fsm,
+        conventions: Vec::new(),
+    };
+    if entity.fsm.is_some()
+        && let Err(errs) = quent_v2_validation::fsm::validate(&entity)
+    {
+        return Err(syn::Error::new_spanned(name, errs.join("\n")));
     }
 
     // Emit the instrumentation library.
@@ -70,8 +75,12 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
     // Emit the IR trait impls.
     let ir = if cfg!(feature = "ir") {
         match &input.data {
-            syn::Data::Struct(s) => ir::expand_struct(name, &s.fields, &input, &entity),
-            syn::Data::Enum(e) => ir::expand_enum(name, &e.variants, &input, &entity),
+            syn::Data::Struct(s) => {
+                ir::expand_struct(name, &s.fields, &input, &entity, &convention_arms)
+            }
+            syn::Data::Enum(e) => {
+                ir::expand_enum(name, &e.variants, &input, &entity, &convention_arms)
+            }
             syn::Data::Union(_) => unreachable!(),
         }?
     } else {

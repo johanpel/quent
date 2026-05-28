@@ -1,41 +1,60 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{data_type::DataType, identifier::Identifier};
+use std::fmt::Debug;
 
-/// IR of the cardinality of an event.
+use crate::{convention::Convention, data_type::DataType, identifier::Identifier};
+
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Cardinality {
-    /// The event can only be emitted once.
+    /// The event can be emitted zero or one time.
     Once,
-    /// The event can be emitted multiple times.
+    /// The event can be emitted zero or multiple times.
     Multi,
 }
 
-/// IR of the types of entities targeted by an entity reference.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EntityRefTarget {
     /// The entity reference targets any entity.
     Any,
-    /// The entity reference targets one specific entity type.
+    /// The entity reference targets one specific entity type by name.
+    ///
+    /// An entity with this name must be present in the
+    /// [`crate::Model::entities`] field.
     Specific(Identifier),
 }
 
-/// IR of the role of an entity reference.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EntityRefRole {
     /// No specific role.
     Plain,
-    /// A structural role.
+    /// The core tree-forming role.
     Scope,
     /// A role defined by an arbitrary type that is a record.
     User(Identifier),
 }
 
 /// The type of an event field.
+///
+/// This differs from [`DataType`] because event fields are the mechanism
+/// through which event data with Quent core semantics are carried.
+// TODO(johanpel): consider dropping this and put everything in DataType. The
+// reason it is kept here for now, is that it does provide a very simple
+// structured pattern as to where things can be figured out. This may simplify
+// and provide certain opportunities for code generation for cross-lang bridges
+// as well as analyzers. Another advantage exists for pure Rust flows, where
+// validation of constraints that cross multiple types and that are non-trivial
+// / unwieldy to express through the type system can take place from within a
+// derive macros, such that in pure Rust workflows using only core features, no
+// build.rs is required to validate anything, e.g. "only one scope-roled ref per
+// entity exists".
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EventFieldType {
-    /// An arbitrary payload event field, application-specific.
+    /// An application-specific event payload field.
     Payload(DataType),
     /// A reference to another entity.
     EntityRef {
@@ -44,76 +63,32 @@ pub enum EventFieldType {
         /// The entity type this reference can target.
         entity_type: EntityRefTarget,
     },
-    /// A usage of a resource
-    ResourceUsage {
-        /// The resource
-        resource: Identifier,
-    },
-    /// A bound of a resource
-    ResourceBound {
-        /// The resource
-        resource: Identifier,
-        /// The field of the resource
-        field: Identifier,
-    },
 }
 
-impl EventFieldType {
-    /// Returns the default name for a field with this type.
-    pub fn default_name(&self) -> &'static str {
-        match self {
-            EventFieldType::Payload(_) => "payload",
-            EventFieldType::EntityRef { .. } => "entity",
-            EventFieldType::ResourceUsage { .. } => "usage",
-            EventFieldType::ResourceBound { .. } => "bound",
-        }
-    }
-}
-
-/// IR of a type of event payload field
-///
-/// Not to be confused with fields of records, which are always user-defined and
-/// have no special meaning as far as the IR is concerned.
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EventField {
     /// The name of the event field.
     pub name: Identifier,
+    /// Potential documentation.
+    pub docs: Option<String>,
     /// The type of the event field.
     pub ty: EventFieldType,
+    /// Convention-specific metadata attached to this event field.
+    pub conventions: Vec<Convention>,
 }
 
-impl EventField {
-    pub fn new(name: Identifier, ty: EventFieldType) -> Self {
-        Self { name, ty }
-    }
-
-    /// Construct an EventField using the [`EventFieldType::default_name`] of
-    /// the type `ty`.
-    pub fn from_type(ty: EventFieldType) -> Self {
-        Self {
-            name: Identifier::new_unchecked(ty.default_name()),
-            ty,
-        }
-    }
-}
-
-/// IR of an event.
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Event {
     /// The name of the event.
     pub name: Identifier,
+    /// Potential documentation.
+    pub docs: Option<String>,
     /// The [`Cardinality`] of the event.
     pub cardinality: Cardinality,
     /// The fields of the event.
     pub payload: Vec<EventField>,
-}
-
-impl Event {
-    pub fn new(name: Identifier, cardinality: Cardinality, payload: Vec<EventField>) -> Self {
-        Self {
-            name,
-            cardinality,
-            payload,
-        }
-    }
+    /// Convention-specific metadata attached to this event.
+    pub conventions: Vec<Convention>,
 }

@@ -1,5 +1,5 @@
 [package]
-name = "quent-v2-model-macros"
+name = "quent-v2-resource-macros"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -8,16 +8,11 @@ publish.workspace = true
 proc-macro = true
 
 [features]
-default = ["instrumentation", "ir"]
-instrumentation = []
+default = ["ir"]
 ir = []
-serde = []
 
 [dependencies]
-convert_case = "0.8"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2.workspace = true
 quent-v2-model-ir = { path = "../model-ir" }
-quent-v2-validation = { path = "../validation" }
-indexmap = "2"

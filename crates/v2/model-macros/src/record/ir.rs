@@ -6,6 +6,8 @@ use quent_v2_model_ir::identifier::Identifier;
 use quote::quote;
 use syn::DeriveInput;
 
+use crate::docs::{emit_docs_tokens, extract_docs};
+
 pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
     let name_ident = &input.ident;
     let name_string = input.ident.to_string();
@@ -54,13 +56,18 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
         // Safety: should be safe to unwrap since we rejected tuple structs.
         let field_name = &f.ident.as_ref().unwrap().to_string();
         let field_type = &f.ty;
+        let field_docs = emit_docs_tokens(extract_docs(&f.attrs).as_deref());
         quote! {
             ::quent_v2_model_ir::record::Field {
                 name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
+                docs: #field_docs,
                 ty: <#field_type as ::quent_v2_model::data_type::DataType>::ir(),
+                conventions: ::std::vec::Vec::new(),
             }
         }
     });
+
+    let docs_tokens = emit_docs_tokens(extract_docs(&input.attrs).as_deref());
 
     // Emit the traits that produce the IR from this type
     Ok(quote! {
@@ -68,10 +75,11 @@ pub(crate) fn expand_struct(input: DeriveInput) -> syn::Result<TokenStream> {
             fn ir() -> ::quent_v2_model_ir::record::Record {
                 ::quent_v2_model_ir::record::Record {
                     name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
-                    rust_path: ::std::format!("{}::{}", ::std::module_path!(), #name_string),
+                    docs: #docs_tokens,
                     fields: ::std::vec![
                         #(#fields),*
                     ],
+                    conventions: ::std::vec::Vec::new(),
                 }
             }
         }

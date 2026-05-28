@@ -11,10 +11,4 @@ serde = ["dep:serde", "uuid/serde"]
 [dependencies]
 uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
-petgraph.workspace = true
-quent-attributes = { path = "../../attributes" }
 thiserror.workspace = true
-
-[dev-dependencies]
-serde_json.workspace = true
-trybuild = "1"

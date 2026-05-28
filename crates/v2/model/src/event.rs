@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_v2_model_ir::event::{EntityRefTarget, EventFieldType};
+use quent_v2_model_ir::event::EventFieldType;
 
 use crate::{
     entity::Entity,
     entity_ref::{EntityRef, EntityRefRole, EntityRefRoleTarget},
-    resource::{Resource, Usage},
 };
 
 /// Trait for types that can be used as event fields to carry built-in
@@ -28,22 +27,6 @@ where
             role_type: R::ir(),
             entity_type: E::ir_ref_target(),
         }
-    }
-}
-
-impl<R> EventField for Usage<R>
-where
-    R: Resource,
-{
-    #[cfg(feature = "ir")]
-    fn ir() -> EventFieldType {
-        let resource = match R::ir_ref_target() {
-            EntityRefTarget::Specific(id) => id,
-            EntityRefTarget::Any => {
-                unreachable!("resource usages can only target resource entities")
-            }
-        };
-        EventFieldType::ResourceUsage { resource }
     }
 }
 

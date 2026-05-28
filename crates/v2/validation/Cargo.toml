@@ -1,0 +1,13 @@
+[package]
+name = "quent-v2-validation"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+quent-v2-model-ir = { path = "../model-ir" }
+petgraph.workspace = true
+thiserror.workspace = true

@@ -7,6 +7,7 @@ use crate::{EventSender, ObserverError};
 
 pub mod fsm;
 
+// TODO add trait bounds here
 pub struct Handle<T> {
     tx: EventSender<T>,
     id: Uuid,

@@ -6,9 +6,10 @@ use quent_v2_model_ir::{
     event::{Cardinality, EntityRefRole, EntityRefTarget, Event, EventField, EventFieldType},
     identifier::Identifier,
 };
-use syn::{DeriveInput, Fields, Variant, spanned::Spanned};
+use syn::{DeriveInput, Fields, Variant};
 
 use crate::data_type::parse_data_type;
+use crate::docs::extract_docs;
 
 pub fn parse(input: &DeriveInput) -> syn::Result<Vec<Event>> {
     match &input.data {
@@ -35,20 +36,34 @@ fn parse_struct_events(
     let name_ident = Identifier::new_unchecked(name.to_string());
     let has_payload = matches!(fields, Fields::Named(n) if !n.named.is_empty());
     let payload = if has_payload {
-        vec![EventField::from_type(EventFieldType::Payload(
+        vec![event_field_from_type(EventFieldType::Payload(
             DataType::Record(name_ident.clone()),
         ))]
     } else {
         Vec::new()
     };
-    Ok(vec![Event::new(name_ident, Cardinality::Once, payload)])
+    let docs = extract_docs(&input.attrs);
+    Ok(vec![Event {
+        name: name_ident,
+        docs,
+        cardinality: Cardinality::Once,
+        payload,
+        conventions: Vec::new(),
+    }])
 }
 
 fn parse_enum_variant_event(v: &Variant) -> syn::Result<Event> {
     let variant_name = Identifier::new_unchecked(v.ident.to_string());
     let cardinality = parse_cardinality(&v.attrs)?;
     let payload = parse_variant_payloads(&v.fields, v)?;
-    Ok(Event::new(variant_name, cardinality, payload))
+    let docs = extract_docs(&v.attrs);
+    Ok(Event {
+        name: variant_name,
+        docs,
+        cardinality,
+        payload,
+        conventions: Vec::new(),
+    })
 }
 
 fn parse_cardinality(attrs: &[syn::Attribute]) -> syn::Result<Cardinality> {
@@ -87,7 +102,7 @@ fn parse_variant_payloads(
         syn::Fields::Unnamed(u) if u.unnamed.len() == 1 => {
             // Safety: unwrap, len is checked above:
             let ty = parse_event_field_type(&u.unnamed.first().unwrap().ty)?;
-            Ok(vec![EventField::from_type(ty)])
+            Ok(vec![event_field_from_type(ty)])
         }
         syn::Fields::Unnamed(_) => Err(syn::Error::new_spanned(
             span_source,
@@ -102,9 +117,34 @@ fn parse_variant_payloads(
                 let name = Identifier::try_from(ident.to_string().as_str())
                     .map_err(|e| syn::Error::new(ident.span(), e.to_string()))?;
                 let ty = &f.ty;
-                Ok(EventField::new(name, parse_event_field_type(ty)?))
+                let docs = extract_docs(&f.attrs);
+                Ok(EventField {
+                    name,
+                    docs,
+                    ty: parse_event_field_type(ty)?,
+                    conventions: Vec::new(),
+                })
             })
             .collect(),
+    }
+}
+
+/// Construct an `EventField` with a default name derived from `ty` ("payload"
+/// for [`EventFieldType::Payload`], "entity" for [`EventFieldType::EntityRef`]).
+fn event_field_from_type(ty: EventFieldType) -> EventField {
+    let name = Identifier::new_unchecked(default_field_name(&ty));
+    EventField {
+        name,
+        docs: None,
+        ty,
+        conventions: Vec::new(),
+    }
+}
+
+fn default_field_name(ty: &EventFieldType) -> &'static str {
+    match ty {
+        EventFieldType::Payload(_) => "payload",
+        EventFieldType::EntityRef { .. } => "entity",
     }
 }
 
@@ -117,7 +157,14 @@ fn parse_event_field_type(ty: &syn::Type) -> syn::Result<EventFieldType> {
     };
     match last.ident.to_string().as_str() {
         "EntityRef" => parse_entity_ref(&last.arguments),
-        "Usage" => parse_usage(&last.arguments),
+        // `Usage<R>` is a constraint event field type defined by the resource
+        // plugin. The Entity macro cannot construct the constraint value here
+        // because it does not depend on the resource crate; instead, a
+        // placeholder data type is used for compile-time validation only —
+        // runtime IR for the field is built via `<Usage<R> as EventField>::ir()`.
+        "Usage" => Ok(EventFieldType::Payload(
+            quent_v2_model_ir::data_type::DataType::DynamicRecord,
+        )),
         _ => Ok(EventFieldType::Payload(parse_data_type(ty)?)),
     }
 }
@@ -143,21 +190,6 @@ fn parse_entity_ref(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
         role_type,
         entity_type,
     })
-}
-
-fn parse_usage(args: &syn::PathArguments) -> syn::Result<EventFieldType> {
-    if let syn::PathArguments::AngleBracketed(args) = args
-        && let Some(syn::GenericArgument::Type(t)) = args.args.first()
-    {
-        Ok(EventFieldType::ResourceUsage {
-            resource: parse_type_ident(t)?,
-        })
-    } else {
-        Err(syn::Error::new(
-            args.span(),
-            "invalid type name of non-Quent Usage type in event field type",
-        ))
-    }
 }
 
 fn parse_entity_ref_role(ty: &syn::Type) -> syn::Result<EntityRefRole> {

@@ -1,0 +1,23 @@
+[package]
+name = "quent-v2-resource"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = ["ir"]
+ir = []
+
+[dependencies]
+quent-v2-instrumentation = { path = "../instrumentation" }
+quent-v2-model = { path = "../model" }
+quent-v2-model-ir = { path = "../model-ir" }
+quent-v2-resource-macros = { path = "../resource-macros" }
+quent-v2-validation = { path = "../validation" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+quent-v2-validation = { path = "../validation" }
+serde_json = { workspace = true }
+uuid = { workspace = true, features = ["v7"] }

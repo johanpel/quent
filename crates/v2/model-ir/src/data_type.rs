@@ -3,8 +3,9 @@
 
 use crate::identifier::Identifier;
 
-/// Types of data values.
+/// Types of arbitrary (application-specific) data values.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum DataType {
     Bool,
     Uuid,
@@ -21,7 +22,10 @@ pub enum DataType {
     F64,
     Option(Box<DataType>),
     List(Box<DataType>),
-    /// A reference to a record.
+    /// A reference to a [`crate::record::Record`].
+    ///
+    /// The the level [`crate::Model::records`] field must contain this
+    /// [`Record`], otherwise the [`crate::Model`] is ill-formed.
     Record(Identifier),
     /// A record whose fields are determined by the instrumentation client at run-time.
     DynamicRecord,

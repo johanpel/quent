@@ -4,14 +4,13 @@
 use proc_macro2::TokenStream;
 use quent_v2_model_ir::{
     entity::Entity,
-    qualifications::{
-        Qualification,
-        fsm::{Fsm, State},
-        resource::{Boundedness, CapacityKind, Resource},
-    },
+    fsm::{Fsm, State},
 };
 use quote::quote;
 use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
+
+use crate::docs::{emit_docs_tokens, extract_docs};
+use crate::entity::parse::conventions::ConventionArm;
 
 /// Expand a struct into a single-event entity.
 pub fn expand_struct(
@@ -19,6 +18,7 @@ pub fn expand_struct(
     fields: &syn::Fields,
     input: &DeriveInput,
     entity: &Entity,
+    convention_arms: &[ConventionArm],
 ) -> syn::Result<TokenStream> {
     if matches!(fields, syn::Fields::Unnamed(_)) {
         return Err(syn::Error::new_spanned(
@@ -38,40 +38,44 @@ pub fn expand_struct(
     let payload = if has_payload {
         quote! {
             ::std::vec![
-                ::quent_v2_model_ir::event::EventField::from_type(
-                    ::quent_v2_model_ir::event::EventFieldType::Payload(
+                ::quent_v2_model_ir::event::EventField {
+                    name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked("payload"),
+                    docs: ::std::option::Option::None,
+                    ty: ::quent_v2_model_ir::event::EventFieldType::Payload(
                         ::quent_v2_model_ir::data_type::DataType::Record(
                             ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string)
                         ),
                     ),
-                )
+                    conventions: ::std::vec::Vec::new(),
+                }
             ]
         }
     } else {
         quote! { ::std::vec::Vec::new() }
     };
 
-    let qualifications = emit_qualifications(entity);
+    let fsm = emit_fsm_opt(entity);
+    let conventions = emit_conventions(convention_arms);
+    let docs_tokens = emit_docs_tokens(extract_docs(&input.attrs).as_deref());
 
     let entity_impl = quote! {
         impl ::quent_v2_model::entity::Entity for #name {
             fn ir() -> ::quent_v2_model_ir::entity::Entity {
-                ::quent_v2_model_ir::entity::Entity::new(
-                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
-                    ::std::vec![
-                        ::quent_v2_model_ir::event::Event::new(
-                            ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
-                            ::quent_v2_model_ir::event::Cardinality::Once,
-                            #payload,
-                        )
+                ::quent_v2_model_ir::entity::Entity {
+                    name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
+                    docs: #docs_tokens,
+                    events: ::std::vec![
+                        ::quent_v2_model_ir::event::Event {
+                            name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
+                            docs: #docs_tokens,
+                            cardinality: ::quent_v2_model_ir::event::Cardinality::Once,
+                            payload: #payload,
+                            conventions: ::std::vec::Vec::new(),
+                        }
                     ],
-                    #qualifications,
-                    ::std::format!(
-                        "{}::{}",
-                        ::std::module_path!(),
-                        #name_string,
-                    ),
-                )
+                    fsm: #fsm,
+                    conventions: #conventions,
+                }
             }
             fn ir_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
                 ::quent_v2_model_ir::event::EntityRefTarget::Specific(
@@ -91,6 +95,7 @@ pub fn expand_enum(
     variants: &Punctuated<Variant, Token![,]>,
     input: &DeriveInput,
     entity: &Entity,
+    convention_arms: &[ConventionArm],
 ) -> syn::Result<TokenStream> {
     if variants.is_empty() {
         return Err(syn::Error::new_spanned(
@@ -106,21 +111,20 @@ pub fn expand_enum(
         .map(expand_variant)
         .collect::<syn::Result<_>>()?;
 
-    let qualifications = emit_qualifications(entity);
+    let fsm = emit_fsm_opt(entity);
+    let conventions = emit_conventions(convention_arms);
+    let docs_tokens = emit_docs_tokens(extract_docs(&input.attrs).as_deref());
 
     let entity_impl = quote! {
         impl ::quent_v2_model::entity::Entity for #name {
             fn ir() -> ::quent_v2_model_ir::entity::Entity {
-                ::quent_v2_model_ir::entity::Entity::new(
-                    ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
-                    ::std::vec![ #(#events),* ],
-                    #qualifications,
-                    ::std::format!(
-                        "{}::{}",
-                        ::std::module_path!(),
-                        #name_string,
-                    ),
-                )
+                ::quent_v2_model_ir::entity::Entity {
+                    name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name_string),
+                    docs: #docs_tokens,
+                    events: ::std::vec![ #(#events),* ],
+                    fsm: #fsm,
+                    conventions: #conventions,
+                }
             }
             fn ir_ref_target() -> ::quent_v2_model_ir::event::EntityRefTarget {
                 ::quent_v2_model_ir::event::EntityRefTarget::Specific(
@@ -139,13 +143,16 @@ fn expand_variant(v: &Variant) -> syn::Result<TokenStream> {
     let variant_name = v.ident.to_string();
     let cardinality = parse_cardinality(&v.attrs)?;
     let payload = expand_variant_event_fields(&v.fields, v)?;
+    let docs_tokens = emit_docs_tokens(extract_docs(&v.attrs).as_deref());
 
     Ok(quote! {
-        ::quent_v2_model_ir::event::Event::new(
-            ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#variant_name),
-            #cardinality,
-            #payload,
-        )
+        ::quent_v2_model_ir::event::Event {
+            name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#variant_name),
+            docs: #docs_tokens,
+            cardinality: #cardinality,
+            payload: #payload,
+            conventions: ::std::vec::Vec::new(),
+        }
     })
 }
 
@@ -183,11 +190,21 @@ fn expand_variant_event_fields(
             let ty = &u.unnamed.first().unwrap().ty;
             Ok(quote! {
                 ::std::vec![
-                    ::quent_v2_model_ir::event::EventField::from_type(
-                        ::quent_v2_model_ir::event::EventFieldType::Payload(
+                    {
+                        let __ty = ::quent_v2_model_ir::event::EventFieldType::Payload(
                             <#ty as ::quent_v2_model::data_type::DataType>::ir(),
-                        ),
-                    )
+                        );
+                        let __name = match &__ty {
+                            ::quent_v2_model_ir::event::EventFieldType::Payload(_) => "payload",
+                            ::quent_v2_model_ir::event::EventFieldType::EntityRef { .. } => "entity",
+                        };
+                        ::quent_v2_model_ir::event::EventField {
+                            name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(__name),
+                            docs: ::std::option::Option::None,
+                            ty: __ty,
+                            conventions: ::std::vec::Vec::new(),
+                        }
+                    }
                 ]
             })
         }
@@ -201,11 +218,14 @@ fn expand_variant_event_fields(
             let field_defs = named.named.iter().map(|f| {
                 let field_name = f.ident.as_ref().unwrap().to_string();
                 let ty = &f.ty;
+                let docs_tokens = emit_docs_tokens(extract_docs(&f.attrs).as_deref());
                 quote! {
-                    ::quent_v2_model_ir::event::EventField::new(
-                        ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
-                        <#ty as ::quent_v2_model::event::EventField>::ir(),
-                    )
+                    ::quent_v2_model_ir::event::EventField {
+                        name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#field_name),
+                        docs: #docs_tokens,
+                        ty: <#ty as ::quent_v2_model::event::EventField>::ir(),
+                        conventions: ::std::vec::Vec::new(),
+                    }
                 }
             });
             Ok(quote! {
@@ -215,62 +235,30 @@ fn expand_variant_event_fields(
     }
 }
 
-fn emit_qualifications(entity: &Entity) -> TokenStream {
-    let quals = entity.qualifications.iter().filter_map(emit_qualification);
-    quote! { ::std::vec![ #(#quals),* ] }
-}
-
-fn emit_qualification(q: &Qualification) -> Option<TokenStream> {
-    match q {
-        Qualification::Fsm(fsm) => Some(emit_fsm(fsm)),
-        Qualification::Resource(resource) => Some(emit_resource(resource)),
+fn emit_fsm_opt(entity: &Entity) -> TokenStream {
+    match &entity.fsm {
+        Some(fsm) => {
+            let fsm_tokens = emit_fsm(fsm);
+            quote! { ::std::option::Option::Some(#fsm_tokens) }
+        }
+        None => quote! { ::std::option::Option::None },
     }
 }
 
-fn emit_resource(resource: &Resource) -> TokenStream {
-    let capacities = resource.capacities.iter().map(|c| {
-        let name = c.name.as_str();
-        let kind = emit_capacity_kind(&c.kind);
-        let boundedness = emit_boundedness(&c.boundedness);
+fn emit_conventions(arms: &[ConventionArm]) -> TokenStream {
+    let entries = arms.iter().map(|a| {
+        let name = &a.name;
+        let data = &a.data;
         quote! {
-            ::quent_v2_model_ir::qualifications::resource::Capacity {
-                name: ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name),
-                kind: #kind,
-                boundedness: #boundedness,
+            ::quent_v2_model_ir::convention::Convention {
+                name: ::std::string::String::from(#name),
+                validated: true,
+                data: ::std::option::Option::Some(#data),
             }
         }
     });
     quote! {
-        ::quent_v2_model_ir::qualifications::Qualification::Resource(
-            ::quent_v2_model_ir::qualifications::resource::Resource {
-                capacities: ::std::vec![ #(#capacities),* ],
-            },
-        )
-    }
-}
-
-fn emit_capacity_kind(k: &CapacityKind) -> TokenStream {
-    match k {
-        CapacityKind::Occupancy => quote! {
-            ::quent_v2_model_ir::qualifications::resource::CapacityKind::Occupancy
-        },
-        CapacityKind::Rate => quote! {
-            ::quent_v2_model_ir::qualifications::resource::CapacityKind::Rate
-        },
-    }
-}
-
-fn emit_boundedness(b: &Boundedness) -> TokenStream {
-    match b {
-        Boundedness::Fixed => quote! {
-            ::quent_v2_model_ir::qualifications::resource::Boundedness::Fixed
-        },
-        Boundedness::Resizable => quote! {
-            ::quent_v2_model_ir::qualifications::resource::Boundedness::Resizable
-        },
-        Boundedness::Unbounded => quote! {
-            ::quent_v2_model_ir::qualifications::resource::Boundedness::Unbounded
-        },
+        ::std::vec![ #(#entries),* ]
     }
 }
 
@@ -279,29 +267,27 @@ fn emit_fsm(fsm: &Fsm) -> TokenStream {
         let source = emit_state(&t.source);
         let target = emit_state(&t.target);
         quote! {
-            ::quent_v2_model_ir::qualifications::fsm::Transition {
+            ::quent_v2_model_ir::fsm::Transition {
                 source: #source,
                 target: #target,
             }
         }
     });
     quote! {
-        ::quent_v2_model_ir::qualifications::Qualification::Fsm(
-            ::quent_v2_model_ir::qualifications::fsm::Fsm {
-                transitions: ::std::vec![ #(#transitions),* ],
-            },
-        )
+        ::quent_v2_model_ir::fsm::Fsm {
+            transitions: ::std::vec![ #(#transitions),* ],
+        }
     }
 }
 
 fn emit_state(s: &State) -> TokenStream {
     match s {
-        State::Entry => quote! { ::quent_v2_model_ir::qualifications::fsm::State::Entry },
-        State::Exit => quote! { ::quent_v2_model_ir::qualifications::fsm::State::Exit },
+        State::Entry => quote! { ::quent_v2_model_ir::fsm::State::Entry },
+        State::Exit => quote! { ::quent_v2_model_ir::fsm::State::Exit },
         State::State(id) => {
             let name = id.as_str();
             quote! {
-                ::quent_v2_model_ir::qualifications::fsm::State::State(
+                ::quent_v2_model_ir::fsm::State::State(
                     ::quent_v2_model_ir::identifier::Identifier::new_unchecked(#name)
                 )
             }

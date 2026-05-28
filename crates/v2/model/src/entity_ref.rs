@@ -45,19 +45,6 @@ pub trait EntityRefRoleTarget<T: Entity>: EntityRefRole {}
 /// tree of entities. An entity can have at most one reference with this role.
 /// An entity with no references with this role is considered a root entity.
 ///
-/// ### [`crate::resource::Usage<R>`]
-///
-/// A reference role for the usage of some entity `R` that is a
-/// [`crate::resource::Resource`].
-///
-/// ## Restricting which entities a role may target
-///
-/// TODO(johanpel): probably drop this
-/// Some roles only make sense with certain target entity types. For
-/// example, a [`Scope`] reference must not point at a resource (so
-/// resources are leaves of the scope tree), and a `Usage<R>` reference
-/// must only point at the resource `R` it consumes.
-///
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy)]
 pub struct EntityRef<R = Plain, E = AnyEntity>

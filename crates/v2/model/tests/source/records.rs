@@ -68,6 +68,14 @@ pub struct MultiOption {
 // #[derive(Resource)]
 // struct UnitResource;
 
+/// A documented record.
+/// Carries two lines.
+#[derive(Record)]
+pub struct DocumentedRecord {
+    /// Documented field.
+    pub a: u8,
+}
+
 #[derive(Record)]
 pub struct AllTypes {
     a_bool: bool,

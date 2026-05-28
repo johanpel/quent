@@ -5,6 +5,7 @@ use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
 mod data_type;
+pub(crate) mod docs;
 mod entity;
 mod record;
 

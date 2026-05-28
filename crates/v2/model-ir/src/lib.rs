@@ -3,99 +3,56 @@
 
 //! Intermediate Representation of an application event model.
 //!
-//! This module holds definitions for an Intermediate Representation (IR) of
-//! what an application event model looks like in-memory. This module also holds
-//! traits that types can implement to emit their IR. This is useful for
-//! validation in proc macros as well as generating wrappers for other target
-//! language bindings.
+//! This module holds definitions of an Intermediate Representation (IR) of an
+//! application event model using Quent's core concepts: records, events,
+//! entities, FSMs, and entity references.
 //!
-//! Validation involves checking certain requirements, e.g.:
-//! - Identifiers are accepted by the specified identifier grammar (see docs).
-//! - All FSM states are reachable from the entry transition and an exit
-//!   transition is reachable from all states.
-//! - An entity has at most one structural reference.
+//! The IR is leveraged for code generation, model validation, and
+//! serialization.
 //!
-//! Rust's powerful type system is used to enforce as many requirements as
-//! possible, as long as the model declaration stays compact and straightforward
-//! for users. Some constraints could in principle be encoded in types too, but
-//! they would be very awkward to encode (e.g. FSM state reachability). Since
-//! the IR is necessary for cross-language code generation, the IR validator
-//! checks these requirements instead, even in a pure Rust flow (see below).
-//! This is an opinionated trade-off between Rust-purity, ease of encoding the
-//! modeling requirements, and ease of declaring an application model.
-//! Constraints may migrate to the type system over time, because in an ideal
-//! world, the Rust compiler would validate everything.
+//! Code generation involves generating cross-language compatible bridge code,
+//! e.g. for C++ through CXX, or for Python through PyO3.
 //!
-//! # IR usage overview
+//! Model validation involves checking certain constraints, e.g. that
+//! [`Identifier`]s are accepted by the prescribed grammar or that all
+//! [`fsm::Fsm`] states are reachable from the entry transition and an exit
+//! transition is reachable from all states.
 //!
-//! The IR is used in the following four possible code generation flows.
+//! Serialization involves the ability to store a model, which can be leveraged
+//! for model re-use, sharing, and archival purposes. As such, this IR could be
+//! considered a "schema" for the telemetry that applications can emit.
 //!
-//! ## A. Rust model source, Rust target
+//! The IR is kept as minimialistic as possible in order to not pollute itself
+//! with any application-specific semantics, conventions or constraints, yet it
+//! does provide the means to carry metadata for such conventions with the IR at
+//! various levels.
 //!
-//! 1. Rust source with Rust types + derive macros (`Entity`, etc.).
-//! 2. Derive macros construct the IR in memory and validates the IR.
-//! 3. Derive macros generate instrumentation library.
-//! 4. Rust application source uses the instrumentation library directly (e.g. FooObserver, etc.).
-//!
-//! ## B. Rust model source, Non-Rust target language (TODO)
-//!
-//! E.g. a C++/Python target through CXX/PyO3.
-//!
-//! 1. Rust source with Rust types + derive macros (`Entity`, etc.).
-//! 2. Derive macros construct the IR in memory and validate the IR.
-//! 3. Derive macros generate instrumentation library.
-//! 4. Derive macros generate IR trait impls for entities with functions that return the IR in memory.
-//! 5. A build.rs script obtains the IR through the traits, and generates target language codegen compatible wrapper code.
-//! 6. The build.rs script runs target language codegen.
-//! 7. The build.rs artifacts are used in the downstream target lang toolchains.
-//!
-//! ## C. Non-Rust model source, Rust target (TODO)
-//!
-//! E.g. a YAML-based DSL or a JSON-serialized IR.
-//!
-//! 1. The Rust source invokes a function-like macro, e.g. `quent_dsl!(include_str!("model.sourcetype"))`.
-//! 2. The macro parses to IR, emits Rust source (type decls + derives).
-//! 3. Recursive macro expansion, see flow A.
-//!
-//! ## D. Non-Rust model source, Non-Rust target (TODO)
-//!
-//! 1. A build.rs in a Rust bridge crate parses the Non-Rust source into IR and validates it.
-//! 2. The build.rs emits Rust source (entity decls + derives) into `OUT_DIR`.
-//! 3. The bridge crate compiles via rustc (see flow A).
-//! 4. The build.rs also emits target-language source from the IR.
-//! 5. The build.rs emits glue between the Rust instrumentation and the target language.
-//! 6. The user's target-language app uses the emitted glue + links the Rust bridge crate as a static library.
-//!
-use crate::identifier::{Identifier, IdentifierError};
+//! A lightweight canonical mechanism exists for validating conventions in the
+//! `quent-ir-validation` crate. It is strongly recommended to perform this
+//! validation after constructing the IR from any source that isn't inherently
+//! guaranteed to validate.
 
-use self::{entity::Entity, record::Record};
+use crate::{convention::Convention, entity::Entity, identifier::Identifier, record::Record};
 
+pub mod convention;
 pub mod data_type;
 pub mod entity;
 pub mod event;
+pub mod fsm;
 pub mod identifier;
-pub mod qualifications;
 pub mod record;
-pub mod validator;
 
 /// IR of an application model.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Model {
     /// The name of the model.
     pub name: Identifier,
+    /// Potential documentation that can be added in code generation.
+    pub docs: Option<String>,
     /// The [`Entity`]s of the model.
     pub entities: Vec<Entity>,
     /// The [`Record`]s of the model.
     pub records: Vec<Record>,
+    /// Convention-specific metadata.
+    pub conventions: Vec<Convention>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum IrError {
-    #[error("invalid identifier: {0}")]
-    InvalidIdentifier(#[from] IdentifierError),
-    #[error("entity doesn't hold the specified qualification.")]
-    MissingQualification,
-    #[error("qualification error: {}", .0.join("\n"))]
-    Qualification(Vec<String>),
-}
-
-pub type Result<T> = std::result::Result<T, IrError>;

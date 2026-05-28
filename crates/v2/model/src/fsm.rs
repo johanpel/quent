@@ -49,5 +49,5 @@ pub struct Transition<T> {
 /// Trait implemented by entities that qualify as FSMs.
 pub trait Fsm {
     #[cfg(feature = "ir")]
-    fn ir() -> quent_v2_model_ir::qualifications::fsm::Fsm;
+    fn ir() -> quent_v2_model_ir::fsm::Fsm;
 }

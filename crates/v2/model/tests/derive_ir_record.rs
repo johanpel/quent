@@ -14,29 +14,33 @@ use source::records::*;
 
 use crate::utils::ident;
 
+fn field(name: &str, ty: IrDataType) -> Field {
+    Field {
+        name: ident(name),
+        docs: None,
+        ty,
+        conventions: Vec::new(),
+    }
+}
+
+fn record(name: &str, fields: Vec<Field>) -> IrRecord {
+    IrRecord {
+        name: ident(name),
+        docs: None,
+        fields,
+        conventions: Vec::new(),
+    }
+}
+
 #[test]
 fn unit() {
-    assert_eq!(
-        <Unit as Record>::ir(),
-        IrRecord::new(
-            ident("Unit"),
-            vec![],
-            utils::rust_path!("source::records::Unit")
-        )
-    );
+    assert_eq!(<Unit as Record>::ir(), record("Unit", vec![]));
     assert_eq!(<Unit as DataType>::ir(), IrDataType::Record(ident("Unit")));
 }
 
 #[test]
 fn unit_braces() {
-    assert_eq!(
-        <UnitBraces as Record>::ir(),
-        IrRecord::new(
-            ident("UnitBraces"),
-            vec![],
-            utils::rust_path!("source::records::UnitBraces"),
-        )
-    );
+    assert_eq!(<UnitBraces as Record>::ir(), record("UnitBraces", vec![]));
     assert_eq!(
         <UnitBraces as DataType>::ir(),
         IrDataType::Record(ident("UnitBraces"))
@@ -47,14 +51,7 @@ fn unit_braces() {
 fn one_prim() {
     assert_eq!(
         <OnePrim as Record>::ir(),
-        IrRecord::new(
-            ident("OnePrim"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::U8,
-            }],
-            utils::rust_path!("source::records::OnePrim"),
-        )
+        record("OnePrim", vec![field("a", IrDataType::U8)])
     );
     assert_eq!(
         <OnePrim as DataType>::ir(),
@@ -66,13 +63,9 @@ fn one_prim() {
 fn one_nested() {
     assert_eq!(
         <OneNested as Record>::ir(),
-        IrRecord::new(
-            ident("OneNested"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::Record(ident("OnePrim")),
-            }],
-            utils::rust_path!("source::records::OneNested"),
+        record(
+            "OneNested",
+            vec![field("a", IrDataType::Record(ident("OnePrim")))],
         )
     );
     assert_eq!(
@@ -85,13 +78,9 @@ fn one_nested() {
 fn one_list() {
     assert_eq!(
         <OneList as Record>::ir(),
-        IrRecord::new(
-            ident("OneList"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::List(Box::new(IrDataType::U8)),
-            }],
-            utils::rust_path!("source::records::OneList"),
+        record(
+            "OneList",
+            vec![field("a", IrDataType::List(Box::new(IrDataType::U8)))],
         )
     );
     assert_eq!(
@@ -104,13 +93,12 @@ fn one_list() {
 fn one_list_nested() {
     assert_eq!(
         <OneListNested as Record>::ir(),
-        IrRecord::new(
-            ident("OneListNested"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::List(Box::new(IrDataType::Record(ident("OnePrim")))),
-            }],
-            utils::rust_path!("source::records::OneListNested"),
+        record(
+            "OneListNested",
+            vec![field(
+                "a",
+                IrDataType::List(Box::new(IrDataType::Record(ident("OnePrim"))))
+            )],
         )
     );
     assert_eq!(
@@ -123,13 +111,12 @@ fn one_list_nested() {
 fn one_list_list_prim() {
     assert_eq!(
         <OneListListPrim as Record>::ir(),
-        IrRecord::new(
-            ident("OneListListPrim"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::List(Box::new(IrDataType::List(Box::new(IrDataType::U8)))),
-            }],
-            utils::rust_path!("source::records::OneListListPrim"),
+        record(
+            "OneListListPrim",
+            vec![field(
+                "a",
+                IrDataType::List(Box::new(IrDataType::List(Box::new(IrDataType::U8))))
+            )],
         )
     );
     assert_eq!(
@@ -142,15 +129,14 @@ fn one_list_list_prim() {
 fn one_list_list_nested() {
     assert_eq!(
         <OneListListNested as Record>::ir(),
-        IrRecord::new(
-            ident("OneListListNested"),
-            vec![Field {
-                name: ident("a"),
-                ty: IrDataType::List(Box::new(IrDataType::List(Box::new(IrDataType::Record(
+        record(
+            "OneListListNested",
+            vec![field(
+                "a",
+                IrDataType::List(Box::new(IrDataType::List(Box::new(IrDataType::Record(
                     ident("OnePrim")
                 )))))
-            }],
-            utils::rust_path!("source::records::OneListListNested"),
+            )],
         )
     );
     assert_eq!(
@@ -163,19 +149,9 @@ fn one_list_list_nested() {
 fn multi_prim() {
     assert_eq!(
         <MultiPrim as Record>::ir(),
-        IrRecord::new(
-            ident("MultiPrim"),
-            vec![
-                Field {
-                    name: ident("a"),
-                    ty: IrDataType::U8,
-                },
-                Field {
-                    name: ident("b"),
-                    ty: IrDataType::String,
-                },
-            ],
-            utils::rust_path!("source::records::MultiPrim"),
+        record(
+            "MultiPrim",
+            vec![field("a", IrDataType::U8), field("b", IrDataType::String),],
         )
     );
     assert_eq!(
@@ -188,27 +164,14 @@ fn multi_prim() {
 fn multi_nested() {
     assert_eq!(
         <MultiNested as Record>::ir(),
-        IrRecord::new(
-            ident("MultiNested"),
+        record(
+            "MultiNested",
             vec![
-                Field {
-                    name: ident("a"),
-                    ty: IrDataType::U8,
-                },
-                Field {
-                    name: ident("b"),
-                    ty: IrDataType::Record(ident("MultiPrim")),
-                },
-                Field {
-                    name: ident("c"),
-                    ty: IrDataType::List(Box::new(IrDataType::U16)),
-                },
-                Field {
-                    name: ident("d"),
-                    ty: IrDataType::String,
-                },
+                field("a", IrDataType::U8),
+                field("b", IrDataType::Record(ident("MultiPrim"))),
+                field("c", IrDataType::List(Box::new(IrDataType::U16))),
+                field("d", IrDataType::String),
             ],
-            utils::rust_path!("source::records::MultiNested"),
         )
     );
     assert_eq!(
@@ -221,19 +184,12 @@ fn multi_nested() {
 fn multi_option() {
     assert_eq!(
         <MultiOption as Record>::ir(),
-        IrRecord::new(
-            ident("MultiOption"),
+        record(
+            "MultiOption",
             vec![
-                Field {
-                    name: ident("a"),
-                    ty: IrDataType::U8,
-                },
-                Field {
-                    name: ident("b"),
-                    ty: IrDataType::Option(Box::new(IrDataType::String)),
-                },
+                field("a", IrDataType::U8),
+                field("b", IrDataType::Option(Box::new(IrDataType::String))),
             ],
-            utils::rust_path!("source::records::MultiOption"),
         )
     );
     assert_eq!(
@@ -243,82 +199,40 @@ fn multi_option() {
 }
 
 #[test]
+fn record_docstring_flows_to_ir() {
+    let ir = <DocumentedRecord as Record>::ir();
+    assert_eq!(
+        ir.docs.as_deref(),
+        Some("A documented record.\nCarries two lines."),
+    );
+    assert_eq!(ir.fields[0].docs.as_deref(), Some("Documented field."));
+}
+
+#[test]
 fn all_types() {
     assert_eq!(
         <AllTypes as Record>::ir(),
-        IrRecord::new(
-            ident("AllTypes"),
+        record(
+            "AllTypes",
             vec![
-                Field {
-                    name: ident("a_bool"),
-                    ty: IrDataType::Bool,
-                },
-                Field {
-                    name: ident("a_uuid"),
-                    ty: IrDataType::Uuid,
-                },
-                Field {
-                    name: ident("a_string"),
-                    ty: IrDataType::String,
-                },
-                Field {
-                    name: ident("a_u8"),
-                    ty: IrDataType::U8,
-                },
-                Field {
-                    name: ident("a_u16"),
-                    ty: IrDataType::U16,
-                },
-                Field {
-                    name: ident("a_u32"),
-                    ty: IrDataType::U32,
-                },
-                Field {
-                    name: ident("a_u64"),
-                    ty: IrDataType::U64,
-                },
-                Field {
-                    name: ident("a_i8"),
-                    ty: IrDataType::I8,
-                },
-                Field {
-                    name: ident("a_i16"),
-                    ty: IrDataType::I16,
-                },
-                Field {
-                    name: ident("a_i32"),
-                    ty: IrDataType::I32,
-                },
-                Field {
-                    name: ident("a_i64"),
-                    ty: IrDataType::I64,
-                },
-                Field {
-                    name: ident("a_f32"),
-                    ty: IrDataType::F32,
-                },
-                Field {
-                    name: ident("a_f64"),
-                    ty: IrDataType::F64,
-                },
-                Field {
-                    name: ident("a_option"),
-                    ty: IrDataType::Option(Box::new(IrDataType::U64)),
-                },
-                Field {
-                    name: ident("a_list"),
-                    ty: IrDataType::List(Box::new(IrDataType::U64)),
-                },
-                Field {
-                    name: ident("a_nested"),
-                    ty: IrDataType::Record(ident("MultiNested")),
-                },
-                Field {
-                    name: ident("a_custom"),
-                    ty: IrDataType::DynamicRecord,
-                },
+                field("a_bool", IrDataType::Bool),
+                field("a_uuid", IrDataType::Uuid),
+                field("a_string", IrDataType::String),
+                field("a_u8", IrDataType::U8),
+                field("a_u16", IrDataType::U16),
+                field("a_u32", IrDataType::U32),
+                field("a_u64", IrDataType::U64),
+                field("a_i8", IrDataType::I8),
+                field("a_i16", IrDataType::I16),
+                field("a_i32", IrDataType::I32),
+                field("a_i64", IrDataType::I64),
+                field("a_f32", IrDataType::F32),
+                field("a_f64", IrDataType::F64),
+                field("a_option", IrDataType::Option(Box::new(IrDataType::U64))),
+                field("a_list", IrDataType::List(Box::new(IrDataType::U64))),
+                field("a_nested", IrDataType::Record(ident("MultiNested"))),
+                field("a_custom", IrDataType::DynamicRecord),
             ],
-            utils::rust_path!("source::records::AllTypes"),
         )
     );
     assert_eq!(

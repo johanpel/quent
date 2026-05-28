@@ -2303,12 +2303,8 @@ dependencies = [
 name = "quent-v2-model-ir"
 version = "0.1.0"
 dependencies = [
- "petgraph",
- "quent-attributes",
  "serde",
- "serde_json",
  "thiserror 2.0.18",
- "trybuild",
  "uuid",
 ]
 
@@ -2320,8 +2316,42 @@ dependencies = [
  "indexmap",
  "proc-macro2",
  "quent-v2-model-ir",
+ "quent-v2-validation",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "quent-v2-resource"
+version = "0.1.0"
+dependencies = [
+ "quent-v2-instrumentation",
+ "quent-v2-model",
+ "quent-v2-model-ir",
+ "quent-v2-resource-macros",
+ "quent-v2-validation",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "quent-v2-resource-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quent-v2-model-ir",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "quent-v2-validation"
+version = "0.1.0"
+dependencies = [
+ "petgraph",
+ "quent-v2-model-ir",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

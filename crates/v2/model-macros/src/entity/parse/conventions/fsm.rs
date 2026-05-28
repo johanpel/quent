@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_v2_model_ir::qualifications::fsm::{Fsm, State, Transition};
+use quent_v2_model_ir::{
+    fsm::{Fsm, State, Transition},
+    identifier::Identifier,
+};
 use syn::{Token, parse::Parse};
 
 pub fn parse(content: &syn::parse::ParseBuffer) -> syn::Result<Fsm> {
@@ -39,6 +42,12 @@ impl Parse for TransitionPair {
 }
 
 fn ident_to_state(ident: &syn::Ident) -> syn::Result<State> {
-    State::try_from(ident.to_string().as_str())
-        .map_err(|e| syn::Error::new(ident.span(), e.to_string()))
+    let name = ident.to_string();
+    Ok(match name.as_str() {
+        "entry" => State::Entry,
+        "exit" => State::Exit,
+        other => State::State(
+            Identifier::try_new(other).map_err(|e| syn::Error::new(ident.span(), e.to_string()))?,
+        ),
+    })
 }

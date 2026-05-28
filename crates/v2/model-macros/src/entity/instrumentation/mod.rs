@@ -4,7 +4,7 @@
 use convert_case::{Case, Casing};
 use indexmap::IndexMap;
 use proc_macro2::TokenStream;
-use quent_v2_model_ir::{entity::Entity, qualifications::fsm::Fsm};
+use quent_v2_model_ir::entity::Entity;
 use quote::{format_ident, quote};
 use syn::{DeriveInput, Token, Variant, punctuated::Punctuated};
 
@@ -85,7 +85,7 @@ pub fn expand_enum(
     let observer_name = format_ident!("{}Observer", name);
     let handle_name = format_ident!("{}Handle", name);
 
-    let (observer, handle) = if let Ok(fsm) = entity.qualification::<Fsm>() {
+    let (observer, handle) = if let Some(fsm) = &entity.fsm {
         (
             fsm::emit_observer(name, &observer_name, &handle_name, vis, &variants, fsm)?,
             fsm::emit_handle(name, &handle_name, vis, &variants, fsm)?,

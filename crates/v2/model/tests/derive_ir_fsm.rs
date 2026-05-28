@@ -6,10 +6,8 @@ use quent_v2_model_ir::{
     data_type::DataType,
     entity::Entity,
     event::{Cardinality, EntityRefTarget, Event, EventField, EventFieldType},
-    qualifications::{
-        Qualification,
-        fsm::{Fsm, State, Transition},
-    },
+    fsm::{Fsm, State, Transition},
+    identifier::Identifier,
 };
 
 use source::fsms::*;
@@ -19,14 +17,43 @@ use crate::utils::ident;
 mod source;
 mod utils;
 
+fn payload_field(record_name: &str) -> EventField {
+    EventField {
+        name: Identifier::new_unchecked("payload"),
+        docs: None,
+        ty: EventFieldType::Payload(DataType::Record(ident(record_name))),
+        conventions: Vec::new(),
+    }
+}
+
+fn event(name: &str, cardinality: Cardinality, payload: Vec<EventField>) -> Event {
+    Event {
+        name: ident(name),
+        docs: None,
+        cardinality,
+        payload,
+        conventions: Vec::new(),
+    }
+}
+
+fn entity_with_fsm(name: &str, events: Vec<Event>, fsm: Fsm) -> Entity {
+    Entity {
+        name: ident(name),
+        docs: None,
+        events,
+        fsm: Some(fsm),
+        conventions: Vec::new(),
+    }
+}
+
 #[test]
 fn one_unit() {
     assert_eq!(
         OneUnit::ir(),
-        Entity::new(
-            ident("OneUnit"),
-            vec![Event::new(ident("A"), Cardinality::Once, vec![])],
-            vec![Qualification::Fsm(Fsm {
+        entity_with_fsm(
+            "OneUnit",
+            vec![event("A", Cardinality::Once, vec![])],
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -37,9 +64,8 @@ fn one_unit() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::OneUnit"),
-        )
+            },
+        ),
     );
     assert_eq!(
         OneUnit::ir_ref_target(),
@@ -51,14 +77,14 @@ fn one_unit() {
 fn multi_unit() {
     assert_eq!(
         MultiUnit::ir(),
-        Entity::new(
-            ident("MultiUnit"),
+        entity_with_fsm(
+            "MultiUnit",
             vec![
-                Event::new(ident("A"), Cardinality::Once, vec![]),
-                Event::new(ident("B"), Cardinality::Once, vec![]),
-                Event::new(ident("C"), Cardinality::Once, vec![]),
+                event("A", Cardinality::Once, vec![]),
+                event("B", Cardinality::Once, vec![]),
+                event("C", Cardinality::Once, vec![]),
             ],
-            vec![Qualification::Fsm(Fsm {
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -77,9 +103,8 @@ fn multi_unit() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::MultiUnit"),
-        )
+            },
+        ),
     );
     assert_eq!(
         MultiUnit::ir_ref_target(),
@@ -91,16 +116,14 @@ fn multi_unit() {
 fn one_attribs() {
     assert_eq!(
         OneAttribs::ir(),
-        Entity::new(
-            ident("OneAttribs"),
-            vec![Event::new(
-                ident("A"),
+        entity_with_fsm(
+            "OneAttribs",
+            vec![event(
+                "A",
                 Cardinality::Once,
-                vec![EventField::from_type(EventFieldType::Payload(
-                    DataType::Record(ident("OnePrim")),
-                ))],
+                vec![payload_field("OnePrim")],
             )],
-            vec![Qualification::Fsm(Fsm {
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -111,9 +134,8 @@ fn one_attribs() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::OneAttribs"),
-        )
+            },
+        ),
     );
     assert_eq!(
         OneAttribs::ir_ref_target(),
@@ -125,25 +147,13 @@ fn one_attribs() {
 fn multi_attribs() {
     assert_eq!(
         MultiAttribs::ir(),
-        Entity::new(
-            ident("MultiAttribs"),
+        entity_with_fsm(
+            "MultiAttribs",
             vec![
-                Event::new(
-                    ident("A"),
-                    Cardinality::Once,
-                    vec![EventField::from_type(EventFieldType::Payload(
-                        DataType::Record(ident("OnePrim")),
-                    ))],
-                ),
-                Event::new(
-                    ident("B"),
-                    Cardinality::Once,
-                    vec![EventField::from_type(EventFieldType::Payload(
-                        DataType::Record(ident("MultiNested")),
-                    ))],
-                ),
+                event("A", Cardinality::Once, vec![payload_field("OnePrim")],),
+                event("B", Cardinality::Once, vec![payload_field("MultiNested")],),
             ],
-            vec![Qualification::Fsm(Fsm {
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -158,9 +168,8 @@ fn multi_attribs() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::MultiAttribs"),
-        )
+            },
+        ),
     );
     assert_eq!(
         MultiAttribs::ir_ref_target(),
@@ -172,10 +181,10 @@ fn multi_attribs() {
 fn self_loop() {
     assert_eq!(
         SelfLoop::ir(),
-        Entity::new(
-            ident("SelfLoop"),
-            vec![Event::new(ident("A"), Cardinality::Once, vec![])],
-            vec![Qualification::Fsm(Fsm {
+        entity_with_fsm(
+            "SelfLoop",
+            vec![event("A", Cardinality::Once, vec![])],
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -190,9 +199,8 @@ fn self_loop() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::SelfLoop"),
-        )
+            },
+        ),
     );
     assert_eq!(
         SelfLoop::ir_ref_target(),
@@ -204,14 +212,14 @@ fn self_loop() {
 fn loop_() {
     assert_eq!(
         Loop::ir(),
-        Entity::new(
-            ident("Loop"),
+        entity_with_fsm(
+            "Loop",
             vec![
-                Event::new(ident("A"), Cardinality::Once, vec![]),
-                Event::new(ident("B"), Cardinality::Once, vec![]),
-                Event::new(ident("C"), Cardinality::Once, vec![]),
+                event("A", Cardinality::Once, vec![]),
+                event("B", Cardinality::Once, vec![]),
+                event("C", Cardinality::Once, vec![]),
             ],
-            vec![Qualification::Fsm(Fsm {
+            Fsm {
                 transitions: vec![
                     Transition {
                         source: State::Entry,
@@ -238,9 +246,8 @@ fn loop_() {
                         target: State::Exit,
                     },
                 ],
-            })],
-            utils::rust_path!("source::fsms::Loop"),
-        )
+            },
+        ),
     );
     assert_eq!(
         Loop::ir_ref_target(),

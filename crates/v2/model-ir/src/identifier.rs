@@ -1,17 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-/// A checked identifier adhering to the grammar `[A-Za-z][A-Za-z0-9_]*`.
+/// A checked identifier adhering to the grammar `[A-Za-z][A-Za-z0-9_]*`
+///
+/// This grammar is chosen such that a minimal amount of friction is expected
+/// when interoperating across multiple programming languages and event data
+/// formats.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Identifier(String);
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum IdentifierError {
-    #[error("must not be empty")]
+    #[error("identifier must not be empty")]
     Empty,
-    #[error("must start with an ASCII letter, found {0:?}")]
+    #[error("identifier must start with an ASCII letter, found {0:?}")]
     InvalidStart(char),
-    #[error("character {ch:?} at byte offset {index} is not [A-Za-z0-9_]")]
+    #[error("identifier character {ch:?} at byte offset {index} is not [A-Za-z0-9_]")]
     InvalidChar { ch: char, index: usize },
 }
 
