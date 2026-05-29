@@ -59,15 +59,7 @@ impl Identifier {
         Ok(Self(s))
     }
 
-    /// Borrows the identifier as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 
-    /// Consumes the identifier, returning the inner [`String`].
-    pub fn into_string(self) -> String {
-        self.0
-    }
 }
 
 impl From<Identifier> for String {
@@ -88,11 +80,6 @@ impl AsRef<str> for Identifier {
     }
 }
 
-impl std::borrow::Borrow<str> for Identifier {
-    fn borrow(&self) -> &str {
-        &self.0
-    }
-}
 
 impl std::ops::Deref for Identifier {
     type Target = str;
