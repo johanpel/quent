@@ -31,7 +31,7 @@ pub trait Convention {
     /// example: `quent.fsm.v1`. This reduces the probability of name clashes
     /// between dependencies, and provides a means of easily detecting breaking
     /// changes to the convention's own schema.
-    fn name(&self) -> &'static str;
+    const NAME: &'static str;
 
     /// Validate this convention against `schema`.
     fn validate(&self, schema: &Schema) -> Result<(), Vec<Error>>;
@@ -53,6 +53,8 @@ pub enum Error {
     Validation { convention: String, message: String },
 }
 
+type ConventionFn = Box<dyn Fn(&Schema) -> Result<(), Vec<Error>>>;
+
 /// Validates registered [`Convention`]s.
 ///
 /// Validation will fail when:
@@ -66,29 +68,29 @@ pub enum Error {
 /// let validator = Validator::default()
 ///     .try_with(ConventionImplementing)?; // register a convention implemented elsewhere
 ///
-/// if let Err(errors) = validator.run(&schema) {
+/// if let Err(errors) = validator.validate(&schema) {
 ///     panic!("schema validation failed: {errors:?}");
 /// }
 /// ```
 #[derive(Default)]
 pub struct Validator {
-    conventions: HashMap<&'static str, Box<dyn Convention>>,
+    conventions: HashMap<&'static str, ConventionFn>,
 }
 
 impl Validator {
     /// Register a [`Convention`] to be validated.
-    pub fn try_with(mut self, convention: impl Convention + 'static) -> Result<Self, Error> {
-        match self.conventions.entry(convention.name()) {
-            Entry::Occupied(_) => Err(Error::DuplicateConvention(convention.name())),
+    pub fn try_with<C: Convention + 'static>(mut self, convention: C) -> Result<Self, Error> {
+        match self.conventions.entry(C::NAME) {
+            Entry::Occupied(_) => Err(Error::DuplicateConvention(C::NAME)),
             Entry::Vacant(entry) => {
-                entry.insert(Box::new(convention));
+                entry.insert(Box::new(move |schema: &Schema| convention.validate(schema)));
                 Ok(self)
             }
         }
     }
 
     /// Run validation of all registered conventions against `schema`.
-    pub fn run(&self, schema: &Schema) -> Result<(), Vec<Error>> {
+    pub fn validate(&self, schema: &Schema) -> Result<(), Vec<Error>> {
         let mut errors = Vec::new();
         // First, walk the entire schema to figure out if it uses any
         // unregistered conventions.
@@ -140,8 +142,8 @@ impl Validator {
         }
 
         // Second, validate
-        for v in self.conventions.values() {
-            if let Err(e) = v.validate(schema) {
+        for validate in self.conventions.values() {
+            if let Err(e) = validate(schema) {
                 errors.extend(e);
             }
         }
@@ -157,7 +159,7 @@ impl Validator {
 fn check_conventions(
     conventions: &[SchemaConvention],
     owner: &Identifier,
-    validators: &HashMap<&'static str, Box<dyn Convention>>,
+    validators: &HashMap<&'static str, ConventionFn>,
     errors: &mut Vec<Error>,
 ) {
     for conv in conventions {

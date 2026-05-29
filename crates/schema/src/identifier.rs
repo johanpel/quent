@@ -60,8 +60,6 @@ impl Identifier {
         }
         Ok(Self(s))
     }
-
-
 }
 
 impl From<Identifier> for String {

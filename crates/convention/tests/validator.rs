@@ -42,28 +42,28 @@ fn empty_schema() -> Schema {
     }
 }
 
-struct Noop {
-    name: &'static str,
+struct NoopA;
+impl Convention for NoopA {
+    const NAME: &'static str = "a";
+    fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
+        Ok(())
+    }
 }
 
-impl Convention for Noop {
-    fn name(&self) -> &'static str {
-        self.name
-    }
+struct NoopB;
+impl Convention for NoopB {
+    const NAME: &'static str = "b";
     fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
         Ok(())
     }
 }
 
 struct Failing {
-    name: &'static str,
     errors: Vec<Error>,
 }
 
 impl Convention for Failing {
-    fn name(&self) -> &'static str {
-        self.name
-    }
+    const NAME: &'static str = "a";
     fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
         Err(self.errors.clone())
     }
@@ -71,29 +71,27 @@ impl Convention for Failing {
 
 #[test]
 fn empty_validator_on_empty_schema_passes() {
-    assert_eq!(Validator::default().run(&empty_schema()), Ok(()));
+    assert_eq!(Validator::default().validate(&empty_schema()), Ok(()));
 }
 
 #[test]
 fn try_with_rejects_duplicate_name() {
     assert_eq!(
         Validator::default()
-            .try_with(Noop { name: "x" })
+            .try_with(NoopA)
             .unwrap()
-            .try_with(Noop { name: "x" })
+            .try_with(NoopA)
             .err(),
-        Some(Error::DuplicateConvention("x"))
+        Some(Error::DuplicateConvention("a"))
     );
 }
 
 #[test]
 fn try_with_accepts_distinct_names() {
     Validator::default()
-        .try_with(Noop { name: "a" })
+        .try_with(NoopA)
         .unwrap()
-        .try_with(Noop { name: "b" })
-        .unwrap()
-        .try_with(Noop { name: "c" })
+        .try_with(NoopB)
         .unwrap();
 }
 
@@ -103,7 +101,7 @@ fn validated_convention_without_validator_is_unregistered() {
         conventions: vec![validated("unknown")],
         ..empty_schema()
     };
-    let errs = Validator::default().run(&schema).unwrap_err();
+    let errs = Validator::default().validate(&schema).unwrap_err();
     assert_eq!(errs.len(), 1);
     assert!(matches!(
         &errs[0],
@@ -117,7 +115,7 @@ fn metadata_convention_without_validator_is_allowed() {
         conventions: vec![metadata("not_validated")],
         ..empty_schema()
     };
-    assert_eq!(Validator::default().run(&schema), Ok(()));
+    assert_eq!(Validator::default().validate(&schema), Ok(()));
 }
 
 #[test]
@@ -156,7 +154,7 @@ fn unregistered_convention_is_detected_at_every_site() {
             }],
         }],
     };
-    let errs = Validator::default().run(&schema).unwrap_err();
+    let errs = Validator::default().validate(&schema).unwrap_err();
     assert_eq!(errs.len(), 6, "expected one error per site, got: {errs:?}");
     assert!(
         errs.iter().all(|e| matches!(
@@ -175,13 +173,12 @@ fn validator_errors_are_collected() {
     };
     let errs = Validator::default()
         .try_with(Failing {
-            name: "a",
             errors: vec![err.clone(), err.clone()],
         })
         .unwrap()
-        .try_with(Noop { name: "b" })
+        .try_with(NoopB)
         .unwrap()
-        .run(&empty_schema())
+        .validate(&empty_schema())
         .unwrap_err();
     assert_eq!(errs, vec![err.clone(), err]);
 }
@@ -198,11 +195,10 @@ fn unregistered_and_validator_errors_aggregate() {
     };
     let errs = Validator::default()
         .try_with(Failing {
-            name: "a",
             errors: vec![validator_err.clone()],
         })
         .unwrap()
-        .run(&schema)
+        .validate(&schema)
         .unwrap_err();
     assert_eq!(errs.len(), 2);
     assert!(errs.iter().any(|e| matches!(
