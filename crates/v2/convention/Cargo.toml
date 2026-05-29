@@ -1,0 +1,12 @@
+[package]
+name = "quent-convention"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+quent-schema = { path = "../schema" }
+thiserror.workspace = true
