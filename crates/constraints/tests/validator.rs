@@ -1,33 +1,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_convention::{Convention, Error, Validator};
+use quent_constraints::{Constraint, Error, Validator};
 use quent_schema::{
     Schema,
-    convention::Convention as SchemaConvention,
+    annotations::Annotations,
+    constraint::Constraint as SchemaConstraint,
     data_type::DataType,
     entity::Entity,
     event::{Cardinality, Event, EventField},
     identifier::Identifier,
-    record::{Field, Record},
+    metadata::Metadata,
+    record::{Record, RecordField},
 };
 
 fn ident(s: &str) -> Identifier {
     Identifier::try_new(s).unwrap()
 }
 
-fn validated(name: &str) -> SchemaConvention {
-    SchemaConvention {
+fn constraint(name: &str) -> SchemaConstraint {
+    SchemaConstraint {
         name: name.to_string(),
-        validated: true,
         data: None,
     }
 }
 
-fn metadata(name: &str) -> SchemaConvention {
-    SchemaConvention {
+fn metadata(name: &str) -> Metadata {
+    Metadata {
         name: name.to_string(),
-        validated: false,
         data: None,
     }
 }
@@ -35,15 +35,16 @@ fn metadata(name: &str) -> SchemaConvention {
 fn empty_schema() -> Schema {
     Schema {
         name: ident("TestSchema"),
-        docs: None,
         entities: vec![],
         records: vec![],
-        conventions: vec![],
+        annotations: Annotations::default(),
     }
 }
 
+// A constraint's name is now type-level (`const NAME`), so distinct names
+// require distinct types.
 struct NoopA;
-impl Convention for NoopA {
+impl Constraint for NoopA {
     const NAME: &'static str = "a";
     fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
         Ok(())
@@ -51,7 +52,7 @@ impl Convention for NoopA {
 }
 
 struct NoopB;
-impl Convention for NoopB {
+impl Constraint for NoopB {
     const NAME: &'static str = "b";
     fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
         Ok(())
@@ -62,7 +63,7 @@ struct Failing {
     errors: Vec<Error>,
 }
 
-impl Convention for Failing {
+impl Constraint for Failing {
     const NAME: &'static str = "a";
     fn validate(&self, _schema: &Schema) -> Result<(), Vec<Error>> {
         Err(self.errors.clone())
@@ -82,7 +83,7 @@ fn try_with_rejects_duplicate_name() {
             .unwrap()
             .try_with(NoopA)
             .err(),
-        Some(Error::DuplicateConvention("a"))
+        Some(Error::DuplicateConstraint("a"))
     );
 }
 
@@ -96,61 +97,64 @@ fn try_with_accepts_distinct_names() {
 }
 
 #[test]
-fn validated_convention_without_validator_is_unregistered() {
+fn constraint_without_validator_is_unregistered() {
     let schema = Schema {
-        conventions: vec![validated("unknown")],
+        annotations: Annotations {
+            constraints: vec![constraint("unknown")],
+            ..Default::default()
+        },
         ..empty_schema()
     };
     let errs = Validator::default().validate(&schema).unwrap_err();
     assert_eq!(errs.len(), 1);
     assert!(matches!(
         &errs[0],
-        Error::UnregisteredConvention { convention, .. } if convention == "unknown"
+        Error::UnregisteredConstraint { constraint, .. } if constraint == "unknown"
     ));
 }
 
 #[test]
-fn metadata_convention_without_validator_is_allowed() {
+fn metadata_is_never_validated() {
     let schema = Schema {
-        conventions: vec![metadata("not_validated")],
+        annotations: Annotations {
+            metadata: vec![metadata("not_validated")],
+            ..Default::default()
+        },
         ..empty_schema()
     };
     assert_eq!(Validator::default().validate(&schema), Ok(()));
 }
 
 #[test]
-fn unregistered_convention_is_detected_at_every_site() {
-    let unknown = || validated("unknown");
+fn unregistered_constraint_is_detected_at_every_site() {
+    let unknown = || Annotations {
+        constraints: vec![constraint("unknown")],
+        ..Default::default()
+    };
     let schema = Schema {
         name: ident("S"),
-        docs: None,
-        conventions: vec![unknown()],
+        annotations: unknown(),
         entities: vec![Entity {
             name: ident("E"),
-            docs: None,
-            conventions: vec![unknown()],
+            annotations: unknown(),
             events: vec![Event {
                 name: ident("Ev"),
-                docs: None,
                 cardinality: Cardinality::Once,
-                conventions: vec![unknown()],
+                annotations: unknown(),
                 payload: vec![EventField {
                     name: ident("ef"),
-                    docs: None,
                     ty: DataType::U64,
-                    conventions: vec![unknown()],
+                    annotations: unknown(),
                 }],
             }],
         }],
         records: vec![Record {
             name: ident("R"),
-            docs: None,
-            conventions: vec![unknown()],
-            fields: vec![Field {
+            annotations: unknown(),
+            fields: vec![RecordField {
                 name: ident("rf"),
-                docs: None,
                 ty: DataType::U64,
-                conventions: vec![unknown()],
+                annotations: unknown(),
             }],
         }],
     };
@@ -159,16 +163,16 @@ fn unregistered_convention_is_detected_at_every_site() {
     assert!(
         errs.iter().all(|e| matches!(
             e,
-            Error::UnregisteredConvention { convention, .. } if convention == "unknown"
+            Error::UnregisteredConstraint { constraint, .. } if constraint == "unknown"
         )),
-        "all errors should be UnregisteredConvention for 'unknown', got: {errs:?}",
+        "all errors should be UnregisteredConstraint for 'unknown', got: {errs:?}",
     );
 }
 
 #[test]
 fn validator_errors_are_collected() {
     let err = Error::Validation {
-        convention: "a".to_string(),
+        constraint: "a".to_string(),
         message: "boom".to_string(),
     };
     let errs = Validator::default()
@@ -186,11 +190,14 @@ fn validator_errors_are_collected() {
 #[test]
 fn unregistered_and_validator_errors_aggregate() {
     let schema = Schema {
-        conventions: vec![validated("unknown")],
+        annotations: Annotations {
+            constraints: vec![constraint("unknown")],
+            ..Default::default()
+        },
         ..empty_schema()
     };
     let validator_err = Error::Validation {
-        convention: "a".to_string(),
+        constraint: "a".to_string(),
         message: "boom".to_string(),
     };
     let errs = Validator::default()
@@ -203,7 +210,7 @@ fn unregistered_and_validator_errors_aggregate() {
     assert_eq!(errs.len(), 2);
     assert!(errs.iter().any(|e| matches!(
         e,
-        Error::UnregisteredConvention { convention, .. } if convention == "unknown"
+        Error::UnregisteredConstraint { constraint, .. } if constraint == "unknown"
     )));
     assert!(errs.contains(&validator_err));
 }

@@ -1,20 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{convention::Convention, data_type::DataType, identifier::Identifier};
+use crate::{annotations::Annotations, data_type::DataType, identifier::Identifier};
 
 /// Definition of a field in a record.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Field {
-    /// The name of this field.
+pub struct RecordField {
+    /// The name of this record field.
     pub name: Identifier,
-    /// Potential documentation.
-    pub docs: Option<String>,
-    /// The type of this field.
+    /// The type of this record field.
     pub ty: DataType,
-    /// Convention-specific metadata attached to this field.
-    pub conventions: Vec<Convention>,
+    /// Annotations of this record field.
+    pub annotations: Annotations,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,10 +20,8 @@ pub struct Field {
 pub struct Record {
     /// The name of the record.
     pub name: Identifier,
-    /// Potential documentation.
-    pub docs: Option<String>,
     /// The fields of the record.
-    pub fields: Vec<Field>,
-    /// Convention-specific metadata attached to this record.
-    pub conventions: Vec<Convention>,
+    pub fields: Vec<RecordField>,
+    /// Annotations of this record.
+    pub annotations: Annotations,
 }

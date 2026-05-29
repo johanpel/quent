@@ -1897,7 +1897,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-convention"
+name = "quent-constraints"
 version = "0.1.0"
 dependencies = [
  "quent-schema",
