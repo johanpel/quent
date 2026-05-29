@@ -22,7 +22,7 @@ pub enum DataType {
     F64,
     Option(Box<DataType>),
     List(Box<DataType>),
-    /// A reference to a [`crate::record::Record`].
+    /// A reference to a named [`crate::record::Record`].
     ///
     /// The top-level [`crate::Schema::records`] field must contain a
     /// [`crate::record::Record`] with this name, otherwise the
@@ -32,7 +32,5 @@ pub enum DataType {
     /// run-time.
     DynamicRecord,
     /// A reference to an entity optionally carrying data.
-    EntityRef {
-        data: Option<Box<DataType>>,
-    },
+    EntityRef(Option<Box<DataType>>),
 }
