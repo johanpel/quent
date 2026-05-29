@@ -48,6 +48,9 @@ members = [
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
     "domains/query_engine/tests/fixed",
+    # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
+    "crates/convention",
+    "crates/schema",
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
