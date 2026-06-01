@@ -10,5 +10,9 @@ pub struct Metadata {
     /// The name of the metadata entry.
     pub name: String,
     /// The opaque metadata value.
+    ///
+    /// The format for this data is unrestricted, other than that it must form a
+    /// valid UTF-8 string. It is encouraged to serialize Metadata data in a
+    /// human-readable fashion for easier debugging.
     pub data: Option<String>,
 }

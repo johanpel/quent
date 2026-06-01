@@ -17,5 +17,9 @@ pub struct Constraint {
     /// The name of the constraint.
     pub name: String,
     /// Constraint-specific opaque data.
+    ///
+    /// The format for this data is unrestricted, other than that it must form a
+    /// valid UTF-8 string. It is encouraged to serialize Constraint data in a
+    /// human-readable fashion for easier debugging.
     pub data: Option<String>,
 }

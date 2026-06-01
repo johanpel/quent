@@ -8,7 +8,8 @@ use std::collections::{HashMap, hash_map::Entry};
 use quent_schema::{Schema, constraint::Constraint as SchemaConstraint, identifier::Identifier};
 use thiserror::Error;
 
-/// A trait for types that implement a "constraint".
+/// A trait for types that implement a "constraint" of an application event
+/// model.
 ///
 /// A constraint is a rule imposed on an application event model. It is conveyed
 /// through opaque data attached to the constituents of a [`Schema`] as
