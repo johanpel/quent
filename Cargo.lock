@@ -1901,7 +1901,6 @@ name = "quent-constraints"
 version = "0.1.0"
 dependencies = [
  "quent-schema",
- "thiserror 2.0.18",
 ]
 
 [[package]]

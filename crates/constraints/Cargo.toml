@@ -6,4 +6,3 @@ publish.workspace = true
 
 [dependencies]
 quent-schema = { path = "../schema" }
-thiserror.workspace = true

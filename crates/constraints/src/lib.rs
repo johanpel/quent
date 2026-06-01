@@ -3,17 +3,16 @@
 
 //! # Constraint trait and validation for [`Schema`]s.
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{BTreeSet, HashMap, hash_map::Entry};
 
-use quent_schema::{Schema, constraint::Constraint as SchemaConstraint, identifier::Identifier};
-use thiserror::Error;
+use quent_schema::{Schema, constraint::Constraint as SchemaConstraint};
 
 /// A trait for types that implement a "constraint" of an application event
 /// model.
 ///
 /// A constraint is a rule imposed on an application event model. It is conveyed
 /// through opaque data attached to the constituents of a [`Schema`] as
-/// [`SchemaConstraint`]s.
+/// [`quent_schema::constraint::Constraint`]s.
 ///
 /// By applying the constraint to a model, the model gains properties that need
 /// to be validated against the entire schema, which is the main purpose of this
@@ -35,26 +34,49 @@ pub trait Constraint {
     const NAME: &'static str;
 
     /// Validate this constraint against `schema`.
-    fn validate(&self, schema: &Schema) -> Result<(), Vec<Error>>;
+    fn validate(&self, schema: &Schema) -> Result<(), Box<dyn std::error::Error>>;
 }
 
-/// Errors of [`Constraint`] and [`Validator`].
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+/// The error type produced by this crate.
+#[derive(Debug)]
 pub enum Error {
-    #[error("duplicate registration of constraint: \"{0}\"")]
+    /// A [`Constraint`] was registered under a name already in use.
     DuplicateConstraint(&'static str),
-    #[error(
-        "element \"{owner}\" has constraint \"{constraint}\" requiring validation, but it is not registered"
-    )]
-    UnregisteredConstraint {
-        owner: Identifier,
-        constraint: String,
+    /// Validation failed.
+    Invalid {
+        /// Constraint names used by the schema with no registered validator.
+        unregistered: BTreeSet<String>,
+        /// Failures reported by registered constraints.
+        failures: Vec<(&'static str, Box<dyn std::error::Error>)>,
     },
-    #[error("\"{constraint}\" failed to validate with: {message}")]
-    Validation { constraint: String, message: String },
 }
 
-type ConstraintFn = Box<dyn Fn(&Schema) -> Result<(), Vec<Error>>>;
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::DuplicateConstraint(name) => {
+                write!(f, "duplicate registration of constraint: \"{name}\"")
+            }
+            Error::Invalid {
+                unregistered,
+                failures,
+            } => {
+                writeln!(f, "schema failed to validate:")?;
+                for name in unregistered {
+                    writeln!(f, "unregistered constraint: \"{name}\"")?;
+                }
+                for (name, source) in failures {
+                    writeln!(f, "constraint \"{name}\": {source}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+type ConstraintFn = Box<dyn Fn(&Schema) -> Result<(), Box<dyn std::error::Error>>>;
 
 /// Validates registered [`Constraint`]s.
 ///
@@ -68,8 +90,8 @@ type ConstraintFn = Box<dyn Fn(&Schema) -> Result<(), Vec<Error>>>;
 /// let validator = Validator::default()
 ///     .try_with(MyConstraint)?; // register a constraint implemented elsewhere
 ///
-/// if let Err(errors) = validator.validate(&schema) {
-///     panic!("schema validation failed: {errors:?}");
+/// if let Err(error) = validator.validate(&schema) {
+///     panic!("{error}");
 /// }
 /// ```
 #[derive(Default)]
@@ -90,84 +112,49 @@ impl Validator {
     }
 
     /// Run validation of all registered constraints against `schema`.
-    pub fn validate(&self, schema: &Schema) -> Result<(), Vec<Error>> {
-        let mut errors = Vec::new();
+    pub fn validate(&self, schema: &Schema) -> Result<(), Error> {
         // First, walk the entire schema to figure out if it uses any
         // unregistered constraints.
-        check_constraints(
-            &schema.annotations.constraints,
-            &schema.name,
-            &self.constraints,
-            &mut errors,
-        );
+        let mut unregistered = BTreeSet::new();
+        let mut check = |constraints: &[SchemaConstraint]| {
+            for constraint in constraints {
+                if !self.constraints.contains_key(constraint.name.as_str()) {
+                    unregistered.insert(constraint.name.clone());
+                }
+            }
+        };
+        check(&schema.annotations.constraints);
         for entity in &schema.entities {
-            check_constraints(
-                &entity.annotations.constraints,
-                &entity.name,
-                &self.constraints,
-                &mut errors,
-            );
+            check(&entity.annotations.constraints);
             for event in &entity.events {
-                check_constraints(
-                    &event.annotations.constraints,
-                    &entity.name,
-                    &self.constraints,
-                    &mut errors,
-                );
+                check(&event.annotations.constraints);
                 for field in &event.payload {
-                    check_constraints(
-                        &field.annotations.constraints,
-                        &entity.name,
-                        &self.constraints,
-                        &mut errors,
-                    );
+                    check(&field.annotations.constraints);
                 }
             }
         }
         for record in &schema.records {
-            check_constraints(
-                &record.annotations.constraints,
-                &record.name,
-                &self.constraints,
-                &mut errors,
-            );
+            check(&record.annotations.constraints);
             for field in &record.fields {
-                check_constraints(
-                    &field.annotations.constraints,
-                    &record.name,
-                    &self.constraints,
-                    &mut errors,
-                );
+                check(&field.annotations.constraints);
             }
         }
 
         // Second, validate
-        for validate in self.constraints.values() {
-            if let Err(e) = validate(schema) {
-                errors.extend(e);
+        let mut failures = Vec::new();
+        for (name, validate) in &self.constraints {
+            if let Err(source) = validate(schema) {
+                failures.push((*name, source));
             }
         }
 
-        if errors.is_empty() {
+        if unregistered.is_empty() && failures.is_empty() {
             Ok(())
         } else {
-            Err(errors)
-        }
-    }
-}
-
-fn check_constraints(
-    constraints: &[SchemaConstraint],
-    owner: &Identifier,
-    validators: &HashMap<&'static str, ConstraintFn>,
-    errors: &mut Vec<Error>,
-) {
-    for constraint in constraints {
-        if !validators.contains_key(constraint.name.as_str()) {
-            errors.push(Error::UnregisteredConstraint {
-                owner: owner.clone(),
-                constraint: constraint.name.clone(),
-            });
+            Err(Error::Invalid {
+                unregistered,
+                failures,
+            })
         }
     }
 }
