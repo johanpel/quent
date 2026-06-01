@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Deref;
+
 /// An identifier adhering to the grammar `[A-Za-z][A-Za-z0-9_]*`
 ///
 /// This grammar is chosen such that a minimal amount of friction is expected
@@ -58,16 +60,6 @@ impl Identifier {
         }
         Ok(Self(s))
     }
-
-    /// Borrows the identifier as a string slice.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Consumes the identifier, returning the inner [`String`].
-    pub fn into_string(self) -> String {
-        self.0
-    }
 }
 
 impl From<Identifier> for String {
@@ -82,19 +74,17 @@ impl std::fmt::Display for Identifier {
     }
 }
 
-impl AsRef<str> for Identifier {
-    fn as_ref(&self) -> &str {
-        &self.0
+impl<T> AsRef<T> for Identifier
+where
+    T: ?Sized,
+    <Identifier as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
     }
 }
 
-impl std::borrow::Borrow<str> for Identifier {
-    fn borrow(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::ops::Deref for Identifier {
+impl Deref for Identifier {
     type Target = str;
     fn deref(&self) -> &Self::Target {
         &self.0

@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Schema definition for application event models.
+//! # Schema of Application Event Models
 //!
 //! This module defines types of core concepts necessary to express the schema
 //! of an application event model. The schema captures the information necessary
-//! to write and read all events from a single model without further
-//! interpretation besides which entities they belong to.
+//! to write and read all events without further interpretation.
+//!
+//! ## Core Concepts
 //!
 //! The schema core concepts are:
 //!
@@ -15,13 +16,15 @@
 //!   string, etc.) plus Quent-specific types, such as:
 //!   - [`crate::data_type::DataType::EntityRef`]
 //!   - [`crate::data_type::DataType::DynamicRecord`]
-//! - [`event::Event`]: defines an event type that applications can emit
+//! - [`event::Event`]: defines an event type that applications can emit.
 //! - [`entity::Entity`]: defines a uniquely identifiable type of thing that
-//!   emits a set of related events
+//!   emits some set of related events.
 //! - [`Schema`]: defines a type of uniquely identifiable collection of entities
-//!   that are somehow related, the top-level of an application event model
-//! - [`convention::Convention`]: defines opaque metadata for "conventions" (see
-//!   below)
+//!   that are somehow related. Top-level of an application event model.
+//! - [`annotations::Annotations`]: opaque metadata and doc strings for most
+//!   other core concepts.
+//!
+//! ## Purpose
 //!
 //! The schema is leveraged for (cross-language) code generation, model
 //! validation, and serialization.
@@ -42,20 +45,28 @@
 //! Serialization involves the ability to store a model, which can be leveraged
 //! for model re-use, sharing, and archival purposes.
 //!
+//! ## Annotations
+//!
 //! The schema is kept as minimal as possible in order to prevent contamination
-//! and complexity from concerns imbued by application-specific semantics,
-//! conventions, or constraints, as well as concerns from modeling APIs or DSLs,
-//! as well as concerns from code generation flows for either instrumentation or
-//! analysis APIs.
+//! and complexity from concerns imbued by application-specific semantics or
+//! constraints, as well as concerns from modeling APIs or DSLs, and from code
+//! generation flows for either instrumentation or analysis APIs.
 //!
-//! However, all of these types of concerns can be addressed by adding opaque
-//! metadata to most core schema types as "conventions". Especially those
-//! conventions that constrain the model in certain ways to ensure logical
-//! soundness, or that can be leveraged to produce a more user-friendly
-//! instrumentation API, can be added by modeling APIs or DSL parsers to feed
-//! through the schema into code generation and onward.
+//! All of these concerns can instead be attached to most core schema types as
+//! [`annotations::Annotations`]. Three types of annotations exist:
 //!
-//! Some example of built-in provided conventions by Quent include:
+//! - [`constraint::Constraint`]: rules applicable to the model that must hold
+//!   for the schema to be logically sound. Constraints require validation
+//!   against the entire schema if it cannot be guaranteed that a schema is
+//!   logically sound (e.g. after deserialization or construction throug some
+//!   DSL parser).
+//! - [`metadata::Metadata`]: opaque data carried through the schema, e.g. to
+//!   produce a more user-friendly instrumentation API or to feed code
+//!   generation. It carries no validation requirement.
+//! - [`annotations::Annotations::docs`]: can be used to add user-facing
+//!   documentation e.g. in instrumentation API code generation.
+//!
+//! Some examples of built-in constraints provided by Quent include:
 //! - FSMs: constrains the sequence of events to adhere to a certain topology,
 //!   plus code generation can apply a typestate pattern to entity event handles
 //! - Reference roles: constrains that an event with a reference of the
@@ -63,29 +74,33 @@
 //!   that entities form a tree.
 //!
 //! Note that this approach promotes a stronger guarantee against breaking
-//! changes. For example, even if a new convention is added, but code generation
-//! does not yet support that convention, it will still be able to produce an
-//! instrumentation API that allows users to emit events that may have been
-//! defined as a result of the new convention. Users may not yet get the benefit
-//! of some potential elegant type-safe API better expressing these constraints,
-//! but everything will "still work".
+//! changes. For example, even if a new constraint is added, but code generation
+//! does not yet support it, it will still be able to produce an instrumentation
+//! API that allows users to emit events that may have been defined as a result
+//! of the new constraint. Users may not yet get the benefit of some potential
+//! elegant type-safe API better expressing these constraints, preventing
+//! certain illogical behavior violating te constraint at compile-time, but
+//! everything will "still work".
 //!
-//! In order to validate potential constraints of conventions against the
-//! schema, a lightweight canonical mechanism exists for validating conventions
-//! in the `quent-convention` crate. It is strongly recommended to perform this
-//! validation after constructing the schema from any source that isn't
-//! inherently guaranteed to validate.
+//! In order to validate constraints against the schema, a lightweight canonical
+//! mechanism exists in the `quent-constraints` crate. It is strongly
+//! recommended to perform this validation after constructing the schema from
+//! any source that isn't inherently guaranteed to validate.
+//!
+//! ## Binary Format
 //!
 //! There is no stable binary format for schemas yet. As a stop-gap solution for
 //! serializing schemas, this crate has a `serde` feature.
 
-use crate::{convention::Convention, entity::Entity, identifier::Identifier, record::Record};
+use crate::{annotations::Annotations, entity::Entity, identifier::Identifier, record::Record};
 
-pub mod convention;
+pub mod annotations;
+pub mod constraint;
 pub mod data_type;
 pub mod entity;
 pub mod event;
 pub mod identifier;
+pub mod metadata;
 pub mod record;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -93,12 +108,10 @@ pub mod record;
 pub struct Schema {
     /// The name of the model.
     pub name: Identifier,
-    /// Potential documentation that can be added in code generation.
-    pub docs: Option<String>,
     /// The [`Entity`]s of the model.
     pub entities: Vec<Entity>,
     /// The [`Record`]s of the model.
     pub records: Vec<Record>,
-    /// Convention-specific metadata.
-    pub conventions: Vec<Convention>,
+    /// Annotations of this schema.
+    pub annotations: Annotations,
 }
