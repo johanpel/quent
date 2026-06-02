@@ -11,9 +11,13 @@ use petgraph::{
     visit::{Bfs, Reversed, Walker},
 };
 use quent_constraints::Constraint;
-use quent_schema::{Schema, event::Cardinality, identifier::Identifier};
+use quent_schema::{Schema, entity::Entity, event::Cardinality, identifier::Identifier};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+mod builder;
+
+pub use builder::FsmBuilder;
 
 /// A directed transition between two named states in an [`Fsm`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -22,6 +26,18 @@ pub struct Transition {
     source: Identifier,
     /// The name of the target state.
     target: Identifier,
+}
+
+impl Transition {
+    /// The name of the source state.
+    pub fn source(&self) -> &Identifier {
+        &self.source
+    }
+
+    /// The name of the target state.
+    pub fn target(&self) -> &Identifier {
+        &self.target
+    }
 }
 
 /// The state-transition topology of a finite state machine.
@@ -36,6 +52,30 @@ pub struct Fsm {
     exit_from_states: Vec<Identifier>,
 }
 
+impl Fsm {
+    /// Return a builder for an [`Fsm`] constraint over `entity`, beginning in
+    /// `initial_state`.
+    pub fn builder(entity: &Entity, initial_state: Identifier) -> FsmBuilder<'_> {
+        FsmBuilder::new(entity, initial_state)
+    }
+
+    /// The name of the initial state this FSM transitions into when it comes
+    /// into existence.
+    pub fn initial_state(&self) -> &Identifier {
+        &self.initial_state
+    }
+
+    /// The transitions of this FSM.
+    pub fn transitions(&self) -> &[Transition] {
+        &self.transitions
+    }
+
+    /// The names of states from which this FSM can exit to go out of existence.
+    pub fn exit_from_states(&self) -> &[Identifier] {
+        &self.exit_from_states
+    }
+}
+
 /// Constrains the order of an entity's events by a Finite-State-Machine
 /// topology.
 ///
@@ -45,11 +85,11 @@ pub struct Fsm {
 /// time the FSM transitions into a state with the name of the event.
 ///
 /// Modeling entities as FSMs is useful to trace a specific restricted lifecycle
-/// of the entity. The lifecycle has a single initial state where it comes into
-/// existence and a set of exit states from which it may go out of existence.
-/// The topology must be formed such that every state is reachable from the
-/// initial state, and from every state there exists a sequence of transitions to
-/// some exit state.
+/// of the entity. The lifecycle has a single initial state where the FSM entity
+/// comes into existence, and a set of states from which it may go out of
+/// existence through an "exit" transition. The topology must be formed such
+/// that every state is reachable from the initial state, and from every state
+/// there exists a sequence of states that leads to an exit transition.
 ///
 /// The moment an entity modeled as an FSM in the client code transitions
 /// between states, the transition event is to be emitted. At that time, both
@@ -65,15 +105,12 @@ pub struct Fsm {
 ///
 /// For every entity carrying this constraint:
 ///
-/// 1. No event in the entity may be named `exit` (case-insensitively). This
-///    is reserved such that instrumentation APIs can unambiguously provide an
-///    event-emitting function marking the FSM's transition out of existence
-///    without name clashes with possible user-defined events named "exit".
+/// 1. No event in the entity may be named `exit` (case-insensitively).
 /// 2. There is at least one exit transition.
 /// 3. Every state named by the FSM corresponds to an event name in the entity.
 /// 4. Every event in the entity appears as a state in the FSM.
 /// 5. Every state is reachable from the initial state.
-/// 6. The exit state is reachable from every other state.
+/// 6. An exit transition is reachable from every state.
 /// 7. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
 pub struct FsmConstraint;
@@ -123,7 +160,7 @@ impl Constraint for FsmConstraint {
     }
 }
 
-fn check_entity(entity: &quent_schema::entity::Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {
+pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {
     // Requirement 1: no event may be named "exit".
     for event in &entity.events {
         if event.name.to_ascii_lowercase() == "exit" {
@@ -201,7 +238,8 @@ fn check_entity(entity: &quent_schema::entity::Entity, fsm: &Fsm, errors: &mut V
         }
     }
 
-    // Requirement 6: every state can reach exit.
+    // Requirement 6: an exit transition is reachable from every state.
+    //
     // Skipped when there is no exit transition: req 2 already reports that, and
     // the check would otherwise flag every state.
     if !fsm.exit_from_states.is_empty() {
@@ -280,14 +318,14 @@ pub enum FsmError {
         entity: Identifier,
         name: &'static str,
     },
-    #[error("entity \"{entity}\" fsm: has no exit states")]
+    #[error("entity \"{entity}\" fsm: has no exit transitions")]
     NoExit { entity: Identifier },
-    #[error("entity \"{entity}\" fsm: state \"{state}\" is unreachable from the intial state")]
+    #[error("entity \"{entity}\" fsm: state \"{state}\" is unreachable from the initial state")]
     UnreachableFromInit {
         entity: Identifier,
         state: Identifier,
     },
-    #[error("entity \"{entity}\" fsm: state \"{state}\" cannot reach exit")]
+    #[error("entity \"{entity}\" fsm: state \"{state}\" cannot reach any exit transition")]
     CannotReachExit {
         entity: Identifier,
         state: Identifier,
