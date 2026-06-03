@@ -60,6 +60,7 @@ members = [
     "crates/constraints",
     "crates/schema",
     "crates/fsm",
+    "crates/ref-target"
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
