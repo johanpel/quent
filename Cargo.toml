@@ -51,6 +51,7 @@ members = [
     # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
     "crates/constraints",
     "crates/schema",
+    "crates/ref-target"
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
