@@ -1991,6 +1991,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-fsm"
+version = "0.1.0"
+dependencies = [
+ "petgraph",
+ "quent-constraints",
+ "quent-schema",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "quent-instrumentation"
 version = "0.1.0"
 dependencies = [
