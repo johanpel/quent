@@ -2206,6 +2206,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-ref-tree"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-schema",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "quent-schema"
 version = "0.1.0"
 dependencies = [
