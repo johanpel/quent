@@ -39,10 +39,11 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
         .iter()
         .map(|&(source, target)| serde_json::json!({ "source": source, "target": target }))
         .collect();
+    let (first_exit, other_exit) = exit.split_first().unwrap();
     serde_json::json!({
         "initial_state": initial,
         "transitions": transitions,
-        "exit_from_states": exit,
+        "exit_from_states": { "state": first_exit, "others": other_exit },
     })
     .to_string()
 }
@@ -180,17 +181,19 @@ fn reserved_name_exit_is_rejected() {
 }
 
 #[test]
-fn no_exit_state_is_rejected() {
-    let fsm = fsm("a", &[], &[]);
-    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &fsm);
+fn empty_exit_is_rejected() {
+    let data = serde_json::json!({
+        "initial_state": "a",
+        "transitions": [],
+        "exit_from_states": [],
+    })
+    .to_string();
+    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &data);
     let errors = validate(&schema_with(entity));
-    assert!(errors.iter().any(|e| matches!(e, FsmError::NoExit { .. })),);
-    // a missing exit must not cascade into every state being flagged as unable
-    // to reach exit.
     assert!(
-        !errors
+        errors
             .iter()
-            .any(|e| matches!(e, FsmError::CannotReachExit { .. })),
+            .any(|e| matches!(e, FsmError::InvalidData { .. }))
     );
 }
 
@@ -334,28 +337,29 @@ fn builder_produces_valid_fsm_and_exposes_data() {
         "E",
         vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
     );
-    let fsm = Fsm::builder(&entity, ident("a"))
+    let fsm = Fsm::builder(&entity, ident("a"), ident("b"))
         .transition(ident("a"), ident("b"))
-        .exit_from(ident("b"))
         .build()
-        .expect("valid fsm");
+        .unwrap();
 
     assert_eq!(fsm.initial_state(), &ident("a"));
     assert_eq!(fsm.transitions().len(), 1);
     assert_eq!(fsm.transitions()[0].source(), &ident("a"));
     assert_eq!(fsm.transitions()[0].target(), &ident("b"));
-    assert_eq!(fsm.exit_from_states().len(), 1);
-    assert_eq!(fsm.exit_from_states()[0], ident("b"));
+    assert_eq!(
+        fsm.exit_from_states().collect::<Vec<_>>(),
+        vec![&ident("b")],
+    );
 }
 
 #[test]
 fn builder_rejects_unknown_event() {
-    // "b" is not an event the entity defines.
+    // b is not an event
     let entity = bare_entity("E", vec![event("a", Cardinality::Once)]);
-    let err = Fsm::builder(&entity, ident("b"))
-        .exit_from(ident("b"))
+    let err = Fsm::builder(&entity, ident("b"), ident("b"))
         .build()
-        .expect_err("should reject unknown state");
+        .err()
+        .unwrap();
     let errors = match err {
         FsmError::Multiple(errors) => errors,
         single => vec![single],
@@ -397,10 +401,23 @@ fn exit_state_may_have_outgoing_transition() {
 
 #[test]
 fn multiple_violations_are_aggregated() {
-    let fsm = fsm("a", &[("a", "a")], &[]);
-    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &fsm);
+    // b is unreachable from the initial state
+    // b is declared Multi though it is acyclic
+    let fsm = fsm("a", &[], &["a", "b"]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event("a", Cardinality::Once),
+            event("b", Cardinality::Multi),
+        ],
+        &fsm,
+    );
     let errors = validate(&schema_with(entity));
-    assert!(errors.iter().any(|e| matches!(e, FsmError::NoExit { .. })));
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, FsmError::UnreachableFromInit { .. }))
+    );
     assert!(
         errors
             .iter()

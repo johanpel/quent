@@ -3,7 +3,7 @@
 
 use quent_schema::{entity::Entity, identifier::Identifier};
 
-use crate::{Fsm, FsmError, Transition, check_entity};
+use crate::{ExitStates, Fsm, FsmError, Transition, check_entity};
 
 /// Builds an [`Fsm`] for a specific [`Entity`], validating it on
 /// [`FsmBuilder::build`].
@@ -11,16 +11,23 @@ pub struct FsmBuilder<'a> {
     entity: &'a Entity,
     initial_state: Identifier,
     transitions: Vec<Transition>,
-    exit_from_states: Vec<Identifier>,
+    exit_from_states: ExitStates,
 }
 
 impl<'a> FsmBuilder<'a> {
-    pub(crate) fn new(entity: &'a Entity, initial_state: Identifier) -> Self {
+    pub(crate) fn new(
+        entity: &'a Entity,
+        initial_state: Identifier,
+        exit_state: Identifier,
+    ) -> Self {
         Self {
             entity,
             initial_state,
             transitions: Vec::new(),
-            exit_from_states: Vec::new(),
+            exit_from_states: ExitStates {
+                state: exit_state,
+                others: Vec::new(),
+            },
         }
     }
 
@@ -30,10 +37,10 @@ impl<'a> FsmBuilder<'a> {
         self
     }
 
-    /// Add a transition from `state` to exit (i.e. the FSM entity goes out of
+    /// Add another state the FSM may exit from (i.e. the FSM entity goes out of
     /// existence).
     pub fn exit_from(mut self, state: Identifier) -> Self {
-        self.exit_from_states.push(state);
+        self.exit_from_states.others.push(state);
         self
     }
 

@@ -40,6 +40,14 @@ impl Transition {
     }
 }
 
+/// A non-empty set of states from which an `Fsm` can transition out of
+/// existence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ExitStates {
+    state: Identifier,
+    others: Vec<Identifier>,
+}
+
 /// The state-transition topology of a finite state machine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fsm {
@@ -48,15 +56,21 @@ pub struct Fsm {
     initial_state: Identifier,
     /// The possible transitions of this FSM.
     transitions: Vec<Transition>,
-    /// The names of states from which this FSM can exit to go out of existence.
-    exit_from_states: Vec<Identifier>,
+    /// The states (at least one) from which this FSM can exit to go out of
+    /// existence.
+    exit_from_states: ExitStates,
 }
 
 impl Fsm {
     /// Return a builder for an [`Fsm`] constraint over `entity`, beginning in
-    /// `initial_state`.
-    pub fn builder(entity: &Entity, initial_state: Identifier) -> FsmBuilder<'_> {
-        FsmBuilder::new(entity, initial_state)
+    /// `initial_state` and able to exit from `exit_state`. Further exit states
+    /// can be added on the builder.
+    pub fn builder(
+        entity: &Entity,
+        initial_state: Identifier,
+        exit_state: Identifier,
+    ) -> FsmBuilder<'_> {
+        FsmBuilder::new(entity, initial_state, exit_state)
     }
 
     /// The name of the initial state this FSM transitions into when it comes
@@ -65,14 +79,17 @@ impl Fsm {
         &self.initial_state
     }
 
-    /// The transitions of this FSM.
+    /// The transitions of this FSM between states.
+    ///
+    /// This excludes exit transitions. Obtain these through
+    /// [`Self::exit_from_states`].
     pub fn transitions(&self) -> &[Transition] {
         &self.transitions
     }
 
-    /// The names of states from which this FSM can exit to go out of existence.
-    pub fn exit_from_states(&self) -> &[Identifier] {
-        &self.exit_from_states
+    /// The states from which this FSM can exit to go out of existence.
+    pub fn exit_from_states(&self) -> impl Iterator<Item = &Identifier> {
+        std::iter::once(&self.exit_from_states.state).chain(self.exit_from_states.others.iter())
     }
 }
 
@@ -106,13 +123,13 @@ impl Fsm {
 /// For every entity carrying this constraint:
 ///
 /// 1. No event in the entity may be named `exit` (case-insensitively).
-/// 2. There is at least one exit transition.
-/// 3. Every state named by the FSM corresponds to an event name in the entity.
-/// 4. Every event in the entity appears as a state in the FSM.
-/// 5. Every state is reachable from the initial state.
-/// 6. An exit transition is reachable from every state.
-/// 7. A state on a cycle has [`Cardinality::Multi`], otherwise
+/// 2. Every state named by the FSM corresponds to an event name in the entity.
+/// 3. Every event in the entity appears as a state in the FSM.
+/// 4. Every state is reachable from the initial state.
+/// 5. An exit transition is reachable from every state.
+/// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
+/// 7. At least one exit transition exists (enforced by [`ExitStates`]).
 pub struct FsmConstraint;
 
 impl Constraint for FsmConstraint {
@@ -171,13 +188,6 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         }
     }
 
-    // Requirement 2: there is at least one exit transition.
-    if fsm.exit_from_states.is_empty() {
-        errors.push(FsmError::NoExit {
-            entity: entity.name.clone(),
-        });
-    }
-
     let event_names: HashSet<&Identifier> = entity.events.iter().map(|e| &e.name).collect();
     let cardinality_by_event: BTreeMap<&Identifier, Cardinality> = entity
         .events
@@ -188,27 +198,23 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     // Gather every state named
     let states: HashSet<&Identifier> = std::iter::once(&fsm.initial_state)
         .chain(fsm.transitions.iter().flat_map(|t| [&t.source, &t.target]))
-        .chain(&fsm.exit_from_states)
+        .chain(fsm.exit_from_states())
         .collect();
 
-    // Requirement 3: every state name corresponds to an entity event name.
-    for &state in &states {
-        if !event_names.contains(state) {
-            errors.push(FsmError::UnknownState {
-                entity: entity.name.clone(),
-                state: state.clone(),
-            });
-        }
+    // Requirement 2: every state name corresponds to an entity event name.
+    for &state in states.difference(&event_names) {
+        errors.push(FsmError::UnknownState {
+            entity: entity.name.clone(),
+            state: state.clone(),
+        });
     }
 
-    // Requirement 4: every entity event appears as a state.
-    for event in &entity.events {
-        if !states.contains(&event.name) {
-            errors.push(FsmError::UncoveredEvent {
-                entity: entity.name.clone(),
-                event: event.name.clone(),
-            });
-        }
+    // Requirement 3: every entity event appears as a state.
+    for &event in event_names.difference(&states) {
+        errors.push(FsmError::UncoveredEvent {
+            entity: entity.name.clone(),
+            event: event.clone(),
+        });
     }
 
     // Graph of states + transitions
@@ -220,13 +226,12 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
                     .map(|t| (GraphNode::Named(&t.source), GraphNode::Named(&t.target), ())),
             )
             .chain(
-                fsm.exit_from_states
-                    .iter()
+                fsm.exit_from_states()
                     .map(|x| (GraphNode::Named(x), GraphNode::Exit, ())),
             )
             .collect();
 
-    // Requirement 5: every state is reachable from the initial state.
+    // Requirement 4: every state is reachable from the initial state.
     let reachable_from_init: HashSet<GraphNode> =
         Bfs::new(&graph, GraphNode::Init).iter(&graph).collect();
     for &name in &states {
@@ -238,25 +243,20 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         }
     }
 
-    // Requirement 6: an exit transition is reachable from every state.
-    //
-    // Skipped when there is no exit transition: req 2 already reports that, and
-    // the check would otherwise flag every state.
-    if !fsm.exit_from_states.is_empty() {
-        let reversed = Reversed(&graph);
-        let reaches_exit: HashSet<GraphNode> =
-            Bfs::new(reversed, GraphNode::Exit).iter(reversed).collect();
-        for &name in &states {
-            if !reaches_exit.contains(&GraphNode::Named(name)) {
-                errors.push(FsmError::CannotReachExit {
-                    entity: entity.name.clone(),
-                    state: name.clone(),
-                });
-            }
+    // Requirement 5: an exit transition is reachable from every state.
+    let reversed = Reversed(&graph);
+    let reaches_exit: HashSet<GraphNode> =
+        Bfs::new(reversed, GraphNode::Exit).iter(reversed).collect();
+    for &name in &states {
+        if !reaches_exit.contains(&GraphNode::Named(name)) {
+            errors.push(FsmError::CannotReachExit {
+                entity: entity.name.clone(),
+                state: name.clone(),
+            });
         }
     }
 
-    // Requirement 7: a state on a cycle is Multi, otherwise Once.
+    // Requirement 6: a state on a cycle is Multi, otherwise Once.
     let on_cycle = find_cyclic(&graph, fsm);
     for &name in &states {
         let expected_cardinality = if on_cycle.contains(name) {
@@ -318,8 +318,6 @@ pub enum FsmError {
         entity: Identifier,
         name: &'static str,
     },
-    #[error("entity \"{entity}\" fsm: has no exit transitions")]
-    NoExit { entity: Identifier },
     #[error("entity \"{entity}\" fsm: state \"{state}\" is unreachable from the initial state")]
     UnreachableFromInit {
         entity: Identifier,
