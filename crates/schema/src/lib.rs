@@ -51,30 +51,27 @@
 //! All of these concerns can instead be attached to most core schema types as
 //! [`annotations::Annotations`]. Three types of annotations exist:
 //!
-//! - [`constraint::Constraint`]: rules applicable to the model that must hold
-//! for the schema to be logically sound. Constraints require validation against
-//! the entire schema if it cannot be guaranteed that a schema is logically
-//! sound (e.g. after deserialization or construction throug some DSL parser). -
-//! [`metadata::Metadata`]: opaque data carried through the schema, e.g. to
-//! produce a more user-friendly instrumentation API or to feed code generation.
-//! It carries no validation requirement. - [`annotations::Annotations::docs`]:
-//! can be used to add user-facing documentation e.g. in instrumentation API
-//! code generation.
+//! - [`Constraint`]: rules applicable to the model that must hold for the
+//!   schema to be logically sound. Constraints require validation against the
+//!   entire schema if it cannot be guaranteed that a schema is logically sound
+//!   (e.g. after deserialization or construction throug some DSL parser).
+//! - [`Metadata`]: opaque data carried through the schema, e.g. to produce a
+//!   more user-friendly instrumentation API or to feed code generation. It
+//!   carries no validation requirement.
+//! - [`Annotations::docs`]: can be used to add user-facing documentation e.g.
+//!   in instrumentation API code generation.
 //!
-//! Some examples of built-in constraints provided by Quent include: - FSMs:
-//! constrains the sequence of events to adhere to a certain topology, plus code
-//! generation can apply a typestate pattern to entity event handles - Reference
-//! roles: constrains that an event with a reference of the tree-forming "Scope"
-//! role can only appear once in an entity event, and that entities form a tree.
+//! Quent provides various built-in constraints, also see the crates
+//! `quent-fsm`, `quent-ref-target`, etc.
 //!
 //! Note that this approach promotes a stronger guarantee against breaking
 //! changes. For example, even if a new constraint is added, but code generation
 //! does not yet support it, it will still be able to produce an instrumentation
 //! API that allows users to emit events that may have been defined as a result
-//! of the new constraint. Users may not yet get the benefit of some potential
-//! elegant type-safe API better expressing these constraints, preventing
-//! certain illogical behavior violating te constraint at compile-time, but
-//! everything will "still work".
+//! of the new constraint. Users of the code generator may not yet get the
+//! benefit of some potential elegant type-safe API better expressing these
+//! constraints, preventing certain illogical behavior violating te constraint
+//! at compile-time, but everything will "still work".
 //!
 //! In order to validate constraints against the schema, a lightweight canonical
 //! mechanism exists in the `quent-constraints` crate. It is strongly
@@ -93,4 +90,5 @@ pub use schema::{
 };
 
 pub mod schema;
+#[cfg(feature = "visitor")]
 pub mod visitor;
