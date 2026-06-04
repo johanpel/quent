@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{annotations::Annotations, data_type::DataType, identifier::Identifier};
+use crate::schema::{annotations::Annotations, data_type::DataType, identifier::Identifier};
 
 /// A named, typed field of a [`crate::record::Record`] or
 /// [`crate::event::Event`].

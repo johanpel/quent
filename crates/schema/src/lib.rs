@@ -12,17 +12,13 @@
 //! The schema core concepts are:
 //!
 //! - [`Identifier`]: defines the name of things
-//! - [`crate::data_type::DataType`]: defines common data types (bool, integer,
-//!   string, etc.) plus Quent-specific types, such as:
-//!   - [`crate::data_type::DataType::EntityRef`]
-//!   - [`crate::data_type::DataType::DynamicRecord`]
-//! - [`event::Event`]: defines an event type that applications can emit.
-//! - [`entity::Entity`]: defines a uniquely identifiable type of thing that
-//!   emits some set of related events.
-//! - [`Schema`]: defines a type of uniquely identifiable collection of entities
-//!   that are somehow related. Top-level of an application event model.
-//! - [`annotations::Annotations`]: opaque metadata and doc strings for most
-//!   other core concepts.
+//! - [`DataType`]: defines common data types (bool, integer, string, etc.) plus Quent-specific types, such as:
+//!     - [`DataType::EntityRef`]
+//!     - [`DataType::DynamicRecord`]
+//! - [`Event`]: defines an event type that applications can emit.
+//! - [`Entity`]: defines a uniquely identifiable type of thing that emits some set of related events.
+//! - [`Schema`]: defines a type of uniquely identifiable collection of entities that are somehow related. Top-level of an application event model.
+//! - [`Annotations`]: opaque metadata and doc strings for most other core concepts.
 //!
 //! ## Purpose
 //!
@@ -56,22 +52,20 @@
 //! [`annotations::Annotations`]. Three types of annotations exist:
 //!
 //! - [`constraint::Constraint`]: rules applicable to the model that must hold
-//!   for the schema to be logically sound. Constraints require validation
-//!   against the entire schema if it cannot be guaranteed that a schema is
-//!   logically sound (e.g. after deserialization or construction throug some
-//!   DSL parser).
-//! - [`metadata::Metadata`]: opaque data carried through the schema, e.g. to
-//!   produce a more user-friendly instrumentation API or to feed code
-//!   generation. It carries no validation requirement.
-//! - [`annotations::Annotations::docs`]: can be used to add user-facing
-//!   documentation e.g. in instrumentation API code generation.
+//! for the schema to be logically sound. Constraints require validation against
+//! the entire schema if it cannot be guaranteed that a schema is logically
+//! sound (e.g. after deserialization or construction throug some DSL parser). -
+//! [`metadata::Metadata`]: opaque data carried through the schema, e.g. to
+//! produce a more user-friendly instrumentation API or to feed code generation.
+//! It carries no validation requirement. - [`annotations::Annotations::docs`]:
+//! can be used to add user-facing documentation e.g. in instrumentation API
+//! code generation.
 //!
-//! Some examples of built-in constraints provided by Quent include:
-//! - FSMs: constrains the sequence of events to adhere to a certain topology,
-//!   plus code generation can apply a typestate pattern to entity event handles
-//! - Reference roles: constrains that an event with a reference of the
-//!   tree-forming "Scope" role can only appear once in an entity event, and
-//!   that entities form a tree.
+//! Some examples of built-in constraints provided by Quent include: - FSMs:
+//! constrains the sequence of events to adhere to a certain topology, plus code
+//! generation can apply a typestate pattern to entity event handles - Reference
+//! roles: constrains that an event with a reference of the tree-forming "Scope"
+//! role can only appear once in an entity event, and that entities form a tree.
 //!
 //! Note that this approach promotes a stronger guarantee against breaking
 //! changes. For example, even if a new constraint is added, but code generation
@@ -92,27 +86,11 @@
 //! There is no stable binary format for schemas yet. As a stop-gap solution for
 //! serializing schemas, this crate has a `serde` feature.
 
-use crate::{annotations::Annotations, entity::Entity, identifier::Identifier, record::Record};
+pub use schema::{
+    Schema, annotations::Annotations, constraint::Constraint, data_type::DataType, entity::Entity,
+    event::Cardinality, event::Event, field::Field, identifier::Identifier, metadata::Metadata,
+    record::Record,
+};
 
-pub mod annotations;
-pub mod constraint;
-pub mod data_type;
-pub mod entity;
-pub mod event;
-pub mod field;
-pub mod identifier;
-pub mod metadata;
-pub mod record;
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Clone, Debug, PartialEq)]
-pub struct Schema {
-    /// The name of the model.
-    pub name: Identifier,
-    /// The [`Entity`]s of the model.
-    pub entities: Vec<Entity>,
-    /// The [`Record`]s of the model.
-    pub records: Vec<Record>,
-    /// Annotations of this schema.
-    pub annotations: Annotations,
-}
+pub mod schema;
+pub mod visitor;

@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeSet, HashMap, hash_map::Entry};
 
-use quent_schema::{Schema, constraint::Constraint as SchemaConstraint, data_type::DataType};
+use quent_schema::{Constraint as SchemaConstraint, DataType, Schema};
 
 /// A trait for types that implement a "constraint" of an application event
 /// model.

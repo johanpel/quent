@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{constraint::Constraint, metadata::Metadata};
+use crate::schema::{constraint::Constraint, metadata::Metadata};
 
 /// Annotations for [`crate::Schema`] constituents.
 ///

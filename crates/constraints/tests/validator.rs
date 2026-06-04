@@ -3,16 +3,8 @@
 
 use quent_constraints::{Constraint, Error, Validator};
 use quent_schema::{
-    Schema,
-    annotations::Annotations,
-    constraint::Constraint as SchemaConstraint,
-    data_type::DataType,
-    entity::Entity,
-    event::{Cardinality, Event},
-    field::Field,
-    identifier::Identifier,
-    metadata::Metadata,
-    record::Record,
+    Annotations, Constraint as SchemaConstraint, DataType, Entity, Field, Identifier, Metadata,
+    Record, Schema, {Cardinality, Event},
 };
 
 fn ident(s: &str) -> Identifier {
