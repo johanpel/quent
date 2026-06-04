@@ -340,6 +340,7 @@ macro_rules! tuple_impls {
         }
     };
 }
+tuple_impls!(A => 0);
 tuple_impls!(A => 0, B => 1);
 tuple_impls!(A => 0, B => 1, C => 2);
 tuple_impls!(A => 0, B => 1, C => 2, D => 3);

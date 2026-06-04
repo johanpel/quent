@@ -1,16 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::{Constraint as _, Error as ValidatorError, Validator};
+use quent_constraints::Constraint as _;
 use quent_fsm::{Fsm, FsmConstraint, FsmError};
-use quent_schema::{
-    Schema,
-    annotations::Annotations,
-    constraint::Constraint,
-    entity::Entity,
-    event::{Cardinality, Event},
-    identifier::Identifier,
-};
+use quent_schema::{Annotations, Cardinality, Constraint, Entity, Event, Identifier, Schema};
 
 fn ident(s: &str) -> Identifier {
     Identifier::try_new(s).unwrap()
@@ -76,21 +69,11 @@ fn schema_with(entity: Entity) -> Schema {
 }
 
 fn validate(schema: &Schema) -> Vec<FsmError> {
-    match Validator::default()
-        .try_with(FsmConstraint)
-        .unwrap()
-        .validate(schema)
-    {
+    let report = quent_constraints::validate::<(FsmConstraint,)>(schema);
+    match report.results.0 {
         Ok(()) => Vec::new(),
-        Err(ValidatorError::Invalid { failures, .. }) => {
-            // These tests always register the constraint, so `failures` is non-empty.
-            let (_, source) = failures.into_iter().next().unwrap();
-            match *source.downcast::<FsmError>().unwrap() {
-                FsmError::Multiple(errors) => errors,
-                single => vec![single],
-            }
-        }
-        Err(_) => unreachable!(),
+        Err(FsmError::Multiple(errors)) => errors,
+        Err(single) => vec![single],
     }
 }
 

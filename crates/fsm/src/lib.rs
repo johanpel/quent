@@ -11,7 +11,10 @@ use petgraph::{
     visit::{Bfs, Reversed, Walker},
 };
 use quent_constraints::Constraint;
-use quent_schema::{Schema, entity::Entity, event::Cardinality, identifier::Identifier};
+use quent_schema::{
+    Cardinality, Entity, Identifier,
+    visitor::{Cursor, Element, SchemaIndex, Visitor},
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -130,51 +133,60 @@ impl Fsm {
 /// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
 /// 7. At least one exit transition exists (enforced by [`ExitStates`]).
-pub struct FsmConstraint;
+#[derive(Default)]
+pub struct FsmConstraint {
+    errors: Vec<FsmError>,
+}
+
+impl Visitor for FsmConstraint {
+    type Output = Result<(), FsmError>;
+
+    fn visit(&mut self, cursor: &Cursor, _index: &SchemaIndex) {
+        let Element::Entity(entity) = cursor.current() else {
+            return;
+        };
+        let Some(constraint) = entity
+            .annotations
+            .constraints
+            .iter()
+            .find(|c| c.name == FsmConstraint::NAME)
+        else {
+            return;
+        };
+        let raw = match constraint.data.as_deref() {
+            Some(s) => s,
+            None => {
+                self.errors.push(FsmError::InvalidData {
+                    entity: entity.name.clone(),
+                    message: "constraint data is missing".to_string(),
+                });
+                return;
+            }
+        };
+        let fsm = match serde_json::from_str::<Fsm>(raw) {
+            Ok(f) => f,
+            Err(e) => {
+                self.errors.push(FsmError::InvalidData {
+                    entity: entity.name.clone(),
+                    message: format!("failed to decode fsm: {e}"),
+                });
+                return;
+            }
+        };
+        check_entity(entity, &fsm, &mut self.errors);
+    }
+
+    fn finish(self) -> Self::Output {
+        match self.errors.len() {
+            0 => Ok(()),
+            1 => Err(self.errors.into_iter().next().unwrap()),
+            _ => Err(FsmError::Multiple(self.errors)),
+        }
+    }
+}
 
 impl Constraint for FsmConstraint {
     const NAME: &'static str = "quent.fsm.v1";
-
-    fn validate(&self, schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
-        let mut errors = Vec::new();
-        for entity in &schema.entities {
-            let Some(constraint) = entity
-                .annotations
-                .constraints
-                .iter()
-                .find(|c| c.name == Self::NAME)
-            else {
-                continue;
-            };
-            let raw = match constraint.data.as_deref() {
-                Some(s) => s,
-                None => {
-                    errors.push(FsmError::InvalidData {
-                        entity: entity.name.clone(),
-                        message: "constraint data is missing".to_string(),
-                    });
-                    continue;
-                }
-            };
-            let fsm = match serde_json::from_str::<Fsm>(raw) {
-                Ok(f) => f,
-                Err(e) => {
-                    errors.push(FsmError::InvalidData {
-                        entity: entity.name.clone(),
-                        message: format!("failed to decode fsm: {e}"),
-                    });
-                    continue;
-                }
-            };
-            check_entity(entity, &fsm, &mut errors);
-        }
-
-        match errors.len() {
-            0 => Ok(()),
-            1 => Err(errors.pop().unwrap().into()),
-            _ => Err(FsmError::Multiple(errors).into()),
-        }
-    }
 }
 
 pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {

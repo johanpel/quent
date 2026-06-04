@@ -1,17 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::{Constraint as _, Error as ValidatorError, Validator};
+use quent_constraints::Constraint as _;
 use quent_ref_target::{RefTarget, RefTargetConstraint, RefTargetError};
 use quent_schema::{
-    Schema,
-    annotations::Annotations,
-    constraint::Constraint,
-    data_type::DataType,
-    entity::Entity,
-    event::{Cardinality, Event},
-    field::Field,
-    identifier::Identifier,
+    Annotations, Cardinality, Constraint, DataType, Entity, Event, Field, Identifier, Schema,
 };
 
 fn ident(s: &str) -> Identifier {
@@ -75,20 +68,11 @@ fn schema_with(entities: Vec<Entity>) -> Schema {
 }
 
 fn validate(schema: &Schema) -> Vec<RefTargetError> {
-    match Validator::default()
-        .try_with(RefTargetConstraint)
-        .unwrap()
-        .validate(schema)
-    {
+    let report = quent_constraints::validate::<(RefTargetConstraint,)>(schema);
+    match report.results.0 {
         Ok(()) => Vec::new(),
-        Err(ValidatorError::Invalid { failures, .. }) => {
-            let (_, source) = failures.into_iter().next().unwrap();
-            match *source.downcast::<RefTargetError>().unwrap() {
-                RefTargetError::Multiple(errors) => errors,
-                single => vec![single],
-            }
-        }
-        Err(_) => unreachable!(),
+        Err(RefTargetError::Multiple(errors)) => errors,
+        Err(single) => vec![single],
     }
 }
 

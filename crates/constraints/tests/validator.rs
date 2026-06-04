@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::{Constraint, Error, Validator};
+use quent_constraints::{Constraint, validate};
 use quent_schema::{
-    Annotations, Constraint as SchemaConstraint, DataType, Entity, Field, Identifier, Metadata,
-    Record, Schema, {Cardinality, Event},
+    Annotations, Cardinality, Constraint as SchemaConstraint, DataType, Entity, Event, Field,
+    Identifier, Metadata, Record, Schema,
+    visitor::{Cursor, SchemaIndex, Visitor},
 };
 
 fn ident(s: &str) -> Identifier {
@@ -34,25 +35,34 @@ fn empty_schema() -> Schema {
     }
 }
 
-// A constraint's name is now type-level (`const NAME`), so distinct names
-// require distinct types.
+// A constraint that finds no violations.
+#[derive(Default)]
 struct NoopA;
+impl Visitor for NoopA {
+    type Output = Result<(), Box<dyn std::error::Error>>;
+    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn finish(self) -> Self::Output {
+        Ok(())
+    }
+}
 impl Constraint for NoopA {
     const NAME: &'static str = "a";
-    fn validate(&self, _schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
+}
+
+#[derive(Default)]
+struct NoopB;
+impl Visitor for NoopB {
+    type Output = Result<(), Box<dyn std::error::Error>>;
+    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn finish(self) -> Self::Output {
         Ok(())
     }
 }
-
-struct NoopB;
 impl Constraint for NoopB {
     const NAME: &'static str = "b";
-    fn validate(&self, _schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
 }
 
-// A constraint reports failures through any error type; here a minimal one.
+// A minimal error type for a failing constraint.
 #[derive(Debug)]
 struct Boom(&'static str);
 impl std::fmt::Display for Boom {
@@ -62,36 +72,25 @@ impl std::fmt::Display for Boom {
 }
 impl std::error::Error for Boom {}
 
-struct Failing(&'static str);
-impl Constraint for Failing {
-    const NAME: &'static str = "a";
-    fn validate(&self, _schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
-        Err(Box::new(Boom(self.0)))
+// A constraint that always fails.
+#[derive(Default)]
+struct Failing;
+impl Visitor for Failing {
+    type Output = Result<(), Box<dyn std::error::Error>>;
+    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn finish(self) -> Self::Output {
+        Err(Box::new(Boom("boom")))
     }
 }
-
-#[test]
-fn empty_validator_on_empty_schema_passes() {
-    assert!(Validator::default().validate(&empty_schema()).is_ok());
+impl Constraint for Failing {
+    const NAME: &'static str = "a";
 }
 
 #[test]
-fn try_with_rejects_duplicate_name() {
-    let err = Validator::default()
-        .try_with(NoopA)
-        .unwrap()
-        .try_with(NoopA)
-        .err();
-    assert!(matches!(err, Some(Error::DuplicateConstraint("a"))));
-}
-
-#[test]
-fn try_with_accepts_distinct_names() {
-    Validator::default()
-        .try_with(NoopA)
-        .unwrap()
-        .try_with(NoopB)
-        .unwrap();
+fn passing_constraint_on_empty_schema() {
+    let report = validate::<(NoopA,)>(&empty_schema());
+    assert!(report.unregistered.is_empty());
+    assert!(report.results.0.is_ok());
 }
 
 #[test]
@@ -103,16 +102,10 @@ fn constraint_without_validator_is_unregistered() {
         },
         ..empty_schema()
     };
-    let Error::Invalid {
-        unregistered,
-        failures,
-    } = Validator::default().validate(&schema).unwrap_err()
-    else {
-        panic!("expected Error::Invalid");
-    };
-    assert_eq!(unregistered.len(), 1);
-    assert!(unregistered.contains("unknown"));
-    assert!(failures.is_empty());
+    let report = validate::<(NoopA,)>(&schema);
+    assert_eq!(report.unregistered.len(), 1);
+    assert!(report.unregistered.contains("unknown"));
+    assert!(report.results.0.is_ok());
 }
 
 #[test]
@@ -124,7 +117,8 @@ fn metadata_is_never_validated() {
         },
         ..empty_schema()
     };
-    assert!(Validator::default().validate(&schema).is_ok());
+    let report = validate::<(NoopA,)>(&schema);
+    assert!(report.unregistered.is_empty());
 }
 
 #[test]
@@ -160,37 +154,24 @@ fn unregistered_constraint_is_reported_once() {
             }],
         }],
     };
-    let Error::Invalid { unregistered, .. } = Validator::default().validate(&schema).unwrap_err()
-    else {
-        panic!("expected Error::Invalid");
-    };
+    let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
     assert_eq!(
-        unregistered.into_iter().collect::<Vec<_>>(),
+        report.unregistered.into_iter().collect::<Vec<_>>(),
         vec!["unknown".to_string()]
     );
 }
 
 #[test]
-fn constraint_failures_are_collected() {
-    let Error::Invalid { failures, .. } = Validator::default()
-        .try_with(Failing("boom"))
-        .unwrap()
-        .try_with(NoopB)
-        .unwrap()
-        .validate(&empty_schema())
-        .unwrap_err()
-    else {
-        panic!("expected Error::Invalid");
-    };
-    assert_eq!(failures.len(), 1);
-    let (name, source) = &failures[0];
-    assert_eq!(*name, "a");
-    assert_eq!(source.to_string(), "boom");
+fn constraint_failure_is_reported_per_constraint() {
+    let report = validate::<(Failing, NoopB)>(&empty_schema());
+    assert!(report.results.0.is_err());
+    assert_eq!(report.results.0.as_ref().unwrap_err().to_string(), "boom");
+    assert!(report.results.1.is_ok());
 }
 
 #[test]
-fn unregistered_and_constraint_failures_aggregate() {
+fn unregistered_and_failure_aggregate() {
     let schema = Schema {
         annotations: Annotations {
             constraints: vec![constraint("unknown")],
@@ -198,18 +179,7 @@ fn unregistered_and_constraint_failures_aggregate() {
         },
         ..empty_schema()
     };
-    let Error::Invalid {
-        unregistered,
-        failures,
-    } = Validator::default()
-        .try_with(Failing("boom"))
-        .unwrap()
-        .validate(&schema)
-        .unwrap_err()
-    else {
-        panic!("expected Error::Invalid");
-    };
-    assert!(unregistered.contains("unknown"));
-    assert_eq!(failures.len(), 1);
-    assert_eq!(failures[0].0, "a");
+    let report = validate::<(Failing,)>(&schema);
+    assert!(report.unregistered.contains("unknown"));
+    assert!(report.results.0.is_err());
 }
