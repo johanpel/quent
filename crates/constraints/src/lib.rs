@@ -3,6 +3,7 @@
 
 //! # Constraint trait and validation for [`Schema`]s.
 
+pub mod consistency;
 pub mod utils;
 
 use std::collections::{BTreeSet, HashSet};
@@ -11,6 +12,8 @@ use quent_schema::{
     Schema,
     visitor::{Cursor, Element, IndexedSchema, Visitor},
 };
+
+use crate::consistency::{DuplicateNames, UnresolvedReferences};
 
 /// A trait for types that implement a "constraint" of an application event
 /// model.
@@ -43,7 +46,11 @@ pub trait Constraint: Visitor + Default {
 pub struct Report<R> {
     /// Constraint names referenced by the schema that no validated constraint
     /// handles.
-    pub unregistered: BTreeSet<String>,
+    pub unregistered_constraints: Vec<String>,
+    /// Duplicate definitions
+    pub duplicate_definitions: Vec<String>,
+    /// Invalid references
+    pub invalid_references: Vec<String>,
     /// Each constraint's own result, in tuple order matching the validated
     /// constraints.
     pub results: R,
@@ -58,34 +65,41 @@ pub struct Report<R> {
 /// assert!(report.unregistered.is_empty());
 /// ```
 pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> {
-    let registered: HashSet<&'static str> = C::names().into_iter().collect();
-    let (unregistered, results) = schema.walk(ConstraintScan {
-        registered: &registered,
-        unregistered: BTreeSet::new(),
-        inner: C::default(),
-    });
+    let registered: HashSet<&'static str> = C::NAMES.iter().copied().collect();
+    // The internal-consistency checks ride along in the same walk, so the
+    // schema is indexed and traversed exactly once for everything.
+    let (duplicate_definitions, invalid_references, (unregistered_constraints, results)) = schema
+        .walk((
+            DuplicateNames::default(),
+            UnresolvedReferences::default(),
+            ConstraintScan {
+                registered: &registered,
+                unregistered: BTreeSet::new(),
+                inner: C::default(),
+            },
+        ));
     Report {
-        unregistered,
+        unregistered_constraints: unregistered_constraints.into_iter().collect(),
+        duplicate_definitions,
+        invalid_references,
         results,
     }
 }
 
 /// A tuple of [`Constraint`]s that can be validated together in one walk.
-///
-/// Implemented for tuples of constraints; [`names`](Constraints::names) collects
-/// their [`Constraint::NAME`]s so [`validate`] can tell which constraints the
-/// schema references but no member handles.
 pub trait Constraints: Visitor {
     /// The [`Constraint::NAME`] of every constraint in the tuple.
-    fn names() -> Vec<&'static str>;
+    const NAMES: &'static [&'static str];
 }
 
+// Enables validate::<()>(schema)
+impl Constraints for () {
+    const NAMES: &'static [&'static str] = &[];
+}
 macro_rules! constraints_impls {
     ($($T:ident),+) => {
         impl<$($T: Constraint),+> Constraints for ($($T,)+) {
-            fn names() -> Vec<&'static str> {
-                vec![$($T::NAME),+]
-            }
+            const NAMES: &'static [&'static str] = &[$($T::NAME),+];
         }
     };
 }

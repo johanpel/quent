@@ -89,7 +89,7 @@ impl Constraint for Failing {
 #[test]
 fn passing_constraint_on_empty_schema() {
     let report = validate::<(NoopA,)>(&empty_schema());
-    assert!(report.unregistered.is_empty());
+    assert!(report.unregistered_constraints.is_empty());
     assert!(report.results.0.is_ok());
 }
 
@@ -103,8 +103,13 @@ fn constraint_without_validator_is_unregistered() {
         ..empty_schema()
     };
     let report = validate::<(NoopA,)>(&schema);
-    assert_eq!(report.unregistered.len(), 1);
-    assert!(report.unregistered.contains("unknown"));
+    assert_eq!(report.unregistered_constraints.len(), 1);
+    assert!(
+        report
+            .unregistered_constraints
+            .iter()
+            .any(|c| c == "unknown")
+    );
     assert!(report.results.0.is_ok());
 }
 
@@ -118,7 +123,7 @@ fn metadata_is_never_validated() {
         ..empty_schema()
     };
     let report = validate::<(NoopA,)>(&schema);
-    assert!(report.unregistered.is_empty());
+    assert!(report.unregistered_constraints.is_empty());
 }
 
 #[test]
@@ -157,7 +162,10 @@ fn unregistered_constraint_is_reported_once() {
     let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
     assert_eq!(
-        report.unregistered.into_iter().collect::<Vec<_>>(),
+        report
+            .unregistered_constraints
+            .into_iter()
+            .collect::<Vec<_>>(),
         vec!["unknown".to_string()]
     );
 }
@@ -180,6 +188,74 @@ fn unregistered_and_failure_aggregate() {
         ..empty_schema()
     };
     let report = validate::<(Failing,)>(&schema);
-    assert!(report.unregistered.contains("unknown"));
+    assert!(
+        report
+            .unregistered_constraints
+            .iter()
+            .any(|c| c == "unknown")
+    );
     assert!(report.results.0.is_err());
+}
+
+#[test]
+fn consistency_is_always_checked_in_the_same_walk() {
+    let entity = |name: &str| Entity {
+        name: ident(name),
+        annotations: Annotations::default(),
+        events: vec![],
+    };
+    // A duplicate entity and a field referencing a record that does not exist.
+    let schema = Schema {
+        name: ident("S"),
+        annotations: Annotations::default(),
+        entities: vec![
+            entity("Dup"),
+            entity("Dup"),
+            Entity {
+                name: ident("E"),
+                annotations: Annotations::default(),
+                events: vec![Event {
+                    name: ident("Ev"),
+                    cardinality: Cardinality::Once,
+                    annotations: Annotations::default(),
+                    payload: vec![Field {
+                        name: ident("f"),
+                        ty: DataType::Record(ident("ghost")),
+                        annotations: Annotations::default(),
+                    }],
+                }],
+            },
+        ],
+        records: vec![],
+    };
+    let report = validate::<(NoopA,)>(&schema);
+    // The constraint passed, but the schema is internally inconsistent: a
+    // duplicate entity and a reference to a record that does not exist.
+    assert!(report.results.0.is_ok());
+    assert_eq!(report.duplicate_definitions.len(), 1);
+    assert_eq!(report.invalid_references.len(), 1);
+}
+
+#[test]
+fn validates_consistency_with_no_constraints() {
+    let entity = |name: &str| Entity {
+        name: ident(name),
+        annotations: Annotations::default(),
+        events: vec![],
+    };
+    let schema = Schema {
+        name: ident("S"),
+        annotations: Annotations::default(),
+        entities: vec![entity("Dup"), entity("Dup")],
+        records: vec![],
+    };
+    // No constraints, just the always-on consistency checks.
+    let report = validate::<()>(&schema);
+    assert_eq!(report.results, ());
+    assert_eq!(report.duplicate_definitions.len(), 1);
+    assert!(report.invalid_references.is_empty());
+
+    let clean = validate::<()>(&empty_schema());
+    assert!(clean.duplicate_definitions.is_empty());
+    assert!(clean.invalid_references.is_empty());
 }

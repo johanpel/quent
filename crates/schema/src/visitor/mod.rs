@@ -249,6 +249,14 @@ fn walk_data_type<'s, V: Visitor>(
     cursor.leave();
 }
 
+// The empty visitor: visits nothing, produces nothing. Lets a walk run with no
+// visitor of its own.
+impl Visitor for () {
+    type Output = ();
+    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+    fn finish(self) -> Self::Output {}
+}
+
 // Macro to create impls for tuples of visitors, so output can be collected
 // without having to upcast.
 macro_rules! tuple_impls {
@@ -519,6 +527,38 @@ mod test {
             event.field(&ident("f")),
             Err(LookupError::Duplicate(n)) if n == "f"
         ));
+    }
+
+    #[test]
+    fn duplicate_paths_are_scoped_per_collection() {
+        let event = |name: &str| Event {
+            name: ident(name),
+            cardinality: Cardinality::Once,
+            annotations: Annotations::default(),
+            payload: vec![],
+        };
+        let entity = |name: &str, events: Vec<Event>| Entity {
+            name: ident(name),
+            annotations: Annotations::default(),
+            events,
+        };
+        let schema = Schema {
+            name: ident("S"),
+            annotations: Annotations::default(),
+            // The same event name under two different entities is not a clash;
+            // a repeated event name within one entity is.
+            entities: vec![
+                entity("E1", vec![event("Ev")]),
+                entity("E2", vec![event("Ev")]),
+                entity("E3", vec![event("Dup"), event("Dup")]),
+            ],
+            records: vec![],
+        };
+        let index = IndexedSchema::new(&schema);
+        assert_eq!(
+            index.duplicate_paths().to_vec(),
+            vec!["S.E3.Dup".to_string()]
+        );
     }
 
     #[test]
@@ -818,7 +858,7 @@ mod test {
             sa.metadata(metadata_name).unwrap().data.as_deref(),
             Some("schema-meta")
         );
-        assert!(sa.constraint("missing").is_none());
+        assert!(sa.constraint("missing").is_err());
 
         // Entity annotations.
         let entity = index.entity(&ident("E")).unwrap();
@@ -835,7 +875,7 @@ mod test {
 
         // Empty annotations, so constraint is absent.
         let event = entity.event(&ident("Ev")).unwrap();
-        assert!(event.annotations().constraint(constraint_name).is_none());
+        assert!(event.annotations().constraint(constraint_name).is_err());
 
         // Event field annotations.
         assert_eq!(

@@ -12,20 +12,17 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LookupError {
     /// No element is declared under the queried name.
-    Missing(Identifier),
+    Missing(String),
     /// The name is declared more than once in its scope, so the lookup is
     /// ambiguous.
-    Duplicate(Identifier),
+    Duplicate(String),
 }
 
 impl std::fmt::Display for LookupError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Missing(name) => write!(f, "unknown identifier \"{name}\""),
-            Self::Duplicate(name) => write!(
-                f,
-                "schema element with identifier \"{name}\" is declared more than once"
-            ),
+            Self::Missing(name) => write!(f, "unknown name \"{name}\""),
+            Self::Duplicate(name) => write!(f, "name \"{name}\" is declared more than once"),
         }
     }
 }
@@ -38,16 +35,37 @@ pub struct IndexedSchema<'s> {
     annotations: IndexedAnnotations<'s>,
     entities: HashMap<&'s Identifier, Result<IndexedEntity<'s>, LookupError>>,
     records: HashMap<&'s Identifier, Result<IndexedRecord<'s>, LookupError>>,
+    duplicates: Vec<String>,
 }
 
 impl<'s> IndexedSchema<'s> {
-    /// Indexes every named element of `schema`.
+    /// Indexes every named element of `schema`, recording the path to every
+    /// duplicated key along the way.
     pub fn new(schema: &'s Schema) -> Self {
+        let path = schema.name.to_string();
+        let mut duplicates = Vec::new();
+        let annotations = IndexedAnnotations::new(&schema.annotations, &path, &mut duplicates);
+        let entities = index_by(
+            &schema.entities,
+            |e| &e.name,
+            &path,
+            &mut duplicates,
+            IndexedEntity::new,
+        );
+        let records = index_by(
+            &schema.records,
+            |r| &r.name,
+            &path,
+            &mut duplicates,
+            IndexedRecord::new,
+        );
+        duplicates.sort_unstable();
         Self {
             schema,
-            annotations: IndexedAnnotations::new(&schema.annotations),
-            entities: index_by(&schema.entities, |e| &e.name, IndexedEntity::new),
-            records: index_by(&schema.records, |r| &r.name, IndexedRecord::new),
+            annotations,
+            entities,
+            records,
+            duplicates,
         }
     }
 
@@ -70,6 +88,15 @@ impl<'s> IndexedSchema<'s> {
     pub fn record(&self, name: &Identifier) -> Result<&IndexedRecord<'s>, LookupError> {
         index_get(&self.records, name)
     }
+
+    /// The path to every name declared more than once in its scope — across
+    /// entities, records, an entity's events, an event's/record's fields, and
+    /// the constraint and metadata names on any element's annotations.
+    ///
+    /// Computed while indexing; this is just the result, sorted.
+    pub fn duplicate_paths(&self) -> &[String] {
+        &self.duplicates
+    }
 }
 
 /// An indexed [`Entity`] and its named events.
@@ -80,11 +107,17 @@ pub struct IndexedEntity<'s> {
 }
 
 impl<'s> IndexedEntity<'s> {
-    fn new(entity: &'s Entity) -> Self {
+    fn new(entity: &'s Entity, path: &str, duplicates: &mut Vec<String>) -> Self {
         Self {
             entity,
-            annotations: IndexedAnnotations::new(&entity.annotations),
-            events: index_by(&entity.events, |e| &e.name, IndexedEvent::new),
+            annotations: IndexedAnnotations::new(&entity.annotations, path, duplicates),
+            events: index_by(
+                &entity.events,
+                |e| &e.name,
+                path,
+                duplicates,
+                IndexedEvent::new,
+            ),
         }
     }
 
@@ -112,11 +145,17 @@ pub struct IndexedEvent<'s> {
 }
 
 impl<'s> IndexedEvent<'s> {
-    fn new(event: &'s Event) -> Self {
+    fn new(event: &'s Event, path: &str, duplicates: &mut Vec<String>) -> Self {
         Self {
             event,
-            annotations: IndexedAnnotations::new(&event.annotations),
-            fields: index_by(&event.payload, |f| &f.name, IndexedField::new),
+            annotations: IndexedAnnotations::new(&event.annotations, path, duplicates),
+            fields: index_by(
+                &event.payload,
+                |f| &f.name,
+                path,
+                duplicates,
+                IndexedField::new,
+            ),
         }
     }
 
@@ -144,11 +183,17 @@ pub struct IndexedRecord<'s> {
 }
 
 impl<'s> IndexedRecord<'s> {
-    fn new(record: &'s Record) -> Self {
+    fn new(record: &'s Record, path: &str, duplicates: &mut Vec<String>) -> Self {
         Self {
             record,
-            annotations: IndexedAnnotations::new(&record.annotations),
-            fields: index_by(&record.fields, |f| &f.name, IndexedField::new),
+            annotations: IndexedAnnotations::new(&record.annotations, path, duplicates),
+            fields: index_by(
+                &record.fields,
+                |f| &f.name,
+                path,
+                duplicates,
+                IndexedField::new,
+            ),
         }
     }
 
@@ -175,10 +220,10 @@ pub struct IndexedField<'s> {
 }
 
 impl<'s> IndexedField<'s> {
-    fn new(field: &'s Field) -> Self {
+    fn new(field: &'s Field, path: &str, duplicates: &mut Vec<String>) -> Self {
         Self {
             field,
-            annotations: IndexedAnnotations::new(&field.annotations),
+            annotations: IndexedAnnotations::new(&field.annotations, path, duplicates),
         }
     }
 
@@ -195,34 +240,34 @@ impl<'s> IndexedField<'s> {
 
 /// Annotations indexed by their name.
 pub struct IndexedAnnotations<'s> {
-    constraints: HashMap<&'s str, &'s SchemaConstraint>,
-    metadata: HashMap<&'s str, &'s Metadata>,
+    constraints: HashMap<&'s str, Result<&'s SchemaConstraint, LookupError>>,
+    metadata: HashMap<&'s str, Result<&'s Metadata, LookupError>>,
 }
 
 impl<'s> IndexedAnnotations<'s> {
-    fn new(annotations: &'s Annotations) -> Self {
+    fn new(annotations: &'s Annotations, path: &str, duplicates: &mut Vec<String>) -> Self {
         Self {
-            constraints: annotations
-                .constraints
-                .iter()
-                .map(|c| (c.name.as_str(), c))
-                .collect(),
-            metadata: annotations
-                .metadata
-                .iter()
-                .map(|m| (m.name.as_str(), m))
-                .collect(),
+            constraints: index_named(
+                annotations.constraints.iter().map(|c| (c.name.as_str(), c)),
+                path,
+                duplicates,
+            ),
+            metadata: index_named(
+                annotations.metadata.iter().map(|m| (m.name.as_str(), m)),
+                path,
+                duplicates,
+            ),
         }
     }
 
-    /// The constraint named `name`, if present.
-    pub fn constraint(&self, name: &str) -> Option<&'s SchemaConstraint> {
-        self.constraints.get(name).copied()
+    /// The constraint named `name`.
+    pub fn constraint(&self, name: &str) -> Result<&'s SchemaConstraint, LookupError> {
+        index_get_str(&self.constraints, name)
     }
 
-    /// The metadata entry named `name`, if present.
-    pub fn metadata(&self, name: &str) -> Option<&'s Metadata> {
-        self.metadata.get(name).copied()
+    /// The metadata entry named `name`.
+    pub fn metadata(&self, name: &str) -> Result<&'s Metadata, LookupError> {
+        index_get_str(&self.metadata, name)
     }
 }
 
@@ -233,21 +278,67 @@ fn index_get<'a, V>(
     match map.get(name) {
         Some(Ok(value)) => Ok(value),
         Some(Err(error)) => Err(error.clone()),
-        None => Err(LookupError::Missing(name.clone())),
+        None => Err(LookupError::Missing(name.to_string())),
     }
 }
 
+fn index_get_str<V: Copy>(
+    map: &HashMap<&str, Result<V, LookupError>>,
+    name: &str,
+) -> Result<V, LookupError> {
+    match map.get(name) {
+        Some(Ok(value)) => Ok(*value),
+        Some(Err(error)) => Err(error.clone()),
+        None => Err(LookupError::Missing(name.to_string())),
+    }
+}
+
+/// Index `items` by an [`Identifier`] key, building each value through `value`
+/// and recording the path to every duplicated key under `parent`. The first
+/// occurrence of a name keeps its value; a repeat collapses the slot to
+/// [`LookupError::Duplicate`].
 fn index_by<'s, T, V>(
     items: &'s [T],
     key: impl Fn(&'s T) -> &'s Identifier,
-    value: impl Fn(&'s T) -> V,
+    parent: &str,
+    duplicates: &mut Vec<String>,
+    value: impl Fn(&'s T, &str, &mut Vec<String>) -> V,
 ) -> HashMap<&'s Identifier, Result<V, LookupError>> {
-    let mut map = HashMap::default();
+    let mut map: HashMap<&'s Identifier, Result<V, LookupError>> = HashMap::default();
     for item in items {
         let name = key(item);
-        map.entry(name)
-            .and_modify(|slot| *slot = Err(LookupError::Duplicate(name.clone())))
-            .or_insert_with(|| Ok(value(item)));
+        let path = format!("{parent}.{name}");
+        if let Some(slot) = map.get_mut(name) {
+            if slot.is_ok() {
+                *slot = Err(LookupError::Duplicate(name.to_string()));
+                duplicates.push(path);
+            }
+        } else {
+            let value = value(item, &path, duplicates);
+            map.insert(name, Ok(value));
+        }
+    }
+    map
+}
+
+/// Index `items` by a string key, recording the path to every duplicated name
+/// under `parent` as an annotation key. Mirrors [`index_by`] for the flat
+/// constraint and metadata name-spaces.
+fn index_named<'s, V>(
+    items: impl Iterator<Item = (&'s str, V)>,
+    parent: &str,
+    duplicates: &mut Vec<String>,
+) -> HashMap<&'s str, Result<V, LookupError>> {
+    let mut map: HashMap<&'s str, Result<V, LookupError>> = HashMap::default();
+    for (name, value) in items {
+        if let Some(slot) = map.get_mut(name) {
+            if slot.is_ok() {
+                *slot = Err(LookupError::Duplicate(name.to_string()));
+                duplicates.push(format!("{parent}.Annotations.{name}"));
+            }
+        } else {
+            map.insert(name, Ok(value));
+        }
     }
     map
 }
