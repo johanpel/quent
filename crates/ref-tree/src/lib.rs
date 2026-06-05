@@ -12,18 +12,31 @@ use quent_schema::{
 };
 use thiserror::Error;
 
-/// Constraint to express a tree connecting all entities within a graph where
-/// vertices represent entities and edges represent entity references.
+/// Constrains the graph of entities (as vertices) and entity references (as
+/// edges) to contain a subgraph that is a tree connecting all entities.
 ///
 /// This constraint can be used for arbitrary purposes. Its canonical purpose
 /// is to provide some "preferred" way of traversing entities and their events
-/// from a single starting point (the root entity), e.g. such that some user
-/// interface can help a human traverse the trace in this preferred way.
+/// from a single starting point (the root entity).
 ///
 /// References annotated with this constraint are typically used (but not
 /// limited) to express:
-/// - Causal relations (e.g. entity Y was produced by entity X)
-/// - Hierarchical relations (e.g. entity Y is part of / owned by / scoped by X)
+///
+/// - **Hierarchical relations**, for example: "entity X ... entity Y"
+///     - is part of
+///     - is owned by
+///     - is scoped by
+///     - is parented by
+///     - sits under
+/// - **Causal relations**, for example: "entity X ...entity Y"
+///     - is spawned by
+///     - is produced by
+///     - exists because of
+///
+/// These types of references are typically not used to express:
+/// - **Structural references** at the same hierarchical level, for example:
+///   entity X is attached to Y (often causes loops)
+/// - Dataflow directionality (E.g. entity X is moved into Y)
 ///
 /// In order for instrumentation libraries to provide strong guarantees
 /// (typically compile-time) that this constraint is met, the tree must be fully
@@ -39,7 +52,7 @@ use thiserror::Error;
 /// 1. The schema has exactly one entity (a.k.a. the root entity) that does not
 ///    carry an entity reference annotated with this constraint in any of its
 ///    events.
-/// 2. Every non-root entity has at least one event carrying an entity
+/// 2. Every non-root entity has _at least one event_ carrying an entity
 ///    reference annotated with this constraint to declare it refers to exactly
 ///    one type of parent entity in the tree (a.k.a. a parent entity reference).
 /// 3. Every parent entity reference must be target-constrained (carry a
@@ -61,8 +74,8 @@ use thiserror::Error;
 /// produces an unambiguous event stream with regards to this tree-forming
 /// constraint.
 ///
-/// This constraint intentionally defers any potential resolution to the problem
-/// of clients producing ambiguous event streams to schema producer / consumer
+/// This constraint intentionally defers any potential solution for clients
+/// producing ambiguous event streams to schema producer / consumer
 /// implementations.
 ///
 /// For example, a modeling API or DSL _could_ decide to enforce FSM entities to
