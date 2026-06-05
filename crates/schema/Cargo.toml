@@ -7,13 +7,12 @@ publish.workspace = true
 [features]
 default = ["visitor"]
 serde = ["dep:serde"]
-# Schema traversal (`Schema::walk`, `Visitor`, `SchemaIndex`). On by default;
-# opt out with `default-features = false`.
-visitor = ["dep:rustc-hash"]
+visitor = ["dep:rustc-hash", "dep:smallvec"]
 
 [dependencies]
 rustc-hash = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+smallvec = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

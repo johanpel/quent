@@ -5,7 +5,7 @@ use quent_constraints::{Constraint, validate};
 use quent_schema::{
     Annotations, Cardinality, Constraint as SchemaConstraint, DataType, Entity, Event, Field,
     Identifier, Metadata, Record, Schema,
-    visitor::{Cursor, SchemaIndex, Visitor},
+    visitor::{Cursor, IndexedSchema, Visitor},
 };
 
 fn ident(s: &str) -> Identifier {
@@ -40,7 +40,7 @@ fn empty_schema() -> Schema {
 struct NoopA;
 impl Visitor for NoopA {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
     fn finish(self) -> Self::Output {
         Ok(())
     }
@@ -53,7 +53,7 @@ impl Constraint for NoopA {
 struct NoopB;
 impl Visitor for NoopB {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
     fn finish(self) -> Self::Output {
         Ok(())
     }
@@ -77,7 +77,7 @@ impl std::error::Error for Boom {}
 struct Failing;
 impl Visitor for Failing {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &SchemaIndex) {}
+    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
     fn finish(self) -> Self::Output {
         Err(Box::new(Boom("boom")))
     }

@@ -3,11 +3,13 @@
 
 //! # Constraint trait and validation for [`Schema`]s.
 
+pub mod utils;
+
 use std::collections::{BTreeSet, HashSet};
 
 use quent_schema::{
     Schema,
-    visitor::{Cursor, Element, SchemaIndex, Visitor},
+    visitor::{Cursor, Element, IndexedSchema, Visitor},
 };
 
 /// A trait for types that implement a "constraint" of an application event
@@ -35,6 +37,37 @@ pub trait Constraint: Visitor + Default {
     /// between dependencies, and provides a means of easily detecting breaking
     /// changes to the constraint's own schema.
     const NAME: &'static str;
+}
+
+/// The outcome of [`validate`].
+pub struct Report<R> {
+    /// Constraint names referenced by the schema that no validated constraint
+    /// handles.
+    pub unregistered: BTreeSet<String>,
+    /// Each constraint's own result, in tuple order matching the validated
+    /// constraints.
+    pub results: R,
+}
+
+/// Validates (a tuple of) [`Constraint`]s against `schema`.
+///
+/// ```ignore
+/// let { unregistered, (some_result, other_result) } = validate::<(SomeConstraint, OtherConstraint)>(&schema);
+/// some_result?;
+/// other_result?;
+/// assert!(report.unregistered.is_empty());
+/// ```
+pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> {
+    let registered: HashSet<&'static str> = C::names().into_iter().collect();
+    let (unregistered, results) = schema.walk(ConstraintScan {
+        registered: &registered,
+        unregistered: BTreeSet::new(),
+        inner: C::default(),
+    });
+    Report {
+        unregistered,
+        results,
+    }
 }
 
 /// A tuple of [`Constraint`]s that can be validated together in one walk.
@@ -69,52 +102,17 @@ constraints_impls!(A, B, C, D, E, F, G, H, I, J);
 constraints_impls!(A, B, C, D, E, F, G, H, I, J, K);
 constraints_impls!(A, B, C, D, E, F, G, H, I, J, K, L);
 
-/// The outcome of [`validate`].
-pub struct Report<R> {
-    /// Constraint names referenced by the schema that no validated constraint
-    /// handles.
-    pub unregistered: BTreeSet<String>,
-    /// Each constraint's own result, in tuple order matching the validated
-    /// constraints.
-    pub results: R,
-}
-
-/// Validates a tuple of [`Constraint`]s against `schema` in a single walk.
-///
-/// The constraint tuple is named in the turbofish and constructed via
-/// [`Default`], so no constraint is instantiated at the call site:
-///
-/// ```ignore
-/// let report = validate::<(MyConstraint, OtherConstraint)>(&schema);
-/// report.results.0?; // MyConstraint's own Result
-/// report.results.1?; // OtherConstraint's own Result
-/// assert!(report.unregistered.is_empty());
-/// ```
-pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> {
-    let registered: HashSet<&'static str> = C::names().into_iter().collect();
-    let (unregistered, results) = schema.walk(WithScan {
-        registered: &registered,
-        unregistered: BTreeSet::new(),
-        inner: C::default(),
-    });
-    Report {
-        unregistered,
-        results,
-    }
-}
-
-/// Wraps a constraint tuple to also collect unregistered constraint names in the
-/// same walk.
-struct WithScan<'a, C> {
+/// Utility visitor wrapping around constraints to collect any unregistered
+/// constraint names.
+struct ConstraintScan<'a, C> {
     registered: &'a HashSet<&'static str>,
     unregistered: BTreeSet<String>,
     inner: C,
 }
 
-impl<C: Visitor> Visitor for WithScan<'_, C> {
+impl<C: Visitor> Visitor for ConstraintScan<'_, C> {
     type Output = (BTreeSet<String>, C::Output);
-
-    fn visit(&mut self, cursor: &Cursor, index: &SchemaIndex) {
+    fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
         if let Element::Annotations(annotations) = cursor.current() {
             for constraint in &annotations.constraints {
                 if !self.registered.contains(constraint.name.as_str()) {
@@ -124,7 +122,6 @@ impl<C: Visitor> Visitor for WithScan<'_, C> {
         }
         self.inner.visit(cursor, index);
     }
-
     fn finish(self) -> Self::Output {
         (self.unregistered, self.inner.finish())
     }

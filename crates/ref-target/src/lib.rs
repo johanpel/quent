@@ -3,10 +3,10 @@
 
 //! Constraint for entity reference restricting the type of entity it can point to.
 
-use quent_constraints::Constraint;
+use quent_constraints::{Constraint, utils::join_errors};
 use quent_schema::{
     DataType, Identifier,
-    visitor::{Cursor, Element, LookupError, SchemaIndex, Visitor},
+    visitor::{Cursor, Element, IndexedSchema, LookupError, Visitor},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -32,7 +32,7 @@ pub struct RefTargetConstraint {
 impl Visitor for RefTargetConstraint {
     type Output = Result<(), RefTargetError>;
 
-    fn visit(&mut self, cursor: &Cursor, index: &SchemaIndex) {
+    fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
         let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current() else {
             return;
         };
@@ -43,7 +43,7 @@ impl Visitor for RefTargetConstraint {
         else {
             return;
         };
-        let location = location(cursor);
+        let location = cursor.to_string();
         match constraint.data.as_deref() {
             None => self.errors.push(RefTargetError::InvalidData {
                 location,
@@ -82,33 +82,6 @@ impl Constraint for RefTargetConstraint {
     const NAME: &'static str = "quent.ref-target.v1";
 }
 
-/// Builds a human-readable location for the element currently under the cursor,
-/// e.g. `entity "E" event "Ev" field "f"` or `record "R" field "rf"`.
-fn location(cursor: &Cursor) -> String {
-    let mut entity = None;
-    let mut event = None;
-    let mut record = None;
-    let mut field = None;
-    for &element in cursor.elements() {
-        match element {
-            Element::Entity(e) => entity = Some(e.name.to_string()),
-            Element::Event(e) => event = Some(e.name.to_string()),
-            Element::Record(r) => record = Some(r.name.to_string()),
-            Element::Field(f) => field = Some(f.name.to_string()),
-            _ => {}
-        }
-    }
-    let field = field.unwrap_or_default();
-    match record {
-        Some(record) => format!("record \"{record}\" field \"{field}\""),
-        None => format!(
-            "entity \"{}\" event \"{}\" field \"{field}\"",
-            entity.unwrap_or_default(),
-            event.unwrap_or_default(),
-        ),
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum RefTargetError {
     #[error("{location}: invalid ref-target data: {message}")]
@@ -120,12 +93,4 @@ pub enum RefTargetError {
     },
     #[error("multiple ref-target violations:\n{}", join_errors(.0))]
     Multiple(Vec<RefTargetError>),
-}
-
-fn join_errors(errors: &[RefTargetError]) -> String {
-    errors
-        .iter()
-        .map(|e| format!("  - {e}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }

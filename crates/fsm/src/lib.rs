@@ -10,10 +10,10 @@ use petgraph::{
     graphmap::DiGraphMap,
     visit::{Bfs, Reversed, Walker},
 };
-use quent_constraints::Constraint;
+use quent_constraints::{Constraint, utils::join_errors};
 use quent_schema::{
     Cardinality, Entity, Identifier,
-    visitor::{Cursor, Element, SchemaIndex, Visitor},
+    visitor::{Cursor, Element, IndexedSchema, Visitor},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -141,7 +141,7 @@ pub struct FsmConstraint {
 impl Visitor for FsmConstraint {
     type Output = Result<(), FsmError>;
 
-    fn visit(&mut self, cursor: &Cursor, _index: &SchemaIndex) {
+    fn visit(&mut self, cursor: &Cursor, _index: &IndexedSchema) {
         let Element::Entity(entity) = cursor.current() else {
             return;
         };
@@ -361,12 +361,4 @@ pub enum FsmError {
     },
     #[error("multiple fsm violations:\n{}", join_errors(.0))]
     Multiple(Vec<FsmError>),
-}
-
-fn join_errors(errors: &[FsmError]) -> String {
-    errors
-        .iter()
-        .map(|e| format!("  - {e}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }
