@@ -5,10 +5,11 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use quent_constraints::Constraint;
+use quent_constraints::{Constraint, utils::join_errors};
 use quent_ref_target::{RefTarget, RefTargetConstraint};
 use quent_schema::{
-    Schema, annotations::Annotations, data_type::DataType, identifier::Identifier, record::Record,
+    Annotations, DataType, Entity, Identifier, Record,
+    visitor::{Cursor, Element, Visitor},
 };
 use thiserror::Error;
 
@@ -83,20 +84,39 @@ use thiserror::Error;
 /// _could_ error on emitting a second parent-declaring event if it changes the
 /// reference value. An analysis library _could_ produce an error when an event
 /// stream is ingested exhibiting this ambiguity.
-pub struct RefTreeConstraint;
+#[derive(Default)]
+pub struct RefTreeConstraint {
+    entities: Vec<Entity>,
+    records: Vec<Record>,
+}
+
+impl Visitor for RefTreeConstraint {
+    type Output = Result<(), RefTreeError>;
+
+    fn visit(&mut self, cursor: &Cursor) {
+        // The tree is a global property of the schema, and the walk treats a
+        // record reference as a leaf. Harvest the entities and records and form
+        // the tree in `finish`, descending records there.
+        match cursor.current() {
+            Element::Entity(entity) => self.entities.push(entity.clone()),
+            Element::Record(record) => self.records.push(record.clone()),
+            _ => {}
+        }
+    }
+
+    fn finish(self) -> Self::Output {
+        let mut errors = Vec::new();
+        check_tree(&self.entities, &self.records, &mut errors);
+        match errors.len() {
+            0 => Ok(()),
+            1 => Err(errors.pop().unwrap()),
+            _ => Err(RefTreeError::Multiple(errors)),
+        }
+    }
+}
 
 impl Constraint for RefTreeConstraint {
     const NAME: &'static str = "quent.ref-tree.v1";
-
-    fn validate(&self, schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
-        let mut errors = Vec::new();
-        check_tree(schema, &mut errors);
-        match errors.len() {
-            0 => Ok(()),
-            1 => Err(errors.pop().unwrap().into()),
-            _ => Err(RefTreeError::Multiple(errors).into()),
-        }
-    }
 }
 
 /// A tree-forming reference gathered from an entity's events.
@@ -109,7 +129,7 @@ enum TreeRef {
     TypeErased { location: String },
 }
 
-/// Index into [`Schema::entities`]; never interchanged with a name or a count.
+/// Index into the harvested entities; never interchanged with a name or a count.
 #[derive(Clone, Copy)]
 struct EntityIdx(usize);
 
@@ -120,28 +140,28 @@ struct NonRoot {
     parent: EntityIdx,
 }
 
-fn check_tree(schema: &Schema, errors: &mut Vec<RefTreeError>) {
-    let n = schema.entities.len();
+fn check_tree(entities: &[Entity], records: &[Record], errors: &mut Vec<RefTreeError>) {
+    let n = entities.len();
 
     // Gather, per entity, the tree-forming references its events declare,
     // descending through Option/List, reference payloads and record fields. At
     // most one is allowed per event (req. 2's parenthetical).
     let mut refs_by_entity: Vec<Vec<TreeRef>> = (0..n).map(|_| Vec::new()).collect();
-    for (i, entity) in schema.entities.iter().enumerate() {
-        for event in &entity.events {
+    for (i, entity) in entities.iter().enumerate() {
+        for event in entity.events() {
             let mut in_event = Vec::new();
-            for field in &event.payload {
+            for field in event.fields() {
                 let loc = Loc::Field {
-                    entity: &entity.name,
-                    event: &event.name,
-                    field: &field.name,
+                    entity: entity.name(),
+                    event: event.name(),
+                    field: field.name(),
                 };
-                collect_refs(&field.ty, &loc, &schema.records, &mut in_event);
+                collect_refs(field.ty(), &loc, records, &mut in_event);
             }
             if in_event.len() > 1 {
                 errors.push(RefTreeError::MultiplePerEvent {
-                    entity: entity.name.clone(),
-                    event: event.name.clone(),
+                    entity: entity.name().clone(),
+                    event: event.name().clone(),
                     count: in_event.len(),
                 });
             }
@@ -181,7 +201,7 @@ fn check_tree(schema: &Schema, errors: &mut Vec<RefTreeError>) {
         _ => {
             let mut names: Vec<Identifier> = roots
                 .iter()
-                .map(|idx| schema.entities[idx.0].name.clone())
+                .map(|idx| entities[idx.0].name().clone())
                 .collect();
             names.sort();
             errors.push(RefTreeError::MultipleRoots { roots: names });
@@ -189,11 +209,10 @@ fn check_tree(schema: &Schema, errors: &mut Vec<RefTreeError>) {
         }
     };
 
-    let index: HashMap<&Identifier, EntityIdx> = schema
-        .entities
+    let index: HashMap<&Identifier, EntityIdx> = entities
         .iter()
         .enumerate()
-        .map(|(i, e)| (&e.name, EntityIdx(i)))
+        .map(|(i, e)| (e.name(), EntityIdx(i)))
         .collect();
 
     // Req. 2: each non-root must declare exactly one parent type. A non-root
@@ -221,11 +240,11 @@ fn check_tree(schema: &Schema, errors: &mut Vec<RefTreeError>) {
                     parent,
                 }),
                 None => errors.push(RefTreeError::Unreachable {
-                    entity: schema.entities[i].name.clone(),
+                    entity: entities[i].name().clone(),
                 }),
             },
             _ => errors.push(RefTreeError::ConflictingParents {
-                entity: schema.entities[i].name.clone(),
+                entity: entities[i].name().clone(),
                 parents: parents.into_iter().cloned().collect(),
             }),
         }
@@ -251,7 +270,7 @@ fn check_tree(schema: &Schema, errors: &mut Vec<RefTreeError>) {
     for node in &graph {
         if !visited[node.entity.0] {
             errors.push(RefTreeError::Unreachable {
-                entity: schema.entities[node.entity.0].name.clone(),
+                entity: entities[node.entity.0].name().clone(),
             });
         }
     }
@@ -287,19 +306,32 @@ fn collect_refs<'a>(
             if loc.descends_record(name) {
                 return;
             }
-            if let Some(record) = records.iter().find(|r| &r.name == name) {
-                for field in &record.fields {
+            if let Some(record) = records.iter().find(|r| r.name() == name) {
+                for field in record.fields() {
                     let nested = Loc::Nested {
                         outer: loc,
                         record: name,
-                        field: &field.name,
+                        field: field.name(),
                     };
-                    collect_refs(&field.ty, &nested, records, out);
+                    collect_refs(field.ty(), &nested, records, out);
                 }
             }
         }
         _ => {}
     }
+}
+
+/// The target entity type of a co-located `quent.ref-target.v1`, if present and
+/// decodable.
+fn tree_ref_target(annotations: &Annotations) -> Option<Identifier> {
+    let raw = annotations.constraint(RefTargetConstraint::NAME)?.data()?;
+    serde_json::from_str::<RefTarget>(raw)
+        .ok()
+        .map(|rt| rt.target)
+}
+
+fn has_tree(annotations: &Annotations) -> bool {
+    annotations.constraint(RefTreeConstraint::NAME).is_some()
 }
 
 /// Borrowed path to a tree-forming reference, rendered to a string only when a
@@ -345,26 +377,6 @@ impl Loc<'_> {
     }
 }
 
-/// The target entity type of a co-located `quent.ref-target.v1`, if present and
-/// decodable.
-fn tree_ref_target(annotations: &Annotations) -> Option<Identifier> {
-    let constraint = annotations
-        .constraints
-        .iter()
-        .find(|c| c.name == RefTargetConstraint::NAME)?;
-    let raw = constraint.data.as_deref()?;
-    serde_json::from_str::<RefTarget>(raw)
-        .ok()
-        .map(|rt| rt.target)
-}
-
-fn has_tree(annotations: &Annotations) -> bool {
-    annotations
-        .constraints
-        .iter()
-        .any(|c| c.name == RefTreeConstraint::NAME)
-}
-
 #[derive(Debug, Error)]
 pub enum RefTreeError {
     #[error(
@@ -401,12 +413,4 @@ fn join_idents(ids: &[Identifier]) -> String {
         .map(|i| format!("\"{i}\""))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-fn join_errors(errors: &[RefTreeError]) -> String {
-    errors
-        .iter()
-        .map(|e| format!("  - {e}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }

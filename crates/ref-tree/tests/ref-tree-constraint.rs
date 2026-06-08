@@ -1,63 +1,40 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::{Constraint as _, Error as ValidatorError, Validator};
+use quent_constraints::{Constraint, validate as run_constraints};
 use quent_ref_target::{RefTarget, RefTargetConstraint};
 use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{
-    Schema,
-    annotations::Annotations,
-    constraint::Constraint,
-    data_type::DataType,
-    entity::Entity,
-    event::{Cardinality, Event},
-    field::Field,
-    identifier::Identifier,
-    record::Record,
+    Annotations, DataType, Entity, Record, Schema,
+    builder::AnnotationsBuilder,
+    test_utils::{constraint, entity, event, field, ident, record, schema},
 };
-
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
-}
-
-fn tree_constraint() -> Constraint {
-    Constraint {
-        name: RefTreeConstraint::NAME.to_string(),
-        data: None,
-    }
-}
-
-fn target_constraint(target: &str) -> Constraint {
-    Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: Some(
-            serde_json::to_string(&RefTarget {
-                target: ident(target),
-            })
-            .unwrap(),
-        ),
-    }
-}
 
 /// A type-erased tree-forming reference (no target).
 fn tree_ref() -> DataType {
     DataType::EntityRef {
         data: None,
-        annotations: Annotations {
-            constraints: vec![tree_constraint()],
-            ..Default::default()
-        },
+        annotations: AnnotationsBuilder::new()
+            .constraint(constraint(RefTreeConstraint::NAME, None))
+            .unwrap()
+            .build(),
     }
 }
 
 /// A tree-forming reference restricted to a specific parent entity type.
 fn tree_ref_to(target: &str) -> DataType {
+    let data = serde_json::to_string(&RefTarget {
+        target: ident(target),
+    })
+    .unwrap();
     DataType::EntityRef {
         data: None,
-        annotations: Annotations {
-            constraints: vec![tree_constraint(), target_constraint(target)],
-            ..Default::default()
-        },
+        annotations: AnnotationsBuilder::new()
+            .constraint(constraint(RefTreeConstraint::NAME, None))
+            .unwrap()
+            .constraint(constraint(RefTargetConstraint::NAME, Some(data.as_str())))
+            .unwrap()
+            .build(),
     }
 }
 
@@ -65,31 +42,6 @@ fn tree_ref_to(target: &str) -> DataType {
 fn ref_carrying(data: DataType) -> DataType {
     DataType::EntityRef {
         data: Some(Box::new(data)),
-        annotations: Annotations::default(),
-    }
-}
-
-fn field(name: &str, ty: DataType) -> Field {
-    Field {
-        name: ident(name),
-        ty,
-        annotations: Annotations::default(),
-    }
-}
-
-fn event(name: &str, payload: Vec<Field>) -> Event {
-    Event {
-        name: ident(name),
-        cardinality: Cardinality::Once,
-        payload,
-        annotations: Annotations::default(),
-    }
-}
-
-fn entity(name: &str, events: Vec<Event>) -> Entity {
-    Entity {
-        name: ident(name),
-        events,
         annotations: Annotations::default(),
     }
 }
@@ -104,48 +56,33 @@ fn child(name: &str, ty: DataType) -> Entity {
     entity(name, vec![event("created", vec![field("parent", ty)])])
 }
 
-fn record(name: &str, fields: Vec<Field>) -> Record {
-    Record {
-        name: ident(name),
-        fields,
-        annotations: Annotations::default(),
-    }
-}
-
 fn schema_with(entities: Vec<Entity>) -> Schema {
-    schema_with_records(entities, vec![])
+    schema("S", entities, vec![])
 }
 
 fn schema_with_records(entities: Vec<Entity>, records: Vec<Record>) -> Schema {
-    Schema {
-        name: ident("S"),
-        entities,
-        records,
-        annotations: Annotations::default(),
-    }
+    schema("S", entities, records)
 }
 
 fn validate(schema: &Schema) -> Vec<RefTreeError> {
-    let validator = Validator::default()
-        .try_with(RefTreeConstraint)
-        .unwrap()
-        .try_with(RefTargetConstraint)
-        .unwrap();
-    match validator.validate(schema) {
+    let report = run_constraints::<(RefTreeConstraint, RefTargetConstraint)>(schema);
+    match report.results.0 {
         Ok(()) => Vec::new(),
-        Err(ValidatorError::Invalid { failures, .. }) => {
-            for (name, source) in failures {
-                if name == RefTreeConstraint::NAME {
-                    return match *source.downcast::<RefTreeError>().unwrap() {
-                        RefTreeError::Multiple(errors) => errors,
-                        single => vec![single],
-                    };
-                }
-            }
-            Vec::new()
-        }
-        Err(_) => unreachable!(),
+        Err(RefTreeError::Multiple(errors)) => errors,
+        Err(single) => vec![single],
     }
+}
+
+/// Assert the schema satisfies the constraint.
+fn assert_valid(schema: &Schema) {
+    assert!(validate(schema).is_empty());
+}
+
+/// Assert the schema produces exactly one violation, and return it.
+fn single_error(schema: &Schema) -> RefTreeError {
+    let mut errors = validate(schema);
+    assert_eq!(errors.len(), 1);
+    errors.pop().unwrap()
 }
 
 #[test]
@@ -155,7 +92,7 @@ fn target_chain_to_root_passes() {
         child("Worker", tree_ref_to("Cluster")),
         child("Task", tree_ref_to("Worker")),
     ]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
@@ -164,35 +101,35 @@ fn single_child_under_root_passes() {
         root("Cluster"),
         child("Worker", tree_ref_to("Cluster")),
     ]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
 fn no_tree_ref_anywhere_passes() {
     // The constraint only forms a tree when at least one reference uses it.
     let schema = schema_with(vec![child("Solo", DataType::U64)]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
 fn option_nested_tree_ref_is_found() {
     let nested = DataType::Option(Box::new(tree_ref_to("Cluster")));
     let schema = schema_with(vec![root("Cluster"), child("Worker", nested)]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
 fn list_nested_tree_ref_is_found() {
     let nested = DataType::List(Box::new(tree_ref_to("Cluster")));
     let schema = schema_with(vec![root("Cluster"), child("Worker", nested)]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
 fn tree_ref_in_reference_payload_is_found() {
     let nested = ref_carrying(tree_ref_to("Cluster"));
     let schema = schema_with(vec![root("Cluster"), child("Worker", nested)]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
@@ -201,7 +138,7 @@ fn tree_ref_via_record_field_resolves_parent() {
     let meta = record("Meta", vec![field("owner", tree_ref_to("Cluster"))]);
     let worker = child("Worker", DataType::Record(ident("Meta")));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
@@ -220,7 +157,7 @@ fn recursive_record_does_not_loop() {
     );
     let worker = child("Worker", DataType::Record(ident("Meta")));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
@@ -234,17 +171,15 @@ fn same_parent_across_events_passes() {
         ],
     );
     let schema = schema_with(vec![root("Cluster"), task]);
-    assert!(validate(&schema).is_empty());
+    assert_valid(&schema);
 }
 
 #[test]
 fn type_erased_tree_ref_is_rejected() {
     // Req. 3: a tree-forming reference must be target-constrained.
     let schema = schema_with(vec![root("Cluster"), child("Worker", tree_ref())]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
     assert!(matches!(
-        errors[0],
+        single_error(&schema),
         RefTreeError::NotTargetConstrained { .. }
     ));
 }
@@ -255,10 +190,8 @@ fn type_erased_tree_ref_via_record_is_rejected() {
     let meta = record("Meta", vec![field("owner", tree_ref())]);
     let worker = child("Worker", DataType::Record(ident("Meta")));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
     assert!(matches!(
-        errors[0],
+        single_error(&schema),
         RefTreeError::NotTargetConstrained { .. }
     ));
 }
@@ -278,11 +211,10 @@ fn conflicting_parents_is_rejected() {
         child("Worker", tree_ref_to("Cluster")),
         task,
     ]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
-    assert!(
-        matches!(&errors[0], RefTreeError::ConflictingParents { entity, .. } if entity == "Task"),
-    );
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::ConflictingParents { entity, .. } if entity == "Task"
+    ));
 }
 
 #[test]
@@ -298,10 +230,8 @@ fn two_tree_refs_in_one_event_is_rejected() {
         )],
     );
     let schema = schema_with(vec![root("Cluster"), task]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
     assert!(matches!(
-        errors[0],
+        single_error(&schema),
         RefTreeError::MultiplePerEvent { count: 2, .. }
     ));
 }
@@ -313,9 +243,7 @@ fn no_root_is_rejected() {
         child("A", tree_ref_to("B")),
         child("B", tree_ref_to("A")),
     ]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
-    assert!(matches!(errors[0], RefTreeError::NoRoot));
+    assert!(matches!(single_error(&schema), RefTreeError::NoRoot));
 }
 
 #[test]
@@ -326,18 +254,20 @@ fn multiple_roots_is_rejected() {
         root("Other"),
         child("Worker", tree_ref_to("Cluster")),
     ]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
-    assert!(matches!(errors[0], RefTreeError::MultipleRoots { .. }));
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::MultipleRoots { .. }
+    ));
 }
 
 #[test]
 fn unknown_target_is_unreachable() {
     // Req. 4: a parent type naming no entity has no path to the root.
     let schema = schema_with(vec![root("Cluster"), child("A", tree_ref_to("Ghost"))]);
-    let errors = validate(&schema);
-    assert_eq!(errors.len(), 1);
-    assert!(matches!(&errors[0], RefTreeError::Unreachable { entity } if entity == "A"));
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::Unreachable { entity } if entity == "A"
+    ));
 }
 
 #[test]
