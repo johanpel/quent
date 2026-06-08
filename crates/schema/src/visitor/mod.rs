@@ -36,11 +36,11 @@ impl Schema {
         let mut cursor = Cursor::new(self);
 
         visitor.visit(&cursor);
-        walk_annotations(&mut cursor, &mut visitor, &self.annotations);
-        for entity in self.entities.values() {
+        walk_annotations(&mut cursor, &mut visitor, self.annotations());
+        for entity in self.entities() {
             walk_entity(&mut cursor, &mut visitor, entity);
         }
-        for record in self.records.values() {
+        for record in self.records() {
             walk_record(&mut cursor, &mut visitor, record);
         }
 
@@ -103,11 +103,11 @@ impl<'s> Cursor<'s> {
 impl Display for Element<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Schema(s) => Display::fmt(&s.name, f),
-            Self::Entity(e) => Display::fmt(&e.name, f),
-            Self::Event(e) => Display::fmt(&e.name, f),
-            Self::Record(r) => Display::fmt(&r.name, f),
-            Self::Field(fi) => Display::fmt(&fi.name, f),
+            Self::Schema(s) => Display::fmt(s.name(), f),
+            Self::Entity(e) => Display::fmt(e.name(), f),
+            Self::Event(e) => Display::fmt(e.name(), f),
+            Self::Record(r) => Display::fmt(r.name(), f),
+            Self::Field(fi) => Display::fmt(fi.name(), f),
             Self::Annotations(_) => f.write_str("Annotations"),
             Self::DataType(ty) => match ty {
                 DataType::Bool => f.write_str("Bool"),
@@ -159,8 +159,8 @@ fn walk_annotations<'s, V: Visitor>(
 fn walk_entity<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, entity: &'s Entity) {
     cursor.enter(Element::Entity(entity));
     visitor.visit(cursor);
-    walk_annotations(cursor, visitor, &entity.annotations);
-    for event in entity.events.values() {
+    walk_annotations(cursor, visitor, entity.annotations());
+    for event in entity.events() {
         walk_event(cursor, visitor, event);
     }
     cursor.leave();
@@ -169,8 +169,8 @@ fn walk_entity<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, entity:
 fn walk_event<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, event: &'s Event) {
     cursor.enter(Element::Event(event));
     visitor.visit(cursor);
-    walk_annotations(cursor, visitor, &event.annotations);
-    for field in event.payload.values() {
+    walk_annotations(cursor, visitor, event.annotations());
+    for field in event.fields() {
         walk_field(cursor, visitor, field);
     }
     cursor.leave();
@@ -179,8 +179,8 @@ fn walk_event<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, event: &
 fn walk_record<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, record: &'s Record) {
     cursor.enter(Element::Record(record));
     visitor.visit(cursor);
-    walk_annotations(cursor, visitor, &record.annotations);
-    for field in record.fields.values() {
+    walk_annotations(cursor, visitor, record.annotations());
+    for field in record.fields() {
         walk_field(cursor, visitor, field);
     }
     cursor.leave();
@@ -189,8 +189,8 @@ fn walk_record<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, record:
 fn walk_field<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, field: &'s Field) {
     cursor.enter(Element::Field(field));
     visitor.visit(cursor);
-    walk_annotations(cursor, visitor, &field.annotations);
-    walk_data_type(cursor, visitor, &field.ty);
+    walk_annotations(cursor, visitor, field.annotations());
+    walk_data_type(cursor, visitor, field.ty());
     cursor.leave();
 }
 

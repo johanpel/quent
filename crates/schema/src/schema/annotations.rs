@@ -13,9 +13,36 @@ use crate::schema::{Map, constraint::Constraint, metadata::Metadata};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Annotations {
     /// Potential documentation that can e.g. be added in code generation.
-    pub docs: Option<String>,
+    docs: Option<String>,
     /// Opaque constraints that must be validated against the schema.
-    pub constraints: Map<String, Constraint>,
+    constraints: Map<String, Constraint>,
     /// Opaque metadata passed through the schema.
-    pub metadata: Map<String, Metadata>,
+    metadata: Map<String, Metadata>,
+}
+
+impl Annotations {
+    /// The documentation, if any.
+    pub fn docs(&self) -> Option<&str> {
+        self.docs.as_deref()
+    }
+
+    /// The constraint declared under `name`, if any.
+    pub fn constraint(&self, name: &str) -> Option<&Constraint> {
+        self.constraints.get(name)
+    }
+
+    /// The declared constraints, in declaration order.
+    pub fn constraints(&self) -> impl Iterator<Item = &Constraint> + '_ {
+        self.constraints.values()
+    }
+
+    /// The metadata declared under `name`, if any.
+    pub fn metadata(&self, name: &str) -> Option<&Metadata> {
+        self.metadata.get(name)
+    }
+
+    /// The declared metadata, in declaration order.
+    pub fn metadata_entries(&self) -> impl Iterator<Item = &Metadata> + '_ {
+        self.metadata.values()
+    }
 }

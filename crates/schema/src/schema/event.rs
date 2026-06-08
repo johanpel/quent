@@ -16,11 +16,38 @@ pub enum Cardinality {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Event {
     /// The name of the event.
-    pub name: Identifier,
+    name: Identifier,
     /// The [`Cardinality`] of the event.
-    pub cardinality: Cardinality,
+    cardinality: Cardinality,
     /// The payload fields of the event.
-    pub payload: Map<Identifier, Field>,
+    payload: Map<Identifier, Field>,
     /// Annotations of this event.
-    pub annotations: Annotations,
+    annotations: Annotations,
+}
+
+impl Event {
+    /// The name of the event.
+    pub fn name(&self) -> &Identifier {
+        &self.name
+    }
+
+    /// The [`Cardinality`] of the event.
+    pub fn cardinality(&self) -> Cardinality {
+        self.cardinality
+    }
+
+    /// The annotations of this event.
+    pub fn annotations(&self) -> &Annotations {
+        &self.annotations
+    }
+
+    /// The payload field declared under `name`, if any.
+    pub fn field(&self, name: &Identifier) -> Option<&Field> {
+        self.payload.get(name)
+    }
+
+    /// The payload fields, in declaration order.
+    pub fn fields(&self) -> impl Iterator<Item = &Field> + '_ {
+        self.payload.values()
+    }
 }

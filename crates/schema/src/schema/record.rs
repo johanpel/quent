@@ -7,9 +7,31 @@ use crate::schema::{Map, annotations::Annotations, field::Field, identifier::Ide
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Record {
     /// The name of the record.
-    pub name: Identifier,
+    name: Identifier,
     /// The fields of the record.
-    pub fields: Map<Identifier, Field>,
+    fields: Map<Identifier, Field>,
     /// Annotations of this record.
-    pub annotations: Annotations,
+    annotations: Annotations,
+}
+
+impl Record {
+    /// The name of the record.
+    pub fn name(&self) -> &Identifier {
+        &self.name
+    }
+
+    /// The annotations of this record.
+    pub fn annotations(&self) -> &Annotations {
+        &self.annotations
+    }
+
+    /// The field declared under `name`, if any.
+    pub fn field(&self, name: &Identifier) -> Option<&Field> {
+        self.fields.get(name)
+    }
+
+    /// The declared fields, in declaration order.
+    pub fn fields(&self) -> impl Iterator<Item = &Field> + '_ {
+        self.fields.values()
+    }
 }

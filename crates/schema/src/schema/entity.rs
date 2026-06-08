@@ -7,9 +7,31 @@ use crate::schema::{Map, annotations::Annotations, event::Event, identifier::Ide
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Entity {
     /// The name of the entity.
-    pub name: Identifier,
+    name: Identifier,
     /// The events that this entity can emit.
-    pub events: Map<Identifier, Event>,
+    events: Map<Identifier, Event>,
     /// Annotations of this entity.
-    pub annotations: Annotations,
+    annotations: Annotations,
+}
+
+impl Entity {
+    /// The name of the entity.
+    pub fn name(&self) -> &Identifier {
+        &self.name
+    }
+
+    /// The annotations of this entity.
+    pub fn annotations(&self) -> &Annotations {
+        &self.annotations
+    }
+
+    /// The event declared under `name`, if any.
+    pub fn event(&self, name: &Identifier) -> Option<&Event> {
+        self.events.get(name)
+    }
+
+    /// The declared events, in declaration order.
+    pub fn events(&self) -> impl Iterator<Item = &Event> + '_ {
+        self.events.values()
+    }
 }

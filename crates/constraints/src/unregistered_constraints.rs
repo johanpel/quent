@@ -24,9 +24,9 @@ impl Visitor for UnregisteredConstraints {
     type Output = BTreeSet<String>;
     fn visit(&mut self, cursor: &Cursor) {
         if let Element::Annotations(annotations) = cursor.current() {
-            for constraint in annotations.constraints.values() {
-                if !self.registered.contains(constraint.name.as_str()) {
-                    self.unregistered.insert(constraint.name.clone());
+            for constraint in annotations.constraints() {
+                if !self.registered.contains(constraint.name()) {
+                    self.unregistered.insert(constraint.name().to_string());
                 }
             }
         }

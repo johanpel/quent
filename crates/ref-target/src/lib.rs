@@ -36,22 +36,18 @@ impl Visitor for RefTargetConstraint {
         let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current() else {
             return;
         };
-        let Some(constraint) = annotations
-            .constraints
-            .values()
-            .find(|c| c.name == RefTargetConstraint::NAME)
-        else {
+        let Some(constraint) = annotations.constraint(RefTargetConstraint::NAME) else {
             return;
         };
         let location = cursor.to_string();
-        match constraint.data.as_deref() {
+        match constraint.data() {
             None => self.errors.push(RefTargetError::InvalidData {
                 location,
                 message: "constraint data is missing".to_string(),
             }),
             Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
                 Ok(ref_target) => {
-                    if cursor.root().entities.get(&ref_target.target).is_none() {
+                    if cursor.root().entity(&ref_target.target).is_none() {
                         self.errors.push(RefTargetError::UnknownTarget {
                             location,
                             target: ref_target.target,

@@ -18,17 +18,49 @@ pub mod metadata;
 pub mod record;
 
 /// Container type for named elements.
-pub type Map<K, V> = indexmap::IndexMap<K, V, rustc_hash::FxBuildHasher>;
+pub(crate) type Map<K, V> = indexmap::IndexMap<K, V, rustc_hash::FxBuildHasher>;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Schema {
     /// The name of the model.
-    pub name: Identifier,
+    name: Identifier,
     /// The [`Entity`]s of the model.
-    pub entities: Map<Identifier, Entity>,
+    entities: Map<Identifier, Entity>,
     /// The [`Record`]s of the model.
-    pub records: Map<Identifier, Record>,
+    records: Map<Identifier, Record>,
     /// Annotations of this schema.
-    pub annotations: Annotations,
+    annotations: Annotations,
+}
+
+impl Schema {
+    /// The name of the model.
+    pub fn name(&self) -> &Identifier {
+        &self.name
+    }
+
+    /// The annotations of this schema.
+    pub fn annotations(&self) -> &Annotations {
+        &self.annotations
+    }
+
+    /// The entity declared under `name`, if any.
+    pub fn entity(&self, name: &Identifier) -> Option<&Entity> {
+        self.entities.get(name)
+    }
+
+    /// The declared entities, in declaration order.
+    pub fn entities(&self) -> impl Iterator<Item = &Entity> + '_ {
+        self.entities.values()
+    }
+
+    /// The record declared under `name`, if any.
+    pub fn record(&self, name: &Identifier) -> Option<&Record> {
+        self.records.get(name)
+    }
+
+    /// The declared records, in declaration order.
+    pub fn records(&self) -> impl Iterator<Item = &Record> + '_ {
+        self.records.values()
+    }
 }

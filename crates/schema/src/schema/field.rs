@@ -9,9 +9,26 @@ use crate::schema::{annotations::Annotations, data_type::DataType, identifier::I
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Field {
     /// The name of the field.
-    pub name: Identifier,
+    name: Identifier,
     /// The type of the field.
-    pub ty: DataType,
+    ty: DataType,
     /// Annotations of this field.
-    pub annotations: Annotations,
+    annotations: Annotations,
+}
+
+impl Field {
+    /// The name of the field.
+    pub fn name(&self) -> &Identifier {
+        &self.name
+    }
+
+    /// The type of the field.
+    pub fn ty(&self) -> &DataType {
+        &self.ty
+    }
+
+    /// The annotations of this field.
+    pub fn annotations(&self) -> &Annotations {
+        &self.annotations
+    }
 }

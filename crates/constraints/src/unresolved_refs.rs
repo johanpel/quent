@@ -19,7 +19,7 @@ impl Visitor for UnresolvedReferences {
     type Output = Vec<String>;
     fn visit(&mut self, cursor: &Cursor) {
         if let Element::DataType(DataType::Record(name)) = cursor.current()
-            && cursor.root().records.get(name).is_none()
+            && cursor.root().record(name).is_none()
         {
             self.found.push(format!("{cursor}: {name}"));
         }
