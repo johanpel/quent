@@ -13,7 +13,7 @@ use petgraph::{
 use quent_constraints::{Constraint, utils::join_errors};
 use quent_schema::{
     Cardinality, Entity, Identifier,
-    visitor::{Cursor, Element, IndexedSchema, Visitor},
+    visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -141,14 +141,14 @@ pub struct FsmConstraint {
 impl Visitor for FsmConstraint {
     type Output = Result<(), FsmError>;
 
-    fn visit(&mut self, cursor: &Cursor, _index: &IndexedSchema) {
+    fn visit(&mut self, cursor: &Cursor) {
         let Element::Entity(entity) = cursor.current() else {
             return;
         };
         let Some(constraint) = entity
             .annotations
             .constraints
-            .iter()
+            .values()
             .find(|c| c.name == FsmConstraint::NAME)
         else {
             return;
@@ -191,7 +191,7 @@ impl Constraint for FsmConstraint {
 
 pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {
     // Requirement 1: no event may be named "exit".
-    for event in &entity.events {
+    for event in entity.events.values() {
         if event.name.to_ascii_lowercase() == "exit" {
             errors.push(FsmError::ReservedStateName {
                 entity: entity.name.clone(),
@@ -200,10 +200,10 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         }
     }
 
-    let event_names: HashSet<&Identifier> = entity.events.iter().map(|e| &e.name).collect();
+    let event_names: HashSet<&Identifier> = entity.events.values().map(|e| &e.name).collect();
     let cardinality_by_event: BTreeMap<&Identifier, Cardinality> = entity
         .events
-        .iter()
+        .values()
         .map(|e| (&e.name, e.cardinality))
         .collect();
 

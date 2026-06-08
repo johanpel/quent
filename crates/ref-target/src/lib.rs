@@ -6,7 +6,7 @@
 use quent_constraints::{Constraint, utils::join_errors};
 use quent_schema::{
     DataType, Identifier,
-    visitor::{Cursor, Element, IndexedSchema, LookupError, Visitor},
+    visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -32,13 +32,13 @@ pub struct RefTargetConstraint {
 impl Visitor for RefTargetConstraint {
     type Output = Result<(), RefTargetError>;
 
-    fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
+    fn visit(&mut self, cursor: &Cursor) {
         let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current() else {
             return;
         };
         let Some(constraint) = annotations
             .constraints
-            .iter()
+            .values()
             .find(|c| c.name == RefTargetConstraint::NAME)
         else {
             return;
@@ -51,10 +51,7 @@ impl Visitor for RefTargetConstraint {
             }),
             Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
                 Ok(ref_target) => {
-                    if matches!(
-                        index.entity(&ref_target.target),
-                        Err(LookupError::Missing(_))
-                    ) {
+                    if cursor.root().entities.get(&ref_target.target).is_none() {
                         self.errors.push(RefTargetError::UnknownTarget {
                             location,
                             target: ref_target.target,

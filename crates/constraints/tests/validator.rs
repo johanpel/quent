@@ -5,7 +5,8 @@ use quent_constraints::{Constraint, validate};
 use quent_schema::{
     Annotations, Cardinality, Constraint as SchemaConstraint, DataType, Entity, Event, Field,
     Identifier, Metadata, Record, Schema,
-    visitor::{Cursor, IndexedSchema, Visitor},
+    schema::Map,
+    visitor::{Cursor, Visitor},
 };
 
 fn ident(s: &str) -> Identifier {
@@ -19,6 +20,14 @@ fn constraint(name: &str) -> SchemaConstraint {
     }
 }
 
+fn constraints(items: Vec<SchemaConstraint>) -> Map<String, SchemaConstraint> {
+    items.into_iter().map(|v| (v.name.clone(), v)).collect()
+}
+
+fn metadata_map(items: Vec<Metadata>) -> Map<String, Metadata> {
+    items.into_iter().map(|v| (v.name.clone(), v)).collect()
+}
+
 fn metadata(name: &str) -> Metadata {
     Metadata {
         name: name.to_string(),
@@ -29,8 +38,8 @@ fn metadata(name: &str) -> Metadata {
 fn empty_schema() -> Schema {
     Schema {
         name: ident("TestSchema"),
-        entities: vec![],
-        records: vec![],
+        entities: Map::default(),
+        records: Map::default(),
         annotations: Annotations::default(),
     }
 }
@@ -40,7 +49,7 @@ fn empty_schema() -> Schema {
 struct NoopA;
 impl Visitor for NoopA {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+    fn visit(&mut self, _cursor: &Cursor) {}
     fn finish(self) -> Self::Output {
         Ok(())
     }
@@ -53,7 +62,7 @@ impl Constraint for NoopA {
 struct NoopB;
 impl Visitor for NoopB {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+    fn visit(&mut self, _cursor: &Cursor) {}
     fn finish(self) -> Self::Output {
         Ok(())
     }
@@ -77,7 +86,7 @@ impl std::error::Error for Boom {}
 struct Failing;
 impl Visitor for Failing {
     type Output = Result<(), Box<dyn std::error::Error>>;
-    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+    fn visit(&mut self, _cursor: &Cursor) {}
     fn finish(self) -> Self::Output {
         Err(Box::new(Boom("boom")))
     }
@@ -97,7 +106,7 @@ fn passing_constraint_on_empty_schema() {
 fn constraint_without_validator_is_unregistered() {
     let schema = Schema {
         annotations: Annotations {
-            constraints: vec![constraint("unknown")],
+            constraints: constraints(vec![constraint("unknown")]),
             ..Default::default()
         },
         ..empty_schema()
@@ -117,7 +126,7 @@ fn constraint_without_validator_is_unregistered() {
 fn metadata_is_never_validated() {
     let schema = Schema {
         annotations: Annotations {
-            metadata: vec![metadata("not_validated")],
+            metadata: metadata_map(vec![metadata("not_validated")]),
             ..Default::default()
         },
         ..empty_schema()
@@ -129,35 +138,42 @@ fn metadata_is_never_validated() {
 #[test]
 fn unregistered_constraint_is_reported_once() {
     let unknown = || Annotations {
-        constraints: vec![constraint("unknown")],
+        constraints: constraints(vec![constraint("unknown")]),
         ..Default::default()
+    };
+    let field = Field {
+        name: ident("ef"),
+        ty: DataType::U64,
+        annotations: unknown(),
+    };
+    let event = Event {
+        name: ident("Ev"),
+        cardinality: Cardinality::Once,
+        annotations: unknown(),
+        payload: [(field.name.clone(), field)].into_iter().collect(),
+    };
+    let entity = Entity {
+        name: ident("E"),
+        annotations: unknown(),
+        events: [(event.name.clone(), event)].into_iter().collect(),
+    };
+    let record_field = Field {
+        name: ident("rf"),
+        ty: DataType::U64,
+        annotations: unknown(),
+    };
+    let record = Record {
+        name: ident("R"),
+        annotations: unknown(),
+        fields: [(record_field.name.clone(), record_field)]
+            .into_iter()
+            .collect(),
     };
     let schema = Schema {
         name: ident("S"),
         annotations: unknown(),
-        entities: vec![Entity {
-            name: ident("E"),
-            annotations: unknown(),
-            events: vec![Event {
-                name: ident("Ev"),
-                cardinality: Cardinality::Once,
-                annotations: unknown(),
-                payload: vec![Field {
-                    name: ident("ef"),
-                    ty: DataType::U64,
-                    annotations: unknown(),
-                }],
-            }],
-        }],
-        records: vec![Record {
-            name: ident("R"),
-            annotations: unknown(),
-            fields: vec![Field {
-                name: ident("rf"),
-                ty: DataType::U64,
-                annotations: unknown(),
-            }],
-        }],
+        entities: [(entity.name.clone(), entity)].into_iter().collect(),
+        records: [(record.name.clone(), record)].into_iter().collect(),
     };
     let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
@@ -182,7 +198,7 @@ fn constraint_failure_is_reported_per_constraint() {
 fn unregistered_and_failure_aggregate() {
     let schema = Schema {
         annotations: Annotations {
-            constraints: vec![constraint("unknown")],
+            constraints: constraints(vec![constraint("unknown")]),
             ..Default::default()
         },
         ..empty_schema()
@@ -199,63 +215,65 @@ fn unregistered_and_failure_aggregate() {
 
 #[test]
 fn consistency_is_always_checked_in_the_same_walk() {
-    let entity = |name: &str| Entity {
-        name: ident(name),
+    let field = Field {
+        name: ident("f"),
+        ty: DataType::Record(ident("ghost")),
         annotations: Annotations::default(),
-        events: vec![],
     };
-    // A duplicate entity and a field referencing a record that does not exist.
+    let event = Event {
+        name: ident("Ev"),
+        cardinality: Cardinality::Once,
+        annotations: Annotations::default(),
+        payload: [(field.name.clone(), field)].into_iter().collect(),
+    };
+    let entity = Entity {
+        name: ident("E"),
+        annotations: Annotations::default(),
+        events: [(event.name.clone(), event)].into_iter().collect(),
+    };
+    // A field referencing a record that does not exist.
     let schema = Schema {
         name: ident("S"),
         annotations: Annotations::default(),
-        entities: vec![
-            entity("Dup"),
-            entity("Dup"),
-            Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: vec![Field {
-                        name: ident("f"),
-                        ty: DataType::Record(ident("ghost")),
-                        annotations: Annotations::default(),
-                    }],
-                }],
-            },
-        ],
-        records: vec![],
+        entities: [(entity.name.clone(), entity)].into_iter().collect(),
+        records: Map::default(),
     };
     let report = validate::<(NoopA,)>(&schema);
     // The constraint passed, but the schema is internally inconsistent: a
-    // duplicate entity and a reference to a record that does not exist.
+    // reference to a record that does not exist.
     assert!(report.results.0.is_ok());
-    assert_eq!(report.duplicate_definitions.len(), 1);
     assert_eq!(report.invalid_references.len(), 1);
 }
 
 #[test]
 fn validates_consistency_with_no_constraints() {
-    let entity = |name: &str| Entity {
-        name: ident(name),
+    let field = Field {
+        name: ident("f"),
+        ty: DataType::Record(ident("ghost")),
         annotations: Annotations::default(),
-        events: vec![],
+    };
+    let event = Event {
+        name: ident("Ev"),
+        cardinality: Cardinality::Once,
+        annotations: Annotations::default(),
+        payload: [(field.name.clone(), field)].into_iter().collect(),
+    };
+    let entity = Entity {
+        name: ident("E"),
+        annotations: Annotations::default(),
+        events: [(event.name.clone(), event)].into_iter().collect(),
     };
     let schema = Schema {
         name: ident("S"),
         annotations: Annotations::default(),
-        entities: vec![entity("Dup"), entity("Dup")],
-        records: vec![],
+        entities: [(entity.name.clone(), entity)].into_iter().collect(),
+        records: Map::default(),
     };
     // No constraints, just the always-on consistency checks.
     let report = validate::<()>(&schema);
     assert_eq!(report.results, ());
-    assert_eq!(report.duplicate_definitions.len(), 1);
-    assert!(report.invalid_references.is_empty());
+    assert_eq!(report.invalid_references.len(), 1);
 
     let clean = validate::<()>(&empty_schema());
-    assert!(clean.duplicate_definitions.is_empty());
     assert!(clean.invalid_references.is_empty());
 }

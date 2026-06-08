@@ -13,7 +13,7 @@ fn event(name: &str, cardinality: Cardinality) -> Event {
     Event {
         name: ident(name),
         cardinality,
-        payload: vec![],
+        payload: quent_schema::schema::Map::default(),
         annotations: Annotations::default(),
     }
 }
@@ -21,7 +21,7 @@ fn event(name: &str, cardinality: Cardinality) -> Event {
 fn bare_entity(name: &str, events: Vec<Event>) -> Entity {
     Entity {
         name: ident(name),
-        events,
+        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
         annotations: Annotations::default(),
     }
 }
@@ -49,11 +49,14 @@ fn fsm_constraint(data: &str) -> Constraint {
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
+    let constraint = fsm_constraint(data);
     Entity {
         name: ident(name),
-        events,
+        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
         annotations: Annotations {
-            constraints: vec![fsm_constraint(data)],
+            constraints: [(constraint.name.clone(), constraint)]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
     }
@@ -62,8 +65,8 @@ fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
 fn schema_with(entity: Entity) -> Schema {
     Schema {
         name: ident("S"),
-        entities: vec![entity],
-        records: vec![],
+        entities: [(entity.name.clone(), entity)].into_iter().collect(),
+        records: quent_schema::schema::Map::default(),
         annotations: Annotations::default(),
     }
 }
@@ -104,14 +107,20 @@ fn single_state_fsm_passes() {
 
 #[test]
 fn missing_data_is_rejected() {
+    let constraint = Constraint {
+        name: FsmConstraint::NAME.to_string(),
+        data: None,
+    };
     let entity = Entity {
         name: ident("E"),
-        events: vec![event("a", Cardinality::Once)],
+        events: [event("a", Cardinality::Once)]
+            .into_iter()
+            .map(|v| (v.name.clone(), v))
+            .collect(),
         annotations: Annotations {
-            constraints: vec![Constraint {
-                name: FsmConstraint::NAME.to_string(),
-                data: None,
-            }],
+            constraints: [(constraint.name.clone(), constraint)]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
     };
@@ -125,14 +134,20 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
+    let constraint = Constraint {
+        name: FsmConstraint::NAME.to_string(),
+        data: Some("{ trash".to_string()),
+    };
     let entity = Entity {
         name: ident("E"),
-        events: vec![event("a", Cardinality::Once)],
+        events: [event("a", Cardinality::Once)]
+            .into_iter()
+            .map(|v| (v.name.clone(), v))
+            .collect(),
         annotations: Annotations {
-            constraints: vec![Constraint {
-                name: FsmConstraint::NAME.to_string(),
-                data: Some("{ trash".to_string()),
-            }],
+            constraints: [(constraint.name.clone(), constraint)]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
     };

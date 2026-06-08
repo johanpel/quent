@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::{constraint::Constraint, metadata::Metadata};
+use crate::schema::{Map, constraint::Constraint, metadata::Metadata};
 
 /// Annotations for [`crate::Schema`] constituents.
 ///
@@ -15,7 +15,7 @@ pub struct Annotations {
     /// Potential documentation that can e.g. be added in code generation.
     pub docs: Option<String>,
     /// Opaque constraints that must be validated against the schema.
-    pub constraints: Vec<Constraint>,
+    pub constraints: Map<String, Constraint>,
     /// Opaque metadata passed through the schema.
-    pub metadata: Vec<Metadata>,
+    pub metadata: Map<String, Metadata>,
 }

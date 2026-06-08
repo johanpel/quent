@@ -6,11 +6,12 @@ publish.workspace = true
 
 [features]
 default = ["visitor"]
-serde = ["dep:serde"]
-visitor = ["dep:rustc-hash", "dep:smallvec"]
+serde = ["dep:serde", "indexmap/serde"]
+visitor = ["dep:smallvec"]
 
 [dependencies]
-rustc-hash = { workspace = true, optional = true }
+indexmap = { workspace = true }
+rustc-hash = { workspace = true }
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, optional = true }
 

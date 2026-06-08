@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::schema::{annotations::Annotations, field::Field, identifier::Identifier};
+use crate::schema::{Map, annotations::Annotations, field::Field, identifier::Identifier};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -20,7 +20,7 @@ pub struct Event {
     /// The [`Cardinality`] of the event.
     pub cardinality: Cardinality,
     /// The payload fields of the event.
-    pub payload: Vec<Field>,
+    pub payload: Map<Identifier, Field>,
     /// Annotations of this event.
     pub annotations: Annotations,
 }

@@ -3,17 +3,12 @@
 
 //! # Constraint trait and validation for [`Schema`]s.
 
-pub mod consistency;
 pub mod utils;
 
-use std::collections::{BTreeSet, HashSet};
+mod unregistered_constraints;
+mod unresolved_refs;
 
-use quent_schema::{
-    Schema,
-    visitor::{Cursor, Element, IndexedSchema, Visitor},
-};
-
-use crate::consistency::{DuplicateNames, UnresolvedReferences};
+use quent_schema::{Schema, visitor::Visitor};
 
 /// A trait for types that implement a "constraint" of an application event
 /// model.
@@ -47,8 +42,6 @@ pub struct Report<R> {
     /// Constraint names referenced by the schema that no validated constraint
     /// handles.
     pub unregistered_constraints: Vec<String>,
-    /// Duplicate definitions
-    pub duplicate_definitions: Vec<String>,
     /// Invalid references
     pub invalid_references: Vec<String>,
     /// Each constraint's own result, in tuple order matching the validated
@@ -58,29 +51,56 @@ pub struct Report<R> {
 
 /// Validates (a tuple of) [`Constraint`]s against `schema`.
 ///
-/// ```ignore
-/// let { unregistered, (some_result, other_result) } = validate::<(SomeConstraint, OtherConstraint)>(&schema);
-/// some_result?;
-/// other_result?;
-/// assert!(report.unregistered.is_empty());
+/// The returned validation [`Report`] always includes:
+/// - the result of an internal consistency check of the schema (i.e. internal
+///   references properly resolve)
+/// - a list of unregistered constraints
+///
+/// Results from additional constraints are gathered in [`Report::results`].
+///
+/// ```
+/// use quent_constraints::validate;
+/// use quent_schema::{Annotations, Identifier, Map, Schema};
+/// # use quent_constraints::Constraint;
+/// # use quent_schema::visitor::{Cursor, Visitor};
+/// #
+/// # #[derive(Default)]
+/// # struct DocConstraint;
+/// # impl Visitor for DocConstraint {
+/// #     type Output = Result<(), String>;
+/// #     fn visit(&mut self, _cursor: &Cursor) {}
+/// #     fn finish(self) -> Self::Output {
+/// #         Ok(())
+/// #     }
+/// # }
+/// # impl Constraint for DocConstraint {
+/// #     const NAME: &'static str = "quent.docs.constraint.v1";
+/// # }
+/// # type ConstraintA = DocConstraint;
+/// # type ConstraintB = DocConstraint;
+/// #
+/// # let schema = Schema {
+/// #     name: Identifier::try_new("MySchema").unwrap(),
+/// #     entities: Map::default(),
+/// #     records: Map::default(),
+/// #     annotations: Annotations::default(),
+/// # };
+///
+/// let report = validate::<(ConstraintA, ConstraintB)>(&schema);
+/// let (result_a, result_b) = report.results;
+/// assert!(result_a.is_ok());
+/// assert!(result_b.is_ok());
+/// assert!(report.unregistered_constraints.is_empty());
+/// assert!(report.invalid_references.is_empty());
 /// ```
 pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> {
-    let registered: HashSet<&'static str> = C::NAMES.iter().copied().collect();
-    // The internal-consistency checks ride along in the same walk, so the
-    // schema is indexed and traversed exactly once for everything.
-    let (duplicate_definitions, invalid_references, (unregistered_constraints, results)) = schema
-        .walk((
-            DuplicateNames::default(),
-            UnresolvedReferences::default(),
-            ConstraintScan {
-                registered: &registered,
-                unregistered: BTreeSet::new(),
-                inner: C::default(),
-            },
-        ));
+    let (invalid_references, unregistered_constraints, results) = schema.walk((
+        unresolved_refs::UnresolvedReferences::default(),
+        unregistered_constraints::UnregisteredConstraints::new(C::NAMES),
+        C::default(),
+    ));
     Report {
         unregistered_constraints: unregistered_constraints.into_iter().collect(),
-        duplicate_definitions,
         invalid_references,
         results,
     }
@@ -115,28 +135,3 @@ constraints_impls!(A, B, C, D, E, F, G, H, I);
 constraints_impls!(A, B, C, D, E, F, G, H, I, J);
 constraints_impls!(A, B, C, D, E, F, G, H, I, J, K);
 constraints_impls!(A, B, C, D, E, F, G, H, I, J, K, L);
-
-/// Utility visitor wrapping around constraints to collect any unregistered
-/// constraint names.
-struct ConstraintScan<'a, C> {
-    registered: &'a HashSet<&'static str>,
-    unregistered: BTreeSet<String>,
-    inner: C,
-}
-
-impl<C: Visitor> Visitor for ConstraintScan<'_, C> {
-    type Output = (BTreeSet<String>, C::Output);
-    fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
-        if let Element::Annotations(annotations) = cursor.current() {
-            for constraint in &annotations.constraints {
-                if !self.registered.contains(constraint.name.as_str()) {
-                    self.unregistered.insert(constraint.name.clone());
-                }
-            }
-        }
-        self.inner.visit(cursor, index);
-    }
-    fn finish(self) -> Self::Output {
-        (self.unregistered, self.inner.finish())
-    }
-}

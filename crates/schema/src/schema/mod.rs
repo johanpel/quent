@@ -17,15 +17,18 @@ pub mod identifier;
 pub mod metadata;
 pub mod record;
 
+/// Container type for named elements.
+pub type Map<K, V> = indexmap::IndexMap<K, V, rustc_hash::FxBuildHasher>;
+
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Schema {
     /// The name of the model.
     pub name: Identifier,
     /// The [`Entity`]s of the model.
-    pub entities: Vec<Entity>,
+    pub entities: Map<Identifier, Entity>,
     /// The [`Record`]s of the model.
-    pub records: Vec<Record>,
+    pub records: Map<Identifier, Record>,
     /// Annotations of this schema.
     pub annotations: Annotations,
 }

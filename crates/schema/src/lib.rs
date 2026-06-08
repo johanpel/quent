@@ -84,9 +84,9 @@
 //! serializing schemas, this crate has a `serde` feature.
 
 pub use schema::{
-    Schema, annotations::Annotations, constraint::Constraint, data_type::DataType, entity::Entity,
-    event::Cardinality, event::Event, field::Field, identifier::Identifier, metadata::Metadata,
-    record::Record,
+    Map, Schema, annotations::Annotations, constraint::Constraint, data_type::DataType,
+    entity::Entity, event::Cardinality, event::Event, field::Field, identifier::Identifier,
+    metadata::Metadata, record::Record,
 };
 
 pub mod schema;

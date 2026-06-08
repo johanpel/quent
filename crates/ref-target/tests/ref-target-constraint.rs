@@ -27,7 +27,9 @@ fn ref_with(constraint: Constraint) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: Annotations {
-            constraints: vec![constraint],
+            constraints: [(constraint.name.clone(), constraint)]
+                .into_iter()
+                .collect(),
             ..Default::default()
         },
     }
@@ -45,7 +47,7 @@ fn event(name: &str, payload: Vec<Field>) -> Event {
     Event {
         name: ident(name),
         cardinality: Cardinality::Once,
-        payload,
+        payload: payload.into_iter().map(|v| (v.name.clone(), v)).collect(),
         annotations: Annotations::default(),
     }
 }
@@ -53,7 +55,7 @@ fn event(name: &str, payload: Vec<Field>) -> Event {
 fn entity(name: &str, events: Vec<Event>) -> Entity {
     Entity {
         name: ident(name),
-        events,
+        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
         annotations: Annotations::default(),
     }
 }
@@ -61,8 +63,8 @@ fn entity(name: &str, events: Vec<Event>) -> Entity {
 fn schema_with(entities: Vec<Entity>) -> Schema {
     Schema {
         name: ident("S"),
-        entities,
-        records: vec![],
+        entities: entities.into_iter().map(|v| (v.name.clone(), v)).collect(),
+        records: quent_schema::schema::Map::default(),
         annotations: Annotations::default(),
     }
 }

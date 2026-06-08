@@ -4,23 +4,13 @@ use smallvec::SmallVec;
 
 use crate::{Annotations, DataType, Entity, Event, Field, Record, Schema};
 
-mod index;
-
-pub use index::{
-    IndexedAnnotations, IndexedEntity, IndexedEvent, IndexedField, IndexedRecord, IndexedSchema,
-    LookupError,
-};
-
 /// Trait for types that can visit a schema and its elements.
 pub trait Visitor {
     /// The output type after the entire schema is walked.
     type Output;
 
     /// Visit a schema element at the `cursor` location.
-    ///
-    /// This function can leverage `index` to quickly look up any internal
-    /// schema references.
-    fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema);
+    fn visit(&mut self, cursor: &Cursor);
 
     /// Finish visiting the schema and produce output.
     fn finish(self) -> Self::Output;
@@ -36,23 +26,22 @@ impl Schema {
     /// 3. its children
     ///
     /// A field's [`DataType`] is visited by variant:
-    /// 1. [`DataType::Option`] and [`DataType::List`] descend into their inner
+    /// 1. [`DataType::Option`] and [`DataType::List`] visit their inner
     ///    type.
-    /// 2. `EntityRef` surfaces its own [`Annotations`], then recurses into any
-    ///    carried data.
-    /// 3. `Record(name)` is a leaf: it is not followed. Instead, every record
-    ///    is visited once from [`Schema::records`].
+    /// 2. [`DataType::EntityRef`] first visits its [`Annotations`], then
+    ///    its carried data type (if any).
+    /// 3. `[DataType::Record`] is considered a leaf. Its constituents are
+    ///    visited once from [`Schema::records`] instead.
     pub fn walk<T: Visitor>(&self, mut visitor: T) -> T::Output {
-        let index = IndexedSchema::new(self);
         let mut cursor = Cursor::new(self);
 
-        visitor.visit(&cursor, &index);
-        walk_annotations(&mut cursor, &index, &mut visitor, &self.annotations);
-        for entity in &self.entities {
-            walk_entity(&mut cursor, &index, &mut visitor, entity);
+        visitor.visit(&cursor);
+        walk_annotations(&mut cursor, &mut visitor, &self.annotations);
+        for entity in self.entities.values() {
+            walk_entity(&mut cursor, &mut visitor, entity);
         }
-        for record in &self.records {
-            walk_record(&mut cursor, &index, &mut visitor, record);
+        for record in self.records.values() {
+            walk_record(&mut cursor, &mut visitor, record);
         }
 
         visitor.finish()
@@ -159,89 +148,63 @@ impl Display for Cursor<'_> {
 
 fn walk_annotations<'s, V: Visitor>(
     cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
     visitor: &mut V,
     annotations: &'s Annotations,
 ) {
     cursor.enter(Element::Annotations(annotations));
-    visitor.visit(cursor, index);
+    visitor.visit(cursor);
     cursor.leave();
 }
 
-fn walk_entity<'s, V: Visitor>(
-    cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
-    visitor: &mut V,
-    entity: &'s Entity,
-) {
+fn walk_entity<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, entity: &'s Entity) {
     cursor.enter(Element::Entity(entity));
-    visitor.visit(cursor, index);
-    walk_annotations(cursor, index, visitor, &entity.annotations);
-    for event in &entity.events {
-        walk_event(cursor, index, visitor, event);
+    visitor.visit(cursor);
+    walk_annotations(cursor, visitor, &entity.annotations);
+    for event in entity.events.values() {
+        walk_event(cursor, visitor, event);
     }
     cursor.leave();
 }
 
-fn walk_event<'s, V: Visitor>(
-    cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
-    visitor: &mut V,
-    event: &'s Event,
-) {
+fn walk_event<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, event: &'s Event) {
     cursor.enter(Element::Event(event));
-    visitor.visit(cursor, index);
-    walk_annotations(cursor, index, visitor, &event.annotations);
-    for field in &event.payload {
-        walk_field(cursor, index, visitor, field);
+    visitor.visit(cursor);
+    walk_annotations(cursor, visitor, &event.annotations);
+    for field in event.payload.values() {
+        walk_field(cursor, visitor, field);
     }
     cursor.leave();
 }
 
-fn walk_record<'s, V: Visitor>(
-    cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
-    visitor: &mut V,
-    record: &'s Record,
-) {
+fn walk_record<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, record: &'s Record) {
     cursor.enter(Element::Record(record));
-    visitor.visit(cursor, index);
-    walk_annotations(cursor, index, visitor, &record.annotations);
-    for field in &record.fields {
-        walk_field(cursor, index, visitor, field);
+    visitor.visit(cursor);
+    walk_annotations(cursor, visitor, &record.annotations);
+    for field in record.fields.values() {
+        walk_field(cursor, visitor, field);
     }
     cursor.leave();
 }
 
-fn walk_field<'s, V: Visitor>(
-    cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
-    visitor: &mut V,
-    field: &'s Field,
-) {
+fn walk_field<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, field: &'s Field) {
     cursor.enter(Element::Field(field));
-    visitor.visit(cursor, index);
-    walk_annotations(cursor, index, visitor, &field.annotations);
-    walk_data_type(cursor, index, visitor, &field.ty);
+    visitor.visit(cursor);
+    walk_annotations(cursor, visitor, &field.annotations);
+    walk_data_type(cursor, visitor, &field.ty);
     cursor.leave();
 }
 
-fn walk_data_type<'s, V: Visitor>(
-    cursor: &mut Cursor<'s>,
-    index: &IndexedSchema<'s>,
-    visitor: &mut V,
-    ty: &'s DataType,
-) {
+fn walk_data_type<'s, V: Visitor>(cursor: &mut Cursor<'s>, visitor: &mut V, ty: &'s DataType) {
     cursor.enter(Element::DataType(ty));
-    visitor.visit(cursor, index);
+    visitor.visit(cursor);
     match ty {
         DataType::Option(inner) | DataType::List(inner) => {
-            walk_data_type(cursor, index, visitor, inner);
+            walk_data_type(cursor, visitor, inner);
         }
         DataType::EntityRef { data, annotations } => {
-            walk_annotations(cursor, index, visitor, annotations);
+            walk_annotations(cursor, visitor, annotations);
             if let Some(inner) = data {
-                walk_data_type(cursor, index, visitor, inner);
+                walk_data_type(cursor, visitor, inner);
             }
         }
         _ => {}
@@ -253,7 +216,7 @@ fn walk_data_type<'s, V: Visitor>(
 // visitor of its own.
 impl Visitor for () {
     type Output = ();
-    fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+    fn visit(&mut self, _cursor: &Cursor) {}
     fn finish(self) -> Self::Output {}
 }
 
@@ -263,8 +226,8 @@ macro_rules! tuple_impls {
     ($($T:ident => $idx:tt),+) => {
         impl<$($T: Visitor),+> Visitor for ($($T,)+) {
             type Output = ($($T::Output,)+);
-            fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
-                $( self.$idx.visit(cursor, index); )+
+            fn visit(&mut self, cursor: &Cursor) {
+                $( self.$idx.visit(cursor); )+
             }
             fn finish(self) -> Self::Output {
                 ($( self.$idx.finish(), )+)
@@ -288,10 +251,31 @@ tuple_impls!(A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I =
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::schema::Map;
     use crate::{Constraint, Identifier, schema::event::Cardinality};
 
     fn ident(s: &str) -> Identifier {
         Identifier::try_new(s).unwrap()
+    }
+
+    fn entities(items: Vec<Entity>) -> Map<Identifier, Entity> {
+        items.into_iter().map(|v| (v.name.clone(), v)).collect()
+    }
+
+    fn events(items: Vec<Event>) -> Map<Identifier, Event> {
+        items.into_iter().map(|v| (v.name.clone(), v)).collect()
+    }
+
+    fn fields(items: Vec<Field>) -> Map<Identifier, Field> {
+        items.into_iter().map(|v| (v.name.clone(), v)).collect()
+    }
+
+    fn records(items: Vec<Record>) -> Map<Identifier, Record> {
+        items.into_iter().map(|v| (v.name.clone(), v)).collect()
+    }
+
+    fn constraints(items: Vec<Constraint>) -> Map<String, Constraint> {
+        items.into_iter().map(|v| (v.name.clone(), v)).collect()
     }
 
     // Stateless no-op visitor
@@ -299,7 +283,7 @@ mod test {
     struct FooVisitor;
     impl Visitor for FooVisitor {
         type Output = ();
-        fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {}
+        fn visit(&mut self, _cursor: &Cursor) {}
         fn finish(self) -> Self::Output {}
     }
     // Stateful visitor.
@@ -309,7 +293,7 @@ mod test {
     }
     impl Visitor for BarVisitor {
         type Output = u8;
-        fn visit(&mut self, _cursor: &Cursor, _index: &IndexedSchema) {
+        fn visit(&mut self, _cursor: &Cursor) {
             self.beers += 1;
         }
         fn finish(self) -> u8 {
@@ -330,7 +314,7 @@ mod test {
     }
     impl Visitor for ElementCounter {
         type Output = ElementCounter;
-        fn visit(&mut self, cursor: &Cursor, _index: &IndexedSchema) {
+        fn visit(&mut self, cursor: &Cursor) {
             match cursor.current() {
                 Element::Schema(_) => self.schemas += 1,
                 Element::Annotations(_) => self.annotations += 1,
@@ -350,29 +334,29 @@ mod test {
         Schema {
             name: ident("S"),
             annotations: Annotations::default(),
-            entities: vec![Entity {
+            entities: entities(vec![Entity {
                 name: ident("E"),
                 annotations: Annotations::default(),
-                events: vec![Event {
+                events: events(vec![Event {
                     name: ident("Ev"),
                     cardinality: Cardinality::Once,
                     annotations: Annotations::default(),
-                    payload: vec![Field {
+                    payload: fields(vec![Field {
                         name: ident("f"),
                         ty: DataType::U64,
                         annotations: Annotations::default(),
-                    }],
-                }],
-            }],
-            records: vec![Record {
+                    }]),
+                }]),
+            }]),
+            records: records(vec![Record {
                 name: ident("R"),
                 annotations: Annotations::default(),
-                fields: vec![Field {
+                fields: fields(vec![Field {
                     name: ident("rf"),
                     ty: DataType::U64,
                     annotations: Annotations::default(),
-                }],
-            }],
+                }]),
+            }]),
         }
     }
 
@@ -393,31 +377,31 @@ mod test {
         let entity_ref = DataType::EntityRef {
             data: None,
             annotations: Annotations {
-                constraints: vec![Constraint {
+                constraints: constraints(vec![Constraint {
                     name: "my.constraint.v1".to_string(),
                     data: None,
-                }],
+                }]),
                 ..Default::default()
             },
         };
         let schema = Schema {
             name: ident("S"),
             annotations: Annotations::default(),
-            entities: vec![Entity {
+            entities: entities(vec![Entity {
                 name: ident("E"),
                 annotations: Annotations::default(),
-                events: vec![Event {
+                events: events(vec![Event {
                     name: ident("Ev"),
                     cardinality: Cardinality::Once,
                     annotations: Annotations::default(),
-                    payload: vec![Field {
+                    payload: fields(vec![Field {
                         name: ident("x"),
                         ty: DataType::Option(Box::new(DataType::List(Box::new(entity_ref)))),
                         annotations: Annotations::default(),
-                    }],
-                }],
-            }],
-            records: vec![],
+                    }]),
+                }]),
+            }]),
+            records: Map::default(),
         };
 
         let census = schema.walk(ElementCounter::default());
@@ -442,158 +426,11 @@ mod test {
     }
 
     #[test]
-    fn index_reports_missing() {
-        let schema = sample_schema();
-        let index = IndexedSchema::new(&schema);
-
-        assert!(matches!(
-            index.entity(&ident("nope")),
-            Err(LookupError::Missing(n)) if n == "nope"
-        ));
-        // The entity and event exist but the field does not.
-        let event = index
-            .entity(&ident("E"))
-            .unwrap()
-            .event(&ident("Ev"))
-            .unwrap();
-        assert!(matches!(
-            event.field(&ident("nope")),
-            Err(LookupError::Missing(n)) if n == "nope"
-        ));
-        // The entity itself is absent.
-        assert!(matches!(
-            index.entity(&ident("nope")),
-            Err(LookupError::Missing(n)) if n == "nope"
-        ));
-    }
-
-    #[test]
-    fn index_reports_duplicate_entity() {
-        let entity = |name: &str| Entity {
-            name: ident(name),
-            annotations: Annotations::default(),
-            events: vec![],
-        };
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: vec![entity("Dup"), entity("Dup"), entity("Unique")],
-            records: vec![],
-        };
-        let index = IndexedSchema::new(&schema);
-
-        // Only the duplicated name errors; other names resolve as usual.
-        assert!(matches!(
-            index.entity(&ident("Dup")),
-            Err(LookupError::Duplicate(n)) if n == "Dup"
-        ));
-        assert!(index.entity(&ident("Unique")).is_ok());
-        assert!(matches!(
-            index.entity(&ident("Other")),
-            Err(LookupError::Missing(n)) if n == "Other"
-        ));
-    }
-
-    #[test]
-    fn index_reports_duplicate_event_field() {
-        let field = || Field {
-            name: ident("f"),
-            ty: DataType::U64,
-            annotations: Annotations::default(),
-        };
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: vec![field(), field()],
-                }],
-            }],
-            records: vec![],
-        };
-        let index = IndexedSchema::new(&schema);
-
-        let event = index
-            .entity(&ident("E"))
-            .unwrap()
-            .event(&ident("Ev"))
-            .unwrap();
-        assert!(matches!(
-            event.field(&ident("f")),
-            Err(LookupError::Duplicate(n)) if n == "f"
-        ));
-    }
-
-    #[test]
-    fn duplicate_paths_are_scoped_per_collection() {
-        let event = |name: &str| Event {
-            name: ident(name),
-            cardinality: Cardinality::Once,
-            annotations: Annotations::default(),
-            payload: vec![],
-        };
-        let entity = |name: &str, events: Vec<Event>| Entity {
-            name: ident(name),
-            annotations: Annotations::default(),
-            events,
-        };
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            // The same event name under two different entities is not a clash;
-            // a repeated event name within one entity is.
-            entities: vec![
-                entity("E1", vec![event("Ev")]),
-                entity("E2", vec![event("Ev")]),
-                entity("E3", vec![event("Dup"), event("Dup")]),
-            ],
-            records: vec![],
-        };
-        let index = IndexedSchema::new(&schema);
-        assert_eq!(
-            index.duplicate_paths().to_vec(),
-            vec!["S.E3.Dup".to_string()]
-        );
-    }
-
-    #[test]
-    fn index_reports_duplicate_event() {
-        let event = |name: &str| Event {
-            name: ident(name),
-            cardinality: Cardinality::Once,
-            annotations: Annotations::default(),
-            payload: vec![],
-        };
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: vec![event("Ev"), event("Ev")],
-            }],
-            records: vec![],
-        };
-        let index = IndexedSchema::new(&schema);
-
-        let entity = index.entity(&ident("E")).unwrap();
-        assert!(matches!(
-            entity.event(&ident("Ev")),
-            Err(LookupError::Duplicate(n)) if n == "Ev"
-        ));
-    }
-
-    #[test]
-    fn cursor_and_index_are_available_during_visit() {
+    fn cursor_is_available_during_visit() {
         struct Probe;
         impl Visitor for Probe {
             type Output = ();
-            fn visit(&mut self, cursor: &Cursor, index: &IndexedSchema) {
+            fn visit(&mut self, cursor: &Cursor) {
                 // The root is always the schema being walked.
                 assert_eq!(cursor.root().name, ident("S"));
                 // The path begins at the schema root.
@@ -608,11 +445,11 @@ mod test {
                         Some(Element::Event(_) | Element::Record(_))
                     ));
                 }
-                // Declared names resolve through the index mid-walk.
+                // Declared names resolve through the root mid-walk.
                 if let Element::Schema(_) = cursor.current() {
-                    assert!(index.entity(&ident("E")).is_ok());
-                    assert!(index.record(&ident("R")).is_ok());
-                    assert!(index.entity(&ident("nope")).is_err());
+                    assert!(cursor.root().entities.get(&ident("E")).is_some());
+                    assert!(cursor.root().records.get(&ident("R")).is_some());
+                    assert!(cursor.root().entities.get(&ident("nope")).is_none());
                 }
             }
             fn finish(self) {}
@@ -626,29 +463,29 @@ mod test {
         let schema = Schema {
             name: ident("S"),
             annotations: Annotations::default(),
-            entities: vec![Entity {
+            entities: entities(vec![Entity {
                 name: ident("E"),
                 annotations: Annotations::default(),
-                events: vec![Event {
+                events: events(vec![Event {
                     name: ident("Ev"),
                     cardinality: Cardinality::Once,
                     annotations: Annotations::default(),
-                    payload: vec![Field {
+                    payload: fields(vec![Field {
                         name: ident("f"),
                         ty: DataType::Record(ident("R")),
                         annotations: Annotations::default(),
-                    }],
-                }],
-            }],
-            records: vec![Record {
+                    }]),
+                }]),
+            }]),
+            records: records(vec![Record {
                 name: ident("R"),
                 annotations: Annotations::default(),
-                fields: vec![Field {
+                fields: fields(vec![Field {
                     name: ident("rf"),
                     ty: DataType::U64,
                     annotations: Annotations::default(),
-                }],
-            }],
+                }]),
+            }]),
         };
 
         let counter = schema.walk(ElementCounter::default());
@@ -664,8 +501,8 @@ mod test {
         let schema = Schema {
             name: ident("S"),
             annotations: Annotations::default(),
-            entities: vec![],
-            records: vec![],
+            entities: Map::default(),
+            records: Map::default(),
         };
 
         let counter = schema.walk(ElementCounter::default());
@@ -684,7 +521,7 @@ mod test {
         struct Capture(Vec<String>);
         impl Visitor for Capture {
             type Output = Vec<String>;
-            fn visit(&mut self, cursor: &Cursor, _index: &IndexedSchema) {
+            fn visit(&mut self, cursor: &Cursor) {
                 self.0.push(cursor.to_string());
             }
             fn finish(self) -> Vec<String> {
@@ -704,14 +541,14 @@ mod test {
         let schema = Schema {
             name: ident("S"),
             annotations: Annotations::default(),
-            entities: vec![Entity {
+            entities: entities(vec![Entity {
                 name: ident("E"),
                 annotations: Annotations::default(),
-                events: vec![Event {
+                events: events(vec![Event {
                     name: ident("Ev"),
                     cardinality: Cardinality::Once,
                     annotations: Annotations::default(),
-                    payload: vec![
+                    payload: fields(vec![
                         field("bool_f", DataType::Bool),
                         field("uuid_f", DataType::Uuid),
                         field("str_f", DataType::String),
@@ -736,14 +573,14 @@ mod test {
                                 annotations: Annotations::default(),
                             },
                         ),
-                    ],
-                }],
-            }],
-            records: vec![Record {
+                    ]),
+                }]),
+            }]),
+            records: records(vec![Record {
                 name: ident("R"),
                 annotations: Annotations::default(),
-                fields: vec![],
-            }],
+                fields: Map::default(),
+            }]),
         };
 
         let paths = schema.walk(Capture(Vec::new()));
@@ -784,125 +621,5 @@ mod test {
         assert!(paths.contains(&"S.E.Ev.ref_f.EntityRef".to_string()));
         assert!(paths.contains(&"S.E.Ev.ref_f.EntityRef.Annotations".to_string()));
         assert!(paths.contains(&"S.E.Ev.ref_f.EntityRef.U32".to_string()));
-    }
-
-    #[test]
-    fn annotation_index_lookups() {
-        let constraint_name = "my.constraint.v1";
-        let metadata_name = "my.metadata.v1";
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations {
-                constraints: vec![Constraint {
-                    name: constraint_name.to_string(),
-                    data: Some("schema-data".to_string()),
-                }],
-                metadata: vec![crate::Metadata {
-                    name: metadata_name.to_string(),
-                    data: Some("schema-meta".to_string()),
-                }],
-                ..Default::default()
-            },
-            entities: vec![Entity {
-                name: ident("E"),
-                annotations: Annotations {
-                    constraints: vec![Constraint {
-                        name: constraint_name.to_string(),
-                        data: Some("entity-data".to_string()),
-                    }],
-                    ..Default::default()
-                },
-                events: vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: vec![Field {
-                        name: ident("f"),
-                        ty: DataType::U64,
-                        annotations: Annotations {
-                            constraints: vec![Constraint {
-                                name: constraint_name.to_string(),
-                                data: Some("field-data".to_string()),
-                            }],
-                            ..Default::default()
-                        },
-                    }],
-                }],
-            }],
-            records: vec![Record {
-                name: ident("R"),
-                annotations: Annotations::default(),
-                fields: vec![Field {
-                    name: ident("rf"),
-                    ty: DataType::U64,
-                    annotations: Annotations {
-                        constraints: vec![Constraint {
-                            name: constraint_name.to_string(),
-                            data: Some("record-field-data".to_string()),
-                        }],
-                        ..Default::default()
-                    },
-                }],
-            }],
-        };
-
-        let index = IndexedSchema::new(&schema);
-
-        // Schema-level annotations.
-        let sa = index.annotations();
-        assert_eq!(
-            sa.constraint(constraint_name).unwrap().data.as_deref(),
-            Some("schema-data")
-        );
-        assert_eq!(
-            sa.metadata(metadata_name).unwrap().data.as_deref(),
-            Some("schema-meta")
-        );
-        assert!(sa.constraint("missing").is_err());
-
-        // Entity annotations.
-        let entity = index.entity(&ident("E")).unwrap();
-        assert_eq!(
-            entity
-                .annotations()
-                .constraint(constraint_name)
-                .unwrap()
-                .data
-                .as_deref(),
-            Some("entity-data")
-        );
-        assert!(index.entity(&ident("nope")).is_err());
-
-        // Empty annotations, so constraint is absent.
-        let event = entity.event(&ident("Ev")).unwrap();
-        assert!(event.annotations().constraint(constraint_name).is_err());
-
-        // Event field annotations.
-        assert_eq!(
-            event
-                .field(&ident("f"))
-                .unwrap()
-                .annotations()
-                .constraint(constraint_name)
-                .unwrap()
-                .data
-                .as_deref(),
-            Some("field-data")
-        );
-
-        // Record field annotations.
-        assert_eq!(
-            index
-                .record(&ident("R"))
-                .unwrap()
-                .field(&ident("rf"))
-                .unwrap()
-                .annotations()
-                .constraint(constraint_name)
-                .unwrap()
-                .data
-                .as_deref(),
-            Some("record-field-data")
-        );
     }
 }
