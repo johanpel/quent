@@ -10,9 +10,10 @@ use quent_schema::{
     constraint::Constraint,
     data_type::DataType,
     entity::Entity,
-    event::{Cardinality, Event, EventField},
+    event::{Cardinality, Event},
+    field::Field,
     identifier::Identifier,
-    record::{Record, RecordField},
+    record::Record,
 };
 
 fn ident(s: &str) -> Identifier {
@@ -68,15 +69,15 @@ fn ref_carrying(data: DataType) -> DataType {
     }
 }
 
-fn field(name: &str, ty: DataType) -> EventField {
-    EventField {
+fn field(name: &str, ty: DataType) -> Field {
+    Field {
         name: ident(name),
         ty,
         annotations: Annotations::default(),
     }
 }
 
-fn event(name: &str, payload: Vec<EventField>) -> Event {
+fn event(name: &str, payload: Vec<Field>) -> Event {
     Event {
         name: ident(name),
         cardinality: Cardinality::Once,
@@ -103,18 +104,10 @@ fn child(name: &str, ty: DataType) -> Entity {
     entity(name, vec![event("created", vec![field("parent", ty)])])
 }
 
-fn record(name: &str, fields: Vec<RecordField>) -> Record {
+fn record(name: &str, fields: Vec<Field>) -> Record {
     Record {
         name: ident(name),
         fields,
-        annotations: Annotations::default(),
-    }
-}
-
-fn record_field(name: &str, ty: DataType) -> RecordField {
-    RecordField {
-        name: ident(name),
-        ty,
         annotations: Annotations::default(),
     }
 }
@@ -205,7 +198,7 @@ fn tree_ref_in_reference_payload_is_found() {
 #[test]
 fn tree_ref_via_record_field_resolves_parent() {
     // A parent reference reached through a record-typed event field counts.
-    let meta = record("Meta", vec![record_field("owner", tree_ref_to("Cluster"))]);
+    let meta = record("Meta", vec![field("owner", tree_ref_to("Cluster"))]);
     let worker = child("Worker", DataType::Record(ident("Meta")));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     assert!(validate(&schema).is_empty());
@@ -218,8 +211,8 @@ fn recursive_record_does_not_loop() {
     let meta = record(
         "Meta",
         vec![
-            record_field("owner", tree_ref_to("Cluster")),
-            record_field(
+            field("owner", tree_ref_to("Cluster")),
+            field(
                 "nested",
                 DataType::Option(Box::new(DataType::Record(ident("Meta")))),
             ),
@@ -259,7 +252,7 @@ fn type_erased_tree_ref_is_rejected() {
 #[test]
 fn type_erased_tree_ref_via_record_is_rejected() {
     // Req. 3 also reaches references hidden behind a record-typed field.
-    let meta = record("Meta", vec![record_field("owner", tree_ref())]);
+    let meta = record("Meta", vec![field("owner", tree_ref())]);
     let worker = child("Worker", DataType::Record(ident("Meta")));
     let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
     let errors = validate(&schema);
