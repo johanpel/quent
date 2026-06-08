@@ -5,10 +5,11 @@ edition.workspace = true
 publish.workspace = true
 
 [features]
-default = ["visitor"]
+default = ["builder", "visitor"]
+builder = []
 serde = ["dep:serde", "indexmap/serde"]
 visitor = ["dep:smallvec"]
-test-utils = []
+test-utils = ["builder"]
 
 [dependencies]
 indexmap = { workspace = true }

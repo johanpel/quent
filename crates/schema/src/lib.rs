@@ -94,6 +94,7 @@ pub use schema::{
     record::Record,
 };
 
+#[cfg(feature = "builder")]
 pub mod builder;
 pub mod schema;
 #[cfg(any(test, feature = "test-utils"))]
