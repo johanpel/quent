@@ -12,13 +12,18 @@
 //! The schema core concepts are:
 //!
 //! - [`Identifier`]: defines the name of things
-//! - [`DataType`]: defines common data types (bool, integer, string, etc.) plus Quent-specific types, such as:
+//! - [`DataType`]: defines common data types (bool, integer, string, etc.)
+//!   plus Quent-specific types, such as:
 //!     - [`DataType::EntityRef`]
 //!     - [`DataType::DynamicRecord`]
 //! - [`Event`]: defines an event type that applications can emit.
-//! - [`Entity`]: defines a uniquely identifiable type of thing that emits some set of related events.
-//! - [`Schema`]: defines a type of uniquely identifiable collection of entities that are somehow related. Top-level of an application event model.
-//! - [`Annotations`]: opaque metadata and doc strings for most other core concepts.
+//! - [`Entity`]: defines a uniquely identifiable type of thing that emits
+//!   some set of related events.
+//! - [`Schema`]: defines a type of uniquely identifiable collection of
+//!   entities that are somehow related. Top-level of an application event
+//!   model.
+//! - [`Annotations`]: opaque metadata and doc strings for most other core
+//!   concepts.
 //!
 //! ## Purpose
 //!
@@ -89,6 +94,9 @@ pub use schema::{
     record::Record,
 };
 
+pub mod builder;
 pub mod schema;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils;
 #[cfg(feature = "visitor")]
 pub mod visitor;

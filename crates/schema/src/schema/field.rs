@@ -17,6 +17,15 @@ pub struct Field {
 }
 
 impl Field {
+    /// Create a field named `name` of type `ty`.
+    pub fn new(name: Identifier, ty: DataType, annotations: Annotations) -> Self {
+        Self {
+            name,
+            ty,
+            annotations,
+        }
+    }
+
     /// The name of the field.
     pub fn name(&self) -> &Identifier {
         &self.name

@@ -4,69 +4,35 @@
 use quent_constraints::Constraint as _;
 use quent_ref_target::{RefTarget, RefTargetConstraint, RefTargetError};
 use quent_schema::{
-    Annotations, Cardinality, Constraint, DataType, Entity, Event, Field, Identifier, Schema,
+    Constraint, DataType, Entity, Schema,
+    builder::AnnotationsBuilder,
+    test_utils::{constraint, entity, event, field, ident, schema},
 };
 
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
-}
-
 fn target_constraint(target: &str) -> Constraint {
-    Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: Some(
-            serde_json::to_string(&RefTarget {
+    constraint(
+        RefTargetConstraint::NAME,
+        Some(
+            &serde_json::to_string(&RefTarget {
                 target: ident(target),
             })
             .unwrap(),
         ),
-    }
+    )
 }
 
 fn ref_with(constraint: Constraint) -> DataType {
     DataType::EntityRef {
         data: None,
-        annotations: Annotations {
-            constraints: [(constraint.name.clone(), constraint)]
-                .into_iter()
-                .collect(),
-            ..Default::default()
-        },
-    }
-}
-
-fn field(name: &str, ty: DataType) -> Field {
-    Field {
-        name: ident(name),
-        ty,
-        annotations: Annotations::default(),
-    }
-}
-
-fn event(name: &str, payload: Vec<Field>) -> Event {
-    Event {
-        name: ident(name),
-        cardinality: Cardinality::Once,
-        payload: payload.into_iter().map(|v| (v.name.clone(), v)).collect(),
-        annotations: Annotations::default(),
-    }
-}
-
-fn entity(name: &str, events: Vec<Event>) -> Entity {
-    Entity {
-        name: ident(name),
-        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
-        annotations: Annotations::default(),
+        annotations: AnnotationsBuilder::new()
+            .constraint(constraint)
+            .unwrap()
+            .build(),
     }
 }
 
 fn schema_with(entities: Vec<Entity>) -> Schema {
-    Schema {
-        name: ident("S"),
-        entities: entities.into_iter().map(|v| (v.name.clone(), v)).collect(),
-        records: quent_schema::schema::Map::default(),
-        annotations: Annotations::default(),
-    }
+    schema("S", entities, vec![])
 }
 
 fn validate(schema: &Schema) -> Vec<RefTargetError> {
@@ -110,10 +76,7 @@ fn ref_to_unknown_entity_is_rejected() {
 
 #[test]
 fn missing_data_is_rejected() {
-    let bad = ref_with(Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: None,
-    });
+    let bad = ref_with(Constraint::new(RefTargetConstraint::NAME, None));
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(
@@ -125,10 +88,10 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
-    let bad = ref_with(Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: Some("{ trash".to_string()),
-    });
+    let bad = ref_with(Constraint::new(
+        RefTargetConstraint::NAME,
+        Some("{ trash".to_string()),
+    ));
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(

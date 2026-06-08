@@ -60,9 +60,9 @@ pub enum Element<'s> {
     DataType(&'s DataType),
 }
 
-/// Path from the schema root down to the element currently being visited.
-// 5 is a typical leaf depth
-// Schema -> Entity -> Event -> Field -> Annotations
+/// Path to the [`Schema`] element currently being visited.
+///
+/// The root is always the [`Schema`] itself.
 #[derive(Clone, PartialEq)]
 pub struct Cursor<'s>(SmallVec<[Element<'s>; 5]>);
 
@@ -251,32 +251,8 @@ tuple_impls!(A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I =
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::schema::Map;
-    use crate::{Constraint, Identifier, schema::event::Cardinality};
-
-    fn ident(s: &str) -> Identifier {
-        Identifier::try_new(s).unwrap()
-    }
-
-    fn entities(items: Vec<Entity>) -> Map<Identifier, Entity> {
-        items.into_iter().map(|v| (v.name.clone(), v)).collect()
-    }
-
-    fn events(items: Vec<Event>) -> Map<Identifier, Event> {
-        items.into_iter().map(|v| (v.name.clone(), v)).collect()
-    }
-
-    fn fields(items: Vec<Field>) -> Map<Identifier, Field> {
-        items.into_iter().map(|v| (v.name.clone(), v)).collect()
-    }
-
-    fn records(items: Vec<Record>) -> Map<Identifier, Record> {
-        items.into_iter().map(|v| (v.name.clone(), v)).collect()
-    }
-
-    fn constraints(items: Vec<Constraint>) -> Map<String, Constraint> {
-        items.into_iter().map(|v| (v.name.clone(), v)).collect()
-    }
+    use crate::builder::AnnotationsBuilder;
+    use crate::test_utils::{constraint, entity, event, field, ident, record, schema};
 
     // Stateless no-op visitor
     #[derive(Default)]
@@ -331,33 +307,14 @@ mod test {
     }
 
     fn sample_schema() -> Schema {
-        Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: entities(vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: events(vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: fields(vec![Field {
-                        name: ident("f"),
-                        ty: DataType::U64,
-                        annotations: Annotations::default(),
-                    }]),
-                }]),
-            }]),
-            records: records(vec![Record {
-                name: ident("R"),
-                annotations: Annotations::default(),
-                fields: fields(vec![Field {
-                    name: ident("rf"),
-                    ty: DataType::U64,
-                    annotations: Annotations::default(),
-                }]),
-            }]),
-        }
+        schema(
+            "S",
+            vec![entity(
+                "E",
+                vec![event("Ev", vec![field("f", DataType::U64)])],
+            )],
+            vec![record("R", vec![field("rf", DataType::U64)])],
+        )
     }
 
     #[test]
@@ -376,33 +333,25 @@ mod test {
     fn recurses_data_types_and_entity_ref_annotations() {
         let entity_ref = DataType::EntityRef {
             data: None,
-            annotations: Annotations {
-                constraints: constraints(vec![Constraint {
-                    name: "my.constraint.v1".to_string(),
-                    data: None,
-                }]),
-                ..Default::default()
-            },
+            annotations: AnnotationsBuilder::new()
+                .constraint(constraint("my.constraint.v1", None))
+                .unwrap()
+                .build(),
         };
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: entities(vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: events(vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: fields(vec![Field {
-                        name: ident("x"),
-                        ty: DataType::Option(Box::new(DataType::List(Box::new(entity_ref)))),
-                        annotations: Annotations::default(),
-                    }]),
-                }]),
-            }]),
-            records: Map::default(),
-        };
+        let schema = schema(
+            "S",
+            vec![entity(
+                "E",
+                vec![event(
+                    "Ev",
+                    vec![field(
+                        "x",
+                        DataType::Option(Box::new(DataType::List(Box::new(entity_ref)))),
+                    )],
+                )],
+            )],
+            vec![],
+        );
 
         let census = schema.walk(ElementCounter::default());
         // Option -> List -> EntityRef.
@@ -432,7 +381,7 @@ mod test {
             type Output = ();
             fn visit(&mut self, cursor: &Cursor) {
                 // The root is always the schema being walked.
-                assert_eq!(cursor.root().name, ident("S"));
+                assert_eq!(*cursor.root().name(), ident("S"));
                 // The path begins at the schema root.
                 assert!(matches!(
                     cursor.elements().first(),
@@ -447,9 +396,9 @@ mod test {
                 }
                 // Declared names resolve through the root mid-walk.
                 if let Element::Schema(_) = cursor.current() {
-                    assert!(cursor.root().entities.get(&ident("E")).is_some());
-                    assert!(cursor.root().records.get(&ident("R")).is_some());
-                    assert!(cursor.root().entities.get(&ident("nope")).is_none());
+                    assert!(cursor.root().entity(&ident("E")).is_some());
+                    assert!(cursor.root().record(&ident("R")).is_some());
+                    assert!(cursor.root().entity(&ident("nope")).is_none());
                 }
             }
             fn finish(self) {}
@@ -460,33 +409,14 @@ mod test {
 
     #[test]
     fn record_reference_is_a_leaf() {
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: entities(vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: events(vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: fields(vec![Field {
-                        name: ident("f"),
-                        ty: DataType::Record(ident("R")),
-                        annotations: Annotations::default(),
-                    }]),
-                }]),
-            }]),
-            records: records(vec![Record {
-                name: ident("R"),
-                annotations: Annotations::default(),
-                fields: fields(vec![Field {
-                    name: ident("rf"),
-                    ty: DataType::U64,
-                    annotations: Annotations::default(),
-                }]),
-            }]),
-        };
+        let schema = schema(
+            "S",
+            vec![entity(
+                "E",
+                vec![event("Ev", vec![field("f", DataType::Record(ident("R")))])],
+            )],
+            vec![record("R", vec![field("rf", DataType::U64)])],
+        );
 
         let counter = schema.walk(ElementCounter::default());
         // The `Record(R)` reference is one DataType leaf; R's field is visited
@@ -498,12 +428,7 @@ mod test {
 
     #[test]
     fn walks_empty_schema() {
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: Map::default(),
-            records: Map::default(),
-        };
+        let schema = schema("S", vec![], vec![]);
 
         let counter = schema.walk(ElementCounter::default());
         // Only the schema node and its annotations are visited.
@@ -529,59 +454,41 @@ mod test {
             }
         }
 
-        fn field(name: &str, ty: DataType) -> Field {
-            Field {
-                name: ident(name),
-                ty,
-                annotations: Annotations::default(),
-            }
-        }
-
         // One field per DataType variant so every path segment is exercised.
-        let schema = Schema {
-            name: ident("S"),
-            annotations: Annotations::default(),
-            entities: entities(vec![Entity {
-                name: ident("E"),
-                annotations: Annotations::default(),
-                events: events(vec![Event {
-                    name: ident("Ev"),
-                    cardinality: Cardinality::Once,
-                    annotations: Annotations::default(),
-                    payload: fields(vec![
-                        field("bool_f", DataType::Bool),
-                        field("uuid_f", DataType::Uuid),
-                        field("str_f", DataType::String),
-                        field("u8_f", DataType::U8),
-                        field("u16_f", DataType::U16),
-                        field("u32_f", DataType::U32),
-                        field("u64_f", DataType::U64),
-                        field("i8_f", DataType::I8),
-                        field("i16_f", DataType::I16),
-                        field("i32_f", DataType::I32),
-                        field("i64_f", DataType::I64),
-                        field("f32_f", DataType::F32),
-                        field("f64_f", DataType::F64),
-                        field("opt_f", DataType::Option(Box::new(DataType::U64))),
-                        field("list_f", DataType::List(Box::new(DataType::Bool))),
-                        field("rec_f", DataType::Record(ident("R"))),
-                        field("dyn_f", DataType::DynamicRecord),
-                        field(
-                            "ref_f",
-                            DataType::EntityRef {
-                                data: Some(Box::new(DataType::U32)),
-                                annotations: Annotations::default(),
-                            },
-                        ),
-                    ]),
-                }]),
-            }]),
-            records: records(vec![Record {
-                name: ident("R"),
-                annotations: Annotations::default(),
-                fields: Map::default(),
-            }]),
-        };
+        let event = event(
+            "Ev",
+            vec![
+                field("bool_f", DataType::Bool),
+                field("uuid_f", DataType::Uuid),
+                field("str_f", DataType::String),
+                field("u8_f", DataType::U8),
+                field("u16_f", DataType::U16),
+                field("u32_f", DataType::U32),
+                field("u64_f", DataType::U64),
+                field("i8_f", DataType::I8),
+                field("i16_f", DataType::I16),
+                field("i32_f", DataType::I32),
+                field("i64_f", DataType::I64),
+                field("f32_f", DataType::F32),
+                field("f64_f", DataType::F64),
+                field("opt_f", DataType::Option(Box::new(DataType::U64))),
+                field("list_f", DataType::List(Box::new(DataType::Bool))),
+                field("rec_f", DataType::Record(ident("R"))),
+                field("dyn_f", DataType::DynamicRecord),
+                field(
+                    "ref_f",
+                    DataType::EntityRef {
+                        data: Some(Box::new(DataType::U32)),
+                        annotations: Annotations::default(),
+                    },
+                ),
+            ],
+        );
+        let schema = schema(
+            "S",
+            vec![entity("E", vec![event])],
+            vec![record("R", vec![])],
+        );
 
         let paths = schema.walk(Capture(Vec::new()));
 

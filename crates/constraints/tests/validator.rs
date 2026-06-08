@@ -3,45 +3,28 @@
 
 use quent_constraints::{Constraint, validate};
 use quent_schema::{
-    Annotations, Cardinality, Constraint as SchemaConstraint, DataType, Entity, Event, Field,
-    Identifier, Metadata, Record, Schema,
-    schema::Map,
+    Cardinality, DataType, Field, Schema,
+    builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
+    test_utils::{self, constraint, entity, event, field, ident, metadata, schema},
     visitor::{Cursor, Visitor},
 };
 
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
-}
-
-fn constraint(name: &str) -> SchemaConstraint {
-    SchemaConstraint {
-        name: name.to_string(),
-        data: None,
-    }
-}
-
-fn constraints(items: Vec<SchemaConstraint>) -> Map<String, SchemaConstraint> {
-    items.into_iter().map(|v| (v.name.clone(), v)).collect()
-}
-
-fn metadata_map(items: Vec<Metadata>) -> Map<String, Metadata> {
-    items.into_iter().map(|v| (v.name.clone(), v)).collect()
-}
-
-fn metadata(name: &str) -> Metadata {
-    Metadata {
-        name: name.to_string(),
-        data: None,
-    }
-}
-
 fn empty_schema() -> Schema {
-    Schema {
-        name: ident("TestSchema"),
-        entities: Map::default(),
-        records: Map::default(),
-        annotations: Annotations::default(),
-    }
+    test_utils::schema("TestSchema", vec![], vec![])
+}
+
+fn ghost_ref_schema() -> Schema {
+    schema(
+        "S",
+        vec![entity(
+            "E",
+            vec![event(
+                "Ev",
+                vec![field("f", DataType::Record(ident("ghost")))],
+            )],
+        )],
+        vec![],
+    )
 }
 
 // A constraint that finds no violations.
@@ -104,13 +87,14 @@ fn passing_constraint_on_empty_schema() {
 
 #[test]
 fn constraint_without_validator_is_unregistered() {
-    let schema = Schema {
-        annotations: Annotations {
-            constraints: constraints(vec![constraint("unknown")]),
-            ..Default::default()
-        },
-        ..empty_schema()
-    };
+    let schema = SchemaBuilder::new(ident("TestSchema"))
+        .annotations(
+            AnnotationsBuilder::new()
+                .constraint(constraint("unknown", None))
+                .unwrap()
+                .build(),
+        )
+        .build();
     let report = validate::<(NoopA,)>(&schema);
     assert_eq!(report.unregistered_constraints.len(), 1);
     assert!(
@@ -124,57 +108,50 @@ fn constraint_without_validator_is_unregistered() {
 
 #[test]
 fn metadata_is_never_validated() {
-    let schema = Schema {
-        annotations: Annotations {
-            metadata: metadata_map(vec![metadata("not_validated")]),
-            ..Default::default()
-        },
-        ..empty_schema()
-    };
+    let schema = SchemaBuilder::new(ident("TestSchema"))
+        .annotations(
+            AnnotationsBuilder::new()
+                .metadata(metadata("not_validated", None))
+                .unwrap()
+                .build(),
+        )
+        .build();
     let report = validate::<(NoopA,)>(&schema);
     assert!(report.unregistered_constraints.is_empty());
 }
 
 #[test]
 fn unregistered_constraint_is_reported_once() {
-    let unknown = || Annotations {
-        constraints: constraints(vec![constraint("unknown")]),
-        ..Default::default()
+    let unknown = || {
+        AnnotationsBuilder::new()
+            .constraint(constraint("unknown", None))
+            .unwrap()
+            .build()
     };
-    let field = Field {
-        name: ident("ef"),
-        ty: DataType::U64,
-        annotations: unknown(),
-    };
-    let event = Event {
-        name: ident("Ev"),
-        cardinality: Cardinality::Once,
-        annotations: unknown(),
-        payload: [(field.name.clone(), field)].into_iter().collect(),
-    };
-    let entity = Entity {
-        name: ident("E"),
-        annotations: unknown(),
-        events: [(event.name.clone(), event)].into_iter().collect(),
-    };
-    let record_field = Field {
-        name: ident("rf"),
-        ty: DataType::U64,
-        annotations: unknown(),
-    };
-    let record = Record {
-        name: ident("R"),
-        annotations: unknown(),
-        fields: [(record_field.name.clone(), record_field)]
-            .into_iter()
-            .collect(),
-    };
-    let schema = Schema {
-        name: ident("S"),
-        annotations: unknown(),
-        entities: [(entity.name.clone(), entity)].into_iter().collect(),
-        records: [(record.name.clone(), record)].into_iter().collect(),
-    };
+    let field = Field::new(ident("ef"), DataType::U64, unknown());
+    let event = EventBuilder::new(ident("Ev"), Cardinality::Once)
+        .field(field)
+        .unwrap()
+        .annotations(unknown())
+        .build();
+    let entity = EntityBuilder::new(ident("E"))
+        .event(event)
+        .unwrap()
+        .annotations(unknown())
+        .build();
+    let record_field = Field::new(ident("rf"), DataType::U64, unknown());
+    let record = RecordBuilder::new(ident("R"))
+        .field(record_field)
+        .unwrap()
+        .annotations(unknown())
+        .build();
+    let schema = SchemaBuilder::new(ident("S"))
+        .entity(entity)
+        .unwrap()
+        .record(record)
+        .unwrap()
+        .annotations(unknown())
+        .build();
     let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
     assert_eq!(
@@ -196,13 +173,14 @@ fn constraint_failure_is_reported_per_constraint() {
 
 #[test]
 fn unregistered_and_failure_aggregate() {
-    let schema = Schema {
-        annotations: Annotations {
-            constraints: constraints(vec![constraint("unknown")]),
-            ..Default::default()
-        },
-        ..empty_schema()
-    };
+    let schema = SchemaBuilder::new(ident("TestSchema"))
+        .annotations(
+            AnnotationsBuilder::new()
+                .constraint(constraint("unknown", None))
+                .unwrap()
+                .build(),
+        )
+        .build();
     let report = validate::<(Failing,)>(&schema);
     assert!(
         report
@@ -215,29 +193,8 @@ fn unregistered_and_failure_aggregate() {
 
 #[test]
 fn consistency_is_always_checked_in_the_same_walk() {
-    let field = Field {
-        name: ident("f"),
-        ty: DataType::Record(ident("ghost")),
-        annotations: Annotations::default(),
-    };
-    let event = Event {
-        name: ident("Ev"),
-        cardinality: Cardinality::Once,
-        annotations: Annotations::default(),
-        payload: [(field.name.clone(), field)].into_iter().collect(),
-    };
-    let entity = Entity {
-        name: ident("E"),
-        annotations: Annotations::default(),
-        events: [(event.name.clone(), event)].into_iter().collect(),
-    };
     // A field referencing a record that does not exist.
-    let schema = Schema {
-        name: ident("S"),
-        annotations: Annotations::default(),
-        entities: [(entity.name.clone(), entity)].into_iter().collect(),
-        records: Map::default(),
-    };
+    let schema = ghost_ref_schema();
     let report = validate::<(NoopA,)>(&schema);
     // The constraint passed, but the schema is internally inconsistent: a
     // reference to a record that does not exist.
@@ -247,28 +204,7 @@ fn consistency_is_always_checked_in_the_same_walk() {
 
 #[test]
 fn validates_consistency_with_no_constraints() {
-    let field = Field {
-        name: ident("f"),
-        ty: DataType::Record(ident("ghost")),
-        annotations: Annotations::default(),
-    };
-    let event = Event {
-        name: ident("Ev"),
-        cardinality: Cardinality::Once,
-        annotations: Annotations::default(),
-        payload: [(field.name.clone(), field)].into_iter().collect(),
-    };
-    let entity = Entity {
-        name: ident("E"),
-        annotations: Annotations::default(),
-        events: [(event.name.clone(), event)].into_iter().collect(),
-    };
-    let schema = Schema {
-        name: ident("S"),
-        annotations: Annotations::default(),
-        entities: [(entity.name.clone(), entity)].into_iter().collect(),
-        records: Map::default(),
-    };
+    let schema = ghost_ref_schema();
     // No constraints, just the always-on consistency checks.
     let report = validate::<()>(&schema);
     assert_eq!(report.results, ());

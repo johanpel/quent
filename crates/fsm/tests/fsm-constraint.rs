@@ -3,27 +3,14 @@
 
 use quent_constraints::Constraint as _;
 use quent_fsm::{Fsm, FsmConstraint, FsmError};
-use quent_schema::{Annotations, Cardinality, Constraint, Entity, Event, Identifier, Schema};
-
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
-}
+use quent_schema::{
+    Cardinality, Constraint, Entity, Event, Schema,
+    builder::{AnnotationsBuilder, EntityBuilder},
+    test_utils::{constraint, entity as bare_entity, event_with, ident, schema},
+};
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
-    Event {
-        name: ident(name),
-        cardinality,
-        payload: quent_schema::schema::Map::default(),
-        annotations: Annotations::default(),
-    }
-}
-
-fn bare_entity(name: &str, events: Vec<Event>) -> Entity {
-    Entity {
-        name: ident(name),
-        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
-        annotations: Annotations::default(),
-    }
+    event_with(name, cardinality, vec![])
 }
 
 // Build the constraint's JSON directly so we can build it in an invalid way.
@@ -42,33 +29,24 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
 }
 
 fn fsm_constraint(data: &str) -> Constraint {
-    Constraint {
-        name: FsmConstraint::NAME.to_string(),
-        data: Some(data.to_string()),
-    }
+    constraint(FsmConstraint::NAME, Some(data))
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
-    let constraint = fsm_constraint(data);
-    Entity {
-        name: ident(name),
-        events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
-        annotations: Annotations {
-            constraints: [(constraint.name.clone(), constraint)]
-                .into_iter()
-                .collect(),
-            ..Default::default()
-        },
-    }
+    EntityBuilder::new(ident(name))
+        .events(events)
+        .unwrap()
+        .annotations(
+            AnnotationsBuilder::new()
+                .constraint(fsm_constraint(data))
+                .unwrap()
+                .build(),
+        )
+        .build()
 }
 
 fn schema_with(entity: Entity) -> Schema {
-    Schema {
-        name: ident("S"),
-        entities: [(entity.name.clone(), entity)].into_iter().collect(),
-        records: quent_schema::schema::Map::default(),
-        annotations: Annotations::default(),
-    }
+    schema("S", vec![entity], vec![])
 }
 
 fn validate(schema: &Schema) -> Vec<FsmError> {
@@ -107,23 +85,17 @@ fn single_state_fsm_passes() {
 
 #[test]
 fn missing_data_is_rejected() {
-    let constraint = Constraint {
-        name: FsmConstraint::NAME.to_string(),
-        data: None,
-    };
-    let entity = Entity {
-        name: ident("E"),
-        events: [event("a", Cardinality::Once)]
-            .into_iter()
-            .map(|v| (v.name.clone(), v))
-            .collect(),
-        annotations: Annotations {
-            constraints: [(constraint.name.clone(), constraint)]
-                .into_iter()
-                .collect(),
-            ..Default::default()
-        },
-    };
+    let constraint = Constraint::new(FsmConstraint::NAME, None);
+    let entity = EntityBuilder::new(ident("E"))
+        .event(event("a", Cardinality::Once))
+        .unwrap()
+        .annotations(
+            AnnotationsBuilder::new()
+                .constraint(constraint)
+                .unwrap()
+                .build(),
+        )
+        .build();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
@@ -134,23 +106,17 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
-    let constraint = Constraint {
-        name: FsmConstraint::NAME.to_string(),
-        data: Some("{ trash".to_string()),
-    };
-    let entity = Entity {
-        name: ident("E"),
-        events: [event("a", Cardinality::Once)]
-            .into_iter()
-            .map(|v| (v.name.clone(), v))
-            .collect(),
-        annotations: Annotations {
-            constraints: [(constraint.name.clone(), constraint)]
-                .into_iter()
-                .collect(),
-            ..Default::default()
-        },
-    };
+    let constraint = Constraint::new(FsmConstraint::NAME, Some("{ trash".to_string()));
+    let entity = EntityBuilder::new(ident("E"))
+        .event(event("a", Cardinality::Once))
+        .unwrap()
+        .annotations(
+            AnnotationsBuilder::new()
+                .constraint(constraint)
+                .unwrap()
+                .build(),
+        )
+        .build();
     let errors = validate(&schema_with(entity));
     assert!(
         errors

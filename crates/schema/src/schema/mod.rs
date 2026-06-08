@@ -34,6 +34,20 @@ pub struct Schema {
 }
 
 impl Schema {
+    pub(crate) fn from_parts(
+        name: Identifier,
+        entities: Map<Identifier, Entity>,
+        records: Map<Identifier, Record>,
+        annotations: Annotations,
+    ) -> Self {
+        Self {
+            name,
+            entities,
+            records,
+            annotations,
+        }
+    }
+
     /// The name of the model.
     pub fn name(&self) -> &Identifier {
         &self.name

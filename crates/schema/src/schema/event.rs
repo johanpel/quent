@@ -26,6 +26,20 @@ pub struct Event {
 }
 
 impl Event {
+    pub(crate) fn from_parts(
+        name: Identifier,
+        cardinality: Cardinality,
+        payload: Map<Identifier, Field>,
+        annotations: Annotations,
+    ) -> Self {
+        Self {
+            name,
+            cardinality,
+            payload,
+            annotations,
+        }
+    }
+
     /// The name of the event.
     pub fn name(&self) -> &Identifier {
         &self.name

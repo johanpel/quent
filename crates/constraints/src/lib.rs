@@ -60,7 +60,7 @@ pub struct Report<R> {
 ///
 /// ```
 /// use quent_constraints::validate;
-/// use quent_schema::{Annotations, Identifier, Map, Schema};
+/// use quent_schema::{Identifier, Schema, builder::SchemaBuilder};
 /// # use quent_constraints::Constraint;
 /// # use quent_schema::visitor::{Cursor, Visitor};
 /// #
@@ -79,12 +79,8 @@ pub struct Report<R> {
 /// # type ConstraintA = DocConstraint;
 /// # type ConstraintB = DocConstraint;
 /// #
-/// # let schema = Schema {
-/// #     name: Identifier::try_new("MySchema").unwrap(),
-/// #     entities: Map::default(),
-/// #     records: Map::default(),
-/// #     annotations: Annotations::default(),
-/// # };
+/// # let schema: Schema =
+/// #     SchemaBuilder::new(Identifier::try_new("MySchema").unwrap()).build();
 ///
 /// let report = validate::<(ConstraintA, ConstraintB)>(&schema);
 /// let (result_a, result_b) = report.results;

@@ -15,6 +15,18 @@ pub struct Record {
 }
 
 impl Record {
+    pub(crate) fn from_parts(
+        name: Identifier,
+        fields: Map<Identifier, Field>,
+        annotations: Annotations,
+    ) -> Self {
+        Self {
+            name,
+            fields,
+            annotations,
+        }
+    }
+
     /// The name of the record.
     pub fn name(&self) -> &Identifier {
         &self.name

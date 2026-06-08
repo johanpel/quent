@@ -21,6 +21,18 @@ pub struct Annotations {
 }
 
 impl Annotations {
+    pub(crate) fn from_parts(
+        docs: Option<String>,
+        constraints: Map<String, Constraint>,
+        metadata: Map<String, Metadata>,
+    ) -> Self {
+        Self {
+            docs,
+            constraints,
+            metadata,
+        }
+    }
+
     /// The documentation, if any.
     pub fn docs(&self) -> Option<&str> {
         self.docs.as_deref()

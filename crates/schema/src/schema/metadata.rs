@@ -18,6 +18,14 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Create a metadata entry named `name` carrying optional opaque `data`.
+    pub fn new(name: impl Into<String>, data: Option<String>) -> Self {
+        Self {
+            name: name.into(),
+            data,
+        }
+    }
+
     /// The name of the metadata entry.
     pub fn name(&self) -> &str {
         &self.name

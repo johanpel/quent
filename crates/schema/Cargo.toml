@@ -8,12 +8,14 @@ publish.workspace = true
 default = ["visitor"]
 serde = ["dep:serde", "indexmap/serde"]
 visitor = ["dep:smallvec"]
+test-utils = []
 
 [dependencies]
 indexmap = { workspace = true }
 rustc-hash = { workspace = true }
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

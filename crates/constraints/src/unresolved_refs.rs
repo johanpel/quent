@@ -32,55 +32,8 @@ impl Visitor for UnresolvedReferences {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quent_schema::{
-        Annotations, Cardinality, Entity, Event, Field, Identifier, Record, Schema,
-    };
-
-    fn ident(s: &str) -> Identifier {
-        Identifier::try_new(s).unwrap()
-    }
-
-    fn field(name: &str, ty: DataType) -> Field {
-        Field {
-            name: ident(name),
-            ty,
-            annotations: Annotations::default(),
-        }
-    }
-
-    fn event(name: &str, payload: Vec<Field>) -> Event {
-        Event {
-            name: ident(name),
-            cardinality: Cardinality::Once,
-            payload: payload.into_iter().map(|v| (v.name.clone(), v)).collect(),
-            annotations: Annotations::default(),
-        }
-    }
-
-    fn entity(name: &str, events: Vec<Event>) -> Entity {
-        Entity {
-            name: ident(name),
-            events: events.into_iter().map(|v| (v.name.clone(), v)).collect(),
-            annotations: Annotations::default(),
-        }
-    }
-
-    fn record(name: &str, fields: Vec<Field>) -> Record {
-        Record {
-            name: ident(name),
-            fields: fields.into_iter().map(|v| (v.name.clone(), v)).collect(),
-            annotations: Annotations::default(),
-        }
-    }
-
-    fn schema(entities: Vec<Entity>, records: Vec<Record>) -> Schema {
-        Schema {
-            name: ident("S"),
-            entities: entities.into_iter().map(|v| (v.name.clone(), v)).collect(),
-            records: records.into_iter().map(|v| (v.name.clone(), v)).collect(),
-            annotations: Annotations::default(),
-        }
-    }
+    use quent_schema::Schema;
+    use quent_schema::test_utils::{entity, event, field, ident, record, schema};
 
     fn unresolved(schema: &Schema) -> Vec<String> {
         schema.walk(UnresolvedReferences::default())
@@ -89,6 +42,7 @@ mod tests {
     #[test]
     fn consistent_schema_passes() {
         let s = schema(
+            "S",
             vec![entity(
                 "E",
                 vec![event("Ev", vec![field("f", DataType::U64)])],
@@ -101,6 +55,7 @@ mod tests {
     #[test]
     fn unresolved_record_reference_is_reported() {
         let s = schema(
+            "S",
             vec![entity(
                 "E",
                 vec![event(
@@ -119,6 +74,7 @@ mod tests {
     #[test]
     fn resolved_record_reference_passes() {
         let s = schema(
+            "S",
             vec![entity(
                 "E",
                 vec![event("Ev", vec![field("f", DataType::Record(ident("R")))])],
@@ -134,6 +90,7 @@ mod tests {
             "ghost",
         ))))));
         let s = schema(
+            "S",
             vec![entity("E", vec![event("Ev", vec![field("f", ty)])])],
             vec![],
         );

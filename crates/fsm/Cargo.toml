@@ -11,3 +11,6 @@ petgraph.workspace = true
 serde = { workspace = true }
 serde_json.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+quent-schema = { path = "../schema", features = ["test-utils"] }

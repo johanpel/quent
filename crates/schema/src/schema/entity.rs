@@ -15,6 +15,18 @@ pub struct Entity {
 }
 
 impl Entity {
+    pub(crate) fn from_parts(
+        name: Identifier,
+        events: Map<Identifier, Event>,
+        annotations: Annotations,
+    ) -> Self {
+        Self {
+            name,
+            events,
+            annotations,
+        }
+    }
+
     /// The name of the entity.
     pub fn name(&self) -> &Identifier {
         &self.name

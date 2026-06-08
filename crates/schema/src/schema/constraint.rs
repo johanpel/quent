@@ -25,6 +25,14 @@ pub struct Constraint {
 }
 
 impl Constraint {
+    /// Create a constraint named `name` carrying optional opaque `data`.
+    pub fn new(name: impl Into<String>, data: Option<String>) -> Self {
+        Self {
+            name: name.into(),
+            data,
+        }
+    }
+
     /// The name of the constraint.
     pub fn name(&self) -> &str {
         &self.name
