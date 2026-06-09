@@ -45,7 +45,10 @@ fn ref_carrying(data: DataType) -> DataType {
 
 /// An entity whose event carries no tree-forming reference, so it is a root.
 fn root(name: &str) -> Entity {
-    entity(name, vec![event("created", vec![field("x", DataType::U64)])])
+    entity(
+        name,
+        vec![event("created", vec![field("x", DataType::U64)])],
+    )
 }
 
 /// An entity whose single event carries one tree-forming reference `ty`.
