@@ -33,32 +33,30 @@ impl Visitor for RefTargetConstraint {
     type Output = Result<(), RefTargetError>;
 
     fn visit(&mut self, cursor: &Cursor) {
-        let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current() else {
-            return;
-        };
-        let Some(constraint) = annotations.constraint(RefTargetConstraint::NAME) else {
-            return;
-        };
-        let location = cursor.to_string();
-        match constraint.data() {
-            None => self.errors.push(RefTargetError::InvalidData {
-                location,
-                message: "constraint data is missing".to_string(),
-            }),
-            Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
-                Ok(ref_target) => {
-                    if cursor.root().entity(&ref_target.target).is_none() {
-                        self.errors.push(RefTargetError::UnknownTarget {
-                            location,
-                            target: ref_target.target,
-                        });
-                    }
-                }
-                Err(e) => self.errors.push(RefTargetError::InvalidData {
+        if let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current()
+            && let Some(constraint) = annotations.constraint(RefTargetConstraint::NAME)
+        {
+            let location = cursor.to_string();
+            match constraint.data() {
+                None => self.errors.push(RefTargetError::InvalidData {
                     location,
-                    message: format!("failed to decode ref-target: {e}"),
+                    message: "constraint data is missing".to_string(),
                 }),
-            },
+                Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
+                    Ok(ref_target) => {
+                        if cursor.root().entity(&ref_target.target).is_none() {
+                            self.errors.push(RefTargetError::UnknownTarget {
+                                location,
+                                target: ref_target.target,
+                            });
+                        }
+                    }
+                    Err(e) => self.errors.push(RefTargetError::InvalidData {
+                        location,
+                        message: format!("failed to decode ref-target: {e}"),
+                    }),
+                },
+            }
         }
     }
 
