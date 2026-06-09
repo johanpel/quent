@@ -255,7 +255,7 @@ tuple_impls!(A => 0, B => 1, C => 2, D => 3, E => 4, F => 5, G => 6, H => 7, I =
 mod test {
     use super::*;
     use crate::builder::AnnotationsBuilder;
-    use crate::test_utils::{constraint, entity, event, field, ident, record, schema};
+    use crate::test_utils::{entity, event, field, ident, record, schema};
 
     // Stateless no-op visitor
     #[derive(Default)]
@@ -337,7 +337,7 @@ mod test {
         let entity_ref = DataType::EntityRef {
             data: None,
             annotations: AnnotationsBuilder::new()
-                .constraint(constraint("my.constraint.v1", None))
+                .constraint("my.constraint.v1", None)
                 .unwrap()
                 .build(),
         };

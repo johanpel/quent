@@ -4,9 +4,9 @@
 use quent_constraints::Constraint as _;
 use quent_fsm::{Fsm, FsmConstraint, FsmError};
 use quent_schema::{
-    Cardinality, Constraint, Entity, Event, Schema,
+    Cardinality, Entity, Event, Schema,
     builder::{AnnotationsBuilder, EntityBuilder},
-    test_utils::{constraint, entity as bare_entity, event_with, ident, schema},
+    test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
@@ -28,17 +28,13 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
     .to_string()
 }
 
-fn fsm_constraint(data: &str) -> Constraint {
-    constraint(FsmConstraint::NAME, Some(data))
-}
-
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
     EntityBuilder::new(ident(name))
         .events(events)
         .unwrap()
         .annotations(
             AnnotationsBuilder::new()
-                .constraint(fsm_constraint(data))
+                .constraint(FsmConstraint::NAME, Some(data.to_string()))
                 .unwrap()
                 .build(),
         )
@@ -85,13 +81,12 @@ fn single_state_fsm_passes() {
 
 #[test]
 fn missing_data_is_rejected() {
-    let constraint = Constraint::new(FsmConstraint::NAME, None);
     let entity = EntityBuilder::new(ident("E"))
         .event(event("a", Cardinality::Once))
         .unwrap()
         .annotations(
             AnnotationsBuilder::new()
-                .constraint(constraint)
+                .constraint(FsmConstraint::NAME, None)
                 .unwrap()
                 .build(),
         )
@@ -106,13 +101,12 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
-    let constraint = Constraint::new(FsmConstraint::NAME, Some("{ trash".to_string()));
     let entity = EntityBuilder::new(ident("E"))
         .event(event("a", Cardinality::Once))
         .unwrap()
         .annotations(
             AnnotationsBuilder::new()
-                .constraint(constraint)
+                .constraint(FsmConstraint::NAME, Some("{ trash".to_string()))
                 .unwrap()
                 .build(),
         )

@@ -4,28 +4,23 @@
 use quent_constraints::Constraint as _;
 use quent_ref_target::{RefTarget, RefTargetConstraint, RefTargetError};
 use quent_schema::{
-    Constraint, DataType, Entity, Schema,
+    DataType, Entity, Schema,
     builder::AnnotationsBuilder,
-    test_utils::{constraint, entity, event, field, ident, schema},
+    test_utils::{entity, event, field, ident, schema},
 };
 
-fn target_constraint(target: &str) -> Constraint {
-    constraint(
-        RefTargetConstraint::NAME,
-        Some(
-            &serde_json::to_string(&RefTarget {
-                target: ident(target),
-            })
-            .unwrap(),
-        ),
-    )
+fn target_data(target: &str) -> String {
+    serde_json::to_string(&RefTarget {
+        target: ident(target),
+    })
+    .unwrap()
 }
 
-fn ref_with(constraint: Constraint) -> DataType {
+fn ref_with(data: Option<String>) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(constraint)
+            .constraint(RefTargetConstraint::NAME, data)
             .unwrap()
             .build(),
     }
@@ -51,7 +46,7 @@ fn ref_to_existing_entity_passes() {
         "Task",
         vec![event(
             "created",
-            vec![field("on", ref_with(target_constraint("Worker")))],
+            vec![field("on", ref_with(Some(target_data("Worker"))))],
         )],
     );
     assert!(validate(&schema_with(vec![worker, task])).is_empty());
@@ -63,7 +58,7 @@ fn ref_to_unknown_entity_is_rejected() {
         "Task",
         vec![event(
             "created",
-            vec![field("on", ref_with(target_constraint("ghost")))],
+            vec![field("on", ref_with(Some(target_data("ghost"))))],
         )],
     );
     let errors = validate(&schema_with(vec![task]));
@@ -76,7 +71,7 @@ fn ref_to_unknown_entity_is_rejected() {
 
 #[test]
 fn missing_data_is_rejected() {
-    let bad = ref_with(Constraint::new(RefTargetConstraint::NAME, None));
+    let bad = ref_with(None);
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(
@@ -88,10 +83,7 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
-    let bad = ref_with(Constraint::new(
-        RefTargetConstraint::NAME,
-        Some("{ trash".to_string()),
-    ));
+    let bad = ref_with(Some("{ trash".to_string()));
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(

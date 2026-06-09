@@ -10,10 +10,7 @@
 //! The functions in this module can panic and should only be used in tests.
 
 use crate::builder::{EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder};
-use crate::{
-    Annotations, Cardinality, Constraint, DataType, Entity, Event, Field, Identifier, Metadata,
-    Record, Schema,
-};
+use crate::{Annotations, Cardinality, DataType, Entity, Event, Field, Identifier, Record, Schema};
 
 pub fn ident(s: &str) -> Identifier {
     Identifier::try_new(s).unwrap()
@@ -57,10 +54,4 @@ pub fn schema(
         .records(records)
         .unwrap()
         .build()
-}
-pub fn constraint(name: &str, data: Option<&str>) -> Constraint {
-    Constraint::new(name, data.map(str::to_string))
-}
-pub fn metadata(name: &str, data: Option<&str>) -> Metadata {
-    Metadata::new(name, data.map(str::to_string))
 }

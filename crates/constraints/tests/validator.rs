@@ -5,7 +5,7 @@ use quent_constraints::{Constraint, validate};
 use quent_schema::{
     Cardinality, DataType, Field, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
-    test_utils::{self, constraint, entity, event, field, ident, metadata, schema},
+    test_utils::{self, entity, event, field, ident, schema},
     visitor::{Cursor, Visitor},
 };
 
@@ -90,7 +90,7 @@ fn constraint_without_validator_is_unregistered() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .annotations(
             AnnotationsBuilder::new()
-                .constraint(constraint("unknown", None))
+                .constraint("unknown", None)
                 .unwrap()
                 .build(),
         )
@@ -111,7 +111,7 @@ fn metadata_is_never_validated() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .annotations(
             AnnotationsBuilder::new()
-                .metadata(metadata("not_validated", None))
+                .metadata("not_validated", None)
                 .unwrap()
                 .build(),
         )
@@ -124,7 +124,7 @@ fn metadata_is_never_validated() {
 fn unregistered_constraint_is_reported_once() {
     let unknown = || {
         AnnotationsBuilder::new()
-            .constraint(constraint("unknown", None))
+            .constraint("unknown", None)
             .unwrap()
             .build()
     };
@@ -176,7 +176,7 @@ fn unregistered_and_failure_aggregate() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .annotations(
             AnnotationsBuilder::new()
-                .constraint(constraint("unknown", None))
+                .constraint("unknown", None)
                 .unwrap()
                 .build(),
         )
