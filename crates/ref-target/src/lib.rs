@@ -3,7 +3,7 @@
 
 //! Constraint for entity reference restricting the type of entity it can point to.
 
-use quent_constraints::{Constraint, utils::join_errors};
+use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
     DataType, Identifier,
     visitor::{Cursor, Element, Visitor},
@@ -84,6 +84,6 @@ pub enum RefTargetError {
         location: String,
         target: Identifier,
     },
-    #[error("multiple ref-target violations:\n{}", join_errors(.0))]
+    #[error("multiple ref-target violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTargetError>),
 }

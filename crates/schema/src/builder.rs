@@ -26,11 +26,14 @@ fn insert_unique<K, V>(map: &mut Map<K, V>, key: K, value: V) -> Result<(), Buil
 where
     K: Eq + Hash + Display,
 {
-    if map.contains_key(&key) {
-        Err(BuilderError::DuplicateName(key.to_string()))
-    } else {
-        map.insert(key, value);
-        Ok(())
+    match map.entry(key) {
+        indexmap::map::Entry::Occupied(entry) => {
+            Err(BuilderError::DuplicateName(entry.key().to_string()))
+        }
+        indexmap::map::Entry::Vacant(entry) => {
+            entry.insert(value);
+            Ok(())
+        }
     }
 }
 

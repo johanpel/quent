@@ -89,7 +89,7 @@ pub struct Report<R> {
 /// assert!(report.unregistered_constraints.is_empty());
 /// assert!(report.invalid_references.is_empty());
 /// ```
-pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> {
+pub fn validate<C: Constraints>(schema: &Schema) -> Report<C::Output> {
     let (invalid_references, unregistered_constraints, results) = schema.walk((
         unresolved_refs::UnresolvedReferences::default(),
         unregistered_constraints::UnregisteredConstraints::new(C::NAMES),
@@ -103,7 +103,7 @@ pub fn validate<C: Constraints + Default>(schema: &Schema) -> Report<C::Output> 
 }
 
 /// A tuple of [`Constraint`]s that can be validated together in one walk.
-pub trait Constraints: Visitor {
+pub trait Constraints: Visitor + Default {
     /// The [`Constraint::NAME`] of every constraint in the tuple.
     const NAMES: &'static [&'static str];
 }

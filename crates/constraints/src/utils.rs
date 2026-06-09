@@ -5,11 +5,11 @@
 
 use std::fmt::Display;
 
-/// Join errors into a bulleted, newline-separated list.
-pub fn join_errors<E: Display>(errors: &[E]) -> String {
-    errors
+/// Format items as a bulleted, newline-separated list.
+pub fn bullet_list<T: Display>(items: &[T]) -> String {
+    items
         .iter()
-        .map(|e| format!("  - {e}"))
+        .map(|item| format!("  - {item}"))
         .collect::<Vec<_>>()
         .join("\n")
 }

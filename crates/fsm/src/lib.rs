@@ -10,7 +10,7 @@ use petgraph::{
     graphmap::DiGraphMap,
     visit::{Bfs, Reversed, Walker},
 };
-use quent_constraints::{Constraint, utils::join_errors};
+use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
     Cardinality, Entity, Identifier,
     visitor::{Cursor, Element, Visitor},
@@ -353,6 +353,6 @@ pub enum FsmError {
         expected: Cardinality,
         found: Cardinality,
     },
-    #[error("multiple fsm violations:\n{}", join_errors(.0))]
+    #[error("multiple fsm violations:\n{}", bullet_list(.0))]
     Multiple(Vec<FsmError>),
 }
