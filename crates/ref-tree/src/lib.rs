@@ -12,10 +12,7 @@ use petgraph::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
-use quent_constraints::{
-    Constraint,
-    utils::{join_errors, join_idents},
-};
+use quent_constraints::{Constraint, utils::bullet_list};
 use quent_ref_target::RefTarget;
 use quent_schema::{
     DataType, Identifier,
@@ -386,6 +383,10 @@ pub enum RefTreeError {
     },
     #[error("entity \"{entity}\" has no path to the root through tree-forming references")]
     Unreachable { entity: Identifier },
-    #[error("multiple ref-tree violations:\n{}", join_errors(.0))]
+    #[error("multiple ref-tree violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTreeError>),
+}
+
+fn join_idents(ids: &[Identifier]) -> String {
+    ids.iter().map(AsRef::as_ref).collect::<Vec<_>>().join(", ")
 }

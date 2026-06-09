@@ -7,7 +7,7 @@ use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{
     Annotations, DataType, Entity, Record, Schema,
     builder::AnnotationsBuilder,
-    test_utils::{constraint, entity, event, field, ident, record, schema},
+    test_utils::{entity, event, field, ident, record, schema},
 };
 
 /// A type-erased tree-forming reference (no target).
@@ -15,7 +15,7 @@ fn tree_ref() -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(constraint(RefTreeConstraint::NAME, None))
+            .constraint(RefTreeConstraint::NAME, None)
             .unwrap()
             .build(),
     }
@@ -27,9 +27,9 @@ fn tree_ref_to(target: &str) -> DataType {
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
-            .constraint(constraint(RefTreeConstraint::NAME, None))
+            .constraint(RefTreeConstraint::NAME, None)
             .unwrap()
-            .constraint(constraint(RefTargetConstraint::NAME, Some(data.as_str())))
+            .constraint(RefTargetConstraint::NAME, Some(data))
             .unwrap()
             .build(),
     }
