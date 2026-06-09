@@ -20,7 +20,7 @@ use thiserror::Error;
 /// is to provide some "preferred" way of traversing entities and their events
 /// from a single starting point (the root entity).
 ///
-/// References annotated with this constraint are typically used (but not
+/// References annotated with this constraint are _typically_ used (but not
 /// limited) to express:
 ///
 /// - **Hierarchical relations**, for example: "entity X ... entity Y"
@@ -34,10 +34,10 @@ use thiserror::Error;
 ///     - is produced by
 ///     - exists because of
 ///
-/// These types of references are typically not used to express:
+/// These types of references are _typically_ not used to express:
 /// - **Structural references** at the same hierarchical level, for example:
 ///   entity X is attached to Y (often causes loops)
-/// - Dataflow directionality (E.g. entity X is moved into Y)
+/// - **Flow directionality**, for example: entity X is moved to Y
 ///
 /// In order for instrumentation libraries to provide strong guarantees
 /// (typically compile-time) that this constraint is met, the tree must be fully
@@ -45,22 +45,25 @@ use thiserror::Error;
 /// carry an annotation with this constraint, as this would allow forming entity
 /// graphs that are not trees (i.e. multiple instances of an entity of type A
 /// would be able to emit events that refer to both an entity of type B and of
-/// type C). For this reason, this constraint depends on the constraint provided
-/// by the [`quent_ref_target`] crate.
+/// type C as its parent). For this reason, this constraint depends on the
+/// constraint provided by the [`quent_ref_target`] crate.
 ///
 /// ## Requirements
 ///
-/// 1. The schema has exactly one entity (a.k.a. the root entity) that does not
-///    carry an entity reference annotated with this constraint in any of its
-///    events.
-/// 2. Every non-root entity has _at least one event_ carrying an entity
-///    reference annotated with this constraint to declare it refers to exactly
-///    one type of parent entity in the tree (a.k.a. a parent entity reference).
-/// 3. Every parent entity reference must be target-constrained (carry a
-///    [`quent_ref_target`] annotation). A type-erased reference may not carry
-///    this constraint (implied by requirement 2).
-/// 4. There is exactly one path from every non-root entity type to the root
-///    entity type through parent entity references.
+/// 1. The schema must have exactly one entity (a.k.a. the root entity) of
+///    which its events do not carry an entity reference annotated with this
+///    constraint.
+/// 2. Every non-root entity must have _at least one_ event carrying _at most
+///    one_ entity reference annotated with this constraint. Consequently, a
+///    record carries _at most one_ such reference across its (nested) fields.
+/// 3. Every entity reference annotated with this constraint must be annotated
+///    with a reference target constraint (defined by the `quent-ref-target`
+///    crate).
+/// 4. All events of one entity carrying an entity reference with this
+///    constraint (req 2) target (req 3) to _exactly one_ type of parent
+///    entity.
+/// 5. From every non-root entity, entity references with this constraint can be
+///    followed such that the root is reached.
 ///
 /// ## Note on possible parent ambiguity (req. 2)
 ///
@@ -82,7 +85,7 @@ use thiserror::Error;
 /// For example, a modeling API or DSL _could_ decide to enforce FSM entities to
 /// always declare their parent in the initial state. An instrumentation library
 /// _could_ error on emitting a second parent-declaring event if it changes the
-/// reference value. An analysis library _could_ produce an error when an event
+/// referenced parent. An analysis library _could_ produce an error when an event
 /// stream is ingested exhibiting this ambiguity.
 #[derive(Default)]
 pub struct RefTreeConstraint {
