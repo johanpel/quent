@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::{Constraint, validate as run_constraints};
-use quent_ref_target::{RefTarget, RefTargetConstraint};
+use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{
     Annotations, DataType, Entity, Record, Schema,
@@ -23,10 +23,7 @@ fn tree_ref() -> DataType {
 
 /// A tree-forming reference restricted to a specific parent entity type.
 fn tree_ref_to(target: &str) -> DataType {
-    let data = serde_json::to_string(&RefTarget {
-        target: ident(target),
-    })
-    .unwrap();
+    let data = serde_json::to_string(&ident(target)).unwrap();
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
@@ -46,9 +43,9 @@ fn ref_carrying(data: DataType) -> DataType {
     }
 }
 
-/// An entity with no events — carries no tree-forming reference, so it is a root.
+/// An entity whose event carries no tree-forming reference, so it is a root.
 fn root(name: &str) -> Entity {
-    entity(name, vec![])
+    entity(name, vec![event("created", vec![field("x", DataType::U64)])])
 }
 
 /// An entity whose single event carries one tree-forming reference `ty`.
@@ -142,6 +139,24 @@ fn tree_ref_via_record_field_resolves_parent() {
 }
 
 #[test]
+fn multiple_refs_in_record_is_rejected() {
+    // Req. 2: a record declares the parent at most once across its fields.
+    let meta = record(
+        "Meta",
+        vec![
+            field("a", tree_ref_to("Cluster")),
+            field("b", tree_ref_to("Cluster")),
+        ],
+    );
+    let worker = child("Worker", DataType::Record(ident("Meta")));
+    let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::MultipleRefsInRecord { .. }
+    ));
+}
+
+#[test]
 fn recursive_record_does_not_loop() {
     // A record that nests itself (via Option) must not send the walker into an
     // infinite descent.
@@ -232,7 +247,7 @@ fn two_tree_refs_in_one_event_is_rejected() {
     let schema = schema_with(vec![root("Cluster"), task]);
     assert!(matches!(
         single_error(&schema),
-        RefTreeError::MultiplePerEvent { count: 2, .. }
+        RefTreeError::MultiplePerEvent { .. }
     ));
 }
 
@@ -261,12 +276,13 @@ fn multiple_roots_is_rejected() {
 }
 
 #[test]
-fn unknown_target_is_unreachable() {
-    // Req. 4: a parent type naming no entity has no path to the root.
+fn unknown_target_is_rejected() {
+    // Req. 5: a reference targeting a non-existent entity is rejected at the
+    // reference site.
     let schema = schema_with(vec![root("Cluster"), child("A", tree_ref_to("Ghost"))]);
     assert!(matches!(
         single_error(&schema),
-        RefTreeError::Unreachable { entity } if entity == "A"
+        RefTreeError::UnknownTarget { target, .. } if target == "Ghost"
     ));
 }
 
