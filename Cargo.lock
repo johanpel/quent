@@ -1900,7 +1900,9 @@ dependencies = [
 name = "quent-constraints"
 version = "0.1.0"
 dependencies = [
+ "petgraph",
  "quent-schema",
+ "rustc-hash",
 ]
 
 [[package]]
