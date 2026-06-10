@@ -3,111 +3,93 @@
 
 //! Constraint for entity reference restricting the type of entity it can point to.
 
-use quent_constraints::Constraint;
-use quent_schema::{Schema, data_type::DataType, entity::Entity, identifier::Identifier};
+use quent_constraints::{Constraint, utils::bullet_list};
+use quent_schema::{
+    Annotations, DataType, Identifier,
+    visitor::{Cursor, Element, Visitor},
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// The entity type an entity reference is restricted to point at.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RefTarget {
-    /// Name of the entity type this reference must point at.
-    pub target: Identifier,
+pub struct RefTarget(Identifier);
+
+impl From<RefTarget> for Identifier {
+    fn from(ref_target: RefTarget) -> Self {
+        ref_target.0
+    }
+}
+
+impl AsRef<Identifier> for RefTarget {
+    fn as_ref(&self) -> &Identifier {
+        &self.0
+    }
+}
+
+impl RefTarget {
+    /// Return the reference target entity type declared on `annotations`, if any.
+    pub fn from_annotations(annotations: &Annotations) -> Option<Self> {
+        let raw = annotations.constraint(RefTargetConstraint::NAME)?.data()?;
+        serde_json::from_str(raw).ok()
+    }
 }
 
 /// Restricts the type of entities
-/// [`quent_schema::data_type::DataType::EntityRef`] can point to.
+/// [`quent_schema::DataType::EntityRef`] can point to.
 ///
 /// ## Requirements
 ///
 /// 1. The named target is an entity declared in the schema.
-pub struct RefTargetConstraint;
+#[derive(Default)]
+pub struct RefTargetConstraint {
+    errors: Vec<RefTargetError>,
+}
 
-impl Constraint for RefTargetConstraint {
-    const NAME: &'static str = "quent.ref-target.v1";
+impl Visitor for RefTargetConstraint {
+    type Output = Result<(), RefTargetError>;
 
-    fn validate(&self, schema: &Schema) -> Result<(), Box<dyn std::error::Error>> {
-        let mut errors = Vec::new();
-
-        for entity in &schema.entities {
-            for event in &entity.events {
-                for field in &event.payload {
-                    check_targets(
-                        &field.ty,
-                        &|| {
-                            format!(
-                                "entity \"{}\" event \"{}\" field \"{}\"",
-                                entity.name, event.name, field.name
-                            )
-                        },
-                        &schema.entities,
-                        &mut errors,
-                    );
+    fn visit(&mut self, cursor: &Cursor) {
+        let Element::DataType(DataType::EntityRef { annotations, .. }) = cursor.current() else {
+            return;
+        };
+        let Some(constraint) = annotations.constraint(RefTargetConstraint::NAME) else {
+            return;
+        };
+        let location = cursor.to_string();
+        match constraint.data() {
+            None => self.errors.push(RefTargetError::InvalidData {
+                location,
+                message: "constraint data is missing".to_string(),
+            }),
+            Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
+                Ok(ref_target) => {
+                    if cursor.root().entity(ref_target.as_ref()).is_none() {
+                        self.errors.push(RefTargetError::UnknownTarget {
+                            location,
+                            target: ref_target.as_ref().clone(),
+                        });
+                    }
                 }
-            }
+                Err(e) => self.errors.push(RefTargetError::InvalidData {
+                    location,
+                    message: format!("failed to decode ref-target: {e}"),
+                }),
+            },
         }
-        for record in &schema.records {
-            for field in &record.fields {
-                check_targets(
-                    &field.ty,
-                    &|| format!("record \"{}\" field \"{}\"", record.name, field.name),
-                    &schema.entities,
-                    &mut errors,
-                );
-            }
-        }
+    }
 
-        match errors.len() {
+    fn finish(self) -> Self::Output {
+        match self.errors.len() {
             0 => Ok(()),
-            1 => Err(errors.pop().unwrap().into()),
-            _ => Err(RefTargetError::Multiple(errors).into()),
+            1 => Err(self.errors.into_iter().next().unwrap()),
+            _ => Err(RefTargetError::Multiple(self.errors)),
         }
     }
 }
 
-fn check_targets<F: Fn() -> String>(
-    ty: &DataType,
-    location: &F,
-    entities: &[Entity],
-    errors: &mut Vec<RefTargetError>,
-) {
-    match ty {
-        DataType::Option(inner) | DataType::List(inner) => {
-            check_targets(inner, location, entities, errors);
-        }
-        DataType::EntityRef { data, annotations } => {
-            if let Some(constraint) = annotations
-                .constraints
-                .iter()
-                .find(|c| c.name == RefTargetConstraint::NAME)
-            {
-                match constraint.data.as_deref() {
-                    None => errors.push(RefTargetError::InvalidData {
-                        location: location(),
-                        message: "constraint data is missing".to_string(),
-                    }),
-                    Some(raw) => match serde_json::from_str::<RefTarget>(raw) {
-                        Ok(ref_target) => {
-                            if !entities.iter().any(|e| e.name == ref_target.target) {
-                                errors.push(RefTargetError::UnknownTarget {
-                                    location: location(),
-                                    target: ref_target.target,
-                                });
-                            }
-                        }
-                        Err(e) => errors.push(RefTargetError::InvalidData {
-                            location: location(),
-                            message: format!("failed to decode ref-target: {e}"),
-                        }),
-                    },
-                }
-            }
-            if let Some(inner) = data {
-                check_targets(inner, location, entities, errors);
-            }
-        }
-        _ => {}
-    }
+impl Constraint for RefTargetConstraint {
+    const NAME: &'static str = "quent.ref-target.v1";
 }
 
 #[derive(Debug, Error)]
@@ -119,14 +101,6 @@ pub enum RefTargetError {
         location: String,
         target: Identifier,
     },
-    #[error("multiple ref-target violations:\n{}", join_errors(.0))]
+    #[error("multiple ref-target violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTargetError>),
-}
-
-fn join_errors(errors: &[RefTargetError]) -> String {
-    errors
-        .iter()
-        .map(|e| format!("  - {e}"))
-        .collect::<Vec<_>>()
-        .join("\n")
 }

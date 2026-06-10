@@ -1,93 +1,40 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::{Constraint as _, Error as ValidatorError, Validator};
-use quent_ref_target::{RefTarget, RefTargetConstraint, RefTargetError};
+use quent_constraints::Constraint as _;
+use quent_ref_target::{RefTargetConstraint, RefTargetError};
 use quent_schema::{
-    Schema,
-    annotations::Annotations,
-    constraint::Constraint,
-    data_type::DataType,
-    entity::Entity,
-    event::{Cardinality, Event, EventField},
-    identifier::Identifier,
+    DataType, Entity, Schema,
+    builder::AnnotationsBuilder,
+    test_utils::{entity, event, field, ident, schema},
 };
 
-fn ident(s: &str) -> Identifier {
-    Identifier::try_new(s).unwrap()
+// RefTarget is a transparent newtype over Identifier, so the wire format is just
+// the bare entity name.
+fn target_data(target: &str) -> String {
+    serde_json::to_string(&ident(target)).unwrap()
 }
 
-fn target_constraint(target: &str) -> Constraint {
-    Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: Some(
-            serde_json::to_string(&RefTarget {
-                target: ident(target),
-            })
-            .unwrap(),
-        ),
-    }
-}
-
-fn ref_with(constraint: Constraint) -> DataType {
+fn ref_with(data: Option<String>) -> DataType {
     DataType::EntityRef {
         data: None,
-        annotations: Annotations {
-            constraints: vec![constraint],
-            ..Default::default()
-        },
-    }
-}
-
-fn field(name: &str, ty: DataType) -> EventField {
-    EventField {
-        name: ident(name),
-        ty,
-        annotations: Annotations::default(),
-    }
-}
-
-fn event(name: &str, payload: Vec<EventField>) -> Event {
-    Event {
-        name: ident(name),
-        cardinality: Cardinality::Once,
-        payload,
-        annotations: Annotations::default(),
-    }
-}
-
-fn entity(name: &str, events: Vec<Event>) -> Entity {
-    Entity {
-        name: ident(name),
-        events,
-        annotations: Annotations::default(),
+        annotations: AnnotationsBuilder::new()
+            .constraint(RefTargetConstraint::NAME, data)
+            .unwrap()
+            .build(),
     }
 }
 
 fn schema_with(entities: Vec<Entity>) -> Schema {
-    Schema {
-        name: ident("S"),
-        entities,
-        records: vec![],
-        annotations: Annotations::default(),
-    }
+    schema("S", entities, vec![])
 }
 
 fn validate(schema: &Schema) -> Vec<RefTargetError> {
-    match Validator::default()
-        .try_with(RefTargetConstraint)
-        .unwrap()
-        .validate(schema)
-    {
+    let report = quent_constraints::validate::<(RefTargetConstraint,)>(schema);
+    match report.results.0 {
         Ok(()) => Vec::new(),
-        Err(ValidatorError::Invalid { failures, .. }) => {
-            let (_, source) = failures.into_iter().next().unwrap();
-            match *source.downcast::<RefTargetError>().unwrap() {
-                RefTargetError::Multiple(errors) => errors,
-                single => vec![single],
-            }
-        }
-        Err(_) => unreachable!(),
+        Err(RefTargetError::Multiple(errors)) => errors,
+        Err(single) => vec![single],
     }
 }
 
@@ -98,7 +45,7 @@ fn ref_to_existing_entity_passes() {
         "Task",
         vec![event(
             "created",
-            vec![field("on", ref_with(target_constraint("Worker")))],
+            vec![field("on", ref_with(Some(target_data("Worker"))))],
         )],
     );
     assert!(validate(&schema_with(vec![worker, task])).is_empty());
@@ -110,7 +57,7 @@ fn ref_to_unknown_entity_is_rejected() {
         "Task",
         vec![event(
             "created",
-            vec![field("on", ref_with(target_constraint("ghost")))],
+            vec![field("on", ref_with(Some(target_data("ghost"))))],
         )],
     );
     let errors = validate(&schema_with(vec![task]));
@@ -123,10 +70,7 @@ fn ref_to_unknown_entity_is_rejected() {
 
 #[test]
 fn missing_data_is_rejected() {
-    let bad = ref_with(Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: None,
-    });
+    let bad = ref_with(None);
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(
@@ -138,10 +82,7 @@ fn missing_data_is_rejected() {
 
 #[test]
 fn invalid_json_is_rejected() {
-    let bad = ref_with(Constraint {
-        name: RefTargetConstraint::NAME.to_string(),
-        data: Some("{ trash".to_string()),
-    });
+    let bad = ref_with(Some("{ trash".to_string()));
     let task = entity("Task", vec![event("created", vec![field("on", bad)])]);
     let errors = validate(&schema_with(vec![task]));
     assert!(

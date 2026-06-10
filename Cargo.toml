@@ -21,14 +21,6 @@ members = [
     "crates/stdlib",
     "crates/time",
     "crates/ui",
-    # temporary crates, to become the above later
-    # "crates/v2/fsm",
-    # "crates/v2/instrumentation",
-    # "crates/v2/model",
-    # "crates/v2/model-macros",
-    # "crates/v2/resource",
-    # "crates/v2/resource-macros",
-    # "crates/v2/query_engine/model",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/model",
@@ -59,8 +51,9 @@ members = [
     # Unused preliminary crates of https://github.com/rapidsai/quent/issues/191
     "crates/constraints",
     "crates/schema",
+    "crates/ref-target",
+    "crates/ref-tree",
     "crates/fsm",
-    "crates/ref-target"
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
@@ -108,10 +101,10 @@ publish = false
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
 postcard = { version = "1", features = ["alloc"] }
-proc-macro2 = "1"
 prost = "0.14.1"
 rmp-serde = "1"
 rustc-hash = "2"
