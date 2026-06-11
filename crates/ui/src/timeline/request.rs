@@ -55,6 +55,13 @@ pub struct ResourceTimelineRequest<TimelineParams> {
     pub resource_id: Uuid,
     /// If set, fully include entities that have usages exceeding this amount of time.
     pub long_entities_threshold_s: Option<TimeSec>,
+    /// Maximum number of long entities to return (page size). `None` or `0`
+    /// returns all of them. Applied after threshold filtering and ranking.
+    #[ts(optional)]
+    pub long_entities_max: Option<u32>,
+    /// Zero-based page index into the ranked long entities. `None` is page 0.
+    #[ts(optional)]
+    pub long_entities_page: Option<u32>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
@@ -74,6 +81,13 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// If set, fully include entities that have usages exceeding this amount of
     /// time in seconds.
     pub long_entities_threshold_s: Option<TimeSec>,
+    /// Maximum number of long entities to return (page size). `None` or `0`
+    /// returns all of them. Applied after threshold filtering and ranking.
+    #[ts(optional)]
+    pub long_entities_max: Option<u32>,
+    /// Zero-based page index into the ranked long entities. `None` is page 0.
+    #[ts(optional)]
+    pub long_entities_page: Option<u32>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.

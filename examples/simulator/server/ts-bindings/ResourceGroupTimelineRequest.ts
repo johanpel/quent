@@ -21,6 +21,15 @@ resource_type_name: string,
  */
 long_entities_threshold_s: number | null, 
 /**
+ * Maximum number of long entities to return (page size). `None` or `0`
+ * returns all of them. Applied after threshold filtering and ranking.
+ */
+long_entities_max?: number, 
+/**
+ * Zero-based page index into the ranked long entities. `None` is page 0.
+ */
+long_entities_page?: number, 
+/**
  * Entity filters.
  */
 entity_filter: EntityFilter, 

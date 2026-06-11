@@ -75,6 +75,9 @@ impl TaskExt for Task {
             type_name: self.type_name().to_string(),
             instance_name: self.instance_name().to_string(),
             transitions,
+            // Set by `task_entities_to_ui_fsm` from the analyzer's qualifying
+            // span; zero here outside the long-entities context.
+            long_duration_ns: 0,
         })
     }
 }

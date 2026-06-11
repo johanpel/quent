@@ -805,16 +805,18 @@ impl SimulatorUiAnalyzer {
     /// Turn a list of entity ids into UI-compatible FSM data.
     fn task_entities_to_ui_fsm(
         &self,
-        entity_ids: &[Uuid],
+        entities: &[(Uuid, TimeNanoSec)],
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
-        entity_ids
+        entities
             .iter()
-            .filter_map(|&id| {
-                self.model
-                    .tasks
-                    .get(&id)
-                    .map(|task| task.try_to_ui_fsm(epoch))
+            .filter_map(|&(id, duration)| {
+                self.model.tasks.get(&id).map(|task| {
+                    task.try_to_ui_fsm(epoch).map(|mut fsm| {
+                        fsm.long_duration_ns = duration;
+                        fsm
+                    })
+                })
             })
             .collect()
     }
@@ -832,10 +834,12 @@ impl SimulatorUiAnalyzer {
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
         let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms_total = long_fsms.len() as u32;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values,
             long_fsms,
+            long_fsms_total,
         }))
     }
 
@@ -854,11 +858,13 @@ impl SimulatorUiAnalyzer {
                 .insert(state_name.to_owned(), values);
         }
         let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms_total = long_fsms.len() as u32;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
                 config,
                 capacities_states_values,
                 long_fsms,
+                long_fsms_total,
             },
         ))
     }

@@ -13,6 +13,12 @@ config: BinnedSpanSec,
  */
 capacities_states_values: { [key in string]?: { [key in string]?: Array<number> } }, 
 /**
- * FSMs that have usage spans exceeding the long_entities_threshold.
+ * Ranked page of FSMs whose usage spans exceed the long_entities_threshold,
+ * longest first. Sliced per the request's `long_entities_max`/`_page`.
  */
-long_fsms: Array<FiniteStateMachine>, };
+long_fsms: Array<FiniteStateMachine>, 
+/**
+ * Total number of long FSMs matching the threshold before pagination, so
+ * clients can compute the page count.
+ */
+long_fsms_total: number, };

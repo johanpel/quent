@@ -16,8 +16,12 @@ pub struct ResourceTimelineBinned {
     /// Maps a resource capacity name to a vector where each element holds an
     /// aggregated value of a time bin.
     pub capacities_values: HashMap<String, Vec<f64>>,
-    /// FSMs that have usage spans exceeding the long_entities_threshold.
+    /// Ranked page of FSMs whose usage spans exceed the long_entities_threshold,
+    /// longest first. Sliced per the request's `long_entities_max`/`_page`.
     pub long_fsms: Vec<FiniteStateMachine>,
+    /// Total number of long FSMs matching the threshold before pagination, so
+    /// clients can compute the page count.
+    pub long_fsms_total: u32,
 }
 
 #[derive(TS, Debug, Clone, Serialize)]
@@ -27,8 +31,12 @@ pub struct ResourceTimelineBinnedByState {
     /// Maps a resource capacity name to a map of a state name to a vector where
     /// each element holds an aggregated value of a time bin.
     pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
-    /// FSMs that have usage spans exceeding the long_entities_threshold.
+    /// Ranked page of FSMs whose usage spans exceed the long_entities_threshold,
+    /// longest first. Sliced per the request's `long_entities_max`/`_page`.
     pub long_fsms: Vec<FiniteStateMachine>,
+    /// Total number of long FSMs matching the threshold before pagination, so
+    /// clients can compute the page count.
+    pub long_fsms_total: u32,
 }
 
 #[derive(TS, Debug, Clone, Serialize)]

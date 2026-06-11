@@ -6,7 +6,7 @@
 use std::hash::Hash;
 
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use crate::{
@@ -29,20 +29,24 @@ fn convert_capacity(
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
+    /// Entities with a usage span exceeding the long-entities threshold, paired
+    /// with the longest such qualifying span duration (used for ranking).
+    pub long_entities: Vec<(Uuid, TimeNanoSec)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
+    /// Entities with a usage span exceeding the long-entities threshold, paired
+    /// with the longest such qualifying span duration (used for ranking).
+    pub long_entities: Vec<(Uuid, TimeNanoSec)>,
 }
 
 pub struct ResourceTimelineBuilder<'a> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<&'a str>,
-    long_entities: HashSet<Uuid>,
+    long_entities: HashMap<Uuid, TimeNanoSec>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
 
@@ -57,7 +61,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
+            long_entities: HashMap::default(),
             long_entities_threshold,
         })
     }
@@ -76,7 +80,11 @@ impl<'a> ResourceTimelineBuilder<'a> {
             && usage.span().duration() > threshold
             && usage.span().intersects(&self.aggregator.config.span)
         {
-            self.long_entities.insert(usage.entity_id());
+            let duration = usage.span().duration();
+            self.long_entities
+                .entry(usage.entity_id())
+                .and_modify(|d| *d = (*d).max(duration))
+                .or_insert(duration);
         }
         Ok(())
     }
@@ -103,7 +111,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
 pub struct ResourceTimelineByKeyBuilder<'a, K> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<(K, &'a str)>,
-    long_entities: HashSet<Uuid>,
+    long_entities: HashMap<Uuid, TimeNanoSec>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
 
@@ -121,7 +129,7 @@ where
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
+            long_entities: HashMap::default(),
             long_entities_threshold,
         })
     }
@@ -139,7 +147,11 @@ where
             && usage.span().duration() > threshold
             && usage.span().intersects(&self.aggregator.config.span)
         {
-            self.long_entities.insert(usage.entity_id());
+            let duration = usage.span().duration();
+            self.long_entities
+                .entry(usage.entity_id())
+                .and_modify(|d| *d = (*d).max(duration))
+                .or_insert(duration);
         }
         Ok(())
     }
@@ -166,6 +178,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::num::NonZero;
+
+    use rustc_hash::FxHashSet as HashSet;
 
     use crate::{
         fsm::{
@@ -778,7 +792,13 @@ mod tests {
         let mut outside_builder =
             ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
         outside_builder.try_extend(outside_fsms.usages()).unwrap();
-        assert!(!outside_builder.build().long_entities.contains(&resource_id));
+        assert!(
+            !outside_builder
+                .build()
+                .long_entities
+                .iter()
+                .any(|(id, _)| *id == resource_id)
+        );
 
         let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
         inside_fsms.insert(make_fsm(500, 1500));
@@ -787,6 +807,12 @@ mod tests {
         let mut inside_builder =
             ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
         inside_builder.try_extend(inside_fsms.usages()).unwrap();
-        assert!(inside_builder.build().long_entities.contains(&resource_id));
+        assert!(
+            inside_builder
+                .build()
+                .long_entities
+                .iter()
+                .any(|(id, _)| *id == resource_id)
+        );
     }
 }
