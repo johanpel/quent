@@ -2027,6 +2027,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-instrumentation-codegen"
+version = "0.1.0"
+dependencies = [
+ "convert_case",
+ "prettyplease",
+ "proc-macro2",
+ "quent-schema",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
+name = "quent-instrumentation-codegen-example"
+version = "0.1.0"
+dependencies = [
+ "quent-attributes",
+ "quent-instrumentation-codegen",
+ "quent-schema",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
