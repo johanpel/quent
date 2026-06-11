@@ -7,7 +7,7 @@
 //! their `to_string()` rendering, which normalises whitespace through
 //! proc-macro2's `Display`, so the assertions are robust to formatting.
 
-use quent_instrumentation_codegen::{
+use quent_instrumentation_build::{
     CodegenOptions, generate, generate_event_types, generate_event_types_str, generate_record_types,
 };
 use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder};
@@ -366,7 +366,7 @@ fn docs_emitted_only_for_documented_elements() {
 #[should_panic(expected = "maximum depth")]
 fn excessive_type_nesting_panics() {
     let mut ty = DataType::U8;
-    for _ in 0..(quent_instrumentation_codegen::MAX_TYPE_DEPTH + 5) {
+    for _ in 0..(quent_instrumentation_build::MAX_TYPE_DEPTH + 5) {
         ty = DataType::Option(Box::new(ty));
     }
     let s = schema("M", [entity("E", [event("ev", [field("deep", ty)])])], []);

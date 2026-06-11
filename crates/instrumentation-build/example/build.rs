@@ -7,7 +7,7 @@
 
 use std::{env, fs, path::Path};
 
-use quent_instrumentation_codegen::{CodegenOptions, generate_str};
+use quent_instrumentation_build::{CodegenOptions, generate_str};
 use quent_schema::builder::{
     AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };

@@ -2027,7 +2027,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-instrumentation-codegen"
+name = "quent-instrumentation-build"
 version = "0.1.0"
 dependencies = [
  "convert_case",
@@ -2041,11 +2041,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-instrumentation-codegen-example"
+name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
  "quent-attributes",
- "quent-instrumentation-codegen",
+ "quent-instrumentation-build",
  "quent-schema",
  "serde",
  "serde_json",

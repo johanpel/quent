@@ -1,5 +1,5 @@
 [package]
-name = "quent-instrumentation-codegen-example"
+name = "quent-instrumentation-build-example"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -11,5 +11,5 @@ serde_json = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 
 [build-dependencies]
-quent-instrumentation-codegen = { path = ".." }
+quent-instrumentation-build = { path = ".." }
 quent-schema = { path = "../../schema" }
