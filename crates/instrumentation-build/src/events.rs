@@ -10,11 +10,11 @@ use quote::quote;
 
 use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
 use crate::data_type::map_data_type;
-use crate::{GenerateError, GenerateOptions};
+use crate::{GenerateError, Options};
 
 pub(crate) fn generate_event_types(
     schema: &Schema,
-    opts: &GenerateOptions,
+    opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let enums: Vec<TokenStream> = schema
         .entities()
@@ -23,10 +23,7 @@ pub(crate) fn generate_event_types(
     Ok(quote! { #(#enums)* })
 }
 
-fn entity_event_enum(
-    entity: &Entity,
-    opts: &GenerateOptions,
-) -> Result<TokenStream, GenerateError> {
+fn entity_event_enum(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
     let enum_ident = raw_ident(format!("{}Event", to_case(entity.name(), Case::Pascal)));
     let docs = doc_attr(entity.annotations().docs());
     let derives = derive_attr(opts.event_derives)?;
@@ -39,7 +36,7 @@ fn entity_event_enum(
                 .fields()
                 .map(|field| {
                     let name = raw_ident(to_case(field.name(), Case::Snake));
-                    let ty = map_data_type(field.ty());
+                    let ty = map_data_type(field.ty(), 0);
                     let field_docs = doc_attr(field.annotations().docs());
                     quote! { #field_docs #name: #ty }
                 })
@@ -69,7 +66,7 @@ mod tests {
     use quent_schema::{Annotations, Cardinality, DataType, Field};
 
     fn events_src(s: &Schema) -> String {
-        pretty(generate_event_types(s, &GenerateOptions::default()).unwrap())
+        pretty(generate_event_types(s, &Options::default()).unwrap())
     }
 
     #[test]

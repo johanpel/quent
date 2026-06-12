@@ -11,8 +11,10 @@ use quote::quote;
 use crate::common::{raw_ident, to_case};
 
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
-/// type may have. A defensive bound against runaway recursion on malformed input;
-/// far above any realistic schema.
+/// type may have, far above any realistic schema. Self-referential records are
+/// already ruled out by base validation, but even if somehow schemas are
+/// produced with a ginormous nesting depth, this will produce a friendlier
+/// panic that a stackoverflow.
 pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 
 /// Map a [`DataType`] to its Rust type tokens.
@@ -20,11 +22,7 @@ pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 /// # Panics
 ///
 /// Panics if `ty` nests deeper than [`MAX_TYPE_DEPTH`].
-pub(crate) fn map_data_type(ty: &DataType) -> TokenStream {
-    map_data_type_at(ty, 0)
-}
-
-fn map_data_type_at(ty: &DataType, depth: usize) -> TokenStream {
+pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
     assert!(
         depth <= MAX_TYPE_DEPTH,
         "field type nesting exceeds the maximum depth of {MAX_TYPE_DEPTH}"
@@ -44,11 +42,11 @@ fn map_data_type_at(ty: &DataType, depth: usize) -> TokenStream {
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type_at(inner, depth + 1);
+            let inner = map_data_type(inner, depth + 1);
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type_at(inner, depth + 1);
+            let inner = map_data_type(inner, depth + 1);
             quote! { Vec<#inner> }
         }
         DataType::Record(name) => {
@@ -58,7 +56,7 @@ fn map_data_type_at(ty: &DataType, depth: usize) -> TokenStream {
         DataType::DynamicRecord => quote! { ::quent_attributes::CustomAttributes },
         DataType::EntityRef { data, .. } => match data {
             Some(inner) => {
-                let inner = map_data_type_at(inner, depth + 1);
+                let inner = map_data_type(inner, depth + 1);
                 quote! { ::quent_instrumentation_runtime::EntityRef<#inner> }
             }
             None => quote! { ::quent_instrumentation_runtime::EntityRef },
@@ -78,6 +76,6 @@ mod tests {
         for _ in 0..(MAX_TYPE_DEPTH + 5) {
             ty = DataType::Option(Box::new(ty));
         }
-        let _ = map_data_type(&ty);
+        let _ = map_data_type(&ty, 0);
     }
 }

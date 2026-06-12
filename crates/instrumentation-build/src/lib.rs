@@ -19,7 +19,7 @@
 //! ```ignore
 //! use quent_instrumentation_build::{GenerateOptions, generate};
 //!
-//! let schema = todo!(); // some schema (ideally validated, see `quent-constraints`)
+//! let schema = todo!();
 //! let opts = GenerateOptions {
 //!     event_derives: &["Debug", "Clone"],
 //!     record_derives: &["Debug", "Clone"],
@@ -44,39 +44,52 @@ mod records;
 
 use std::path::PathBuf;
 
+use quent_constraints::{BaseConstraintsError, Report, validate};
 use quent_schema::Schema;
 use quote::quote;
 
 use events::generate_event_types;
 use records::generate_record_types;
 
-/// Options controlling code generation.
-// TODO(johanpel): kept as simple as possible for now, but eventually some
-// built-in options for exporters (e.g. serde-based or Narrow) will surface
-// here as simple type-safe options.
-#[derive(Default)]
-pub struct GenerateOptions {
+/// Options controlling instrumentation library generation.
+pub struct Options {
     /// Derives applied to every generated event payload enum.
     ///
     /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
+    // TODO(johanpel): derives are kept as simple as possible for now, but
+    // eventually some built-in options for built-in exporters (e.g. serde-based
+    // or Narrow) will surface here as simpler type-safe options.
     pub event_derives: &'static [&'static str],
+
     /// Derives applied to every generated record struct.
     ///
     /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
     pub record_derives: &'static [&'static str],
-    /// Directory the generated file is written into, e.g. the build script's
-    /// `OUT_DIR`.
+
+    /// Directory the generated file is written into.
     pub out_dir: PathBuf,
+
     /// File name to write; defaults to `<schema name>.rs` (lowercased) when
     /// `None`.
     pub file_name: Option<String>,
 }
 
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            event_derives: Default::default(),
+            record_derives: Default::default(),
+            out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
+            file_name: None,
+        }
+    }
+}
+
 /// An error from generating instrumentation source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
-    /// An entry in [`GenerateOptions::event_derives`] or
-    /// [`GenerateOptions::record_derives`] is not a parseable Rust path.
+    #[error("base schema validation failed: {0}")]
+    InvalidSchema(#[from] BaseConstraintsError),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive {
         /// The offending derive entry.
@@ -84,32 +97,37 @@ pub enum GenerateError {
         /// The underlying parse error.
         source: syn::Error,
     },
-    /// The generated tokens did not form a valid Rust file.
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
-    /// Writing the generated file failed.
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
 
-/// Generate the full instrumentation source for `schema` and write it to
-/// `opts.out_dir`, returning the path written.
-///
-/// The file is named `opts.file_name` if set, otherwise `<schema name>.rs`
-/// (lowercased).
-///
-/// # Errors
-///
-/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, if
-/// the generated code is not a valid Rust file, or if writing the file fails.
-pub fn generate(schema: &Schema, opts: &GenerateOptions) -> Result<PathBuf, GenerateError> {
+pub struct GenerateInfo {
+    pub path: PathBuf,
+    pub warnings: Vec<String>,
+}
+
+/// Generate the full instrumentation source for `schema` with `opts`.
+pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
+    let Report {
+        base_constraints,
+        unregistered_constraints,
+        results: _, // unused for now, but built-in constraints go here later and will add to either errors or warnings.
+    } = validate::<()>(schema);
+
+    let warnings = unregistered_constraints;
+
+    // Fail if base constraints aren't met.
+    base_constraints?;
+
     let file_name = opts
         .file_name
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
     std::fs::write(&path, generate_str(schema, opts)?)?;
-    Ok(path)
+    Ok(GenerateInfo { path, warnings })
 }
 
 /// Return the full instrumentation source for `schema`.
@@ -118,7 +136,7 @@ pub fn generate(schema: &Schema, opts: &GenerateOptions) -> Result<PathBuf, Gene
 ///
 /// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
 /// if the generated code is not a valid Rust file.
-pub fn generate_str(schema: &Schema, opts: &GenerateOptions) -> Result<String, GenerateError> {
+pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     // record structs first, then event enums
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;

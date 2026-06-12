@@ -10,7 +10,7 @@ use quote::quote;
 
 use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
 use crate::data_type::map_data_type;
-use crate::{GenerateError, GenerateOptions};
+use crate::{GenerateError, Options};
 
 /// Record structs, as tokens, in declaration order.
 ///
@@ -19,7 +19,7 @@ use crate::{GenerateError, GenerateOptions};
 /// Panics if a field type nests deeper than [`crate::data_type::MAX_TYPE_DEPTH`].
 pub(crate) fn generate_record_types(
     schema: &Schema,
-    opts: &GenerateOptions,
+    opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let records: Vec<TokenStream> = schema
         .records()
@@ -28,7 +28,7 @@ pub(crate) fn generate_record_types(
     Ok(quote! { #(#records)* })
 }
 
-fn record_struct(record: &Record, opts: &GenerateOptions) -> Result<TokenStream, GenerateError> {
+fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
     let ident = raw_ident(to_case(record.name(), Case::Pascal));
     let docs = doc_attr(record.annotations().docs());
     let derives = derive_attr(opts.record_derives)?;
@@ -36,7 +36,7 @@ fn record_struct(record: &Record, opts: &GenerateOptions) -> Result<TokenStream,
         .fields()
         .map(|field| {
             let name = raw_ident(to_case(field.name(), Case::Snake));
-            let ty = map_data_type(field.ty());
+            let ty = map_data_type(field.ty(), 0);
             let field_docs = doc_attr(field.annotations().docs());
             quote! { #field_docs pub #name: #ty }
         })
@@ -89,7 +89,7 @@ mod tests {
             pub struct Empty {}
         };
         assert_eq!(
-            pretty(generate_record_types(&s, &GenerateOptions::default()).unwrap()),
+            pretty(generate_record_types(&s, &Options::default()).unwrap()),
             pretty(expected)
         );
     }

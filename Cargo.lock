@@ -2032,6 +2032,7 @@ dependencies = [
  "convert_case",
  "prettyplease",
  "proc-macro2",
+ "quent-constraints",
  "quent-schema",
  "quote",
  "syn",

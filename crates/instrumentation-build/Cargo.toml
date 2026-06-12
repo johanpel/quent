@@ -8,6 +8,7 @@ publish.workspace = true
 convert_case = "0.8"
 prettyplease = "0.2"
 proc-macro2 = "1"
+quent-constraints = { path = "../constraints" }
 quent-schema = { path = "../schema" }
 quote = "1"
 syn = { version = "2", features = ["full", "parsing"] }

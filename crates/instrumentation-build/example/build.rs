@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
-
 use quent_constraints::validate;
-use quent_instrumentation_build::{GenerateOptions, generate};
+use quent_instrumentation_build::{GenerateInfo, Options, generate};
 use quent_schema::builder::{
     AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
@@ -16,16 +14,20 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let schema = demo_schema()?;
 
-    let opts = GenerateOptions {
+    let opts = Options {
         event_derives: &["Debug"],
         record_derives: &["Debug"],
-        out_dir: env::var("OUT_DIR").unwrap().into(),
-        file_name: None,
+        ..Default::default()
     };
 
-    let path = generate(&schema, &opts)?;
+    let GenerateInfo { path, warnings } = generate(&schema, &opts)?;
+
+    if !warnings.is_empty() {
+        println!("cargo:warning= {}", warnings.join("\n"));
+    }
     println!(
-        "cargo:warning=instrumentation library written to {}",
+        "cargo:warning=instrumentation library
+    written to {}",
         path.display()
     );
 
@@ -89,9 +91,6 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
         .entities([connection])
         .unwrap()
         .build();
-
-    // Validate the schema before it is used (see `quent-constraints`).
-    validate::<()>(&schema).base_constraints?;
 
     Ok(schema)
 }
