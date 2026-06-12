@@ -53,7 +53,7 @@ function makeResourceEntry(): TimelineRequest<TaskFilter> {
   return {
     Resource: {
       resource_id: 'r1',
-      long_entities_threshold_s: null,
+      long_entities: null,
       entity_filter: baseFilter,
       application: { operator_id: null },
       config: baseConfig,
@@ -66,7 +66,7 @@ function makeGroupEntry(): TimelineRequest<TaskFilter> {
     ResourceGroup: {
       resource_group_id: 'g1',
       resource_type_name: 'disk',
-      long_entities_threshold_s: null,
+      long_entities: null,
       entity_filter: baseFilter,
       app_params: { operator_id: null },
       config: baseConfig,

@@ -261,7 +261,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         match request.entry {
             TimelineRequest::Resource(req) => {
                 let resource_type = self.model.resource_type_of(req.resource_id)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                let long_entities_threshold = req
+                    .long_entities
+                    .as_ref()
+                    .map(|le| to_nanosecs(le.threshold_s));
                 let task_filter = req.application;
 
                 if req.entity_filter.entity_type_name.is_some() {
@@ -304,7 +307,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             }
             TimelineRequest::ResourceGroup(req) => {
                 let resource_type = self.model.resource_type(&req.resource_type_name)?;
-                let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                let long_entities_threshold = req
+                    .long_entities
+                    .as_ref()
+                    .map(|le| to_nanosecs(le.threshold_s));
 
                 // Build the resource tree for this group
                 let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
@@ -758,7 +764,10 @@ impl SimulatorUiAnalyzer {
                 resource_id_filter: [r.resource_id].into_iter().collect(),
                 entity_filter: r.entity_filter,
                 task_filter: r.application,
-                long_entities_threshold: r.long_entities_threshold_s.map(to_nanosecs),
+                long_entities_threshold: r
+                    .long_entities
+                    .as_ref()
+                    .map(|le| to_nanosecs(le.threshold_s)),
             },
             TimelineRequest::ResourceGroup(rg) => {
                 let resource_type = self.model.resource_type(&rg.resource_type_name)?;
@@ -779,7 +788,10 @@ impl SimulatorUiAnalyzer {
                     resource_id_filter: resource_ids,
                     entity_filter: rg.entity_filter,
                     task_filter: rg.app_params,
-                    long_entities_threshold: rg.long_entities_threshold_s.map(to_nanosecs),
+                    long_entities_threshold: rg
+                        .long_entities
+                        .as_ref()
+                        .map(|le| to_nanosecs(le.threshold_s)),
                 }
             }
         })

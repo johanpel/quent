@@ -15,8 +15,8 @@ use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs
 use quent_ui::FiniteStateMachine;
 use quent_ui::timeline::{
     request::{
-        BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest, TimelineConfig,
-        TimelineRequest,
+        BulkChunkedTimelineRequest, BulkTimelineRequest, PageParams, SingleTimelineRequest,
+        TimelineConfig, TimelineRequest,
     },
     response::{
         BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
@@ -70,14 +70,20 @@ impl<'a, EntryParams> EntryParamsKey<'a, EntryParams> {
         match entry {
             TimelineRequest::Resource(r) => Self::Resource {
                 resource_id: r.resource_id,
-                long_entities_threshold_s: r.long_entities_threshold_s.map(HashableF64::from),
+                long_entities_threshold_s: r
+                    .long_entities
+                    .as_ref()
+                    .map(|le| HashableF64::from(le.threshold_s)),
                 entity_type_name: r.entity_filter.entity_type_name.as_deref(),
                 application: &r.application,
             },
             TimelineRequest::ResourceGroup(rg) => Self::ResourceGroup {
                 resource_group_id: rg.resource_group_id,
                 resource_type_name: &rg.resource_type_name,
-                long_entities_threshold_s: rg.long_entities_threshold_s.map(HashableF64::from),
+                long_entities_threshold_s: rg
+                    .long_entities
+                    .as_ref()
+                    .map(|le| HashableF64::from(le.threshold_s)),
                 entity_type_name: rg.entity_filter.entity_type_name.as_deref(),
                 app_params: &rg.app_params,
             },
@@ -154,10 +160,10 @@ impl TimelineCache {
 
     /// Fetch bulk timelines, paginating each entry's long FSMs after merge.
     ///
-    /// Pagination (`long_entities_max`/`_page`, per entry) is applied here at the
-    /// single tail point so it covers every internal path — cache hit, chunked
-    /// fetch, and uncached fallback — and is deliberately excluded from the chunk
-    /// cache key, so different pages reuse the same cached chunks.
+    /// Pagination (`long_entities.page`, per entry) is applied here at the single
+    /// tail point so it covers every internal path — cache hit, chunked fetch,
+    /// and uncached fallback — and is deliberately excluded from the chunk cache
+    /// key, so different pages reuse the same cached chunks.
     pub(crate) async fn cached_bulk_timeline<A>(
         &self,
         analyzer: Arc<A>,
@@ -172,7 +178,7 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
         <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
-        let pagination: HashMap<String, (Option<u32>, Option<u32>)> = request
+        let pagination: HashMap<String, Option<PageParams>> = request
             .entries
             .iter()
             .map(|(k, entry)| (k.clone(), pagination_of(entry)))
@@ -182,8 +188,8 @@ impl TimelineCache {
             .await?;
         for (key, entry) in response.entries.iter_mut() {
             if let BulkTimelinesResponseEntry::Ok { data, .. } = entry {
-                let (max, page) = pagination.get(key).copied().unwrap_or((None, None));
-                paginate_long_fsms(data, max, page);
+                let page = pagination.get(key).cloned().flatten();
+                paginate_long_fsms(data, page);
             }
         }
         Ok(response)
@@ -426,9 +432,9 @@ impl TimelineCache {
 
     /// Fetch a single timeline, paginating its long FSMs after merge.
     ///
-    /// Pagination (`long_entities_max`/`_page`) is applied here at the single
-    /// tail point so it covers the single-chunk fast path, the chunk merge, and
-    /// every uncached fallback, and is excluded from the chunk cache key.
+    /// Pagination (`long_entities.page`) is applied here at the single tail
+    /// point so it covers the single-chunk fast path, the chunk merge, and every
+    /// uncached fallback, and is excluded from the chunk cache key.
     pub(crate) async fn cached_single_timeline<A>(
         &self,
         analyzer: Arc<A>,
@@ -443,11 +449,11 @@ impl TimelineCache {
         <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
         <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
-        let (max, page) = pagination_of(&request.entry);
+        let page = pagination_of(&request.entry);
         let mut response = self
             .cached_single_timeline_inner(analyzer, engine_id, request)
             .await?;
-        paginate_long_fsms(&mut response.data, max, page);
+        paginate_long_fsms(&mut response.data, page);
         Ok(response)
     }
 
@@ -703,38 +709,38 @@ fn assemble_bulk_response<EP>(
     })
 }
 
-/// Extract the long-entities pagination params from a timeline request entry.
-fn pagination_of<EP>(entry: &TimelineRequest<EP>) -> (Option<u32>, Option<u32>) {
-    match entry {
-        TimelineRequest::Resource(r) => (r.long_entities_max, r.long_entities_page),
-        TimelineRequest::ResourceGroup(rg) => (rg.long_entities_max, rg.long_entities_page),
-    }
+/// Extract the long-entities page request from a timeline request entry.
+///
+/// `None` means return all long entities (no paging); the threshold lives in
+/// `long_entities` and is handled separately as part of the cache key.
+fn pagination_of<EP>(entry: &TimelineRequest<EP>) -> Option<PageParams> {
+    let long_entities = match entry {
+        TimelineRequest::Resource(r) => r.long_entities.as_ref(),
+        TimelineRequest::ResourceGroup(rg) => rg.long_entities.as_ref(),
+    };
+    long_entities.and_then(|le| le.page.clone())
 }
 
 /// Rank a timeline's long FSMs and retain the requested page.
 ///
-/// Sets `long_fsms_total` to the full count before slicing. Pagination params
-/// are intentionally excluded from the chunk cache key, so this runs after merge
-/// on every response path (cache hit, chunked fetch, and uncached fallback).
-fn paginate_long_fsms(data: &mut ResourceTimeline, max: Option<u32>, page: Option<u32>) {
+/// Sets `long_fsms_total` to the full count before slicing. The page request is
+/// intentionally excluded from the chunk cache key, so this runs after merge on
+/// every response path (cache hit, chunked fetch, and uncached fallback).
+fn paginate_long_fsms(data: &mut ResourceTimeline, page: Option<PageParams>) {
     let (long_fsms, total) = match data {
         ResourceTimeline::Binned(d) => (&mut d.long_fsms, &mut d.long_fsms_total),
         ResourceTimeline::BinnedByState(d) => (&mut d.long_fsms, &mut d.long_fsms_total),
     };
-    *total = paginate_fsms_vec(long_fsms, max, page);
+    *total = paginate_fsms_vec(long_fsms, page);
 }
 
 /// Sort `long_fsms` by qualifying duration (longest first, `id` tie-break),
 /// return the pre-slice count, then retain only the requested page.
 ///
-/// `max` `None` or `0` returns all entities (no slicing). `page` `None` is page
-/// 0. A page past the end yields an empty slice; the returned total still
-/// reflects the full count.
-fn paginate_fsms_vec(
-    long_fsms: &mut Vec<FiniteStateMachine>,
-    max: Option<u32>,
-    page: Option<u32>,
-) -> u32 {
+/// `page` `None` (or a `max` of `0`) returns all entities — no slicing. A page
+/// past the end yields an empty slice; the returned total still reflects the
+/// full count.
+fn paginate_fsms_vec(long_fsms: &mut Vec<FiniteStateMachine>, page: Option<PageParams>) -> u32 {
     long_fsms.sort_by(|a, b| {
         b.long_duration_ns
             .cmp(&a.long_duration_ns)
@@ -742,10 +748,12 @@ fn paginate_fsms_vec(
     });
     let total = long_fsms.len() as u32;
 
-    if let Some(page_size) = max.filter(|&m| m > 0) {
+    if let Some(PageParams { max, page }) = page
+        && max > 0
+    {
         let len = long_fsms.len();
-        let start = ((page.unwrap_or(0) as u64) * page_size as u64).min(len as u64) as usize;
-        let keep = (len - start).min(page_size as usize);
+        let start = ((page as u64) * max as u64).min(len as u64) as usize;
+        let keep = (len - start).min(max as usize);
         long_fsms.drain(..start);
         long_fsms.truncate(keep);
     }
@@ -947,8 +955,8 @@ mod tests {
         FiniteStateMachine, FsmTransition,
         timeline::{
             request::{
-                BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, TimelineConfig,
-                TimelineRequest,
+                BulkTimelineRequest, EntityFilter, LongEntitiesParams, PageParams,
+                ResourceTimelineRequest, TimelineConfig, TimelineRequest,
             },
             response::{
                 BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
@@ -983,7 +991,7 @@ mod tests {
     #[test]
     fn paginate_ranks_by_duration_then_id() {
         let mut v = unranked();
-        let total = paginate_fsms_vec(&mut v, None, None);
+        let total = paginate_fsms_vec(&mut v, None);
         assert_eq!(total, 4);
         assert_eq!(ids(&v), vec![2, 3, 1, 4]);
     }
@@ -992,8 +1000,8 @@ mod tests {
     fn paginate_pages_are_disjoint_and_cover_ranked_order() {
         let mut p0 = unranked();
         let mut p1 = unranked();
-        let t0 = paginate_fsms_vec(&mut p0, Some(2), Some(0));
-        let t1 = paginate_fsms_vec(&mut p1, Some(2), Some(1));
+        let t0 = paginate_fsms_vec(&mut p0, Some(PageParams { max: 2, page: 0 }));
+        let t1 = paginate_fsms_vec(&mut p1, Some(PageParams { max: 2, page: 1 }));
         assert_eq!((t0, t1), (4, 4));
         assert_eq!(ids(&p0), vec![2, 3]);
         assert_eq!(ids(&p1), vec![1, 4]);
@@ -1002,16 +1010,16 @@ mod tests {
     #[test]
     fn paginate_page_past_end_is_empty_with_full_total() {
         let mut v = unranked();
-        let total = paginate_fsms_vec(&mut v, Some(2), Some(5));
+        let total = paginate_fsms_vec(&mut v, Some(PageParams { max: 2, page: 5 }));
         assert_eq!(total, 4);
         assert!(v.is_empty());
     }
 
     #[test]
     fn paginate_max_zero_or_none_returns_all_ranked() {
-        for max in [None, Some(0)] {
+        for page in [None, Some(PageParams { max: 0, page: 0 })] {
             let mut v = unranked();
-            let total = paginate_fsms_vec(&mut v, max, Some(0));
+            let total = paginate_fsms_vec(&mut v, page);
             assert_eq!(total, 4);
             assert_eq!(ids(&v), vec![2, 3, 1, 4]);
         }
@@ -1034,7 +1042,7 @@ mod tests {
             long_fsms_total: 0,
             long_fsms: unranked(),
         });
-        paginate_long_fsms(&mut data, Some(2), Some(0));
+        paginate_long_fsms(&mut data, Some(PageParams { max: 2, page: 0 }));
         match data {
             ResourceTimeline::Binned(d) => {
                 assert_eq!(d.long_fsms_total, 4);
@@ -1282,9 +1290,10 @@ mod tests {
                         key.to_string(),
                         TimelineRequest::Resource(ResourceTimelineRequest {
                             resource_id: Uuid::from_u128(2),
-                            long_entities_threshold_s: Some(0.0),
-                            long_entities_max: None,
-                            long_entities_page: None,
+                            long_entities: Some(LongEntitiesParams {
+                                threshold_s: 0.0,
+                                page: None,
+                            }),
                             entity_filter: EntityFilter {
                                 entity_type_name: None,
                             },

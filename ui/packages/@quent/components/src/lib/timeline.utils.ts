@@ -638,7 +638,7 @@ export function buildBulkParamsForItem(
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName || '',
-        long_entities_threshold_s: null,
+        long_entities: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
         config,
@@ -649,7 +649,7 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: threshold,
+      long_entities: { threshold_s: threshold, page: null },
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
       config,

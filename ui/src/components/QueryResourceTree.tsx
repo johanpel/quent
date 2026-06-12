@@ -161,7 +161,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
           ResourceGroup: {
             resource_group_id: rootResourceGroupId!,
             resource_type_name: rootResourceType ?? '',
-            long_entities_threshold_s: null,
+            long_entities: null,
             entity_filter: { entity_type_name: null },
             app_params: { operator_id: null },
             config: {
