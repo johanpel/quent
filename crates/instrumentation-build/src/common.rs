@@ -11,13 +11,7 @@ use syn::Ident;
 
 use crate::GenerateError;
 
-/// Build a `#[derive(..)]` attribute from `derives`, or empty tokens when the
-/// list is empty.
-///
-/// # Errors
-///
-/// Returns [`GenerateError::InvalidDerive`] if an entry is not a parseable Rust
-/// path.
+/// Build a `#[derive(..)]` attribute from `derives`.
 pub(crate) fn derive_attr(derives: &[&str]) -> Result<TokenStream, GenerateError> {
     if derives.is_empty() {
         return Ok(quote! {});
@@ -35,7 +29,7 @@ pub(crate) fn derive_attr(derives: &[&str]) -> Result<TokenStream, GenerateError
     Ok(quote! { #[derive(#(#paths),*)] })
 }
 
-/// Build a `#[doc = ..]` attribute from `docs`, or empty tokens when `None`.
+/// Build a `#[doc = ..]` attribute from `docs`.
 pub(crate) fn doc_attr(docs: Option<&str>) -> TokenStream {
     match docs {
         Some(text) => quote! { #[doc = #text] },
@@ -67,4 +61,11 @@ pub(crate) fn raw_ident(name: String) -> Ident {
     } else {
         Ident::new_raw(&name, Span::call_site())
     }
+}
+
+/// Pretty-print tokens the same way the generators do, for comparing generated
+/// source against `quote!`-built expectations in tests.
+#[cfg(test)]
+pub(crate) fn pretty(tokens: TokenStream) -> String {
+    prettyplease::unparse(&syn::parse2::<syn::File>(tokens).expect("tokens form a valid file"))
 }

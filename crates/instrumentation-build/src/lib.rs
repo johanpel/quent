@@ -112,10 +112,7 @@ pub fn generate(schema: &Schema, opts: &GenerateOptions) -> Result<PathBuf, Gene
     Ok(path)
 }
 
-/// Generate the full instrumentation source for `schema` — every record struct
-/// followed by every per-entity event enum — formatted with `prettyplease`.
-///
-/// Use [`generate`] to write the result to a file in one step.
+/// Return the full instrumentation source for `schema`.
 ///
 /// # Errors
 ///

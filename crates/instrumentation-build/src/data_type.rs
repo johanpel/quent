@@ -15,8 +15,7 @@ use crate::common::{raw_ident, to_case};
 /// far above any realistic schema.
 pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 
-/// Map a [`DataType`] to its Rust type tokens, recursing through `Option`,
-/// `List` and `EntityRef` payloads.
+/// Map a [`DataType`] to its Rust type tokens.
 ///
 /// # Panics
 ///

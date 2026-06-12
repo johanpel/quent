@@ -12,23 +12,6 @@ use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, GenerateOptions};
 
-/// Per-entity event payload enums, as tokens, in declaration order.
-///
-/// Each entity yields `pub enum <Entity>Event`; each of its events is a variant
-/// (UpperCamel) whose payload fields are snake_case named fields. Type, variant
-/// and field names are derived by case conversion that preserves digits, and
-/// names that are Rust keywords are raw-escaped. The caller must ensure entity,
-/// event and field names are unique after that conversion: two names that
-/// converge produce a duplicate definition that fails to compile.
-///
-/// # Errors
-///
-/// Returns [`GenerateError::InvalidDerive`] if a derive entry is not a parseable
-/// Rust path.
-///
-/// # Panics
-///
-/// Panics if a field type nests deeper than [`crate::data_type::MAX_TYPE_DEPTH`].
 pub(crate) fn generate_event_types(
     schema: &Schema,
     opts: &GenerateOptions,
@@ -80,14 +63,10 @@ fn entity_event_enum(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::pretty;
     use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder};
     use quent_schema::test_utils::{entity, event, field, ident, schema};
     use quent_schema::{Annotations, Cardinality, DataType, Field};
-
-    /// Pretty-print tokens the same way the generator does.
-    fn pretty(tokens: TokenStream) -> String {
-        prettyplease::unparse(&syn::parse2::<syn::File>(tokens).expect("tokens form a valid file"))
-    }
 
     /// Generate event enums for `s` with default options, formatted.
     fn events_src(s: &Schema) -> String {

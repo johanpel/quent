@@ -12,20 +12,6 @@ use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, GenerateOptions};
 
-/// Record structs, as tokens, in declaration order.
-///
-/// Each record yields `pub struct <Record>` with one public field per record
-/// field. Naming, raw-escaping and the uniqueness obligation match
-/// [`crate::events::generate_event_types`].
-///
-/// # Errors
-///
-/// Returns [`GenerateError::InvalidDerive`] if a derive entry is not a parseable
-/// Rust path.
-///
-/// # Panics
-///
-/// Panics if a field type nests deeper than [`crate::data_type::MAX_TYPE_DEPTH`].
 pub(crate) fn generate_record_types(
     schema: &Schema,
     opts: &GenerateOptions,
@@ -66,13 +52,9 @@ fn record_struct(record: &Record, opts: &GenerateOptions) -> Result<TokenStream,
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::pretty;
     use quent_schema::DataType;
     use quent_schema::test_utils::{field, ident, record, schema};
-
-    /// Pretty-print tokens the same way the generator does.
-    fn pretty(tokens: TokenStream) -> String {
-        prettyplease::unparse(&syn::parse2::<syn::File>(tokens).expect("tokens form a valid file"))
-    }
 
     #[test]
     fn record_structs_emit_public_fields() {
