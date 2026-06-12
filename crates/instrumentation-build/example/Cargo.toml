@@ -11,5 +11,6 @@ serde_json = { workspace = true }
 uuid = { workspace = true, features = ["serde"] }
 
 [build-dependencies]
+quent-constraints = { path = "../../constraints" }
 quent-instrumentation-build = { path = ".." }
-quent-schema = { path = "../../schema" }
+quent-schema = { path = "../../schema", features = ["test-utils"] }

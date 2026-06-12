@@ -1,11 +1,43 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Schema-driven generation of Rust instrumentation code.
+//! Generates a Rust instrumentation library source from a
+//! [`quent_schema::Schema`].
 //!
-//! Consumes a [`quent_schema::Schema`] and emits the per-entity event payload
-//! types it describes. Output depends only on schema structure and `docs`
-//! annotations; constraint and metadata annotations never affect it.
+//! The usual workflow is build-time generation:
+//!
+//! 1. From your crate's build script, call [`generate`] with `out_dir` set to
+//!    the directory Cargo provides via the `OUT_DIR` environment variable; it
+//!    writes the generated source there.
+//! 2. Pull that file into your crate's source at compile time with the
+//!    `include!` macro.
+//!
+//! # Example
+//!
+//! In your crate's `build.rs`:
+//!
+//! ```ignore
+//! use quent_instrumentation_build::{GenerateOptions, generate};
+//!
+//! let schema = todo!(); // some schema (ideally validated, see `quent-constraints`)
+//! let opts = GenerateOptions {
+//!     event_derives: &["Debug", "Clone", "::serde::Serialize"],
+//!     record_derives: &["Debug", "Clone", "::serde::Serialize"],
+//!     out_dir: std::env::var("OUT_DIR")?.into(),
+//!     file_name: None, // defaults to `<schema name>.rs`
+//! };
+//! generate(&schema, &opts)?;
+//! ```
+//!
+//! Then, anywhere in your crate's source:
+//!
+//! ```ignore
+//! pub mod demo {
+//!     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
+//! }
+//! ```
+
+use std::path::PathBuf;
 
 use convert_case::{Boundary, Case, Casing};
 use proc_macro2::{Span, TokenStream};
@@ -14,119 +46,176 @@ use quote::quote;
 use syn::Ident;
 
 /// Options controlling code generation.
-#[derive(Debug, Clone)]
-pub struct CodegenOptions {
-    /// Derives applied to every generated event payload enum, as Rust path
-    /// strings (e.g. `"Debug"`, `"::serde::Serialize"`). Emitted verbatim in a
-    /// single `#[derive(...)]`; an empty list emits no derive attribute.
-    pub event_derives: Vec<String>,
-    /// Derives applied to every generated record struct, in the same form as
-    /// [`CodegenOptions::event_derives`]. Keep compatible with `event_derives`
-    /// where records appear as event fields (e.g. derive serde on both).
-    pub record_derives: Vec<String>,
+// TODO(johanpel): kept as simple as possible for now, but eventually some
+// built-in options for exporters (e.g. serde-based or Narrow) will surface
+// here as simple type-safe options.
+#[derive(Default)]
+pub struct GenerateOptions {
+    /// Derives applied to every generated event payload enum.
+    ///
+    /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
+    pub event_derives: &'static [&'static str],
+    /// Derives applied to every generated record struct.
+    ///
+    /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
+    pub record_derives: &'static [&'static str],
+    /// Directory the generated file is written into, e.g. the build script's
+    /// `OUT_DIR`.
+    pub out_dir: PathBuf,
+    /// File name to write; defaults to `<schema name>.rs` (lowercased) when
+    /// `None`.
+    pub file_name: Option<String>,
 }
 
-impl Default for CodegenOptions {
-    fn default() -> Self {
-        Self {
-            event_derives: vec!["Debug".to_owned(), "Clone".to_owned()],
-            record_derives: vec!["Debug".to_owned(), "Clone".to_owned()],
-        }
-    }
+/// An error from generating instrumentation source.
+#[derive(Debug, thiserror::Error)]
+pub enum GenerateError {
+    /// An entry in [`GenerateOptions::event_derives`] or
+    /// [`GenerateOptions::record_derives`] is not a parseable Rust path.
+    #[error("invalid derive path {derive:?}")]
+    InvalidDerive {
+        /// The offending derive entry.
+        derive: String,
+        /// The underlying parse error.
+        source: syn::Error,
+    },
+    /// The generated tokens did not form a valid Rust file.
+    #[error("generated code did not form a valid Rust file")]
+    InvalidGeneratedCode(#[source] syn::Error),
+    /// Writing the generated file failed.
+    #[error("failed to write generated file")]
+    Io(#[from] std::io::Error),
 }
 
-/// Generate the full instrumentation type surface for `schema`: every record
-/// struct followed by every per-entity event enum.
+/// Combined token output: record structs followed by event enums.
+fn combined_tokens(schema: &Schema, opts: &GenerateOptions) -> Result<TokenStream, GenerateError> {
+    let records = generate_record_types(schema, opts)?;
+    let events = generate_event_types(schema, opts)?;
+    Ok(quote! { #records #events })
+}
+
+/// Generate the full instrumentation source for `schema` and write it to
+/// `opts.out_dir`, returning the path written.
+///
+/// The file is named `opts.file_name` if set, otherwise `<schema name>.rs`
+/// (lowercased).
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, if
+/// the generated code is not a valid Rust file, or if writing the file fails.
 ///
 /// # Panics
 ///
-/// Panics under the same conditions as [`generate_record_types`] and
-/// [`generate_event_types`].
-pub fn generate(schema: &Schema, opts: &CodegenOptions) -> TokenStream {
-    let records = generate_record_types(schema, opts);
-    let events = generate_event_types(schema, opts);
-    quote! { #records #events }
+/// Panics if a field type nests deeper than [`MAX_TYPE_DEPTH`].
+pub fn generate(schema: &Schema, opts: &GenerateOptions) -> Result<PathBuf, GenerateError> {
+    let file_name = opts
+        .file_name
+        .clone()
+        .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
+    let path = opts.out_dir.join(file_name);
+    std::fs::write(&path, generate_str(schema, opts)?)?;
+    Ok(path)
 }
 
-/// Pretty-printed form of [`generate`].
+/// Generate the full instrumentation source for `schema` — every record struct
+/// followed by every per-entity event enum — formatted with `prettyplease`.
+///
+/// Use [`generate`] to write the result to a file in one step.
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
+/// if the generated code is not a valid Rust file.
 ///
 /// # Panics
 ///
-/// See [`generate`]; additionally panics if the generated tokens do not form a
-/// parseable Rust file.
-pub fn generate_str(schema: &Schema, opts: &CodegenOptions) -> String {
-    let file = syn::parse2::<syn::File>(generate(schema, opts))
-        .expect("generated code must form a valid Rust file");
-    prettyplease::unparse(&file)
+/// Panics if a field type nests deeper than [`MAX_TYPE_DEPTH`].
+pub fn generate_str(schema: &Schema, opts: &GenerateOptions) -> Result<String, GenerateError> {
+    let file = syn::parse2::<syn::File>(combined_tokens(schema, opts)?)
+        .map_err(GenerateError::InvalidGeneratedCode)?;
+    Ok(prettyplease::unparse(&file))
 }
 
-/// Generate one event payload enum per entity in `schema`, in declaration order.
+/// Per-entity event payload enums, as tokens.
+fn generate_event_types(
+    schema: &Schema,
+    opts: &GenerateOptions,
+) -> Result<TokenStream, GenerateError> {
+    let enums: Vec<TokenStream> = schema
+        .entities()
+        .map(|entity| entity_event_enum(entity, opts))
+        .collect::<Result<_, _>>()?;
+    Ok(quote! { #(#enums)* })
+}
+
+/// Generate the per-entity event payload enums for `schema`, in declaration
+/// order, formatted with `prettyplease`.
 ///
 /// Each entity yields `pub enum <Entity>Event`; each of its events is a variant
 /// (UpperCamel) whose payload fields are snake_case named fields. Type, variant
 /// and field names are derived by case conversion that preserves digits, and
 /// names that are Rust keywords are raw-escaped. The caller must ensure entity,
 /// event and field names are unique after that conversion: two names that
-/// converge produce a duplicate the consumer compiler rejects.
+/// converge produce a duplicate definition that fails to compile.
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
+/// if the generated code is not a valid Rust file.
 ///
 /// # Panics
 ///
-/// Panics if any entry in `opts.event_derives` is not a parseable Rust path, or
-/// if a field type nests deeper than [`MAX_TYPE_DEPTH`].
-pub fn generate_event_types(schema: &Schema, opts: &CodegenOptions) -> TokenStream {
-    let enums: Vec<TokenStream> = schema
-        .entities()
-        .map(|entity| entity_event_enum(entity, opts))
-        .collect();
-    quote! { #(#enums)* }
+/// Panics if a field type nests deeper than [`MAX_TYPE_DEPTH`].
+pub fn generate_event_types_str(
+    schema: &Schema,
+    opts: &GenerateOptions,
+) -> Result<String, GenerateError> {
+    let file = syn::parse2::<syn::File>(generate_event_types(schema, opts)?)
+        .map_err(GenerateError::InvalidGeneratedCode)?;
+    Ok(prettyplease::unparse(&file))
 }
 
-/// Pretty-printed form of [`generate_event_types`].
-///
-/// # Panics
-///
-/// Panics on an unparseable derive path (see [`generate_event_types`]), or if the
-/// generated tokens do not form a parseable Rust file.
-pub fn generate_event_types_str(schema: &Schema, opts: &CodegenOptions) -> String {
-    let file = syn::parse2::<syn::File>(generate_event_types(schema, opts))
-        .expect("generated event types must form a valid Rust file");
-    prettyplease::unparse(&file)
-}
-
-/// Generate one struct per record in `schema`, in declaration order.
-///
-/// Each record yields `pub struct <Record>` with one public field per record
-/// field. Naming, raw-escaping and the uniqueness obligation match
-/// [`generate_event_types`].
-///
-/// # Panics
-///
-/// Panics if any entry in `opts.record_derives` is not a parseable Rust path, or
-/// if a field type nests deeper than [`MAX_TYPE_DEPTH`].
-pub fn generate_record_types(schema: &Schema, opts: &CodegenOptions) -> TokenStream {
+/// Record structs, as tokens.
+fn generate_record_types(
+    schema: &Schema,
+    opts: &GenerateOptions,
+) -> Result<TokenStream, GenerateError> {
     let records: Vec<TokenStream> = schema
         .records()
         .map(|record| record_struct(record, opts))
-        .collect();
-    quote! { #(#records)* }
+        .collect::<Result<_, _>>()?;
+    Ok(quote! { #(#records)* })
 }
 
-/// Pretty-printed form of [`generate_record_types`].
+/// Generate the record structs for `schema`, in declaration order, formatted
+/// with `prettyplease`.
+///
+/// Each record yields `pub struct <Record>` with one public field per record
+/// field. Naming, raw-escaping and the uniqueness obligation match
+/// [`generate_event_types_str`].
+///
+/// # Errors
+///
+/// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
+/// if the generated code is not a valid Rust file.
 ///
 /// # Panics
 ///
-/// See [`generate_record_types`]; additionally panics if the generated tokens do
-/// not form a parseable Rust file.
-pub fn generate_record_types_str(schema: &Schema, opts: &CodegenOptions) -> String {
-    let file = syn::parse2::<syn::File>(generate_record_types(schema, opts))
-        .expect("generated record types must form a valid Rust file");
-    prettyplease::unparse(&file)
+/// Panics if a field type nests deeper than [`MAX_TYPE_DEPTH`].
+pub fn generate_record_types_str(
+    schema: &Schema,
+    opts: &GenerateOptions,
+) -> Result<String, GenerateError> {
+    let file = syn::parse2::<syn::File>(generate_record_types(schema, opts)?)
+        .map_err(GenerateError::InvalidGeneratedCode)?;
+    Ok(prettyplease::unparse(&file))
 }
 
-fn entity_event_enum(entity: &Entity, opts: &CodegenOptions) -> TokenStream {
+fn entity_event_enum(entity: &Entity, opts: &GenerateOptions) -> Result<TokenStream, GenerateError> {
     let enum_ident = raw_ident(format!("{}Event", to_case(entity.name(), Case::Pascal)));
     let docs = doc_attr(entity.annotations().docs());
-    let derives = derive_attr(&opts.event_derives);
+    let derives = derive_attr(opts.event_derives)?;
     let variants: Vec<TokenStream> = entity
         .events()
         .map(|event| {
@@ -148,19 +237,19 @@ fn entity_event_enum(entity: &Entity, opts: &CodegenOptions) -> TokenStream {
             }
         })
         .collect();
-    quote! {
+    Ok(quote! {
         #docs
         #derives
         pub enum #enum_ident {
             #(#variants),*
         }
-    }
+    })
 }
 
-fn record_struct(record: &Record, opts: &CodegenOptions) -> TokenStream {
+fn record_struct(record: &Record, opts: &GenerateOptions) -> Result<TokenStream, GenerateError> {
     let ident = raw_ident(to_case(record.name(), Case::Pascal));
     let docs = doc_attr(record.annotations().docs());
-    let derives = derive_attr(&opts.record_derives);
+    let derives = derive_attr(opts.record_derives)?;
     let fields: Vec<TokenStream> = record
         .fields()
         .map(|field| {
@@ -171,15 +260,15 @@ fn record_struct(record: &Record, opts: &CodegenOptions) -> TokenStream {
         })
         .collect();
     if fields.is_empty() {
-        quote! { #docs #derives pub struct #ident {} }
+        Ok(quote! { #docs #derives pub struct #ident {} })
     } else {
-        quote! {
+        Ok(quote! {
             #docs
             #derives
             pub struct #ident {
                 #(#fields),*
             }
-        }
+        })
     }
 }
 
@@ -236,14 +325,21 @@ fn map_data_type_at(ty: &DataType, depth: usize) -> TokenStream {
     }
 }
 
-fn derive_attr(derives: &[String]) -> TokenStream {
+fn derive_attr(derives: &[&str]) -> Result<TokenStream, GenerateError> {
     if derives.is_empty() {
-        return quote! {};
+        return Ok(quote! {});
     }
-    let paths = derives.iter().map(|d| {
-        syn::parse_str::<syn::Path>(d).unwrap_or_else(|e| panic!("invalid derive path {d:?}: {e}"))
-    });
-    quote! { #[derive(#(#paths),*)] }
+    let paths = derives
+        .iter()
+        .copied()
+        .map(|d| {
+            syn::parse_str::<syn::Path>(d).map_err(|source| GenerateError::InvalidDerive {
+                derive: d.to_owned(),
+                source,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(quote! { #[derive(#(#paths),*)] })
 }
 
 fn doc_attr(docs: Option<&str>) -> TokenStream {

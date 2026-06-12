@@ -2034,9 +2034,8 @@ dependencies = [
  "proc-macro2",
  "quent-schema",
  "quote",
- "serde",
- "serde_json",
  "syn",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2044,6 +2043,7 @@ name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
  "quent-attributes",
+ "quent-constraints",
  "quent-instrumentation-build",
  "quent-schema",
  "serde",

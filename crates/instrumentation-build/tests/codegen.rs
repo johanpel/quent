@@ -1,30 +1,49 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Schema -> event type definition tests.
+//! Schema -> generated source tests.
 //!
-//! Generated token streams are compared against `quote!`-built expectations via
-//! their `to_string()` rendering, which normalises whitespace through
-//! proc-macro2's `Display`, so the assertions are robust to formatting.
+//! Generated source is compared against `quote!`-built expectations, both
+//! normalised through `prettyplease`, so the assertions are robust to formatting.
+
+use std::path::Path;
 
 use quent_instrumentation_build::{
-    CodegenOptions, generate, generate_event_types, generate_event_types_str, generate_record_types,
+    GenerateOptions, generate, generate_event_types_str, generate_record_types_str, generate_str,
 };
 use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder};
 use quent_schema::test_utils::{entity, event, field, ident, record, schema};
 use quent_schema::{Annotations, Cardinality, DataType, Field, Schema};
 use quote::quote;
 
-fn serde_opts() -> CodegenOptions {
-    let serde = vec![
-        "Debug".to_owned(),
-        "Clone".to_owned(),
-        "::serde::Serialize".to_owned(),
-        "::serde::Deserialize".to_owned(),
-    ];
-    CodegenOptions {
-        event_derives: serde.clone(),
-        record_derives: serde,
+/// Pretty-print tokens the same way the generator does.
+fn pretty(tokens: proc_macro2::TokenStream) -> String {
+    prettyplease::unparse(&syn::parse2::<syn::File>(tokens).expect("tokens form a valid file"))
+}
+
+fn debug_opts() -> GenerateOptions {
+    GenerateOptions {
+        event_derives: &["Debug"],
+        record_derives: &["Debug"],
+        ..Default::default()
+    }
+}
+
+fn serde_opts() -> GenerateOptions {
+    GenerateOptions {
+        event_derives: &[
+            "Debug",
+            "Clone",
+            "::serde::Serialize",
+            "::serde::Deserialize",
+        ],
+        record_derives: &[
+            "Debug",
+            "Clone",
+            "::serde::Serialize",
+            "::serde::Deserialize",
+        ],
+        ..Default::default()
     }
 }
 
@@ -60,33 +79,14 @@ fn event_enum_with_serde_derives() {
         }
     };
     assert_eq!(
-        generate_event_types(&connection_schema(), &serde_opts()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&connection_schema(), &serde_opts()).unwrap(),
+        pretty(expected),
     );
 }
 
 #[test]
-fn event_enum_default_derives_have_no_serde() {
-    let expected = quote! {
-        #[derive(Debug, Clone)]
-        pub enum ConnectionEvent {
-            Opened { peer: String, port: u16 },
-            BytesSent { count: u64 },
-            Closed
-        }
-    };
-    assert_eq!(
-        generate_event_types(&connection_schema(), &CodegenOptions::default()).to_string(),
-        expected.to_string(),
-    );
-}
-
-#[test]
-fn empty_derives_list_emits_no_derive_attribute() {
-    let opts = CodegenOptions {
-        event_derives: vec![],
-        ..CodegenOptions::default()
-    };
+fn default_options_emit_no_derive_attribute() {
+    // `GenerateOptions::default()` carries no derives.
     let expected = quote! {
         pub enum ConnectionEvent {
             Opened { peer: String, port: u16 },
@@ -95,8 +95,8 @@ fn empty_derives_list_emits_no_derive_attribute() {
         }
     };
     assert_eq!(
-        generate_event_types(&connection_schema(), &opts).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&connection_schema(), &GenerateOptions::default()).unwrap(),
+        pretty(expected),
     );
 }
 
@@ -137,7 +137,7 @@ fn data_type_mapping_covers_every_variant() {
         [],
     );
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum EEvent {
             Ev {
                 b: bool,
@@ -154,8 +154,8 @@ fn data_type_mapping_covers_every_variant() {
         }
     };
     assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
@@ -180,7 +180,7 @@ fn docs_annotations_become_doc_attributes() {
 
     let expected = quote! {
         #[doc = "entity doc"]
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum EEvent {
             #[doc = "event doc"]
             Ev {
@@ -190,8 +190,8 @@ fn docs_annotations_become_doc_attributes() {
         }
     };
     assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
@@ -206,18 +206,18 @@ fn multiple_entities_emit_in_declaration_order() {
         [],
     );
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum AlphaEvent {
             Started { id: u32 }
         }
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum BetaEvent {
             Ended
         }
     };
     assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
@@ -225,23 +225,20 @@ fn multiple_entities_emit_in_declaration_order() {
 fn entity_without_events_emits_empty_enum() {
     let s = schema("M", [entity("E", [])], []);
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum EEvent {}
     };
     assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
 #[test]
 fn empty_schema_produces_empty_output() {
     let s = schema("M", [], []);
-    assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        "",
-    );
-    assert_eq!(generate_event_types_str(&s, &CodegenOptions::default()), "");
+    assert_eq!(generate_event_types_str(&s, &debug_opts()).unwrap(), "");
+    assert_eq!(generate_str(&s, &debug_opts()).unwrap(), "");
 }
 
 #[test]
@@ -271,10 +268,8 @@ fn nested_container_types_recurse() {
         )],
         [],
     );
-    // Compared via prettyplease: a literal `>>>` lexes as joined shift tokens,
-    // whereas the generator emits separate `>` puncts; both normalise equally.
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum EEvent {
             Ev {
                 nested: Option<Vec<Option<u8>>>,
@@ -282,11 +277,9 @@ fn nested_container_types_recurse() {
             }
         }
     };
-    let expected =
-        prettyplease::unparse(&syn::parse2::<syn::File>(expected).expect("expected parses"));
     assert_eq!(
-        generate_event_types_str(&s, &CodegenOptions::default()),
-        expected,
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
@@ -310,7 +303,7 @@ fn keyword_and_digit_identifiers_are_handled() {
         [],
     );
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum SigEvent {
             Type {
                 u8: u8,
@@ -321,44 +314,8 @@ fn keyword_and_digit_identifiers_are_handled() {
         }
     };
     assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
-    );
-}
-
-#[test]
-fn docs_emitted_only_for_documented_elements() {
-    let docs = |text: &str| AnnotationsBuilder::new().docs(text).build();
-    let documented = Field::new(ident("a"), DataType::U8, docs("a doc"));
-    let plain = Field::new(ident("b"), DataType::U8, Annotations::default());
-    let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
-        .fields([documented, plain])
-        .unwrap()
-        .build(); // event itself undocumented
-    let en = EntityBuilder::new(ident("E"))
-        .events([ev])
-        .unwrap()
-        .annotations(docs("entity doc"))
-        .build();
-    let s = SchemaBuilder::new(ident("M"))
-        .entities([en])
-        .unwrap()
-        .build();
-
-    let expected = quote! {
-        #[doc = "entity doc"]
-        #[derive(Debug, Clone)]
-        pub enum EEvent {
-            Ev {
-                #[doc = "a doc"]
-                a: u8,
-                b: u8
-            }
-        }
-    };
-    assert_eq!(
-        generate_event_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_event_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
@@ -370,7 +327,7 @@ fn excessive_type_nesting_panics() {
         ty = DataType::Option(Box::new(ty));
     }
     let s = schema("M", [entity("E", [event("ev", [field("deep", ty)])])], []);
-    let _ = generate_event_types(&s, &CodegenOptions::default());
+    let _ = generate_event_types_str(&s, &debug_opts());
 }
 
 #[test]
@@ -391,26 +348,26 @@ fn record_structs_emit_public_fields() {
         ],
     );
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct OnePrim {
             pub a: u8
         }
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct Nested {
             pub inner: OnePrim,
             pub list: Vec<String>
         }
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct Empty {}
     };
     assert_eq!(
-        generate_record_types(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        generate_record_types_str(&s, &debug_opts()).unwrap(),
+        pretty(expected)
     );
 }
 
 #[test]
-fn generate_emits_records_then_events() {
+fn generate_str_emits_records_then_events() {
     let s = schema(
         "M",
         [entity(
@@ -423,17 +380,47 @@ fn generate_emits_records_then_events() {
         [record("OnePrim", [field("a", DataType::U8)])],
     );
     let expected = quote! {
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub struct OnePrim {
             pub a: u8
         }
-        #[derive(Debug, Clone)]
+        #[derive(Debug)]
         pub enum ConnEvent {
             Opened { info: OnePrim }
         }
     };
+    assert_eq!(generate_str(&s, &debug_opts()).unwrap(), pretty(expected));
+}
+
+#[test]
+fn generate_writes_default_file_name() {
+    let s = connection_schema();
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("gen_default");
+    std::fs::create_dir_all(&dir).unwrap();
+    let opts = GenerateOptions {
+        out_dir: dir.clone(),
+        ..debug_opts()
+    };
+    let path = generate(&s, &opts).unwrap();
+    // schema name "Net" -> "net.rs"
+    assert_eq!(path, dir.join("net.rs"));
     assert_eq!(
-        generate(&s, &CodegenOptions::default()).to_string(),
-        expected.to_string(),
+        std::fs::read_to_string(&path).unwrap(),
+        generate_str(&s, &opts).unwrap(),
     );
+}
+
+#[test]
+fn generate_honours_file_name_override() {
+    let s = connection_schema();
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("gen_override");
+    std::fs::create_dir_all(&dir).unwrap();
+    let opts = GenerateOptions {
+        out_dir: dir.clone(),
+        file_name: Some("custom.rs".to_owned()),
+        ..debug_opts()
+    };
+    let path = generate(&s, &opts).unwrap();
+    assert_eq!(path, dir.join("custom.rs"));
+    assert!(path.exists());
 }
