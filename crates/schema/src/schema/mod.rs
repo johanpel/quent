@@ -27,6 +27,7 @@ pub struct Schema {
     /// The name of the model.
     name: Identifier,
     /// The [`Entity`]s of the model.
+    // The FxBuildHasher has no ts_rs::TS impl, hence these attributes:
     #[cfg_attr(feature = "ts", ts(as = "indexmap::IndexMap<Identifier, Entity>"))]
     entities: Map<Identifier, Entity>,
     /// The [`Record`]s of the model.
