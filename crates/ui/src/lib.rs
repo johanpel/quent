@@ -231,13 +231,6 @@ pub struct FiniteStateMachine {
     pub instance_name: String,
     /// The transitions of this FSM.
     pub transitions: Vec<FsmTransition>,
-    /// Longest qualifying usage span (ns) that surfaced this FSM as a long
-    /// entity, used only for server-side ranking. Not serialized: the per-state
-    /// durations are already derivable from `transitions`. Zero when this FSM
-    /// is not produced in a long-entities context.
-    #[serde(skip)]
-    #[ts(skip)]
-    pub long_duration_ns: u64,
 }
 
 impl FiniteStateMachine {
@@ -254,7 +247,6 @@ impl FiniteStateMachine {
                 .iter()
                 .map(|t| FsmTransition::try_from_rt(t, epoch))
                 .collect::<Result<Vec<_>, _>>()?,
-            long_duration_ns: 0,
         })
     }
 }

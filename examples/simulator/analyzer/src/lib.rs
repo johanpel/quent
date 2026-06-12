@@ -817,18 +817,16 @@ impl SimulatorUiAnalyzer {
     /// Turn a list of entity ids into UI-compatible FSM data.
     fn task_entities_to_ui_fsm(
         &self,
-        entities: &[(Uuid, TimeNanoSec)],
+        entity_ids: &[Uuid],
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
-        entities
+        entity_ids
             .iter()
-            .filter_map(|&(id, duration)| {
-                self.model.tasks.get(&id).map(|task| {
-                    task.try_to_ui_fsm(epoch).map(|mut fsm| {
-                        fsm.long_duration_ns = duration;
-                        fsm
-                    })
-                })
+            .filter_map(|&id| {
+                self.model
+                    .tasks
+                    .get(&id)
+                    .map(|task| task.try_to_ui_fsm(epoch))
             })
             .collect()
     }

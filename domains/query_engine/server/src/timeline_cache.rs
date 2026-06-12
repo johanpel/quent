@@ -741,11 +741,14 @@ fn paginate_long_fsms(data: &mut ResourceTimeline, page: Option<PageParams>) {
 /// past the end yields an empty slice; the returned total still reflects the
 /// full count.
 fn paginate_fsms_vec(long_fsms: &mut Vec<FiniteStateMachine>, page: Option<PageParams>) -> u32 {
-    long_fsms.sort_by(|a, b| {
-        b.long_duration_ns
-            .cmp(&a.long_duration_ns)
-            .then_with(|| a.id.cmp(&b.id))
-    });
+    // Rank longest-usage-first with an id tie-break, deriving each FSM's usage
+    // span from its own transitions (decorate-sort-undecorate computes it once).
+    let mut keyed: Vec<(f64, FiniteStateMachine)> = std::mem::take(long_fsms)
+        .into_iter()
+        .map(|fsm| (longest_usage_secs(&fsm), fsm))
+        .collect();
+    keyed.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
+    *long_fsms = keyed.into_iter().map(|(_, fsm)| fsm).collect();
     let total = long_fsms.len() as u32;
 
     if let Some(PageParams { max, page }) = page
@@ -759,6 +762,18 @@ fn paginate_fsms_vec(long_fsms: &mut Vec<FiniteStateMachine>, page: Option<PageP
     }
 
     total
+}
+
+/// Longest contiguous usage span of an FSM in seconds, derived from its
+/// transitions: the largest gap from a usage-bearing transition to the next.
+/// Returns `0.0` when the FSM has no usages. Used to rank long entities without
+/// carrying a separate duration on the wire.
+fn longest_usage_secs(fsm: &FiniteStateMachine) -> f64 {
+    fsm.transitions
+        .windows(2)
+        .filter(|w| !w[0].usages.is_empty())
+        .map(|w| w[1].timestamp - w[0].timestamp)
+        .fold(0.0_f64, f64::max)
 }
 
 fn combine_chunks(
@@ -952,7 +967,7 @@ mod tests {
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
     use quent_ui::{
-        FiniteStateMachine, FsmTransition,
+        FiniteStateMachine, FsmTransition, FsmUsage,
         timeline::{
             request::{
                 BulkTimelineRequest, EntityFilter, LongEntitiesParams, PageParams,
@@ -968,13 +983,28 @@ mod tests {
 
     use super::*;
 
-    fn fsm(id: u128, duration_ns: u64) -> FiniteStateMachine {
+    // Build an FSM whose single usage spans `usage_secs` seconds, so its
+    // transition-derived rank key equals `usage_secs`.
+    fn fsm(id: u128, usage_secs: f64) -> FiniteStateMachine {
         FiniteStateMachine {
             id: Uuid::from_u128(id),
             type_name: "task".to_string(),
             instance_name: format!("t{id}"),
-            transitions: vec![],
-            long_duration_ns: duration_ns,
+            transitions: vec![
+                FsmTransition {
+                    name: "use".to_string(),
+                    usages: vec![FsmUsage {
+                        resource: Uuid::from_u128(99),
+                        capacities: vec![],
+                    }],
+                    timestamp: 0.0,
+                },
+                FsmTransition {
+                    name: "exit".to_string(),
+                    usages: vec![],
+                    timestamp: usage_secs,
+                },
+            ],
         }
     }
 
@@ -985,7 +1015,7 @@ mod tests {
     // Ranked order for [dur 100/id 1, 300/2, 300/3, 50/4] is duration desc with
     // id asc tie-break: ids [2, 3, 1, 4].
     fn unranked() -> Vec<FiniteStateMachine> {
-        vec![fsm(1, 100), fsm(2, 300), fsm(3, 300), fsm(4, 50)]
+        vec![fsm(1, 100.0), fsm(2, 300.0), fsm(3, 300.0), fsm(4, 50.0)]
     }
 
     #[test]
@@ -1258,7 +1288,6 @@ mod tests {
                         timestamp: config_secs.span.end(),
                     },
                 ],
-                long_duration_ns: 0,
             })
             .into_iter()
             .collect();
