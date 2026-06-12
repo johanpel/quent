@@ -12,6 +12,11 @@ use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, GenerateOptions};
 
+/// Record structs, as tokens, in declaration order.
+///
+/// # Panics
+///
+/// Panics if a field type nests deeper than [`crate::data_type::MAX_TYPE_DEPTH`].
 pub(crate) fn generate_record_types(
     schema: &Schema,
     opts: &GenerateOptions,
@@ -57,7 +62,7 @@ mod tests {
     use quent_schema::test_utils::{field, ident, record, schema};
 
     #[test]
-    fn record_structs_emit_public_fields() {
+    fn test_generate_record_types() {
         let s = schema(
             "M",
             [],

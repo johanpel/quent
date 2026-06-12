@@ -68,7 +68,6 @@ mod tests {
     use quent_schema::test_utils::{entity, event, field, ident, schema};
     use quent_schema::{Annotations, Cardinality, DataType, Field};
 
-    /// Generate event enums for `s` with default options, formatted.
     fn events_src(s: &Schema) -> String {
         pretty(generate_event_types(s, &GenerateOptions::default()).unwrap())
     }
