@@ -255,6 +255,26 @@ fn two_tree_refs_in_one_event_is_rejected() {
 }
 
 #[test]
+fn direct_and_record_refs_in_one_event_is_rejected() {
+    let meta = record("Meta", vec![field("owner", tree_ref_to("Cluster"))]);
+    let worker = entity(
+        "Worker",
+        vec![event(
+            "created",
+            vec![
+                field("direct", tree_ref_to("Cluster")),
+                field("meta", DataType::Record(ident("Meta"))),
+            ],
+        )],
+    );
+    let schema = schema_with_records(vec![root("Cluster"), worker], vec![meta]);
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::MultiplePerEvent { .. }
+    ));
+}
+
+#[test]
 fn no_root_is_rejected() {
     // Req. 1: every entity has a parent, so none is a root.
     let schema = schema_with(vec![

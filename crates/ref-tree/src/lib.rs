@@ -60,8 +60,9 @@ use quent_schema::{
 ///    which its events do not carry an entity reference annotated with this
 ///    constraint.
 /// 2. Every non-root entity must have _at least one_ event carrying _at most
-///    one_ entity reference annotated with this constraint. Consequently, a
-///    record carries _at most one_ such reference across its (nested) fields.
+///    one_ entity reference annotated with this constraint, counting references
+///    reached through record-typed fields. Correspondingly, a record carries
+///    _at most one_ such reference across its (nested) fields.
 /// 3. Every entity reference annotated with this constraint must be annotated
 ///    with a reference target constraint (defined by the `quent-ref-target`
 ///    crate).
@@ -101,8 +102,6 @@ pub struct RefTreeConstraint {
     index: FxHashMap<Node, NodeIndex>,
     // Name of every entity, in schema order, to figure out which one is root.
     entities: Vec<Identifier>,
-    // Quick lookup for entity events that have already declared a parent.
-    events_seen: FxHashSet<(Identifier, Identifier)>,
     // Quick lookup for records that have already declared a parent.
     records_seen: FxHashSet<Identifier>,
     // Set once a tree-forming reference declares a parent. The tree shape is
@@ -132,7 +131,8 @@ impl Visitor for RefTreeConstraint {
                     self.node_or_insert(Node::Entity(entity.name().clone()));
                 }
             }
-            // If we encounter an event, add it as a node and connect it to its entity.
+            // If we encounter an event, add it as a node and connect it to its
+            // entity.
             Element::Event(event) => {
                 if let [_, Element::Entity(entity), ..] = cursor.elements() {
                     let from = self.node_or_insert(Node::Entity(entity.name().clone()));
@@ -162,26 +162,22 @@ impl Visitor for RefTreeConstraint {
                     Some(target) => {
                         let target = self.node_or_insert(Node::Entity(target.as_ref().clone()));
 
-                        // Now check whether it is referencing from an event or a record.
+                        // The max per-event tree-forming ref count (req 2) is
+                        // enforced after the walk, since refs reached through
+                        // records are only known then.
                         if let Some((entity, event)) = event_at_cursor(cursor) {
-                            if self.events_seen.insert((entity.clone(), event.clone())) {
-                                let from =
-                                    self.node_or_insert(Node::Event(entity.clone(), event.clone()));
-                                self.graph.add_edge(from, target, ());
-                                self.used = true;
-                            } else {
-                                // A second parent ref in this event, violates req 2.
-                                self.errors.push(RefTreeError::MultiplePerEvent {
-                                    location: cursor.to_string(),
-                                });
-                            }
+                            let from =
+                                self.node_or_insert(Node::Event(entity.clone(), event.clone()));
+                            self.graph.add_edge(from, target, ());
+                            self.used = true;
                         } else if let Some(record) = record_at_cursor(cursor) {
                             if self.records_seen.insert(record.clone()) {
                                 let from = self.node_or_insert(Node::Record(record.clone()));
                                 self.graph.add_edge(from, target, ());
                                 self.used = true;
                             } else {
-                                // A second parent ref in this record, also violates req 2.
+                                // A second parent ref in this record violates
+                                // req 2 already:
                                 self.errors.push(RefTreeError::MultipleRefsInRecord {
                                     location: cursor.to_string(),
                                 });
@@ -191,7 +187,8 @@ impl Visitor for RefTreeConstraint {
                 }
             }
             // If we encounter a datatype with a record, add it to the graph and
-            // connect to either the event or the other record using this record.
+            // connect to either the event or the other record using this
+            // record.
             Element::DataType(DataType::Record(name)) => {
                 if let Some((entity, event)) = event_at_cursor(cursor) {
                     let from = self.node_or_insert(Node::Event(entity.clone(), event.clone()));
@@ -228,6 +225,7 @@ impl Visitor for RefTreeConstraint {
                 )
             })
         {
+            check_events(&graph, &mut errors);
             check_tree(&graph, &index, &entities, &mut errors);
         }
         match errors.len() {
@@ -325,6 +323,48 @@ fn check_tree(
             });
         }
     }
+}
+
+// Report all events that exceed one tree-forming refs in their direct or nested
+// record fields.
+fn check_events(graph: &Graph<Node, ()>, errors: &mut Vec<RefTreeError>) {
+    for node in graph.node_indices() {
+        if let Node::Event(entity, event) = &graph[node]
+            && event_ref_count(graph, node) > 1
+        {
+            errors.push(RefTreeError::MultiplePerEvent {
+                location: format!("{entity}.{event}"),
+            });
+        }
+    }
+}
+
+// Check the graph to discover the number of tree-forming refs an event carries,
+// including in its nested records.
+fn event_ref_count(graph: &Graph<Node, ()>, event: NodeIndex) -> usize {
+    let mut count = 0;
+    let mut seen_records: FxHashSet<NodeIndex> = FxHashSet::default();
+    let mut records: Vec<NodeIndex> = Vec::new();
+    for neighbor in graph.neighbors(event) {
+        match &graph[neighbor] {
+            Node::Entity(_) => count += 1,
+            Node::Record(_) => records.push(neighbor),
+            Node::Event(..) => {}
+        }
+    }
+    while let Some(record) = records.pop() {
+        if !seen_records.insert(record) {
+            continue;
+        }
+        for neighbor in graph.neighbors(record) {
+            match &graph[neighbor] {
+                Node::Entity(_) => count += 1,
+                Node::Record(_) => records.push(neighbor),
+                Node::Event(..) => {}
+            }
+        }
+    }
+    count
 }
 
 // List all unique parent entities reachable from the supplied entity
