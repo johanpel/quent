@@ -154,10 +154,10 @@ export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanS
   return response.config;
 }
 
-/** Extract long_fsms from a ResourceTimeline response. */
+/** Extract the long-entity FSMs (current page) from a ResourceTimeline response. */
 export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
-  if ('Binned' in data) return data.Binned.long_fsms;
-  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+  if ('Binned' in data) return data.Binned.long_entities?.long_fsms ?? [];
+  if ('BinnedByState' in data) return data.BinnedByState.long_entities?.long_fsms ?? [];
   return [];
 }
 

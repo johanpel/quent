@@ -29,14 +29,18 @@ fn convert_capacity(
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
+    /// Entities flagged as long, or `None` when long entities were not
+    /// requested (no threshold). Empty `Some` means requested but none found.
+    pub long_entities: Option<Vec<Uuid>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
+    /// Entities flagged as long, or `None` when long entities were not
+    /// requested (no threshold). Empty `Some` means requested but none found.
+    pub long_entities: Option<Vec<Uuid>>,
 }
 
 pub struct ResourceTimelineBuilder<'a> {
@@ -95,7 +99,10 @@ impl<'a> ResourceTimelineBuilder<'a> {
         ResourceTimeline {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self.long_entities.into_iter().collect(),
+            long_entities: self
+                .long_entities_threshold
+                .is_some()
+                .then(|| self.long_entities.into_iter().collect()),
         }
     }
 }
@@ -158,7 +165,10 @@ where
         ResourceTimelineByKey {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self.long_entities.into_iter().collect(),
+            long_entities: self
+                .long_entities_threshold
+                .is_some()
+                .then(|| self.long_entities.into_iter().collect()),
         }
     }
 }
@@ -778,7 +788,12 @@ mod tests {
         let mut outside_builder =
             ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
         outside_builder.try_extend(outside_fsms.usages()).unwrap();
-        assert!(!outside_builder.build().long_entities.contains(&resource_id));
+        assert!(
+            !outside_builder
+                .build()
+                .long_entities
+                .is_some_and(|e| e.contains(&resource_id))
+        );
 
         let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
         inside_fsms.insert(make_fsm(500, 1500));
@@ -787,6 +802,11 @@ mod tests {
         let mut inside_builder =
             ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
         inside_builder.try_extend(inside_fsms.usages()).unwrap();
-        assert!(inside_builder.build().long_entities.contains(&resource_id));
+        assert!(
+            inside_builder
+                .build()
+                .long_entities
+                .is_some_and(|e| e.contains(&resource_id))
+        );
     }
 }

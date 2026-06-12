@@ -19,7 +19,7 @@ use quent_ui::timeline::{
         TimelineConfig, TimelineRequest,
     },
     response::{
-        BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
+        BulkTimelinesResponse, BulkTimelinesResponseEntry, LongEntities, ResourceTimeline,
         ResourceTimelineBinned, ResourceTimelineBinnedByState, SingleTimelineResponse,
     },
 };
@@ -727,11 +727,13 @@ fn pagination_of<EP>(entry: &TimelineRequest<EP>) -> Option<PageParams> {
 /// intentionally excluded from the chunk cache key, so this runs after merge on
 /// every response path (cache hit, chunked fetch, and uncached fallback).
 fn paginate_long_fsms(data: &mut ResourceTimeline, page: Option<PageParams>) {
-    let (long_fsms, total) = match data {
-        ResourceTimeline::Binned(d) => (&mut d.long_fsms, &mut d.long_fsms_total),
-        ResourceTimeline::BinnedByState(d) => (&mut d.long_fsms, &mut d.long_fsms_total),
+    let long_entities = match data {
+        ResourceTimeline::Binned(d) => d.long_entities.as_mut(),
+        ResourceTimeline::BinnedByState(d) => d.long_entities.as_mut(),
     };
-    *total = paginate_fsms_vec(long_fsms, page);
+    if let Some(le) = long_entities {
+        le.long_fsms_total = paginate_fsms_vec(&mut le.long_fsms, page);
+    }
 }
 
 /// Sort `long_fsms` by qualifying duration (longest first, `id` tie-break),
@@ -792,20 +794,34 @@ fn combine_chunks(
 
     let is_binned_by_state = matches!(&sorted[0].data, ResourceTimeline::BinnedByState(_));
 
-    // Collect long_fsms from all chunks, deduplicated by ID.
+    // Merge long entities from all chunks, deduplicated by FSM id. If every
+    // chunk reports `None` (not requested) the result stays `None`; otherwise
+    // the union is returned and ranked/paginated later at the tail.
     let mut seen_fsm_ids = std::collections::HashSet::new();
     let mut long_fsms = Vec::new();
+    let mut requested = false;
     for chunk in &sorted {
-        let chunk_fsms = match &chunk.data {
-            ResourceTimeline::Binned(data) => &data.long_fsms,
-            ResourceTimeline::BinnedByState(data) => &data.long_fsms,
+        let chunk_le = match &chunk.data {
+            ResourceTimeline::Binned(data) => data.long_entities.as_ref(),
+            ResourceTimeline::BinnedByState(data) => data.long_entities.as_ref(),
         };
-        for fsm in chunk_fsms {
-            if seen_fsm_ids.insert(fsm.id) {
-                long_fsms.push(fsm.clone());
+        if let Some(le) = chunk_le {
+            requested = true;
+            for fsm in &le.long_fsms {
+                if seen_fsm_ids.insert(fsm.id) {
+                    long_fsms.push(fsm.clone());
+                }
             }
         }
     }
+    let long_entities = if requested {
+        Some(LongEntities {
+            long_fsms_total: long_fsms.len() as u32,
+            long_fsms,
+        })
+    } else {
+        None
+    };
 
     if is_binned_by_state {
         let mut combined: std::collections::HashMap<
@@ -856,8 +872,7 @@ fn combine_chunks(
             data: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
                 config,
                 capacities_states_values: combined,
-                long_fsms_total: long_fsms.len() as u32,
-                long_fsms,
+                long_entities,
             }),
         })
     } else {
@@ -904,8 +919,7 @@ fn combine_chunks(
             data: ResourceTimeline::Binned(ResourceTimelineBinned {
                 config,
                 capacities_values: combined,
-                long_fsms_total: long_fsms.len() as u32,
-                long_fsms,
+                long_entities,
             }),
         })
     }
@@ -974,7 +988,7 @@ mod tests {
                 ResourceTimelineRequest, TimelineConfig, TimelineRequest,
             },
             response::{
-                BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
+                BulkTimelinesResponse, BulkTimelinesResponseEntry, LongEntities, ResourceTimeline,
                 ResourceTimelineBinned, SingleTimelineResponse,
             },
         },
@@ -1069,14 +1083,17 @@ mod tests {
         let mut data = ResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values: HashMap::new(),
-            long_fsms_total: 0,
-            long_fsms: unranked(),
+            long_entities: Some(LongEntities {
+                long_fsms_total: 0,
+                long_fsms: unranked(),
+            }),
         });
         paginate_long_fsms(&mut data, Some(PageParams { max: 2, page: 0 }));
         match data {
             ResourceTimeline::Binned(d) => {
-                assert_eq!(d.long_fsms_total, 4);
-                assert_eq!(ids(&d.long_fsms), vec![2, 3]);
+                let le = d.long_entities.unwrap();
+                assert_eq!(le.long_fsms_total, 4);
+                assert_eq!(ids(&le.long_fsms), vec![2, 3]);
             }
             _ => panic!("expected binned"),
         }
@@ -1294,8 +1311,10 @@ mod tests {
         let data = ResourceTimeline::Binned(ResourceTimelineBinned {
             config: config_secs,
             capacities_values: HashMap::from([("capacity".to_string(), values)]),
-            long_fsms_total: long_fsms.len() as u32,
-            long_fsms,
+            long_entities: Some(LongEntities {
+                long_fsms_total: long_fsms.len() as u32,
+                long_fsms,
+            }),
         });
 
         Ok((
@@ -1369,7 +1388,12 @@ mod tests {
             BulkTimelinesResponseEntry::Ok {
                 data: ResourceTimeline::Binned(data),
                 ..
-            } => data.long_fsms.iter().map(|fsm| fsm.id).collect(),
+            } => data
+                .long_entities
+                .iter()
+                .flat_map(|le| &le.long_fsms)
+                .map(|fsm| fsm.id)
+                .collect(),
             _ => panic!("expected binned ok response"),
         }
     }

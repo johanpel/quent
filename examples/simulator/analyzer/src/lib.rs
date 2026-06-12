@@ -15,7 +15,7 @@ use quent_ui::{
         },
         response::{
             BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
-            ResourceTimeline as UiResourceTimeline, ResourceTimelineBinned,
+            LongEntities, ResourceTimeline as UiResourceTimeline, ResourceTimelineBinned,
             ResourceTimelineBinnedByState, SingleTimelineResponse,
         },
     },
@@ -843,13 +843,21 @@ impl SimulatorUiAnalyzer {
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
-        let long_fsms_total = long_fsms.len() as u32;
+        let long_entities = result
+            .long_entities
+            .map(|ids| {
+                let long_fsms = self.task_entities_to_ui_fsm(&ids, epoch)?;
+                let long_fsms_total = long_fsms.len() as u32;
+                Ok::<_, AnalyzerError>(LongEntities {
+                    long_fsms,
+                    long_fsms_total,
+                })
+            })
+            .transpose()?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values,
-            long_fsms,
-            long_fsms_total,
+            long_entities,
         }))
     }
 
@@ -867,14 +875,22 @@ impl SimulatorUiAnalyzer {
                 .or_insert_with(StdHashMap::new)
                 .insert(state_name.to_owned(), values);
         }
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
-        let long_fsms_total = long_fsms.len() as u32;
+        let long_entities = result
+            .long_entities
+            .map(|ids| {
+                let long_fsms = self.task_entities_to_ui_fsm(&ids, epoch)?;
+                let long_fsms_total = long_fsms.len() as u32;
+                Ok::<_, AnalyzerError>(LongEntities {
+                    long_fsms,
+                    long_fsms_total,
+                })
+            })
+            .transpose()?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
                 config,
                 capacities_states_values,
-                long_fsms,
-                long_fsms_total,
+                long_entities,
             },
         ))
     }
