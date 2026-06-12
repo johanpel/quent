@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::validate;
 use quent_instrumentation_build::{GenerateInfo, Options, generate};
 use quent_schema::builder::{
     AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
