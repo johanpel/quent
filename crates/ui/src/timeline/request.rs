@@ -48,20 +48,34 @@ pub struct EntityFilter {
     // TODO(johanpel): instance name
 }
 
+/// Parameters of paginated APIs.
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
+pub struct PageParams {
+    /// Maximum number of items per page.
+    pub max: u32,
+    /// The zero-based page index requested.
+    pub page: u32,
+}
+
+/// Parameters for requesting long entities in a resource timeline
+#[derive(TS, Debug, Clone, Serialize, Deserialize)]
+pub struct LongEntitiesParams {
+    /// Fully include entities that have usages exceeding this amount of time.
+    pub threshold_s: TimeSec,
+    /// Parameters of the page of long entities. If this is not set, return
+    /// all long entities.
+    pub page: Option<PageParams>,
+}
+
 /// Parameters for requesting a resource timeline.
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceTimelineRequest<TimelineParams> {
     /// The ID of the resource
     pub resource_id: Uuid,
-    /// If set, fully include entities that have usages exceeding this amount of time.
-    pub long_entities_threshold_s: Option<TimeSec>,
-    /// Maximum number of long entities to return (page size). `None` or `0`
-    /// returns all of them. Applied after threshold filtering and ranking.
-    #[ts(optional)]
-    pub long_entities_max: Option<u32>,
-    /// Zero-based page index into the ranked long entities. `None` is page 0.
-    #[ts(optional)]
-    pub long_entities_page: Option<u32>,
+    /// Parameters for dealing with long entities.
+    ///
+    /// If this is not set, then no long entities are returned.
+    pub long_entities: Option<LongEntitiesParams>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
@@ -78,16 +92,10 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// The type name of the leaf resources for which to produce the timeline
     /// for this group.
     pub resource_type_name: String,
-    /// If set, fully include entities that have usages exceeding this amount of
-    /// time in seconds.
-    pub long_entities_threshold_s: Option<TimeSec>,
-    /// Maximum number of long entities to return (page size). `None` or `0`
-    /// returns all of them. Applied after threshold filtering and ranking.
-    #[ts(optional)]
-    pub long_entities_max: Option<u32>,
-    /// Zero-based page index into the ranked long entities. `None` is page 0.
-    #[ts(optional)]
-    pub long_entities_page: Option<u32>,
+    /// Parameters for dealing with long entities.
+    ///
+    /// If this is not set, then no long entities are returned.
+    pub long_entities: Option<LongEntitiesParams>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.

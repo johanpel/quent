@@ -29,8 +29,6 @@ fn convert_capacity(
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
-    /// Entities with a usage span exceeding the long-entities threshold, paired
-    /// with the longest such qualifying span duration (used for ranking).
     pub long_entities: Vec<(Uuid, TimeNanoSec)>,
 }
 
@@ -38,8 +36,6 @@ pub struct ResourceTimeline<'a> {
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
-    /// Entities with a usage span exceeding the long-entities threshold, paired
-    /// with the longest such qualifying span duration (used for ranking).
     pub long_entities: Vec<(Uuid, TimeNanoSec)>,
 }
 
@@ -80,6 +76,9 @@ impl<'a> ResourceTimelineBuilder<'a> {
             && usage.span().duration() > threshold
             && usage.span().intersects(&self.aggregator.config.span)
         {
+            // The entity is along entity. Also keep track of its longest usage
+            // duration for stable ordering by this duration later. This useful
+            // for pagination towards the UI.
             let duration = usage.span().duration();
             self.long_entities
                 .entry(usage.entity_id())
