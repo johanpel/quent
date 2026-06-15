@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Build the UI with pnpm when the ui feature is enabled.
+    // Build the UI with pnpm when the ui feature is enabled..
     if std::env::var("CARGO_FEATURE_UI").is_ok() {
         let ui_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ui");
         println!("cargo:rerun-if-changed={}", ui_dir.join("src").display());
