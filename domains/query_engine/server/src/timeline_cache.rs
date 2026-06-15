@@ -159,12 +159,7 @@ impl TimelineCache {
     }
 
     /// Fetch bulk timelines, paginating each entry's long FSMs after merge.
-    ///
-    /// Pagination (`long_entities.page`, per entry) is applied here at the single
-    /// tail point so it covers every internal path — cache hit, chunked fetch,
-    /// and uncached fallback — and is deliberately excluded from the chunk cache
-    /// key, so different pages reuse the same cached chunks.
-    pub(crate) async fn cached_bulk_timeline<A>(
+    pub(crate) async fn paginate_bulk_timeline<A>(
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
@@ -184,7 +179,7 @@ impl TimelineCache {
             .map(|(k, entry)| (k.clone(), pagination_of(entry)))
             .collect();
         let mut response = self
-            .cached_bulk_timeline_inner(analyzer, engine_id, request)
+            .cached_bulk_timeline(analyzer, engine_id, request)
             .await?;
         for (key, entry) in response.entries.iter_mut() {
             if let BulkTimelinesResponseEntry::Ok { data, .. } = entry {
@@ -196,7 +191,7 @@ impl TimelineCache {
     }
 
     /// Fetch bulk timelines, serving as many chunks from cache as possible.
-    async fn cached_bulk_timeline_inner<A>(
+    async fn cached_bulk_timeline<A>(
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
@@ -431,11 +426,7 @@ impl TimelineCache {
     }
 
     /// Fetch a single timeline, paginating its long FSMs after merge.
-    ///
-    /// Pagination (`long_entities.page`) is applied here at the single tail
-    /// point so it covers the single-chunk fast path, the chunk merge, and every
-    /// uncached fallback, and is excluded from the chunk cache key.
-    pub(crate) async fn cached_single_timeline<A>(
+    pub(crate) async fn paginate_single_timeline<A>(
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
@@ -451,13 +442,13 @@ impl TimelineCache {
     {
         let page = pagination_of(&request.entry);
         let mut response = self
-            .cached_single_timeline_inner(analyzer, engine_id, request)
+            .cached_single_timeline(analyzer, engine_id, request)
             .await?;
         paginate_long_fsms(&mut response.data, page);
         Ok(response)
     }
 
-    async fn cached_single_timeline_inner<A>(
+    async fn cached_single_timeline<A>(
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
@@ -573,10 +564,15 @@ impl TimelineCache {
             if chunk_start_ns == req_span.start() && chunk_end_ns == req_span.end() {
                 return Ok(chunk);
             }
-            return combine_chunks(&[chunk], req_span, epoch);
+            return combine_chunks(&[chunk], req_span, epoch, resource_of(&request.entry));
         }
 
-        combine_chunks(&chunk_responses, req_span, epoch)
+        combine_chunks(
+            &chunk_responses,
+            req_span,
+            epoch,
+            resource_of(&request.entry),
+        )
     }
 }
 
@@ -693,7 +689,12 @@ fn assemble_bulk_response<EP>(
             Err(_) => continue,
         };
 
-        let combined = combine_chunks(chunks, chunk_span, geometry.epoch)?;
+        let combined = combine_chunks(
+            chunks,
+            chunk_span,
+            geometry.epoch,
+            resource_of(&entries[key]),
+        )?;
         result_entries.insert(
             key.clone(),
             BulkTimelinesResponseEntry::Ok {
@@ -721,59 +722,57 @@ fn pagination_of<EP>(entry: &TimelineRequest<EP>) -> Option<PageParams> {
     long_entities.and_then(|le| le.page.clone())
 }
 
-/// Rank a timeline's long FSMs and retain the requested page.
+/// The single resource a timeline targets, or `None` for a resource group
+/// (whose leaf set isn't known to the cache layer).
+fn resource_of<EP>(entry: &TimelineRequest<EP>) -> Option<Uuid> {
+    match entry {
+        TimelineRequest::Resource(r) => Some(r.resource_id),
+        TimelineRequest::ResourceGroup(_) => None,
+    }
+}
+
+/// Retain only the requested page of a timeline's already-ordered long
+/// entities, setting `long_fsms_total` to the full count first.
 ///
-/// Sets `long_fsms_total` to the full count before slicing. The page request is
-/// intentionally excluded from the chunk cache key, so this runs after merge on
-/// every response path (cache hit, chunked fetch, and uncached fallback).
+/// Ordering is established upstream — by the builder, and re-established by
+/// `combine_chunks` after its merge — so this only slices. `page` `None` or a
+/// `max` of `0` keeps the whole set.
 fn paginate_long_fsms(data: &mut ResourceTimeline, page: Option<PageParams>) {
     let long_entities = match data {
         ResourceTimeline::Binned(d) => d.long_entities.as_mut(),
         ResourceTimeline::BinnedByState(d) => d.long_entities.as_mut(),
     };
-    if let Some(le) = long_entities {
-        le.long_fsms_total = paginate_fsms_vec(&mut le.long_fsms, page);
-    }
-}
+    let Some(le) = long_entities else {
+        return;
+    };
 
-/// Sort `long_fsms` by qualifying duration (longest first, `id` tie-break),
-/// return the pre-slice count, then retain only the requested page.
-///
-/// `page` `None` (or a `max` of `0`) returns all entities — no slicing. A page
-/// past the end yields an empty slice; the returned total still reflects the
-/// full count.
-fn paginate_fsms_vec(long_fsms: &mut Vec<FiniteStateMachine>, page: Option<PageParams>) -> u32 {
-    // Rank longest-usage-first with an id tie-break, deriving each FSM's usage
-    // span from its own transitions (decorate-sort-undecorate computes it once).
-    let mut keyed: Vec<(f64, FiniteStateMachine)> = std::mem::take(long_fsms)
-        .into_iter()
-        .map(|fsm| (longest_usage_secs(&fsm), fsm))
-        .collect();
-    keyed.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
-    *long_fsms = keyed.into_iter().map(|(_, fsm)| fsm).collect();
-    let total = long_fsms.len() as u32;
+    le.long_fsms_total = le.long_fsms.len() as u32;
 
     if let Some(PageParams { max, page }) = page
         && max > 0
     {
-        let len = long_fsms.len();
+        let len = le.long_fsms.len();
         let start = ((page as u64) * max as u64).min(len as u64) as usize;
         let keep = (len - start).min(max as usize);
-        long_fsms.drain(..start);
-        long_fsms.truncate(keep);
+        le.long_fsms.drain(..start);
+        le.long_fsms.truncate(keep);
     }
-
-    total
 }
 
-/// Longest contiguous usage span of an FSM in seconds, derived from its
-/// transitions: the largest gap from a usage-bearing transition to the next.
-/// Returns `0.0` when the FSM has no usages. Used to rank long entities without
-/// carrying a separate duration on the wire.
-fn longest_usage_secs(fsm: &FiniteStateMachine) -> f64 {
+/// Longest usage span (seconds) of an FSM on the timelined resource, derived
+/// from its own transitions: the largest gap from a usage-bearing transition
+/// to the next. `resource` is `Some(id)` for a single-resource timeline (only
+/// usages on that resource count) and `None` for a resource-group timeline,
+/// where membership can't be resolved here so all usages count (best effort).
+/// Used to rank long entities after the chunk merge — derived, never carried.
+fn long_entity_rank_secs(fsm: &FiniteStateMachine, resource: Option<Uuid>) -> f64 {
     fsm.transitions
         .windows(2)
-        .filter(|w| !w[0].usages.is_empty())
+        .filter(|w| {
+            w[0].usages
+                .iter()
+                .any(|u| resource.is_none_or(|r| u.resource == r))
+        })
         .map(|w| w[1].timestamp - w[0].timestamp)
         .fold(0.0_f64, f64::max)
 }
@@ -782,6 +781,7 @@ fn combine_chunks(
     chunks: &[SingleTimelineResponse],
     req_span: SpanNanoSec,
     epoch: TimeNanoSec,
+    resource: Option<Uuid>,
 ) -> ServerResult<SingleTimelineResponse> {
     let mut sorted: Vec<&SingleTimelineResponse> = chunks.iter().collect();
     sorted.sort_by(|a, b| {
@@ -794,11 +794,10 @@ fn combine_chunks(
 
     let is_binned_by_state = matches!(&sorted[0].data, ResourceTimeline::BinnedByState(_));
 
-    // Merge long entities from all chunks, deduplicated by FSM id. If every
-    // chunk reports `None` (not requested) the result stays `None`; otherwise
-    // the union is returned and ranked/paginated later at the tail.
+    // Chunking concern: merge each chunk's long entities and dedup by FSM id.
+    // If every chunk reports `None` (not requested) the result stays `None`.
     let mut seen_fsm_ids = std::collections::HashSet::new();
-    let mut long_fsms = Vec::new();
+    let mut long_fsms: Vec<FiniteStateMachine> = Vec::new();
     let mut requested = false;
     for chunk in &sorted {
         let chunk_le = match &chunk.data {
@@ -815,9 +814,17 @@ fn combine_chunks(
         }
     }
     let long_entities = if requested {
+        // Chunking broke the per-chunk order; recover it by re-ranking the merged
+        // set on a rank derived from each FSM's transitions.
+        long_fsms.sort_by(|a, b| {
+            long_entity_rank_secs(b, resource)
+                .total_cmp(&long_entity_rank_secs(a, resource))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        let long_fsms_total = long_fsms.len() as u32;
         Some(LongEntities {
-            long_fsms_total: long_fsms.len() as u32,
             long_fsms,
+            long_fsms_total,
         })
     } else {
         None
@@ -981,7 +988,7 @@ mod tests {
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
     use quent_ui::{
-        FiniteStateMachine, FsmTransition, FsmUsage,
+        FsmTransition,
         timeline::{
             request::{
                 BulkTimelineRequest, EntityFilter, LongEntitiesParams, PageParams,
@@ -997,28 +1004,12 @@ mod tests {
 
     use super::*;
 
-    // Build an FSM whose single usage spans `usage_secs` seconds, so its
-    // transition-derived rank key equals `usage_secs`.
-    fn fsm(id: u128, usage_secs: f64) -> FiniteStateMachine {
+    fn fsm(id: u128) -> FiniteStateMachine {
         FiniteStateMachine {
             id: Uuid::from_u128(id),
             type_name: "task".to_string(),
             instance_name: format!("t{id}"),
-            transitions: vec![
-                FsmTransition {
-                    name: "use".to_string(),
-                    usages: vec![FsmUsage {
-                        resource: Uuid::from_u128(99),
-                        capacities: vec![],
-                    }],
-                    timestamp: 0.0,
-                },
-                FsmTransition {
-                    name: "exit".to_string(),
-                    usages: vec![],
-                    timestamp: usage_secs,
-                },
-            ],
+            transitions: vec![],
         }
     }
 
@@ -1026,51 +1017,10 @@ mod tests {
         fsms.iter().map(|f| f.id.as_u128()).collect()
     }
 
-    // Ranked order for [dur 100/id 1, 300/2, 300/3, 50/4] is duration desc with
-    // id asc tie-break: ids [2, 3, 1, 4].
-    fn unranked() -> Vec<FiniteStateMachine> {
-        vec![fsm(1, 100.0), fsm(2, 300.0), fsm(3, 300.0), fsm(4, 50.0)]
-    }
-
-    #[test]
-    fn paginate_ranks_by_duration_then_id() {
-        let mut v = unranked();
-        let total = paginate_fsms_vec(&mut v, None);
-        assert_eq!(total, 4);
-        assert_eq!(ids(&v), vec![2, 3, 1, 4]);
-    }
-
-    #[test]
-    fn paginate_pages_are_disjoint_and_cover_ranked_order() {
-        let mut p0 = unranked();
-        let mut p1 = unranked();
-        let t0 = paginate_fsms_vec(&mut p0, Some(PageParams { max: 2, page: 0 }));
-        let t1 = paginate_fsms_vec(&mut p1, Some(PageParams { max: 2, page: 1 }));
-        assert_eq!((t0, t1), (4, 4));
-        assert_eq!(ids(&p0), vec![2, 3]);
-        assert_eq!(ids(&p1), vec![1, 4]);
-    }
-
-    #[test]
-    fn paginate_page_past_end_is_empty_with_full_total() {
-        let mut v = unranked();
-        let total = paginate_fsms_vec(&mut v, Some(PageParams { max: 2, page: 5 }));
-        assert_eq!(total, 4);
-        assert!(v.is_empty());
-    }
-
-    #[test]
-    fn paginate_max_zero_or_none_returns_all_ranked() {
-        for page in [None, Some(PageParams { max: 0, page: 0 })] {
-            let mut v = unranked();
-            let total = paginate_fsms_vec(&mut v, page);
-            assert_eq!(total, 4);
-            assert_eq!(ids(&v), vec![2, 3, 1, 4]);
-        }
-    }
-
-    #[test]
-    fn paginate_long_fsms_writes_total_into_variant() {
+    // A binned timeline whose long entities are the given FSM ids, in order.
+    // Paginate only slices (ordering is the builder's/merge's job), so the ids
+    // are supplied already ranked; ranks are placeholders here.
+    fn binned_with_long_entities(entity_ids: &[u128]) -> ResourceTimeline {
         let config = TimelineConfig {
             num_bins: 1,
             start: 0.0,
@@ -1080,22 +1030,64 @@ mod tests {
         .unwrap()
         .try_to_secs_relative(0)
         .unwrap();
-        let mut data = ResourceTimeline::Binned(ResourceTimelineBinned {
+        ResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values: HashMap::new(),
             long_entities: Some(LongEntities {
+                long_fsms: entity_ids.iter().map(|&id| fsm(id)).collect(),
                 long_fsms_total: 0,
-                long_fsms: unranked(),
             }),
-        });
-        paginate_long_fsms(&mut data, Some(PageParams { max: 2, page: 0 }));
+        })
+    }
+
+    fn page_ids(data: &ResourceTimeline) -> Vec<u128> {
         match data {
-            ResourceTimeline::Binned(d) => {
-                let le = d.long_entities.unwrap();
-                assert_eq!(le.long_fsms_total, 4);
-                assert_eq!(ids(&le.long_fsms), vec![2, 3]);
-            }
+            ResourceTimeline::Binned(d) => ids(&d.long_entities.as_ref().unwrap().long_fsms),
             _ => panic!("expected binned"),
+        }
+    }
+
+    fn page_total(data: &ResourceTimeline) -> u32 {
+        match data {
+            ResourceTimeline::Binned(d) => d.long_entities.as_ref().unwrap().long_fsms_total,
+            _ => panic!("expected binned"),
+        }
+    }
+
+    #[test]
+    fn paginate_slices_preserving_order() {
+        let mut data = binned_with_long_entities(&[2, 3, 1, 4]);
+        paginate_long_fsms(&mut data, None);
+        assert_eq!(page_total(&data), 4);
+        assert_eq!(page_ids(&data), vec![2, 3, 1, 4]);
+    }
+
+    #[test]
+    fn paginate_pages_are_disjoint() {
+        let mut p0 = binned_with_long_entities(&[2, 3, 1, 4]);
+        let mut p1 = binned_with_long_entities(&[2, 3, 1, 4]);
+        paginate_long_fsms(&mut p0, Some(PageParams { max: 2, page: 0 }));
+        paginate_long_fsms(&mut p1, Some(PageParams { max: 2, page: 1 }));
+        assert_eq!((page_total(&p0), page_total(&p1)), (4, 4));
+        assert_eq!(page_ids(&p0), vec![2, 3]);
+        assert_eq!(page_ids(&p1), vec![1, 4]);
+    }
+
+    #[test]
+    fn paginate_page_past_end_is_empty_with_full_total() {
+        let mut data = binned_with_long_entities(&[2, 3, 1, 4]);
+        paginate_long_fsms(&mut data, Some(PageParams { max: 2, page: 5 }));
+        assert_eq!(page_total(&data), 4);
+        assert!(page_ids(&data).is_empty());
+    }
+
+    #[test]
+    fn paginate_max_zero_or_none_returns_all() {
+        for page in [None, Some(PageParams { max: 0, page: 0 })] {
+            let mut data = binned_with_long_entities(&[2, 3, 1, 4]);
+            paginate_long_fsms(&mut data, page);
+            assert_eq!(page_total(&data), 4);
+            assert_eq!(page_ids(&data), vec![2, 3, 1, 4]);
         }
     }
 
@@ -1434,7 +1426,7 @@ mod tests {
             let cache = TimelineCache::new();
 
             let response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 30.0, 80.0, 0, None)]),
@@ -1469,7 +1461,7 @@ mod tests {
             let cache = TimelineCache::new();
 
             cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 25.0, 75.0, 0, None)]),
@@ -1477,7 +1469,7 @@ mod tests {
                 .await
                 .unwrap();
             let response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 30.0, 80.0, 0, None)]),
@@ -1505,7 +1497,7 @@ mod tests {
             let cache = TimelineCache::new();
 
             cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![
@@ -1516,7 +1508,7 @@ mod tests {
                 .await
                 .unwrap();
             let response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![
@@ -1556,7 +1548,7 @@ mod tests {
             let second_operator = Uuid::from_u128(7);
 
             cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 25.0, 75.0, 0, Some(first_operator))]),
@@ -1564,7 +1556,7 @@ mod tests {
                 .await
                 .unwrap();
             let response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 25.0, 75.0, 0, Some(second_operator))]),
@@ -1602,7 +1594,7 @@ mod tests {
             let cache = TimelineCache::new();
 
             let cold_response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("bad", 25.0, 75.0, 999, None)]),
@@ -1612,7 +1604,7 @@ mod tests {
             assert_error(&cold_response, "bad");
 
             cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![("a", 25.0, 75.0, 0, None)]),
@@ -1620,7 +1612,7 @@ mod tests {
                 .await
                 .unwrap();
             let partial_response = cache
-                .cached_bulk_timeline(
+                .paginate_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![

@@ -32,7 +32,7 @@ use quent_analyzer::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
     timeline::binned::resource::{
-        ResourceTimeline, ResourceTimelineBuilder, ResourceTimelineByKey,
+        LongUsageEntity, ResourceTimeline, ResourceTimelineBuilder, ResourceTimelineByKey,
         ResourceTimelineByKeyBuilder,
     },
 };
@@ -814,21 +814,27 @@ impl SimulatorUiAnalyzer {
         Ok(())
     }
 
-    /// Turn a list of entity ids into UI-compatible FSM data.
-    fn task_entities_to_ui_fsm(
+    /// Resolve ordered long entities into UI FSMs, preserving order. Ranking
+    /// and pagination are the cache layer's concern, not this one.
+    fn long_entities_to_ui(
         &self,
-        entity_ids: &[Uuid],
+        entities: &[LongUsageEntity],
         epoch: TimeUnixNanoSec,
-    ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
-        entity_ids
+    ) -> AnalyzerResult<LongEntities> {
+        let long_fsms = entities
             .iter()
-            .filter_map(|&id| {
+            .filter_map(|lu| {
                 self.model
                     .tasks
-                    .get(&id)
+                    .get(&lu.entity_id)
                     .map(|task| task.try_to_ui_fsm(epoch))
             })
-            .collect()
+            .collect::<AnalyzerResult<Vec<FiniteStateMachine>>>()?;
+        let long_fsms_total = long_fsms.len() as u32;
+        Ok(LongEntities {
+            long_fsms,
+            long_fsms_total,
+        })
     }
 
     /// Convert a timeline to a UI-compatible one.
@@ -844,15 +850,8 @@ impl SimulatorUiAnalyzer {
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
         let long_entities = result
-            .long_entities
-            .map(|ids| {
-                let long_fsms = self.task_entities_to_ui_fsm(&ids, epoch)?;
-                let long_fsms_total = long_fsms.len() as u32;
-                Ok::<_, AnalyzerError>(LongEntities {
-                    long_fsms,
-                    long_fsms_total,
-                })
-            })
+            .long_usage_entities
+            .map(|entities| self.long_entities_to_ui(&entities, epoch))
             .transpose()?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             config,
@@ -876,15 +875,8 @@ impl SimulatorUiAnalyzer {
                 .insert(state_name.to_owned(), values);
         }
         let long_entities = result
-            .long_entities
-            .map(|ids| {
-                let long_fsms = self.task_entities_to_ui_fsm(&ids, epoch)?;
-                let long_fsms_total = long_fsms.len() as u32;
-                Ok::<_, AnalyzerError>(LongEntities {
-                    long_fsms,
-                    long_fsms_total,
-                })
-            })
+            .long_usage_entities
+            .map(|entities| self.long_entities_to_ui(&entities, epoch))
             .transpose()?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {

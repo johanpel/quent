@@ -234,7 +234,7 @@ where
     Ok(Json(
         state
             .timelines
-            .cached_single_timeline(analyzer, engine_id, request)
+            .paginate_single_timeline(analyzer, engine_id, request)
             .await?,
     ))
 }
@@ -273,7 +273,7 @@ where
     Ok(Json(
         state
             .timelines
-            .cached_bulk_timeline(analyzer, engine_id, request)
+            .paginate_bulk_timeline(analyzer, engine_id, request)
             .await?,
     ))
 }
