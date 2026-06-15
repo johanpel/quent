@@ -6,7 +6,7 @@
 use std::hash::Hash;
 
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use crate::{
@@ -25,28 +25,34 @@ fn convert_capacity(
     Ok(capacity_type.reinterpret_capacity_value(capacity_value.value.unwrap_or_default(), span))
 }
 
+/// An entity that exceeded the long-entities threshold on this resource, with
+/// its longest usage span there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LongUsageEntity {
+    pub entity_id: Uuid,
+    pub longest_usage: TimeNanoSec,
+}
+
 #[derive(Clone, Debug)]
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
-    /// Entities flagged as long, or `None` when long entities were not
-    /// requested (no threshold). Empty `Some` means requested but none found.
-    pub long_entities: Option<Vec<Uuid>>,
+    /// Long entities ordered longest-usage-first, or `None` when not requested.
+    pub long_usage_entities: Option<Vec<LongUsageEntity>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
-    /// Entities flagged as long, or `None` when long entities were not
-    /// requested (no threshold). Empty `Some` means requested but none found.
-    pub long_entities: Option<Vec<Uuid>>,
+    /// Long entities ordered longest-usage-first, or `None` when not requested.
+    pub long_usage_entities: Option<Vec<LongUsageEntity>>,
 }
 
 pub struct ResourceTimelineBuilder<'a> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<&'a str>,
-    long_entities: HashSet<Uuid>,
+    long_entities: HashMap<Uuid, TimeNanoSec>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
 
@@ -61,7 +67,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
+            long_entities: HashMap::default(),
             long_entities_threshold,
         })
     }
@@ -80,7 +86,11 @@ impl<'a> ResourceTimelineBuilder<'a> {
             && usage.span().duration() > threshold
             && usage.span().intersects(&self.aggregator.config.span)
         {
-            self.long_entities.insert(usage.entity_id());
+            let duration = usage.span().duration();
+            self.long_entities
+                .entry(usage.entity_id())
+                .and_modify(|d| *d = (*d).max(duration))
+                .or_insert(duration);
         }
         Ok(())
     }
@@ -99,10 +109,22 @@ impl<'a> ResourceTimelineBuilder<'a> {
         ResourceTimeline {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self
-                .long_entities_threshold
-                .is_some()
-                .then(|| self.long_entities.into_iter().collect()),
+            long_usage_entities: self.long_entities_threshold.is_some().then(|| {
+                let mut entities: Vec<LongUsageEntity> = self
+                    .long_entities
+                    .into_iter()
+                    .map(|(entity_id, longest_usage)| LongUsageEntity {
+                        entity_id,
+                        longest_usage,
+                    })
+                    .collect();
+                entities.sort_by(|a, b| {
+                    b.longest_usage
+                        .cmp(&a.longest_usage)
+                        .then_with(|| a.entity_id.cmp(&b.entity_id))
+                });
+                entities
+            }),
         }
     }
 }
@@ -110,7 +132,7 @@ impl<'a> ResourceTimelineBuilder<'a> {
 pub struct ResourceTimelineByKeyBuilder<'a, K> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<(K, &'a str)>,
-    long_entities: HashSet<Uuid>,
+    long_entities: HashMap<Uuid, TimeNanoSec>,
     long_entities_threshold: Option<TimeNanoSec>,
 }
 
@@ -128,7 +150,7 @@ where
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
+            long_entities: HashMap::default(),
             long_entities_threshold,
         })
     }
@@ -146,7 +168,11 @@ where
             && usage.span().duration() > threshold
             && usage.span().intersects(&self.aggregator.config.span)
         {
-            self.long_entities.insert(usage.entity_id());
+            let duration = usage.span().duration();
+            self.long_entities
+                .entry(usage.entity_id())
+                .and_modify(|d| *d = (*d).max(duration))
+                .or_insert(duration);
         }
         Ok(())
     }
@@ -165,10 +191,23 @@ where
         ResourceTimelineByKey {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self
-                .long_entities_threshold
-                .is_some()
-                .then(|| self.long_entities.into_iter().collect()),
+            long_usage_entities: self.long_entities_threshold.is_some().then(|| {
+                let mut entities: Vec<LongUsageEntity> = self
+                    .long_entities
+                    .into_iter()
+                    .map(|(entity_id, longest_usage)| LongUsageEntity {
+                        entity_id,
+                        longest_usage,
+                    })
+                    .collect();
+                // Longest usage first; id tie-break for determinism.
+                entities.sort_by(|a, b| {
+                    b.longest_usage
+                        .cmp(&a.longest_usage)
+                        .then_with(|| a.entity_id.cmp(&b.entity_id))
+                });
+                entities
+            }),
         }
     }
 }
@@ -176,6 +215,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::num::NonZero;
+
+    use rustc_hash::FxHashSet as HashSet;
 
     use crate::{
         fsm::{
@@ -791,8 +832,8 @@ mod tests {
         assert!(
             !outside_builder
                 .build()
-                .long_entities
-                .is_some_and(|e| e.contains(&resource_id))
+                .long_usage_entities
+                .is_some_and(|e| e.iter().any(|lu| lu.entity_id == resource_id))
         );
 
         let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
@@ -805,8 +846,8 @@ mod tests {
         assert!(
             inside_builder
                 .build()
-                .long_entities
-                .is_some_and(|e| e.contains(&resource_id))
+                .long_usage_entities
+                .is_some_and(|e| e.iter().any(|lu| lu.entity_id == resource_id))
         );
     }
 }
