@@ -113,7 +113,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
     let Report {
         base_constraints,
         unregistered_constraints,
-        results: _, // unused for now, but built-in constraints go here later and will add to either errors or warnings.
+        results: _, // unused for now, but built-in constraints go here later
+                    // and will add to either errors or warnings.
     } = validate::<()>(schema);
 
     let warnings = unregistered_constraints;

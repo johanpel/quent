@@ -25,8 +25,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         println!("cargo:warning= {}", warnings.join("\n"));
     }
     println!(
-        "cargo:warning=instrumentation library
-    written to {}",
+        "cargo:warning=instrumentation library written to {}",
         path.display()
     );
 
