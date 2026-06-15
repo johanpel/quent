@@ -13,8 +13,8 @@ use crate::common::{raw_ident, to_case};
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
 /// type may have, far above any realistic schema. Self-referential records are
 /// already ruled out by base validation, but even if somehow schemas are
-/// produced with a ginormous nesting depth, this will produce a friendlier
-/// panic that a stackoverflow.
+/// produced with great nesting depth, this will produce a friendlier panic
+/// instead of a stack overflow.
 pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 
 /// Map a [`DataType`] to its Rust type tokens.
