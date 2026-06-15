@@ -52,6 +52,7 @@ members = [
     "crates/constraints",
     "crates/schema",
     "crates/ref-target",
+    "crates/ref-tree",
     "crates/fsm",
 ]
 
@@ -105,6 +106,7 @@ log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
 postcard = { version = "1", features = ["alloc"] }
 prost = "0.14.1"
+pyo3 = "0.29"
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }
