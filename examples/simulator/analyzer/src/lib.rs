@@ -376,8 +376,12 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // each bulk entry. After populating this, we'll build a reverse index,
         // that maps a resource_id to a list of indices in these vecs, for which
         // that resource's usages are relevant.
-        let mut plain_builders: Vec<(String, ResourceTimelineBuilder, HashSet<Uuid>, OperatorFilter)> =
-            Vec::new();
+        let mut plain_builders: Vec<(
+            String,
+            ResourceTimelineBuilder,
+            HashSet<Uuid>,
+            OperatorFilter,
+        )> = Vec::new();
 
         // Prepare them also for keyed builders (building by state).
         let mut per_state_builders: Vec<(

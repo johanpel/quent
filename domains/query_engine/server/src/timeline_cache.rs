@@ -313,14 +313,13 @@ impl TimelineCache {
             })
             .collect();
 
-        let chunked_entries: HashMap<String, TimelineRequest<OperatorFilter>> =
-            miss_entry_keys
-                .into_iter()
-                .map(|k| {
-                    let request = request.entries[&k].clone();
-                    (k, request)
-                })
-                .collect();
+        let chunked_entries: HashMap<String, TimelineRequest<OperatorFilter>> = miss_entry_keys
+            .into_iter()
+            .map(|k| {
+                let request = request.entries[&k].clone();
+                (k, request)
+            })
+            .collect();
 
         let a = Arc::clone(&analyzer);
         let app_params_clone = request.app_params.clone();
@@ -826,17 +825,6 @@ mod tests {
 
     use super::*;
 
-    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-    struct TestGlobalParams {
-        query_id: Uuid,
-    }
-
-    #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-    struct TestTimelineParams {
-        operator_id: Option<Uuid>,
-        series_offset: u32,
-    }
-
     #[derive(Clone, Debug, PartialEq)]
     struct BulkCallEntry {
         key: String,
@@ -849,10 +837,20 @@ mod tests {
         engine_id: Uuid,
         model: InMemoryQueryEngineModel,
         calls: Mutex<Vec<Vec<BulkCallEntry>>>,
+        // Per-entry series offset, keyed by entry key (missing key defaults to
+        // 0). Distinguishes each entry's output series and, via the sentinel
+        // 999, triggers an error entry. Carries the per-entry test variation
+        // that the fixed `OperatorFilter` contract no longer lets a request
+        // supply.
+        series_offsets: HashMap<String, u32>,
     }
 
     impl TestAnalyzer {
         fn new() -> Self {
+            Self::with_series_offsets(HashMap::new())
+        }
+
+        fn with_series_offsets(series_offsets: HashMap<String, u32>) -> Self {
             let engine_id = Uuid::from_u128(1);
             let mut engine = Engine::new(engine_id).unwrap();
             engine.push(Event::new(engine_id, 0, EngineEvent::Init(Init::default())));
@@ -874,7 +872,12 @@ mod tests {
                     ports: Default::default(),
                 },
                 calls: Mutex::new(Vec::new()),
+                series_offsets,
             }
+        }
+
+        fn series_offset(&self, key: &str) -> u32 {
+            self.series_offsets.get(key).copied().unwrap_or(0)
         }
 
         fn call_entries(&self) -> Vec<BulkCallEntry> {
@@ -914,8 +917,6 @@ mod tests {
     impl UiAnalyzer for TestAnalyzer {
         type Event = ();
         type EntityRef = ();
-        type TimelineGlobalParams = TestGlobalParams;
-        type TimelineParams = TestTimelineParams;
 
         fn try_new(
             _engine_id: Uuid,
@@ -951,8 +952,8 @@ mod tests {
         fn single_resource_timeline(
             &self,
             _request: quent_ui::timeline::request::SingleTimelineRequest<
-                Self::TimelineGlobalParams,
-                Self::TimelineParams,
+                QueryFilter,
+                OperatorFilter,
             >,
         ) -> AnalyzerResult<SingleTimelineResponse> {
             unimplemented!("not needed by bulk cache tests")
@@ -960,7 +961,7 @@ mod tests {
 
         fn bulk_resource_timeline(
             &self,
-            request: BulkTimelineRequest<Self::TimelineGlobalParams, Self::TimelineParams>,
+            request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
         ) -> AnalyzerResult<BulkTimelinesResponse> {
             let mut call = request
                 .entries
@@ -978,14 +979,17 @@ mod tests {
             let entries = request
                 .entries
                 .into_iter()
-                .map(|(key, entry)| response_entry(key, entry))
+                .map(|(key, entry)| {
+                    let series_offset = self.series_offset(&key);
+                    response_entry(key, entry, series_offset)
+                })
                 .collect::<AnalyzerResult<HashMap<_, _>>>()?;
 
             Ok(BulkTimelinesResponse { entries })
         }
     }
 
-    fn entry_params(entry: &TimelineRequest<TestTimelineParams>) -> &TestTimelineParams {
+    fn entry_params(entry: &TimelineRequest<OperatorFilter>) -> &OperatorFilter {
         match entry {
             TimelineRequest::Resource(req) => &req.application,
             TimelineRequest::ResourceGroup(req) => &req.app_params,
@@ -994,10 +998,10 @@ mod tests {
 
     fn response_entry(
         key: String,
-        entry: TimelineRequest<TestTimelineParams>,
+        entry: TimelineRequest<OperatorFilter>,
+        series_offset: u32,
     ) -> AnalyzerResult<(String, BulkTimelinesResponseEntry)> {
-        let params = entry_params(&entry);
-        if params.series_offset == 999 {
+        if series_offset == 999 {
             return Ok((
                 key,
                 BulkTimelinesResponseEntry::Error {
@@ -1006,12 +1010,13 @@ mod tests {
             ));
         }
 
+        let params = entry_params(&entry);
         let config = entry.config().try_into_binned_span(0)?;
         let config_secs = config.try_to_secs_relative(0)?;
         let values = (0..config.num_bins.get())
             .map(|idx| {
                 let bin = config.bin(idx).unwrap();
-                to_secs_relative(bin.start(), 0) + params.series_offset as f64
+                to_secs_relative(bin.start(), 0) + series_offset as f64
             })
             .collect::<Vec<_>>();
         let long_fsms = params
@@ -1051,25 +1056,30 @@ mod tests {
         ))
     }
 
+    // Distinct resource id per entry key, so entries sharing an `OperatorFilter`
+    // still hash to distinct chunk cache keys (the per-entry separation the old
+    // test params provided). Equal keys map to equal ids, so repeated requests
+    // for the same entry reuse its cached chunks.
+    fn resource_id_for(key: &str) -> Uuid {
+        Uuid::from_u128(key.bytes().fold(0u128, |acc, b| (acc << 8) | b as u128))
+    }
+
     fn request(
-        entries: Vec<(&str, f64, f64, u32, Option<Uuid>)>,
-    ) -> BulkTimelineRequest<TestGlobalParams, TestTimelineParams> {
+        entries: Vec<(&str, f64, f64, Option<Uuid>)>,
+    ) -> BulkTimelineRequest<QueryFilter, OperatorFilter> {
         BulkTimelineRequest {
             entries: entries
                 .into_iter()
-                .map(|(key, start, end, series_offset, operator_id)| {
+                .map(|(key, start, end, operator_id)| {
                     (
                         key.to_string(),
                         TimelineRequest::Resource(ResourceTimelineRequest {
-                            resource_id: Uuid::from_u128(2),
+                            resource_id: resource_id_for(key),
                             long_entities_threshold_s: Some(0.0),
                             entity_filter: EntityFilter {
                                 entity_type_name: None,
                             },
-                            application: TestTimelineParams {
-                                operator_id,
-                                series_offset,
-                            },
+                            application: OperatorFilter { operator_id },
                             config: TimelineConfig {
                                 num_bins: 4,
                                 start,
@@ -1079,7 +1089,7 @@ mod tests {
                     )
                 })
                 .collect(),
-            app_params: TestGlobalParams {
+            app_params: QueryFilter {
                 query_id: Uuid::from_u128(3),
             },
         }
@@ -1153,7 +1163,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 30.0, 80.0, 0, None)]),
+                    request(vec![("a", 30.0, 80.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1188,7 +1198,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 25.0, 75.0, 0, None)]),
+                    request(vec![("a", 25.0, 75.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1196,7 +1206,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 30.0, 80.0, 0, None)]),
+                    request(vec![("a", 30.0, 80.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1217,17 +1227,17 @@ mod tests {
     #[test]
     fn partial_bulk_entry_miss_fetches_only_new_entry_for_cached_chunks() {
         block_on(async {
-            let analyzer = Arc::new(TestAnalyzer::new());
+            let analyzer = Arc::new(TestAnalyzer::with_series_offsets(HashMap::from([
+                ("b".to_string(), 100),
+                ("c".to_string(), 200),
+            ])));
             let cache = TimelineCache::new();
 
             cache
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![
-                        ("a", 25.0, 75.0, 0, None),
-                        ("b", 25.0, 75.0, 100, None),
-                    ]),
+                    request(vec![("a", 25.0, 75.0, None), ("b", 25.0, 75.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1236,9 +1246,9 @@ mod tests {
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
                     request(vec![
-                        ("a", 25.0, 75.0, 0, None),
-                        ("b", 25.0, 75.0, 100, None),
-                        ("c", 25.0, 75.0, 200, None),
+                        ("a", 25.0, 75.0, None),
+                        ("b", 25.0, 75.0, None),
+                        ("c", 25.0, 75.0, None),
                     ]),
                 )
                 .await
@@ -1275,7 +1285,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 25.0, 75.0, 0, Some(first_operator))]),
+                    request(vec![("a", 25.0, 75.0, Some(first_operator))]),
                 )
                 .await
                 .unwrap();
@@ -1283,7 +1293,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 25.0, 75.0, 0, Some(second_operator))]),
+                    request(vec![("a", 25.0, 75.0, Some(second_operator))]),
                 )
                 .await
                 .unwrap();
@@ -1314,14 +1324,17 @@ mod tests {
     #[test]
     fn bulk_entry_errors_are_not_dropped_on_cold_or_partial_miss() {
         block_on(async {
-            let analyzer = Arc::new(TestAnalyzer::new());
+            let analyzer = Arc::new(TestAnalyzer::with_series_offsets(HashMap::from([(
+                "bad".to_string(),
+                999,
+            )])));
             let cache = TimelineCache::new();
 
             let cold_response = cache
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("bad", 25.0, 75.0, 999, None)]),
+                    request(vec![("bad", 25.0, 75.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1331,7 +1344,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![("a", 25.0, 75.0, 0, None)]),
+                    request(vec![("a", 25.0, 75.0, None)]),
                 )
                 .await
                 .unwrap();
@@ -1339,10 +1352,7 @@ mod tests {
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
-                    request(vec![
-                        ("a", 25.0, 75.0, 0, None),
-                        ("bad", 25.0, 75.0, 999, None),
-                    ]),
+                    request(vec![("a", 25.0, 75.0, None), ("bad", 25.0, 75.0, None)]),
                 )
                 .await
                 .unwrap();
