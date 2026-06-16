@@ -625,7 +625,7 @@ fn emit_context(
                 let opts = match exporter.as_deref() {
                     Some("ndjson") => Some(#q::exporter::ExporterOptions::FileSystem(
                         #q::exporter::FileSystemExporterOptions {
-                            format: #q::exporter::FileSystemExporterFormat::Ndjson,
+                            format: #q::exporter::FileSystemFormat::Ndjson,
                             root: std::path::PathBuf::from(
                                 output_dir.unwrap_or_else(|| ".".to_string()),
                             ),

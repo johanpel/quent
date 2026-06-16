@@ -24,7 +24,7 @@ use pprof::criterion::{Output, PProfProfiler};
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_instrumentation::Context;
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,7 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
     std_listener.set_nonblocking(true)?;
 
     let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemExporterFormat::Ndjson,
+        format: FileSystemFormat::Ndjson,
         root: backing_dir.to_path_buf(),
         file_name: None,
     });
@@ -123,7 +123,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         &mut group,
         "ndjson",
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Ndjson,
+            format: FileSystemFormat::Ndjson,
             root: ndjson_dir.path().to_path_buf(),
             file_name: None,
         })),
@@ -132,7 +132,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         &mut group,
         "msgpack",
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Msgpack,
+            format: FileSystemFormat::Msgpack,
             root: msgpack_dir.path().to_path_buf(),
             file_name: None,
         })),
@@ -141,7 +141,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         &mut group,
         "postcard",
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Postcard,
+            format: FileSystemFormat::Postcard,
             root: postcard_dir.path().to_path_buf(),
             file_name: None,
         })),

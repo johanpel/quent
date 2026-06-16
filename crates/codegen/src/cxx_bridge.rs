@@ -431,7 +431,7 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
             let opts = match exporter.as_str() {
                 "ndjson" => Some(#q::exporter::ExporterOptions::FileSystem(
                     #q::exporter::FileSystemExporterOptions {
-                        format: #q::exporter::FileSystemExporterFormat::Ndjson,
+                        format: #q::exporter::FileSystemFormat::Ndjson,
                         root: std::path::PathBuf::from(output_dir),
                         file_name: None,
                     },

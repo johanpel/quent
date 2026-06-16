@@ -12,7 +12,7 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -1143,17 +1143,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let exporter = match args.exporter.as_str() {
         "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Postcard,
+            format: FileSystemFormat::Postcard,
             root: "data".into(),
             file_name: None,
         })),
         "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Msgpack,
+            format: FileSystemFormat::Msgpack,
             root: "data".into(),
             file_name: None,
         })),
         "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Ndjson,
+            format: FileSystemFormat::Ndjson,
             root: "data".into(),
             file_name: None,
         })),

@@ -75,8 +75,9 @@ where
     }
 }
 
+/// Options for the Postcard importer. `path` is either the directory containing
+/// the event file (located by its `.postcard` extension) or the file itself.
 #[derive(Debug, Clone)]
-/// Options for the Postcard importer. Reads events from the file at `path`.
 pub struct PostcardImporterOptions {
     pub path: PathBuf,
 }
@@ -88,7 +89,8 @@ pub struct PostcardImporter<T> {
 
 impl<T> PostcardImporter<T> {
     pub fn try_new(options: &PostcardImporterOptions) -> ImporterResult<Self> {
-        let file = std::fs::File::open(&options.path)?;
+        let path = quent_exporter_types::resolve_import_path(&options.path, "postcard")?;
+        let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

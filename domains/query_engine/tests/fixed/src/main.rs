@@ -21,7 +21,7 @@
 use clap::Parser;
 use quent_attributes::Attribute;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -632,17 +632,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let exporter = match args.exporter.as_str() {
         "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Postcard,
+            format: FileSystemFormat::Postcard,
             root: args.output_dir.clone().into(),
             file_name: None,
         })),
         "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Msgpack,
+            format: FileSystemFormat::Msgpack,
             root: args.output_dir.clone().into(),
             file_name: None,
         })),
         "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemExporterFormat::Ndjson,
+            format: FileSystemFormat::Ndjson,
             root: args.output_dir.clone().into(),
             file_name: None,
         })),

@@ -76,8 +76,9 @@ where
     }
 }
 
+/// Options for the ndjson importer. `path` is either the directory containing
+/// the event file (located by its `.ndjson` extension) or the file itself.
 #[derive(Debug, Clone)]
-/// Options for the ndjson importer. Reads events from the file at `path`.
 pub struct NdjsonImporterOptions {
     pub path: PathBuf,
 }
@@ -89,7 +90,8 @@ pub struct NdjsonImporter<T> {
 
 impl<T> NdjsonImporter<T> {
     pub fn try_new(options: &NdjsonImporterOptions) -> ImporterResult<Self> {
-        let file = std::fs::File::open(&options.path)?;
+        let path = quent_exporter_types::resolve_import_path(&options.path, "ndjson")?;
+        let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
             _phantom: Default::default(),

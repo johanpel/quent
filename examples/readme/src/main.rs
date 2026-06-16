@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::PathBuf::from("./events");
     let exporter = quent_model::exporter::ExporterOptions::FileSystem(
         quent_model::exporter::FileSystemExporterOptions {
-            format: quent_model::exporter::FileSystemExporterFormat::Ndjson,
+            format: quent_model::exporter::FileSystemFormat::Ndjson,
             root: root.clone(),
             file_name: None,
         },
