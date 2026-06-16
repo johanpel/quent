@@ -11,6 +11,7 @@ use std::{
 use moka::future::Cache;
 use quent_analyzer::Span;
 use quent_query_engine_analyzer::{QueryEngineModel, ui::UiAnalyzer};
+use quent_query_engine_ui::{OperatorFilter, QueryFilter};
 use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan, to_nanosecs, to_secs_relative};
 use quent_ui::timeline::{
     request::{
@@ -156,15 +157,10 @@ impl TimelineCache {
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
-        request: BulkTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
+        request: BulkTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> ServerResult<BulkTimelinesResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
-        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
         let Some(geometry) = compute_chunk_geometry(&*analyzer, &request)? else {
             return Ok(tokio::task::spawn_blocking(move || {
@@ -256,10 +252,7 @@ impl TimelineCache {
     async fn fetch_missing_chunks<A>(
         &self,
         analyzer: Arc<A>,
-        request: &BulkTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
+        request: &BulkTimelineRequest<QueryFilter, OperatorFilter>,
         chunk_misses: &HashMap<u64, Vec<String>>,
         ctx: &CacheRequestContext<'_>,
         entry_chunks: &mut HashMap<String, Vec<SingleTimelineResponse>>,
@@ -267,8 +260,6 @@ impl TimelineCache {
     ) -> ServerResult<()>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Clone + Send + 'static,
-        <A as UiAnalyzer>::TimelineParams: Clone + Send + 'static,
     {
         // Union of missed chunk indices, sorted for stable response slot ordering.
         let mut miss_chunk_indices: Vec<u64> = chunk_misses.keys().copied().collect();
@@ -322,7 +313,7 @@ impl TimelineCache {
             })
             .collect();
 
-        let chunked_entries: HashMap<String, TimelineRequest<<A as UiAnalyzer>::TimelineParams>> =
+        let chunked_entries: HashMap<String, TimelineRequest<OperatorFilter>> =
             miss_entry_keys
                 .into_iter()
                 .map(|k| {
@@ -390,15 +381,10 @@ impl TimelineCache {
         &self,
         analyzer: Arc<A>,
         engine_id: Uuid,
-        request: SingleTimelineRequest<
-            <A as UiAnalyzer>::TimelineGlobalParams,
-            <A as UiAnalyzer>::TimelineParams,
-        >,
+        request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
     ) -> ServerResult<SingleTimelineResponse>
     where
         A: UiAnalyzer + Send + Sync + 'static,
-        <A as UiAnalyzer>::TimelineGlobalParams: Hash + Eq + Clone + Send + 'static,
-        <A as UiAnalyzer>::TimelineParams: Hash + Eq + Clone + Send + 'static,
     {
         let engine_span = analyzer.query_engine_model().engine()?.span()?;
         let engine_duration = engine_span.duration();
@@ -522,10 +508,7 @@ fn determine_zoom_level(view_duration: TimeNanoSec, total_duration: TimeNanoSec)
 /// that should fall through to an uncached bulk fetch.
 fn compute_chunk_geometry<A>(
     analyzer: &A,
-    request: &BulkTimelineRequest<
-        <A as UiAnalyzer>::TimelineGlobalParams,
-        <A as UiAnalyzer>::TimelineParams,
-    >,
+    request: &BulkTimelineRequest<QueryFilter, OperatorFilter>,
 ) -> ServerResult<Option<ChunkGeometry>>
 where
     A: UiAnalyzer,
