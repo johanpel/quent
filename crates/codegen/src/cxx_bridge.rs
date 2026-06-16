@@ -427,13 +427,13 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
             type Kind = ::cxx::kind::Opaque;
         }
 
-        pub fn create_context(id: ffi::UUID, exporter: String, output_dir: String) -> Result<Box<Context>, String> {
-            let id = #q::uuid::Uuid::from(id);
+        pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
-                "ndjson" => Some(#q::exporter::ExporterOptions::Ndjson(
-                    #q::exporter::NdjsonExporterOptions {
-                        output_dir: output_dir.into(),
-                        file_name: Some(format!("{id}.ndjson")),
+                "ndjson" => Some(#q::exporter::ExporterOptions::FileSystem(
+                    #q::exporter::FileSystemExporterOptions {
+                        format: #q::exporter::FileSystemExporterFormat::Ndjson,
+                        root: std::path::PathBuf::from(output_dir),
+                        file_name: None,
                     },
                 )),
                 _ => None,
@@ -460,7 +460,7 @@ pub mod ffi {{
 
     extern "Rust" {{
         type Context;
-        fn create_context(id: UUID, exporter: String, output_dir: String) -> Result<Box<Context>>;
+        fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
     }}
 }}
 "#

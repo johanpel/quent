@@ -24,8 +24,7 @@ use pprof::criterion::{Output, PProfProfiler};
 use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
 };
 use quent_instrumentation::Context;
 use serde::{Deserialize, Serialize};
@@ -55,8 +54,9 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
     let address = format!("http://{}", std_listener.local_addr()?);
     std_listener.set_nonblocking(true)?;
 
-    let backing = ExporterOptions::Ndjson(NdjsonExporterOptions {
-        output_dir: backing_dir.to_path_buf(),
+    let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
+        format: FileSystemExporterFormat::Ndjson,
+        root: backing_dir.to_path_buf(),
         file_name: None,
     });
     let opts = CollectorServiceOptions { exporter: backing };
@@ -122,24 +122,27 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: ndjson_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Ndjson,
+            root: ndjson_dir.path().to_path_buf(),
             file_name: None,
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: msgpack_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Msgpack,
+            root: msgpack_dir.path().to_path_buf(),
             file_name: None,
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: postcard_dir.path().to_path_buf(),
+        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Postcard,
+            root: postcard_dir.path().to_path_buf(),
             file_name: None,
         })),
     )?;

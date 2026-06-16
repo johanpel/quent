@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
+use uuid::Uuid;
 
 use quent_collector_proto as proto;
 
@@ -55,7 +56,8 @@ where
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
         let mut stream = request.into_inner();
-        let exporter_kind = self.exporter.clone();
+        // Give each stream its own per-context subdirectory.
+        let exporter_kind = self.exporter.clone().in_context_dir(Uuid::now_v7());
         let export_join_handle = tokio::spawn(async move {
             // One exporter per stream, created lazily on the first batch so an
             // empty stream produces no output.

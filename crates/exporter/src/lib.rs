@@ -3,10 +3,11 @@
 
 //! Umbrella crate providing unified exporter/importer creation.
 
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[cfg(not(any(
     feature = "ndjson",
@@ -19,23 +20,57 @@ compile_error!("at least one exporter feature must be enabled");
 #[cfg(feature = "collector")]
 pub use quent_exporter_collector::CollectorExporterOptions;
 #[cfg(feature = "msgpack")]
-pub use quent_exporter_msgpack::{MsgpackExporterOptions, MsgpackImporterOptions};
+pub use quent_exporter_msgpack::MsgpackImporterOptions;
 #[cfg(feature = "ndjson")]
-pub use quent_exporter_ndjson::{NdjsonExporterOptions, NdjsonImporterOptions};
+pub use quent_exporter_ndjson::NdjsonImporterOptions;
 #[cfg(feature = "postcard")]
-pub use quent_exporter_postcard::{PostcardExporterOptions, PostcardImporterOptions};
+pub use quent_exporter_postcard::PostcardImporterOptions;
 
 /// Selects an exporter and its options.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
-    #[cfg(feature = "ndjson")]
-    Ndjson(NdjsonExporterOptions),
-    #[cfg(feature = "msgpack")]
-    Msgpack(MsgpackExporterOptions),
-    #[cfg(feature = "postcard")]
-    Postcard(PostcardExporterOptions),
+    FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector(CollectorExporterOptions),
+}
+
+/// Serialization format for the filesystem exporter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileSystemExporterFormat {
+    #[cfg(feature = "ndjson")]
+    Ndjson,
+    #[cfg(feature = "msgpack")]
+    Msgpack,
+    #[cfg(feature = "postcard")]
+    Postcard,
+}
+
+/// Options for the filesystem exporter. Events are written to
+/// `root/<file_name>`; when `file_name` is `None` it defaults to `events.<ext>`
+/// for the chosen format. The owning context folds its id into `root` (see
+/// [`ExporterOptions::in_context_dir`]) so each context writes into its own
+/// subdirectory.
+#[derive(Debug, Clone)]
+pub struct FileSystemExporterOptions {
+    pub format: FileSystemExporterFormat,
+    pub root: PathBuf,
+    pub file_name: Option<String>,
+}
+
+impl ExporterOptions {
+    /// Returns these options with filesystem output relocated into a
+    /// per-context subdirectory `root/<id>/`. Non-filesystem exporters are
+    /// returned unchanged.
+    pub fn in_context_dir(self, id: Uuid) -> Self {
+        match self {
+            ExporterOptions::FileSystem(mut options) => {
+                options.root = options.root.join(id.to_string());
+                ExporterOptions::FileSystem(options)
+            }
+            #[cfg(feature = "collector")]
+            ExporterOptions::Collector(options) => ExporterOptions::Collector(options),
+        }
+    }
 }
 
 /// Selects an importer and its options.
@@ -71,23 +106,51 @@ where
 }
 
 /// Construct an exporter from [`ExporterOptions`].
+///
+/// Filesystem exporters write to `root/<file_name>`; the caller is expected to
+/// have already folded any per-context subdirectory into `root` via
+/// [`ExporterOptions::in_context_dir`].
 pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Arc<dyn Exporter<T>>>
 where
     T: Serialize + Send + 'static,
 {
     match kind {
-        #[cfg(feature = "ndjson")]
-        ExporterOptions::Ndjson(options) => Ok(Arc::new(
-            quent_exporter_ndjson::NdjsonExporter::try_new(options).await?,
-        ) as Arc<dyn Exporter<T>>),
-        #[cfg(feature = "msgpack")]
-        ExporterOptions::Msgpack(options) => Ok(Arc::new(
-            quent_exporter_msgpack::MsgpackExporter::try_new(options).await?,
-        ) as Arc<dyn Exporter<T>>),
-        #[cfg(feature = "postcard")]
-        ExporterOptions::Postcard(options) => Ok(Arc::new(
-            quent_exporter_postcard::PostcardExporter::try_new(options).await?,
-        ) as Arc<dyn Exporter<T>>),
+        ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format,
+            root,
+            file_name,
+        }) => match format {
+            #[cfg(feature = "ndjson")]
+            FileSystemExporterFormat::Ndjson => {
+                let path = root.join(file_name.unwrap_or_else(|| "events.ndjson".to_string()));
+                Ok(Arc::new(
+                    quent_exporter_ndjson::NdjsonExporter::try_new(
+                        quent_exporter_ndjson::NdjsonExporterOptions { path },
+                    )
+                    .await?,
+                ) as Arc<dyn Exporter<T>>)
+            }
+            #[cfg(feature = "msgpack")]
+            FileSystemExporterFormat::Msgpack => {
+                let path = root.join(file_name.unwrap_or_else(|| "events.msgpack".to_string()));
+                Ok(Arc::new(
+                    quent_exporter_msgpack::MsgpackExporter::try_new(
+                        quent_exporter_msgpack::MsgpackExporterOptions { path },
+                    )
+                    .await?,
+                ) as Arc<dyn Exporter<T>>)
+            }
+            #[cfg(feature = "postcard")]
+            FileSystemExporterFormat::Postcard => {
+                let path = root.join(file_name.unwrap_or_else(|| "events.postcard".to_string()));
+                Ok(Arc::new(
+                    quent_exporter_postcard::PostcardExporter::try_new(
+                        quent_exporter_postcard::PostcardExporterOptions { path },
+                    )
+                    .await?,
+                ) as Arc<dyn Exporter<T>>)
+            }
+        },
         #[cfg(feature = "collector")]
         ExporterOptions::Collector(options) => Ok(Arc::new(
             quent_exporter_collector::CollectorExporter::try_new(options)

@@ -619,16 +619,17 @@ fn emit_context(
         impl PyContext {
             #[new]
             pub fn new(
-                id: PyRef<'_, PyUuid>,
                 exporter: Option<String>,
                 output_dir: Option<String>,
             ) -> PyResult<Self> {
-                let id = id.inner;
                 let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::exporter::ExporterOptions::Ndjson(
-                        #q::exporter::NdjsonExporterOptions {
-                            output_dir: output_dir.unwrap_or_else(|| ".".to_string()).into(),
-                            file_name: Some(format!("{id}.ndjson")),
+                    Some("ndjson") => Some(#q::exporter::ExporterOptions::FileSystem(
+                        #q::exporter::FileSystemExporterOptions {
+                            format: #q::exporter::FileSystemExporterFormat::Ndjson,
+                            root: std::path::PathBuf::from(
+                                output_dir.unwrap_or_else(|| ".".to_string()),
+                            ),
+                            file_name: None,
                         },
                     )),
                     None => None,
@@ -640,6 +641,7 @@ fn emit_context(
                 };
                 let inner = #q::Context::try_new(opts)
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
+                let id = inner.id();
                 let tx = inner.events_sender();
                 Ok(Self {
                     inner: Some(inner),

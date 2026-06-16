@@ -21,8 +21,7 @@
 use clap::Parser;
 use quent_attributes::Attribute;
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -632,16 +631,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: args.output_dir.clone().into(),
+        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Postcard,
+            root: args.output_dir.clone().into(),
             file_name: None,
         })),
-        "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: args.output_dir.clone().into(),
+        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Msgpack,
+            root: args.output_dir.clone().into(),
             file_name: None,
         })),
-        "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: args.output_dir.into(),
+        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Ndjson,
+            root: args.output_dir.clone().into(),
             file_name: None,
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {

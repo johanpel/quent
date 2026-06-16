@@ -233,6 +233,11 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         Ok(Self { _inner: inner, tx })
                     }
 
+                    /// Identity of this context, generated on construction.
+                    pub fn id(&self) -> quent_model::uuid::Uuid {
+                        self._inner.id()
+                    }
+
                     #(#observer_methods)*
                 }
             };

@@ -17,18 +17,13 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
-use uuid::Uuid;
-
 /// Options for the ndjson exporter.
 ///
-/// Writes events as newline-delimited JSON (one JSON object per line per file).
-/// Human-readable, useful for debugging and manual inspection. Writes into a
-/// file in `output_dir`; when `file_name` is `None` the file is named with a
-/// generated `Uuid::now_v7()`.
+/// Writes events as newline-delimited JSON (one JSON object per line) to the
+/// file at `path`. Human-readable, useful for debugging and manual inspection.
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
-    pub output_dir: PathBuf,
-    pub file_name: Option<String>,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -38,17 +33,14 @@ pub struct NdjsonExporter {
 
 impl NdjsonExporter {
     pub async fn try_new(options: NdjsonExporterOptions) -> ExporterResult<Self> {
-        tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options.output_dir.join(
-            options
-                .file_name
-                .unwrap_or_else(|| format!("{}.ndjson", Uuid::now_v7())),
-        );
-        debug!("exporting to \"{}\"", path.display());
+        if let Some(parent) = options.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        debug!("exporting to \"{}\"", options.path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&options.path)
             .await?;
 
         Ok(Self {

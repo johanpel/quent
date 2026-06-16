@@ -12,8 +12,7 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, MsgpackExporterOptions, NdjsonExporterOptions,
-    PostcardExporterOptions,
+    CollectorExporterOptions, ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions,
 };
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -1143,16 +1142,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut engine = Engine::new();
 
     let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir: "data".into(),
+        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Postcard,
+            root: "data".into(),
             file_name: None,
         })),
-        "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir: "data".into(),
+        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Msgpack,
+            root: "data".into(),
             file_name: None,
         })),
-        "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir: "data".into(),
+        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Ndjson,
+            root: "data".into(),
             file_name: None,
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {

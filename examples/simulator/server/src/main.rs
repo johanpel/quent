@@ -8,9 +8,8 @@ use uuid::Uuid;
 use clap::Parser;
 use quent_collector::server::CollectorServiceOptions;
 use quent_exporter::{
-    ExporterOptions, ImporterOptions, MsgpackExporterOptions, MsgpackImporterOptions,
-    NdjsonExporterOptions, NdjsonImporterOptions, PostcardExporterOptions, PostcardImporterOptions,
-    create_importer,
+    ExporterOptions, FileSystemExporterFormat, FileSystemExporterOptions, ImporterOptions,
+    MsgpackImporterOptions, NdjsonImporterOptions, PostcardImporterOptions, create_importer,
 };
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
@@ -93,16 +92,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lister_output_dir = output_dir.clone();
 
     let exporter_kind = match exporter.as_str() {
-        "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions {
-            output_dir,
+        "ndjson" => ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Ndjson,
+            root: output_dir,
             file_name: None,
         }),
-        "msgpack" => ExporterOptions::Msgpack(MsgpackExporterOptions {
-            output_dir,
+        "msgpack" => ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Msgpack,
+            root: output_dir,
             file_name: None,
         }),
-        "postcard" => ExporterOptions::Postcard(PostcardExporterOptions {
-            output_dir,
+        "postcard" => ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemExporterFormat::Postcard,
+            root: output_dir,
             file_name: None,
         }),
         other => return Err(format!("unknown exporter: {other}").into()),

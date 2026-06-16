@@ -16,17 +16,14 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
-use uuid::Uuid;
 
 /// Options for the MessagePack exporter.
 ///
-/// Writes events in MessagePack binary format. Compact and fast to
-/// serialize/deserialize. Writes into a file in `output_dir`; when `file_name`
-/// is `None` the file is named with a generated `Uuid::now_v7()`.
+/// Writes events in MessagePack binary format to the file at `path`. Compact
+/// and fast to serialize/deserialize.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
-    pub output_dir: PathBuf,
-    pub file_name: Option<String>,
+    pub path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -36,17 +33,14 @@ pub struct MsgpackExporter {
 
 impl MsgpackExporter {
     pub async fn try_new(options: MsgpackExporterOptions) -> ExporterResult<Self> {
-        tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options.output_dir.join(
-            options
-                .file_name
-                .unwrap_or_else(|| format!("{}.msgpack", Uuid::now_v7())),
-        );
-        debug!("exporting to \"{}\"", path.display());
+        if let Some(parent) = options.path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        debug!("exporting to \"{}\"", options.path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&path)
+            .open(&options.path)
             .await?;
         Ok(Self {
             writer: Mutex::new(BufWriter::new(file)),
