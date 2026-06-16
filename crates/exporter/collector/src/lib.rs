@@ -7,14 +7,18 @@ use quent_collector_client::Client;
 use quent_events::Event;
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
+use uuid::Uuid;
 
 /// Options for the collector exporter.
 ///
 /// Streams events over gRPC to a remote collector service. Use this for
 /// distributed deployments where events are centralized for analysis.
+/// `application_id` identifies this stream to the collector, which groups its
+/// events under that id.
 #[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
+    pub application_id: Uuid,
 }
 
 #[derive(Debug)]
@@ -29,7 +33,7 @@ where
     pub async fn try_new(
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(options.address).await?;
+        let client = Client::new(options.application_id, options.address).await?;
         Ok(Self { client })
     }
 }

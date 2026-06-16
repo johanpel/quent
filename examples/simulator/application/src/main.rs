@@ -1156,6 +1156,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
+            application_id: engine.id,
         })),
         "none" => None,
         _ => {

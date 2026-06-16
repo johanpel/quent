@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+use dashmap::DashMap;
 use quent_exporter::{ExporterOptions, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::{Deserialize, Serialize};
@@ -24,8 +25,10 @@ pub struct CollectorServiceOptions {
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
 pub struct CollectorService<T> {
+    // Exporters shared across streams, keyed by `application-id` so concurrent
+    // sources of the same application consolidate into one exporter.
+    exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
     exporter: ExporterOptions,
-    _phantom: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<T> std::fmt::Debug for CollectorService<T> {
@@ -39,8 +42,8 @@ impl<T> std::fmt::Debug for CollectorService<T> {
 impl<T> CollectorService<T> {
     pub fn new(options: CollectorServiceOptions) -> Self {
         Self {
+            exporters: Default::default(),
             exporter: options.exporter,
-            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -55,25 +58,40 @@ where
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
+        // The client identifies its stream with the `application-id` metadata.
+        let application_id = request
+            .metadata()
+            .get("application-id")
+            .ok_or_else(|| Status::invalid_argument("missing `application-id` metadata"))?
+            .to_str()
+            .ok()
+            .and_then(|s| Uuid::parse_str(s).ok())
+            .ok_or_else(|| {
+                Status::invalid_argument("`application-id` metadata is not a valid UUID")
+            })?;
+
         let mut stream = request.into_inner();
-        // Give each stream its own per-context subdirectory.
-        let exporter_kind = self.exporter.clone().in_context_dir(Uuid::now_v7());
+        let exporters = Arc::clone(&self.exporters);
+        // Group each application's events under its own subdirectory.
+        let exporter_kind = self.exporter.clone().in_context_dir(application_id);
         let export_join_handle = tokio::spawn(async move {
-            // One exporter per stream, created lazily on the first batch so an
-            // empty stream produces no output.
-            let mut exporter: Option<Arc<dyn Exporter<T>>> = None;
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
-                        let exporter = match &exporter {
-                            Some(exporter) => exporter,
-                            None => match create_exporter::<T>(exporter_kind.clone()).await {
-                                Ok(created) => exporter.insert(created),
+                        // Reuse this application's exporter, or create it lazily
+                        // on the first batch (so an empty stream writes nothing).
+                        let exporter = if let Some(exporter) = exporters.get(&application_id) {
+                            Arc::clone(&exporter)
+                        } else {
+                            let exporter = match create_exporter::<T>(exporter_kind.clone()).await {
+                                Ok(exporter) => exporter,
                                 Err(e) => {
                                     error!("unable to construct exporter: {e}");
                                     break;
                                 }
-                            },
+                            };
+                            exporters.insert(application_id, Arc::clone(&exporter));
+                            exporter
                         };
 
                         let mut events = Vec::with_capacity(request.event.len());
@@ -106,10 +124,11 @@ where
                         warn!("collector: stream error: {err:?}");
                         // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
                         // We should clean up here, but the todo is to figure out what else can go wrong.
-                        if let Some(exporter) = &exporter
-                            && let Err(e) = exporter.force_flush().await
-                        {
-                            warn!("unable to flush exporter: {e}");
+                        if let Some(exporter) = exporters.get(&application_id) {
+                            if let Err(e) = exporter.force_flush().await {
+                                warn!("unable to flush exporter: {e}");
+                            }
+                            exporters.remove(&application_id);
                         }
                         break;
                     }
@@ -117,7 +136,7 @@ where
             }
 
             // Flush the exporter when stream ends normally
-            if let Some(exporter) = &exporter
+            if let Some(exporter) = exporters.get(&application_id)
                 && let Err(e) = exporter.force_flush().await
             {
                 warn!("unable to flush exporter after stream completion: {e}");
