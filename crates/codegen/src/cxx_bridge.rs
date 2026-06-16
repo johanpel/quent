@@ -428,15 +428,17 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
         }
 
         pub fn create_context(id: ffi::UUID, exporter: String, output_dir: String) -> Result<Box<Context>, String> {
+            let id = #q::uuid::Uuid::from(id);
             let opts = match exporter.as_str() {
                 "ndjson" => Some(#q::exporter::ExporterOptions::Ndjson(
                     #q::exporter::NdjsonExporterOptions {
                         output_dir: output_dir.into(),
+                        file_name: Some(format!("{id}.ndjson")),
                     },
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(#q::uuid::Uuid::from(id), opts)
+            let inner = #q::Context::try_new(opts)
                 .map_err(|e| e.to_string())?;
             Ok(Box::new(Context { inner }))
         }

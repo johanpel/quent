@@ -99,10 +99,7 @@ impl<T> Context<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub fn try_new(
-        id: Uuid,
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
         let kind = match exporter {
             None => {
                 debug!("using noop exporter");
@@ -137,7 +134,7 @@ where
         let (events_sender, mut events_receiver) = unbounded_channel();
 
         debug!("constructing exporter");
-        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind, id))?;
+        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -228,7 +225,7 @@ mod tests {
 
     #[test]
     fn noop_exporter() {
-        let ctx = Context::<TestEvent>::try_new(Uuid::now_v7(), None).unwrap();
+        let ctx = Context::<TestEvent>::try_new(None).unwrap();
         assert!(ctx.handle.is_none());
         assert!(ctx.exporter.is_none());
         assert!(ctx.forwarder_handle.is_none());

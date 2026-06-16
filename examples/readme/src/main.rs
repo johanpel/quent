@@ -6,15 +6,16 @@ use quent_readme_example::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output_dir = std::path::PathBuf::from("./events");
+    let id = Uuid::now_v7();
     let exporter = quent_model::exporter::ExporterOptions::Ndjson(
         quent_model::exporter::NdjsonExporterOptions {
             output_dir: output_dir.clone(),
+            file_name: Some(format!("{id}.ndjson")),
         },
     );
-    let id = Uuid::now_v7();
-    let context = AppContext::try_new(id, Some(exporter))?;
+    let context = AppContext::try_new(Some(exporter))?;
 
-    // The root resource group uses the same ID as the context.
+    // `id` names both the output file and the root resource group.
     let cluster = context.cluster_observer().cluster(id, "example_cluster");
 
     // Spawn a worker.

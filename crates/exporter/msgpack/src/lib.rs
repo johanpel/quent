@@ -21,11 +21,12 @@ use uuid::Uuid;
 /// Options for the MessagePack exporter.
 ///
 /// Writes events in MessagePack binary format. Compact and fast to
-/// serialize/deserialize. Produces one file per instrumentation context
-/// in `output_dir`.
+/// serialize/deserialize. Writes into a file in `output_dir`; when `file_name`
+/// is `None` the file is named with a generated `Uuid::now_v7()`.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
     pub output_dir: PathBuf,
+    pub file_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -34,14 +35,13 @@ pub struct MsgpackExporter {
 }
 
 impl MsgpackExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: MsgpackExporterOptions,
-    ) -> ExporterResult<Self> {
+    pub async fn try_new(options: MsgpackExporterOptions) -> ExporterResult<Self> {
         tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.msgpack", application_id));
+        let path = options.output_dir.join(
+            options
+                .file_name
+                .unwrap_or_else(|| format!("{}.msgpack", Uuid::now_v7())),
+        );
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)

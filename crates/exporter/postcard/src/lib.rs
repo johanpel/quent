@@ -21,10 +21,12 @@ use uuid::Uuid;
 /// Options for the Postcard exporter.
 ///
 /// Writes events in Postcard format (a compact, no_std-friendly binary
-/// encoding). Produces one file per instrumentation context in `output_dir`.
+/// encoding). Writes into a file in `output_dir`; when `file_name` is `None`
+/// the file is named with a generated `Uuid::now_v7()`.
 #[derive(Debug, Clone)]
 pub struct PostcardExporterOptions {
     pub output_dir: PathBuf,
+    pub file_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -33,14 +35,13 @@ pub struct PostcardExporter {
 }
 
 impl PostcardExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: PostcardExporterOptions,
-    ) -> ExporterResult<Self> {
+    pub async fn try_new(options: PostcardExporterOptions) -> ExporterResult<Self> {
         tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.postcard", application_id));
+        let path = options.output_dir.join(
+            options
+                .file_name
+                .unwrap_or_else(|| format!("{}.postcard", Uuid::now_v7())),
+        );
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)

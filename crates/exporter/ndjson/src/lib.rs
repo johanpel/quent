@@ -22,11 +22,13 @@ use uuid::Uuid;
 /// Options for the ndjson exporter.
 ///
 /// Writes events as newline-delimited JSON (one JSON object per line per file).
-/// Human-readable, useful for debugging and manual inspection. Produces one
-/// file per instrumentation context in `output_dir`.
+/// Human-readable, useful for debugging and manual inspection. Writes into a
+/// file in `output_dir`; when `file_name` is `None` the file is named with a
+/// generated `Uuid::now_v7()`.
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
     pub output_dir: PathBuf,
+    pub file_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -35,14 +37,13 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(
-        application_id: Uuid,
-        options: NdjsonExporterOptions,
-    ) -> ExporterResult<Self> {
+    pub async fn try_new(options: NdjsonExporterOptions) -> ExporterResult<Self> {
         tokio::fs::create_dir_all(&options.output_dir).await?;
-        let path = options
-            .output_dir
-            .join(format!("{}.ndjson", application_id));
+        let path = options.output_dir.join(
+            options
+                .file_name
+                .unwrap_or_else(|| format!("{}.ndjson", Uuid::now_v7())),
+        );
         debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)

@@ -1145,12 +1145,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exporter = match args.exporter.as_str() {
         "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
             output_dir: "data".into(),
+            file_name: None,
         })),
         "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
             output_dir: "data".into(),
+            file_name: None,
         })),
         "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
             output_dir: "data".into(),
+            file_name: None,
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
@@ -1164,7 +1167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .into());
         }
     };
-    let context = SimulatorContext::try_new(engine.id, exporter)?;
+    let context = SimulatorContext::try_new(exporter)?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

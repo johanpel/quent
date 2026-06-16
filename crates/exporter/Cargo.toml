@@ -17,4 +17,3 @@ quent-exporter-msgpack = { path = "msgpack", optional = true }
 quent-exporter-ndjson = { path = "ndjson", optional = true }
 quent-exporter-postcard = { path = "postcard", optional = true }
 serde.workspace = true
-uuid.workspace = true

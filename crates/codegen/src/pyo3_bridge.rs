@@ -628,6 +628,7 @@ fn emit_context(
                     Some("ndjson") => Some(#q::exporter::ExporterOptions::Ndjson(
                         #q::exporter::NdjsonExporterOptions {
                             output_dir: output_dir.unwrap_or_else(|| ".".to_string()).into(),
+                            file_name: Some(format!("{id}.ndjson")),
                         },
                     )),
                     None => None,
@@ -637,7 +638,7 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new(id, opts)
+                let inner = #q::Context::try_new(opts)
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                 let tx = inner.events_sender();
                 Ok(Self {

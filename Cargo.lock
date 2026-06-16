@@ -1924,7 +1924,6 @@ dependencies = [
  "quent-exporter-postcard",
  "quent-exporter-types",
  "serde",
- "uuid",
 ]
 
 [[package]]

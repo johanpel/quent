@@ -21,6 +21,27 @@ pub struct CollectorServiceOptions {
     pub exporter: ExporterOptions,
 }
 
+/// Returns `kind` with file-based exporters named after `application_id` so each
+/// connecting application writes to its own identifiable file. Non-file
+/// exporters (collector) are returned unchanged.
+fn name_exporter_for(kind: ExporterOptions, application_id: Uuid) -> ExporterOptions {
+    match kind {
+        ExporterOptions::Ndjson(mut options) => {
+            options.file_name = Some(format!("{application_id}.ndjson"));
+            ExporterOptions::Ndjson(options)
+        }
+        ExporterOptions::Msgpack(mut options) => {
+            options.file_name = Some(format!("{application_id}.msgpack"));
+            ExporterOptions::Msgpack(options)
+        }
+        ExporterOptions::Postcard(mut options) => {
+            options.file_name = Some(format!("{application_id}.postcard"));
+            ExporterOptions::Postcard(options)
+        }
+        ExporterOptions::Collector(options) => ExporterOptions::Collector(options),
+    }
+}
+
 // Simple service to centralize telemetry from distributed clients
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
@@ -87,16 +108,18 @@ where
                         let exporter = if exporters.contains_key(&application_id) {
                             Arc::clone(&exporters.get(&application_id).unwrap())
                         } else {
-                            let exporter =
-                                match create_exporter::<T>(exporter_kind.clone(), application_id)
-                                    .await
-                                {
-                                    Ok(exporter) => exporter,
-                                    Err(e) => {
-                                        error!("unable to construct exporter: {e}");
-                                        break;
-                                    }
-                                };
+                            let exporter = match create_exporter::<T>(name_exporter_for(
+                                exporter_kind.clone(),
+                                application_id,
+                            ))
+                            .await
+                            {
+                                Ok(exporter) => exporter,
+                                Err(e) => {
+                                    error!("unable to construct exporter: {e}");
+                                    break;
+                                }
+                            };
                             exporters.insert(application_id, Arc::clone(&exporter));
                             exporter
                         };

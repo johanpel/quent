@@ -28,10 +28,11 @@ where
     T: Serialize + Send + 'static,
 {
     pub async fn try_new(
-        application_id: Uuid,
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(application_id, options.address).await?;
+        // The collector identifies streams by id; generate one locally rather
+        // than requiring the caller to supply it.
+        let client = Client::new(Uuid::now_v7(), options.address).await?;
         Ok(Self { client })
     }
 }

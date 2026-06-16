@@ -5,7 +5,7 @@
 //! client emitting events.
 //!
 //! Single `emit` group with one entry per exporter backing (plus `noop`):
-//! - `noop` — `Context::try_new(_, None)`; the cost a caller pays when
+//! - `noop` — `Context::try_new(None)`; the cost a caller pays when
 //!   instrumentation is compiled in but not active.
 //! - `ndjson` / `msgpack` / `postcard` — write to a temp dir that is cleaned
 //!   up when the bench function returns.
@@ -57,6 +57,7 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
 
     let backing = ExporterOptions::Ndjson(NdjsonExporterOptions {
         output_dir: backing_dir.to_path_buf(),
+        file_name: None,
     });
     let opts = CollectorServiceOptions { exporter: backing };
 
@@ -85,7 +86,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let ctx = Context::<BenchEvent>::try_new(Uuid::now_v7(), exporter)?;
+    let ctx = Context::<BenchEvent>::try_new(exporter)?;
     let sender = ctx.events_sender();
     let event_id = Uuid::now_v7();
 
@@ -123,6 +124,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "ndjson",
         Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
             output_dir: ndjson_dir.path().to_path_buf(),
+            file_name: None,
         })),
     )?;
     bench_emit_variant(
@@ -130,6 +132,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "msgpack",
         Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
             output_dir: msgpack_dir.path().to_path_buf(),
+            file_name: None,
         })),
     )?;
     bench_emit_variant(
@@ -137,6 +140,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "postcard",
         Some(ExporterOptions::Postcard(PostcardExporterOptions {
             output_dir: postcard_dir.path().to_path_buf(),
+            file_name: None,
         })),
     )?;
     bench_emit_variant(

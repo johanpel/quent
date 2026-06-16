@@ -93,9 +93,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lister_output_dir = output_dir.clone();
 
     let exporter_kind = match exporter.as_str() {
-        "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions { output_dir }),
-        "msgpack" => ExporterOptions::Msgpack(MsgpackExporterOptions { output_dir }),
-        "postcard" => ExporterOptions::Postcard(PostcardExporterOptions { output_dir }),
+        "ndjson" => ExporterOptions::Ndjson(NdjsonExporterOptions {
+            output_dir,
+            file_name: None,
+        }),
+        "msgpack" => ExporterOptions::Msgpack(MsgpackExporterOptions {
+            output_dir,
+            file_name: None,
+        }),
+        "postcard" => ExporterOptions::Postcard(PostcardExporterOptions {
+            output_dir,
+            file_name: None,
+        }),
         other => return Err(format!("unknown exporter: {other}").into()),
     };
 

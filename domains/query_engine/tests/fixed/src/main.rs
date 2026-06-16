@@ -634,12 +634,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exporter = match args.exporter.as_str() {
         "postcard" => Some(ExporterOptions::Postcard(PostcardExporterOptions {
             output_dir: args.output_dir.clone().into(),
+            file_name: None,
         })),
         "messagepack" => Some(ExporterOptions::Msgpack(MsgpackExporterOptions {
             output_dir: args.output_dir.clone().into(),
+            file_name: None,
         })),
         "ndjson" => Some(ExporterOptions::Ndjson(NdjsonExporterOptions {
             output_dir: args.output_dir.into(),
+            file_name: None,
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
@@ -654,7 +657,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let ctx = SimulatorContext::try_new(ENGINE, exporter)?;
+    let ctx = SimulatorContext::try_new(exporter)?;
     emit(&ctx);
     drop(ctx);
     Ok(())
