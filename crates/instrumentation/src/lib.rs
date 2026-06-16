@@ -99,6 +99,9 @@ impl<T> Context<T>
 where
     T: Serialize + Send + 'static,
 {
+    /// `id` identifies this context's event stream; the exporter keys its
+    /// output by it. Callers that later correlate the stream with an analyzer
+    /// must pass the root entity's id.
     pub fn try_new(
         id: Uuid,
         exporter: Option<ExporterOptions>,
