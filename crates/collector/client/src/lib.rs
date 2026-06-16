@@ -19,7 +19,6 @@ use tonic::{Request, Status, transport::Channel};
 
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
-use uuid::Uuid;
 
 use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
 
@@ -52,7 +51,7 @@ impl<T> Client<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub async fn new(application_id: Uuid, address: String) -> CollectorResult<Client<T>> {
+    pub async fn new(address: String) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -175,15 +174,7 @@ where
 
         debug!("opening stream ...");
 
-        // Add the application id to the metadata of the request, so the collector knows which application this belongs to.
-        let mut req = Request::new(ReceiverStream::new(grpc_receiver));
-        req.metadata_mut().insert(
-            "application-id",
-            application_id
-                .to_string()
-                .parse()
-                .expect("valid metadata value"),
-        );
+        let req = Request::new(ReceiverStream::new(grpc_receiver));
 
         let mut cloned_client = client.clone();
         let events_collector_handle = tokio::spawn(async move {

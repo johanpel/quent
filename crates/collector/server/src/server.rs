@@ -3,16 +3,14 @@
 
 //! A gRPC-based server that collects `Event`s from multiple sources and exports them.
 
-use std::{str::FromStr, sync::Arc};
+use std::sync::Arc;
 
-use dashmap::DashMap;
 use quent_exporter::{ExporterOptions, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::{Deserialize, Serialize};
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
-use uuid::Uuid;
 
 use quent_collector_proto as proto;
 
@@ -21,33 +19,12 @@ pub struct CollectorServiceOptions {
     pub exporter: ExporterOptions,
 }
 
-/// Returns `kind` with file-based exporters named after `application_id` so each
-/// connecting application writes to its own identifiable file. Non-file
-/// exporters (collector) are returned unchanged.
-fn name_exporter_for(kind: ExporterOptions, application_id: Uuid) -> ExporterOptions {
-    match kind {
-        ExporterOptions::Ndjson(mut options) => {
-            options.file_name = Some(format!("{application_id}.ndjson"));
-            ExporterOptions::Ndjson(options)
-        }
-        ExporterOptions::Msgpack(mut options) => {
-            options.file_name = Some(format!("{application_id}.msgpack"));
-            ExporterOptions::Msgpack(options)
-        }
-        ExporterOptions::Postcard(mut options) => {
-            options.file_name = Some(format!("{application_id}.postcard"));
-            ExporterOptions::Postcard(options)
-        }
-        ExporterOptions::Collector(options) => ExporterOptions::Collector(options),
-    }
-}
-
 // Simple service to centralize telemetry from distributed clients
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
 pub struct CollectorService<T> {
-    exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
     exporter: ExporterOptions,
+    _phantom: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<T> std::fmt::Debug for CollectorService<T> {
@@ -61,8 +38,8 @@ impl<T> std::fmt::Debug for CollectorService<T> {
 impl<T> CollectorService<T> {
     pub fn new(options: CollectorServiceOptions) -> Self {
         Self {
-            exporters: Default::default(),
             exporter: options.exporter,
+            _phantom: std::marker::PhantomData,
         }
     }
 }
@@ -77,51 +54,24 @@ where
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
-        // Grab the application id from the request metadata.
-        let application_id_str = request
-            .metadata()
-            .get("application-id")
-            .ok_or_else(|| {
-                Status::invalid_argument("metadata key \"engine-id\" is not present in request")
-            })?
-            .to_str()
-            .map_err(|e| {
-                Status::invalid_argument(format!(
-                    "metadata value for \"engine-id\" holds invalid string data: {e}"
-                ))
-            })?;
-
-        let application_id = Uuid::from_str(application_id_str).map_err(|e| {
-            Status::invalid_argument(format!(
-                "metadata value for key \"application-id\" is not a UUID: {e}"
-            ))
-        })?;
-
         let mut stream = request.into_inner();
-        let exporters = Arc::clone(&self.exporters);
         let exporter_kind = self.exporter.clone();
         let export_join_handle = tokio::spawn(async move {
+            // One exporter per stream, created lazily on the first batch so an
+            // empty stream produces no output.
+            let mut exporter: Option<Arc<dyn Exporter<T>>> = None;
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
-                        // Get an exporter from the DashMap, or insert it if it doesn't exist.
-                        let exporter = if exporters.contains_key(&application_id) {
-                            Arc::clone(&exporters.get(&application_id).unwrap())
-                        } else {
-                            let exporter = match create_exporter::<T>(name_exporter_for(
-                                exporter_kind.clone(),
-                                application_id,
-                            ))
-                            .await
-                            {
-                                Ok(exporter) => exporter,
+                        let exporter = match &exporter {
+                            Some(exporter) => exporter,
+                            None => match create_exporter::<T>(exporter_kind.clone()).await {
+                                Ok(created) => exporter.insert(created),
                                 Err(e) => {
                                     error!("unable to construct exporter: {e}");
                                     break;
                                 }
-                            };
-                            exporters.insert(application_id, Arc::clone(&exporter));
-                            exporter
+                            },
                         };
 
                         let mut events = Vec::with_capacity(request.event.len());
@@ -154,12 +104,10 @@ where
                         warn!("collector: stream error: {err:?}");
                         // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
                         // We should clean up here, but the todo is to figure out what else can go wrong.
-                        if let Some(exporter) = exporters.get(&application_id) {
-                            match exporter.force_flush().await {
-                                Ok(_) => (),
-                                Err(e) => warn!("unable to flush exporter: {e}"),
-                            }
-                            exporters.remove(&application_id);
+                        if let Some(exporter) = &exporter
+                            && let Err(e) = exporter.force_flush().await
+                        {
+                            warn!("unable to flush exporter: {e}");
                         }
                         break;
                     }
@@ -167,11 +115,10 @@ where
             }
 
             // Flush the exporter when stream ends normally
-            if let Some(exporter) = exporters.get(&application_id) {
-                match exporter.force_flush().await {
-                    Ok(_) => (),
-                    Err(e) => warn!("unable to flush exporter after stream completion: {e}"),
-                }
+            if let Some(exporter) = &exporter
+                && let Err(e) = exporter.force_flush().await
+            {
+                warn!("unable to flush exporter after stream completion: {e}");
             }
         });
         let _ = export_join_handle.await;

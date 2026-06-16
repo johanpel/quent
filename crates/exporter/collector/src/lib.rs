@@ -7,7 +7,6 @@ use quent_collector_client::Client;
 use quent_events::Event;
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
-use uuid::Uuid;
 
 /// Options for the collector exporter.
 ///
@@ -30,9 +29,7 @@ where
     pub async fn try_new(
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        // The collector identifies streams by id; generate one locally rather
-        // than requiring the caller to supply it.
-        let client = Client::new(Uuid::now_v7(), options.address).await?;
+        let client = Client::new(options.address).await?;
         Ok(Self { client })
     }
 }
