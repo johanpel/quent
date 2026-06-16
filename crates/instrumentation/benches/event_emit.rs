@@ -57,7 +57,6 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
     let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
         format: FileSystemFormat::Ndjson,
         root: backing_dir.to_path_buf(),
-        file_name: None,
     });
     let opts = CollectorServiceOptions { exporter: backing };
 
@@ -125,7 +124,6 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Ndjson,
             root: ndjson_dir.path().to_path_buf(),
-            file_name: None,
         })),
     )?;
     bench_emit_variant(
@@ -134,7 +132,6 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Msgpack,
             root: msgpack_dir.path().to_path_buf(),
-            file_name: None,
         })),
     )?;
     bench_emit_variant(
@@ -143,7 +140,6 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Postcard,
             root: postcard_dir.path().to_path_buf(),
-            file_name: None,
         })),
     )?;
     bench_emit_variant(

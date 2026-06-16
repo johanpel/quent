@@ -29,9 +29,8 @@ pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
 pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
 
 /// Resolve the file an importer should read. If `path` is a directory, returns
-/// the single file in it whose extension is `ext` (the inverse of the
-/// filesystem exporter's `root/<context-id>/<file>` layout); otherwise returns
-/// `path` unchanged.
+/// the single file in it whose extension is `ext`; otherwise returns `path`
+/// unchanged.
 ///
 /// # Errors
 /// Returns [`ImporterError::IoError`] if the directory cannot be read or

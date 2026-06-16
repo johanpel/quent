@@ -634,17 +634,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Postcard,
             root: args.output_dir.clone().into(),
-            file_name: None,
         })),
         "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Msgpack,
             root: args.output_dir.clone().into(),
-            file_name: None,
         })),
         "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
             format: FileSystemFormat::Ndjson,
             root: args.output_dir.clone().into(),
-            file_name: None,
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,

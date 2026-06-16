@@ -82,8 +82,7 @@ pub struct Context<T>
 where
     T: Serialize + Send + 'static,
 {
-    /// Identity of this context, generated on construction. Filesystem
-    /// exporters write into a `root/<id>/` subdirectory keyed by it.
+    /// Identity of this context, generated on construction.
     id: Uuid,
     handle: Option<Handle>,
     events_sender: EventSender<T>,

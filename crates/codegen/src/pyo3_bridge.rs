@@ -629,7 +629,6 @@ fn emit_context(
                             root: std::path::PathBuf::from(
                                 output_dir.unwrap_or_else(|| ".".to_string()),
                             ),
-                            file_name: None,
                         },
                     )),
                     None => None,

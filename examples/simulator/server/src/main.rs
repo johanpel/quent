@@ -100,7 +100,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let exporter_kind = ExporterOptions::FileSystem(FileSystemExporterOptions {
         format,
         root: output_dir,
-        file_name: None,
     });
 
     let collector_options = CollectorServiceOptions {

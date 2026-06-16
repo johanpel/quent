@@ -435,7 +435,6 @@ fn emit_context_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile 
                     #q::exporter::FileSystemExporterOptions {
                         format: #q::exporter::FileSystemFormat::Ndjson,
                         root: std::path::PathBuf::from(output_dir),
-                        file_name: None,
                     },
                 )),
                 _ => None,

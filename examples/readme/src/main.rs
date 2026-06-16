@@ -10,7 +10,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         quent_model::exporter::FileSystemExporterOptions {
             format: quent_model::exporter::FileSystemFormat::Ndjson,
             root: root.clone(),
-            file_name: None,
         },
     );
     let context = AppContext::try_new(Some(exporter))?;
