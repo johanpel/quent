@@ -4,7 +4,7 @@
 //! Exporter sending events to a Collector service
 
 use quent_collector_client::Client;
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
@@ -41,7 +41,7 @@ where
 #[async_trait::async_trait]
 impl<T> Exporter<T> for CollectorExporter<T>
 where
-    T: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         self.client

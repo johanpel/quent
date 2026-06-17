@@ -8,7 +8,7 @@ use std::{
     path::PathBuf,
 };
 
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -17,13 +17,22 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
+
+/// File extension for ndjson event files.
+const EXTENSION: &str = "ndjson";
+
 /// Options for the ndjson exporter.
 ///
-/// Writes events as newline-delimited JSON (one JSON object per line) to the
-/// file at `path`. Human-readable, useful for debugging and manual inspection.
+/// A human-readable format useful for debugging and manual / LLM-based
+/// inspection.
+///
+/// Writes events as newline-delimited JSON (one JSON object per line) under
+/// `dir`, in a per-entity subdirectory holding a UUIDv7-named file with
+/// extension [`EXTENSION`].
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
-    pub path: PathBuf,
+    pub dir: PathBuf,
 }
 
 #[derive(Debug)]
@@ -32,15 +41,15 @@ pub struct NdjsonExporter {
 }
 
 impl NdjsonExporter {
-    pub async fn try_new(options: NdjsonExporterOptions) -> ExporterResult<Self> {
-        if let Some(parent) = options.path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        debug!("exporting to \"{}\"", options.path.display());
+    pub async fn try_new<T: EntityEvent>(options: NdjsonExporterOptions) -> ExporterResult<Self> {
+        let dir = options.dir.join(T::NAME);
+        tokio::fs::create_dir_all(&dir).await?;
+        let path = dir.join(format!("{}.{EXTENSION}", Uuid::now_v7()));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&options.path)
+            .open(&path)
             .await?;
 
         Ok(Self {
@@ -52,7 +61,7 @@ impl NdjsonExporter {
 #[async_trait::async_trait]
 impl<T> Exporter<T> for NdjsonExporter
 where
-    T: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         let line = format!(

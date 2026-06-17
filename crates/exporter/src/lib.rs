@@ -5,6 +5,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
+use quent_events::EntityEvent;
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -40,7 +41,8 @@ pub enum FileSystemFormat {
 }
 
 /// Options for exporting events to the filesystem in the given `format`. Events
-/// are written to `root/events.<ext>`.
+/// are written to `root/<entity>/events.<ext>`, one subdirectory per entity
+/// event stream (see [`create_exporter`]).
 #[derive(Debug, Clone)]
 pub struct FileSystemExporterOptions {
     pub format: FileSystemFormat,
@@ -118,38 +120,31 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`]. Filesystem exporters write to
-/// `root/events.<ext>`.
+/// Construct an exporter from [`ExporterOptions`].
 pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Arc<dyn Exporter<T>>>
 where
-    T: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     match kind {
         ExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => match format {
             #[cfg(feature = "ndjson")]
             FileSystemFormat::Ndjson => Ok(Arc::new(
-                quent_exporter_ndjson::NdjsonExporter::try_new(
-                    quent_exporter_ndjson::NdjsonExporterOptions {
-                        path: root.join("events.ndjson"),
-                    },
+                quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
+                    quent_exporter_ndjson::NdjsonExporterOptions { dir: root },
                 )
                 .await?,
             ) as Arc<dyn Exporter<T>>),
             #[cfg(feature = "msgpack")]
             FileSystemFormat::Msgpack => Ok(Arc::new(
-                quent_exporter_msgpack::MsgpackExporter::try_new(
-                    quent_exporter_msgpack::MsgpackExporterOptions {
-                        path: root.join("events.msgpack"),
-                    },
+                quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
+                    quent_exporter_msgpack::MsgpackExporterOptions { dir: root },
                 )
                 .await?,
             ) as Arc<dyn Exporter<T>>),
             #[cfg(feature = "postcard")]
             FileSystemFormat::Postcard => Ok(Arc::new(
-                quent_exporter_postcard::PostcardExporter::try_new(
-                    quent_exporter_postcard::PostcardExporterOptions {
-                        path: root.join("events.postcard"),
-                    },
+                quent_exporter_postcard::PostcardExporter::try_new::<T>(
+                    quent_exporter_postcard::PostcardExporterOptions { dir: root },
                 )
                 .await?,
             ) as Arc<dyn Exporter<T>>),

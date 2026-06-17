@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use quent_build_info::{ArtifactInfo, ModelSource};
+use quent_events::EntityEvent;
 use quent_exporter::{ExporterOptions, create_exporter};
 use quent_exporter_types::Exporter;
 use serde::{Deserialize, Serialize};
@@ -52,7 +53,7 @@ impl<T> CollectorService<T> {
 #[tonic::async_trait]
 impl<T> proto::collector_server::Collector for CollectorService<T>
 where
-    for<'de> T: Serialize + Deserialize<'de> + Send + ModelSource + 'static,
+    for<'de> T: Serialize + Deserialize<'de> + Send + ModelSource + EntityEvent + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(

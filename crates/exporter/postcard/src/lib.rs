@@ -7,7 +7,7 @@
 //! Each record: `[4 bytes: payload length as u32 BE][payload: postcard-encoded Event<T>]`
 use std::{io::BufReader, marker::PhantomData, path::PathBuf};
 
-use quent_events::Event;
+use quent_events::{EntityEvent, Event};
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -16,14 +16,20 @@ use tokio::{
     sync::Mutex,
 };
 use tracing::{debug, error};
+use uuid::Uuid;
+
+/// File extension for Postcard event files.
+const EXTENSION: &str = "postcard";
 
 /// Options for the Postcard exporter.
 ///
-/// Writes events in Postcard format (a compact, no_std-friendly binary
-/// encoding) to the file at `path`.
+/// A compact row-oriented binary format, which is not self-describing.
+///
+/// Writes events in Postcard format under `dir`, in a per-entity subdirectory
+/// holding a UUIDv7-named file with extension [`EXTENSION`].
 #[derive(Debug, Clone)]
 pub struct PostcardExporterOptions {
-    pub path: PathBuf,
+    pub dir: PathBuf,
 }
 
 #[derive(Debug)]
@@ -32,15 +38,15 @@ pub struct PostcardExporter {
 }
 
 impl PostcardExporter {
-    pub async fn try_new(options: PostcardExporterOptions) -> ExporterResult<Self> {
-        if let Some(parent) = options.path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-        debug!("exporting to \"{}\"", options.path.display());
+    pub async fn try_new<T: EntityEvent>(options: PostcardExporterOptions) -> ExporterResult<Self> {
+        let dir = options.dir.join(T::NAME);
+        tokio::fs::create_dir_all(&dir).await?;
+        let path = dir.join(format!("{}.{EXTENSION}", Uuid::now_v7()));
+        debug!("exporting to \"{}\"", path.display());
         let file = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&options.path)
+            .open(&path)
             .await?;
         Ok(Self {
             writer: Mutex::new(BufWriter::new(file)),
@@ -51,7 +57,7 @@ impl PostcardExporter {
 #[async_trait::async_trait]
 impl<T> Exporter<T> for PostcardExporter
 where
-    T: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         let payload =

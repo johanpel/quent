@@ -1868,6 +1868,7 @@ dependencies = [
  "dashmap",
  "quent-build-info",
  "quent-collector-proto",
+ "quent-events",
  "quent-exporter",
  "quent-exporter-types",
  "serde",
@@ -1928,6 +1929,7 @@ dependencies = [
 name = "quent-exporter"
 version = "0.1.0"
 dependencies = [
+ "quent-events",
  "quent-exporter-collector",
  "quent-exporter-msgpack",
  "quent-exporter-ndjson",
@@ -1960,6 +1962,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1973,6 +1976,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1986,6 +1990,7 @@ dependencies = [
  "serde",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
