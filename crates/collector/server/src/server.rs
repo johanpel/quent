@@ -1,16 +1,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A gRPC-based server that collects `Event`s from multiple sources and exports them.
+//! A gRPC-based server that reproduces each remote source's local output.
+//!
+//! Each source streams its umbrella events tagged with a `source-context-id`.
+//! The server runs one local `{App}Context` (a [`CollectorContext`]) per source
+//! id, feeding it the received events so it reproduces, on the server's own
+//! filesystem, exactly what the source produced locally (including the
+//! provenance sidecar the local context writes itself).
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use quent_build_info::{ArtifactInfo, ModelSource};
-use quent_events::EntityEvent;
-use quent_exporter::{ExporterOptions, create_exporter};
-use quent_exporter_types::Exporter;
-use serde::{Deserialize, Serialize};
+use quent_events::Event;
+use quent_exporter::ExporterOptions;
+use quent_instrumentation::CollectorContext;
+use serde::Deserialize;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
@@ -23,20 +28,19 @@ pub struct CollectorServiceOptions {
     pub exporter: ExporterOptions,
 }
 
-/// Exporters shared across streams, keyed by `application-id`.
-type Exporters<T> = Arc<RwLock<HashMap<Uuid, Arc<dyn Exporter<T>>>>>;
+/// Local contexts keyed by source context id; one per remote source.
+type Contexts<C> = Arc<RwLock<HashMap<Uuid, Arc<C>>>>;
 
-// Simple service to centralize telemetry from distributed clients
+// Centralizes telemetry from distributed sources by reproducing each source's
+// local production through a per-source local context.
 //
-// TODO(johanpel): clean up exporter after timeout or application end.
-pub struct CollectorService<T> {
-    // Exporters shared across streams, keyed by `application-id` so concurrent
-    // sources of the same application consolidate into one exporter.
-    exporters: Exporters<T>,
+// TODO(johanpel): clean up contexts after timeout or source end.
+pub struct CollectorService<C> {
+    contexts: Contexts<C>,
     exporter: ExporterOptions,
 }
 
-impl<T> std::fmt::Debug for CollectorService<T> {
+impl<C> std::fmt::Debug for CollectorService<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CollectorService")
             .field("exporter", &self.exporter)
@@ -44,128 +48,110 @@ impl<T> std::fmt::Debug for CollectorService<T> {
     }
 }
 
-impl<T> CollectorService<T> {
+impl<C> CollectorService<C> {
     pub fn new(options: CollectorServiceOptions) -> Self {
         Self {
-            exporters: Default::default(),
+            contexts: Default::default(),
             exporter: options.exporter,
         }
     }
 }
 
 #[tonic::async_trait]
-impl<T> proto::collector_server::Collector for CollectorService<T>
+impl<C> proto::collector_server::Collector for CollectorService<C>
 where
-    for<'de> T: Serialize + Deserialize<'de> + Send + ModelSource + EntityEvent + 'static,
+    C: CollectorContext + Send + Sync + 'static,
+    for<'de> C::Event: Deserialize<'de>,
 {
     #[tracing::instrument]
     async fn collect_events(
         &self,
         request: Request<Streaming<proto::CollectEventRequest>>,
     ) -> Result<Response<proto::CollectEventResponse>, Status> {
-        // The client identifies its stream with the `application-id` metadata.
-        let application_id = request
+        // The source identifies its stream with the `source-context-id` metadata.
+        let source_context_id = request
             .metadata()
-            .get("application-id")
-            .ok_or_else(|| Status::invalid_argument("missing `application-id` metadata"))?
+            .get("source-context-id")
+            .ok_or_else(|| Status::invalid_argument("missing `source-context-id` metadata"))?
             .to_str()
             .ok()
             .and_then(|s| Uuid::parse_str(s).ok())
             .ok_or_else(|| {
-                Status::invalid_argument("`application-id` metadata is not a valid UUID")
+                Status::invalid_argument("`source-context-id` metadata is not a valid UUID")
             })?;
 
         let mut stream = request.into_inner();
-        let exporters = Arc::clone(&self.exporters);
-        // Group each application's events under its own subdirectory.
-        let exporter_kind = self.exporter.clone().in_context_dir(application_id);
+        let contexts = Arc::clone(&self.contexts);
+        let exporter = self.exporter.clone();
         let export_join_handle = tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
                     Ok(request) => {
-                        // Reuse this application's exporter, or create it lazily
-                        // on the first batch (so an empty stream writes nothing).
-                        // The read guard is dropped before any `.await`.
-                        let cached = exporters.read().unwrap().get(&application_id).cloned();
-                        let exporter = if let Some(exporter) = cached {
-                            exporter
+                        // Reuse this source's context, or create it lazily on the
+                        // first batch. The read guard is dropped before any work
+                        // that could block; neither guard is held across `.await`.
+                        let cached = contexts.read().unwrap().get(&source_context_id).cloned();
+                        let context = if let Some(context) = cached {
+                            context
                         } else {
-                            // The server shares one exporter per application across
-                            // its stream handlers, so wrap the owned exporter in an
-                            // `Arc` here — that sharing is local to the collector.
-                            let exporter: Arc<dyn Exporter<T>> =
-                                match create_exporter::<T>(exporter_kind.clone()).await {
-                                    Ok(exporter) => Arc::from(exporter),
-                                    Err(e) => {
-                                        error!("unable to construct exporter: {e}");
-                                        break;
-                                    }
-                                };
-                            // Write the provenance sidecar once per application,
-                            // alongside the events this exporter just created
-                            // the directory for (filesystem exporters only).
-                            if let Some(dir) = exporter_kind.filesystem_root() {
-                                let info = ArtifactInfo::new(T::model_info());
-                                if let Err(e) = info.write_sidecar(dir) {
-                                    warn!("failed to write provenance sidecar: {e}");
+                            // The context builds its observers with `block_on`,
+                            // which would panic on a runtime worker thread, so
+                            // construct it on a blocking thread.
+                            let exporter = exporter.clone();
+                            // The error type is not `Send`, so stringify it on
+                            // the blocking thread before crossing the boundary.
+                            let built = tokio::task::spawn_blocking(move || {
+                                C::with_source_id(source_context_id, Some(exporter))
+                                    .map_err(|e| e.to_string())
+                            })
+                            .await;
+                            let context = match built {
+                                Ok(Ok(context)) => Arc::new(context),
+                                Ok(Err(e)) => {
+                                    error!("unable to construct local context: {e}");
+                                    break;
                                 }
-                            }
-                            exporters
+                                Err(e) => {
+                                    error!("local context construction panicked: {e}");
+                                    break;
+                                }
+                            };
+                            contexts
                                 .write()
                                 .unwrap()
-                                .insert(application_id, Arc::clone(&exporter));
-                            exporter
+                                .insert(source_context_id, Arc::clone(&context));
+                            context
                         };
 
-                        let mut events = Vec::with_capacity(request.event.len());
                         tracing::trace_span!("deserializing", num_events = request.event.len())
                             .in_scope(|| {
                                 for serialized_event in request.event {
-                                    match ciborium::from_reader(&serialized_event[..]) {
-                                        Ok(event) => events.push(event),
+                                    match ciborium::from_reader::<Event<C::Event>, _>(
+                                        &serialized_event[..],
+                                    ) {
+                                        Ok(event) => context.feed(event),
                                         Err(e) => {
                                             warn!("collector: deserialization error: {e}")
                                         }
                                     }
                                 }
                             });
-
-                        tracing::trace_span!("exporting")
-                            .in_scope(async || {
-                                for event in events {
-                                    match exporter.push(event).await {
-                                        Ok(_) => (), // successfully exported
-                                        Err(e) => {
-                                            warn!("collector: unable to export: {e}")
-                                        }
-                                    }
-                                }
-                            })
-                            .await;
                     }
                     Err(err) => {
                         warn!("collector: stream error: {err:?}");
-                        // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
-                        // We should clean up here, but the todo is to figure out what else can go wrong.
-                        let exporter = exporters.read().unwrap().get(&application_id).cloned();
-                        if let Some(exporter) = exporter {
-                            if let Err(e) = exporter.force_flush().await {
-                                warn!("unable to flush exporter: {e}");
-                            }
-                            exporters.write().unwrap().remove(&application_id);
+                        // TODO(johanpel): a source disconnecting (abruptly?) may result in entering this branch.
+                        // The context's observers flush on drop (via `block_on`),
+                        // so drop it on a blocking thread, not a runtime worker.
+                        let removed = contexts.write().unwrap().remove(&source_context_id);
+                        if let Some(context) = removed {
+                            let _ = tokio::task::spawn_blocking(move || drop(context)).await;
                         }
                         break;
                     }
                 }
             }
-
-            // Flush the exporter when stream ends normally
-            let exporter = exporters.read().unwrap().get(&application_id).cloned();
-            if let Some(exporter) = exporter
-                && let Err(e) = exporter.force_flush().await
-            {
-                warn!("unable to flush exporter after stream completion: {e}");
-            }
+            // On normal stream completion the context stays cached; its
+            // observers flush when the context is eventually dropped.
         });
         let _ = export_join_handle.await;
         Ok(Response::new(proto::CollectEventResponse {}))

@@ -6,8 +6,15 @@
 use quent_model::{Context, ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
 use uuid::Uuid;
 
-/// Model marker used only to obtain a no-op [`Context`] in tests.
-struct TestModel;
+/// Umbrella model event used only to obtain a no-op [`Context`] in tests.
+#[derive(serde::Serialize)]
+struct TestModel(TaskEvent);
+
+impl From<TaskEvent> for TestModel {
+    fn from(e: TaskEvent) -> Self {
+        TestModel(e)
+    }
+}
 
 impl quent_model::build_info::ModelSource for TestModel {
     fn package() -> &'static str {

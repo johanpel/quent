@@ -6,6 +6,7 @@
 use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{ExporterOptions, create_exporter};
+use quent_exporter_types::Exporter;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::sync::{
@@ -114,8 +115,23 @@ impl<M> Context<M> {
     where
         M: ModelSource,
     {
-        let id = Uuid::now_v7();
+        Self::try_with_id(Uuid::now_v7(), exporter)
+    }
 
+    /// Like [`Self::try_new`] but adopts an existing `id` instead of generating
+    /// one — used when reproducing another context's output (e.g. the collector
+    /// writing a remote source's streams under that source's context id).
+    ///
+    /// # Errors
+    /// Returns an error if no runtime is available and one cannot be spawned. A
+    /// failure to write the sidecar is logged, not returned.
+    pub fn try_with_id(
+        id: Uuid,
+        exporter: Option<ExporterOptions>,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: ModelSource,
+    {
         let Some(config) = exporter else {
             debug!("using noop exporter");
             return Ok(Context {
@@ -175,7 +191,8 @@ impl<M> Context<M> {
     /// Returns an error if the exporter cannot be constructed.
     pub fn observer<T>(&self) -> Result<Observer<T>, Box<dyn std::error::Error>>
     where
-        T: Serialize + Send + EntityEvent + 'static,
+        T: Serialize + Send + EntityEvent + Into<M> + 'static,
+        M: Serialize + Send + 'static,
     {
         let (Some(config), Some(handle)) = (&self.config, &self.handle) else {
             return Ok(Observer::noop());
@@ -184,7 +201,15 @@ impl<M> Context<M> {
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
         // The forwarder task owns the exporter outright; no sharing, no `Arc`.
-        let exporter = handle.block_on(create_exporter::<T>(kind))?;
+        // Filesystem exporters are built by `create_exporter`; the collector
+        // exporter is built here because it needs the umbrella wire type `M`.
+        let exporter: Box<dyn Exporter<T>> = match kind {
+            #[cfg(feature = "collector")]
+            ExporterOptions::Collector(options) => {
+                Box::new(handle.block_on(quent_exporter::CollectorExporter::<M>::try_new(options))?)
+            }
+            other => handle.block_on(create_exporter::<T>(other))?,
+        };
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -296,13 +321,37 @@ where
     }
 }
 
+/// A local model context that reproduces a remote source's output by feeding
+/// its observers with received umbrella events. Implemented by generated
+/// `{App}Context` types; the routing lives in this trait impl, keeping the
+/// context's inherent API a pure local-production type.
+pub trait CollectorContext: Sized {
+    /// The model's umbrella event type carried on the wire.
+    type Event;
+
+    /// Build a context that reproduces the source identified by `id`.
+    fn with_source_id(
+        id: Uuid,
+        exporter: Option<ExporterOptions>,
+    ) -> Result<Self, Box<dyn std::error::Error>>;
+
+    /// Route one received umbrella event to the matching entity observer.
+    fn feed(&self, event: Event<Self::Event>);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use quent_exporter::{FileSystemExporterOptions, FileSystemFormat};
 
-    #[derive(Debug)]
-    struct TestModel;
+    #[derive(Debug, serde::Serialize)]
+    struct TestModel(TestEvent);
+
+    impl From<TestEvent> for TestModel {
+        fn from(e: TestEvent) -> Self {
+            TestModel(e)
+        }
+    }
 
     impl ModelSource for TestModel {
         fn package() -> &'static str {

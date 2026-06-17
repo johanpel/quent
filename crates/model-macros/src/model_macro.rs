@@ -193,6 +193,24 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
+    // Per-entity observer accessor method names, reused by the router impl.
+    let observer_method_names: Vec<Ident> = variants
+        .iter()
+        .map(|variant| format_ident!("{}_observer", crate::util::to_snake_case(variant)))
+        .collect();
+
+    let feed_arms: Vec<TokenStream> = variants
+        .iter()
+        .zip(observer_method_names.iter())
+        .map(|(variant, method)| {
+            quote! {
+                #event_type::#variant(data) => self.#method().send(
+                    quent_model::Event::new(event.id, event.timestamp, data),
+                ),
+            }
+        })
+        .collect();
+
     let doc_model = format!("Model type alias for {name}.");
     let doc_event = format!("Events emitted by the {name} model.");
     let doc_context = format!(
@@ -290,6 +308,32 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     }
 
                     #(#observer_methods)*
+                }
+
+                // Collector routing for `#context_type`. Kept as a separate
+                // trait impl so the context's inherent API stays a pure
+                // local-production type. Emitted unconditionally for now;
+                // feature-gating it is a future refinement.
+                impl quent_model::CollectorContext for #context_type {
+                    type Event = #event_type;
+
+                    fn with_source_id(
+                        id: quent_model::uuid::Uuid,
+                        exporter: Option<quent_model::exporter::ExporterOptions>,
+                    ) -> Result<Self, Box<dyn std::error::Error>> {
+                        let inner = quent_model::Context::<#event_type>::try_with_id(id, exporter)?;
+                        #(#observer_inits)*
+                        Ok(Self {
+                            #(#observer_fields,)*
+                            _inner: inner,
+                        })
+                    }
+
+                    fn feed(&self, event: quent_model::Event<#event_type>) {
+                        match event.data {
+                            #(#feed_arms)*
+                        }
+                    }
                 }
             };
         }

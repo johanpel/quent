@@ -1156,7 +1156,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: args.collector_address,
-            application_id: engine.id,
+            // The context injects its id via `in_context_dir`; this is a placeholder.
+            source_context_id: Uuid::nil(),
         })),
         "none" => None,
         _ => {

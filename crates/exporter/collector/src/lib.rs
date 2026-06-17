@@ -13,39 +13,43 @@ use uuid::Uuid;
 ///
 /// Streams events over gRPC to a remote collector service. Use this for
 /// distributed deployments where events are centralized for analysis.
-/// `application_id` identifies this stream to the collector, which groups its
-/// events under that id.
+/// `source_context_id` identifies this stream to the collector, which
+/// reproduces the source's output under that id.
 #[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
-    pub application_id: Uuid,
+    pub source_context_id: Uuid,
 }
 
+/// Streams a model's entity events to a collector, wrapping each entity event
+/// into the umbrella wire type `U` so the serde variant tag identifies the
+/// entity (no separate event-type field is sent).
 #[derive(Debug)]
-pub struct CollectorExporter<T> {
-    client: Client<T>,
+pub struct CollectorExporter<U> {
+    client: Client<U>,
 }
 
-impl<T> CollectorExporter<T>
+impl<U> CollectorExporter<U>
 where
-    T: Serialize + Send + 'static,
+    U: Serialize + Send + 'static,
 {
     pub async fn try_new(
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(options.application_id, options.address).await?;
+        let client = Client::new(options.source_context_id, options.address).await?;
         Ok(Self { client })
     }
 }
 
 #[async_trait::async_trait]
-impl<T> Exporter<T> for CollectorExporter<T>
+impl<T, U> Exporter<T> for CollectorExporter<U>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Serialize + Send + EntityEvent + Into<U> + 'static,
+    U: Serialize + Send + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         self.client
-            .send(event)
+            .send(Event::new(event.id, event.timestamp, event.data.into()))
             .await
             .map_err(|e| ExporterError::Collector(format!("{e:?}")))?;
         Ok(())

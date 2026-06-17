@@ -156,7 +156,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "collector",
         Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: collector_address,
-            application_id: Uuid::now_v7(),
+            source_context_id: Uuid::nil(),
         })),
     )?;
 

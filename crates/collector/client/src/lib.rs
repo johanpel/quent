@@ -52,7 +52,7 @@ impl<T> Client<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub async fn new(application_id: Uuid, address: String) -> CollectorResult<Client<T>> {
+    pub async fn new(source_context_id: Uuid, address: String) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -175,11 +175,11 @@ where
 
         debug!("opening stream ...");
 
-        // Identify this stream so the collector groups its events under the id.
+        // Identify this stream so the collector reproduces its events under the id.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
-            "application-id",
-            application_id
+            "source-context-id",
+            source_context_id
                 .to_string()
                 .parse()
                 .expect("valid metadata value"),

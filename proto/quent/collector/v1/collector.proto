@@ -8,7 +8,7 @@ package quent.collector.v1;
 service Collector {
   // Request to set up an event stream.
   //
-  // Must include metadata key "engine-id": "<uuid string>".
+  // Must include metadata key "source-context-id": "<uuid string>".
   rpc CollectEvents(stream CollectEventRequest) returns (CollectEventResponse);
 }
 

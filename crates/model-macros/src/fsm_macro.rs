@@ -546,6 +546,11 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 Self { inner: ::std::sync::Arc::new(observer) }
             }
 
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<E>) {
+                self.inner.send(event);
+            }
+
             #observer_methods
         }
 

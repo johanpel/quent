@@ -489,6 +489,11 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                     Self { inner: ::std::sync::Arc::new(observer) }
                 }
 
+                /// Forward a pre-built event into this entity's stream.
+                pub fn send(&self, event: quent_model::Event<E>) {
+                    self.inner.send(event);
+                }
+
                 #[doc = #doc_method]
                 pub fn #alias(&self, id: quent_model::uuid::Uuid, event: #ty) {
                     self.inner.emit(id, #event_enum::#variant(event));
@@ -558,6 +563,11 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             {
                 pub fn new(observer: quent_model::Observer<E>) -> Self {
                     Self { inner: ::std::sync::Arc::new(observer) }
+                }
+
+                /// Forward a pre-built event into this entity's stream.
+                pub fn send(&self, event: quent_model::Event<E>) {
+                    self.inner.send(event);
                 }
 
                 #[doc = #doc_create]
@@ -686,6 +696,11 @@ fn expand_self_event(
         {
             pub fn new(observer: quent_model::Observer<E>) -> Self {
                 Self { inner: ::std::sync::Arc::new(observer) }
+            }
+
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<E>) {
+                self.inner.send(event);
             }
 
             #[doc = #doc_observer_method]
@@ -947,6 +962,11 @@ fn expand_rg_attrs(
         {
             pub fn new(observer: quent_model::Observer<E>) -> Self {
                 Self { inner: ::std::sync::Arc::new(observer) }
+            }
+
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<E>) {
+                self.inner.send(event);
             }
 
             #[doc = #doc_observer_method]

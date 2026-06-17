@@ -6,11 +6,10 @@ version.workspace = true
 
 [dependencies]
 ciborium = "0.2.2"
-quent-build-info = { path = "../../build-info" }
 quent-collector-proto = { path = "../proto" }
 quent-events = { path = "../../events" }
-quent-exporter-types = { path = "../../exporter/types" }
 quent-exporter = { path = "../../exporter" }
+quent-instrumentation = { path = "../../instrumentation" }
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true

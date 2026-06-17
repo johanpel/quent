@@ -89,7 +89,7 @@ pub use quent_events::{EntityEvent, Event};
 pub use quent_exporter as exporter;
 #[doc(hidden)]
 pub use quent_instrumentation::EventSender;
-pub use quent_instrumentation::{Context, Observer};
+pub use quent_instrumentation::{CollectorContext, Context, Observer};
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]
 pub use serde;

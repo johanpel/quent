@@ -13,7 +13,7 @@ use quent_exporter::{
 };
 use quent_query_engine_server::{analyzer_service_router, collector_service, initialize_tracing};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_instrumentation::{SimulatorContext, SimulatorEvent};
 use tokio::net::TcpListener;
 
 mod defaults {
@@ -106,7 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exporter: exporter_kind,
     };
     let collector = async {
-        collector_service::<SimulatorEvent>(collector_options)?
+        collector_service::<SimulatorContext>(collector_options)?
             .serve(collector_addr)
             .await
             .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })

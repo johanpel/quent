@@ -19,7 +19,7 @@ use uuid::Uuid;
 compile_error!("at least one exporter feature must be enabled");
 
 #[cfg(feature = "collector")]
-pub use quent_exporter_collector::CollectorExporterOptions;
+pub use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
 
 /// Selects an exporter and its options.
 #[derive(Debug, Clone)]
@@ -60,7 +60,10 @@ impl ExporterOptions {
                 ExporterOptions::FileSystem(options)
             }
             #[cfg(feature = "collector")]
-            ExporterOptions::Collector(options) => ExporterOptions::Collector(options),
+            ExporterOptions::Collector(mut options) => {
+                options.source_context_id = id;
+                ExporterOptions::Collector(options)
+            }
         }
     }
 
@@ -150,11 +153,11 @@ where
                 .await?,
             ) as Box<dyn Exporter<T>>),
         },
+        // The collector exporter is built by the instrumentation context, which
+        // knows the umbrella wire type; it cannot be constructed from `T` alone.
         #[cfg(feature = "collector")]
-        ExporterOptions::Collector(options) => Ok(Box::new(
-            quent_exporter_collector::CollectorExporter::try_new(options)
-                .await
-                .map_err(|e| ExporterError::Collector(e.to_string()))?,
-        ) as Box<dyn Exporter<T>>),
+        ExporterOptions::Collector(_) => Err(ExporterError::Collector(
+            "collector exporter is constructed by the instrumentation context".into(),
+        )),
     }
 }

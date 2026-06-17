@@ -8,6 +8,6 @@
 pub mod server;
 
 /// Re-exported so callers constructing a [`server::CollectorService`] over a
-/// generic event type can bound it without depending on `quent-build-info`
-/// directly.
-pub use quent_build_info::ModelSource;
+/// generic context type can bound it without depending on
+/// `quent-instrumentation` directly.
+pub use quent_instrumentation::CollectorContext;

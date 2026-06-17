@@ -834,6 +834,11 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
                 Self { inner: ::std::sync::Arc::new(observer) }
             }
 
+            /// Forward a pre-built event into this entity's stream.
+            pub fn send(&self, event: quent_model::Event<E>) {
+                self.inner.send(event);
+            }
+
             #[doc = #doc_observer_init]
             pub fn initializing(&self, id: quent_model::uuid::Uuid, instance_name: &str, parent_group_id: quent_model::uuid::Uuid, #(#user_init_param_defs,)*) -> #handle_name<E> {
                 let state = #init_state {

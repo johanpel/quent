@@ -9,7 +9,7 @@ use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
@@ -41,14 +41,14 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<E>(
+pub fn collector_service<C>(
     options: CollectorServiceOptions,
 ) -> Result<Router, Box<dyn std::error::Error>>
 where
-    E: Serialize + Send + Sync + 'static + quent_collector::ModelSource,
-    for<'de> E: Deserialize<'de>,
+    C: quent_collector::CollectorContext + Send + Sync + 'static,
+    for<'de> C::Event: Deserialize<'de>,
 {
-    let collector = CollectorService::<E>::new(options);
+    let collector = CollectorService::<C>::new(options);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
 }
 
