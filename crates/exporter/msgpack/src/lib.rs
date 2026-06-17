@@ -26,7 +26,7 @@ const EXTENSION: &str = "msgpack";
 /// A compact row-oriented binary format, which is self-describing.
 ///
 /// Writes events in MessagePack binary format under `dir`, in a per-entity
-/// subdirectory holding a UUIDv7-named file with extension [`EXTENSION`].
+/// subdirectory holding a UUIDv7-named `.msgpack` file.
 #[derive(Debug, Clone)]
 pub struct MsgpackExporterOptions {
     pub dir: PathBuf,

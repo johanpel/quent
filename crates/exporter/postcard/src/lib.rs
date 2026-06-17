@@ -26,7 +26,7 @@ const EXTENSION: &str = "postcard";
 /// A compact row-oriented binary format, which is not self-describing.
 ///
 /// Writes events in Postcard format under `dir`, in a per-entity subdirectory
-/// holding a UUIDv7-named file with extension [`EXTENSION`].
+/// holding a UUIDv7-named `.postcard` file.
 #[derive(Debug, Clone)]
 pub struct PostcardExporterOptions {
     pub dir: PathBuf,

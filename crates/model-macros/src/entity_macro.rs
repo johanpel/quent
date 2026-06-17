@@ -308,18 +308,28 @@ impl Parse for EntityInput {
 pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: EntityInput = syn::parse2(input)?;
     let ua = &input.user_attrs;
-    match input.kind {
-        EntityKind::SelfEvent(fields) => expand_self_event(&input.name, &fields, ua),
-        EntityKind::MultiEvent(events) => expand_multi_event(&input.name, &events, ua),
+    let event_enum = format_ident!("{}Event", &input.name);
+    let event_name = event_enum.to_string();
+    let body = match input.kind {
+        EntityKind::SelfEvent(fields) => expand_self_event(&input.name, &fields, ua)?,
+        EntityKind::MultiEvent(events) => expand_multi_event(&input.name, &events, ua)?,
         EntityKind::ResourceGroupAttrs { meta, fields } => {
-            expand_rg_attrs(&input.name, &meta, &fields, ua)
+            expand_rg_attrs(&input.name, &meta, &fields, ua)?
         }
         EntityKind::ResourceGroupEvents {
             meta,
             declaration,
             events,
-        } => expand_rg_events(&input.name, &meta, declaration.as_ref(), &events, ua),
-    }
+        } => expand_rg_events(&input.name, &meta, declaration.as_ref(), &events, ua)?,
+    };
+    // Every entity exposes its event enum as a named stream for exporters.
+    Ok(quote! {
+        #body
+
+        impl quent_model::EntityEvent for #event_enum {
+            const NAME: &'static str = #event_name;
+        }
+    })
 }
 
 // Shared helpers

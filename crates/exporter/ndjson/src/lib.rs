@@ -28,8 +28,7 @@ const EXTENSION: &str = "ndjson";
 /// inspection.
 ///
 /// Writes events as newline-delimited JSON (one JSON object per line) under
-/// `dir`, in a per-entity subdirectory holding a UUIDv7-named file with
-/// extension [`EXTENSION`].
+/// `dir`, in a per-entity subdirectory holding a UUIDv7-named `.ndjson` file.
 #[derive(Debug, Clone)]
 pub struct NdjsonExporterOptions {
     pub dir: PathBuf,

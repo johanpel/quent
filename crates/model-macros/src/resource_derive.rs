@@ -233,6 +233,7 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let resize_state = format_ident!("{}Resizing", name);
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
+    let event_name = event_type.to_string();
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
     let resource_marker = format_ident!("{}Resource", name);
@@ -770,6 +771,12 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
 
         #[doc = #doc_event]
         #vis type #event_type = quent_model::FsmEvent<#transition_enum>;
+
+        // The transition enum carries the resource's event-stream name; a blanket
+        // impl on `FsmEvent<S>` forwards it (the alias is over a foreign type).
+        impl quent_model::EntityEvent for #transition_enum {
+            const NAME: &'static str = #event_name;
+        }
 
         impl quent_model::HasEventType for #name {
             type Event = quent_model::FsmEvent<#transition_enum>;

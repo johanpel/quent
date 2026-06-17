@@ -181,6 +181,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
+    let event_name = event_type.to_string();
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
 
@@ -441,6 +442,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         #[doc = #doc_event]
         pub type #event_type = quent_model::FsmEvent<#transition_enum>;
+
+        // The transition enum carries the FSM's event-stream name; a blanket impl
+        // on `FsmEvent<S>` forwards it (the alias is over a foreign type).
+        impl quent_model::EntityEvent for #transition_enum {
+            const NAME: &'static str = #event_name;
+        }
 
         impl quent_model::ModelComponent for #name {
             fn collect(builder: &mut quent_model::ModelBuilder) {
