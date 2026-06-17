@@ -467,23 +467,31 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         quote! {
             #[doc = #doc_observer]
             #[doc(alias = "observer")]
-            #[derive(Clone)]
             pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
-                tx: quent_model::EventSender<E>,
+                inner: ::std::sync::Arc<quent_model::Observer<E>>,
+            }
+
+            // Cloning shares the underlying observer; `E: Clone` is not required.
+            impl<E> Clone for #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
+            {
+                fn clone(&self) -> Self {
+                    Self { inner: self.inner.clone() }
+                }
             }
 
             impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
+                pub fn new(observer: quent_model::Observer<E>) -> Self {
+                    Self { inner: ::std::sync::Arc::new(observer) }
                 }
 
                 #[doc = #doc_method]
                 pub fn #alias(&self, id: quent_model::uuid::Uuid, event: #ty) {
-                    self.tx.emit(id, #event_enum::#variant(event));
+                    self.inner.emit(id, #event_enum::#variant(event));
                 }
             }
         }
@@ -504,7 +512,7 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
                 quote! {
                     #[doc = #doc_method]
                     pub fn #alias(&self, event: #ty) {
-                        self.tx.emit(self.id, #event_enum::#variant(event));
+                        self.inner.emit(self.id, #event_enum::#variant(event));
                     }
                 }
             })
@@ -514,14 +522,14 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
             #[doc = #doc_handle]
             #[doc(alias = "handle")]
             pub struct #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
                 id: quent_model::uuid::Uuid,
-                tx: quent_model::EventSender<E>,
+                inner: ::std::sync::Arc<quent_model::Observer<E>>,
             }
 
             impl<E> #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
                 #[doc = #doc_handle_uuid]
                 pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
@@ -530,23 +538,31 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
             #[doc = #doc_observer]
             #[doc(alias = "observer")]
-            #[derive(Clone)]
             pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
-                tx: quent_model::EventSender<E>,
+                inner: ::std::sync::Arc<quent_model::Observer<E>>,
+            }
+
+            // Cloning shares the underlying observer; `E: Clone` is not required.
+            impl<E> Clone for #observer_name<E>
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
+            {
+                fn clone(&self) -> Self {
+                    Self { inner: self.inner.clone() }
+                }
             }
 
             impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + 'static,
+            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
             {
-                pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                    Self { tx: tx.clone() }
+                pub fn new(observer: quent_model::Observer<E>) -> Self {
+                    Self { inner: ::std::sync::Arc::new(observer) }
                 }
 
                 #[doc = #doc_create]
                 pub fn create(&self, id: quent_model::uuid::Uuid) -> #handle_name<E> {
-                    #handle_name { id, tx: self.tx.clone() }
+                    #handle_name { id, inner: self.inner.clone() }
                 }
             }
         }
@@ -650,24 +666,32 @@ fn expand_self_event(
 
         #[doc = #doc_observer]
             #[doc(alias = "observer")]
-        #[derive(Clone)]
         pub struct #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + 'static,
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<E>>,
+        }
+
+        // Cloning shares the underlying observer; `E: Clone` is not required.
+        impl<E> Clone for #observer_name<E>
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
+        {
+            fn clone(&self) -> Self {
+                Self { inner: self.inner.clone() }
+            }
         }
 
         impl<E> #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + 'static,
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                Self { tx: tx.clone() }
+            pub fn new(observer: quent_model::Observer<E>) -> Self {
+                Self { inner: ::std::sync::Arc::new(observer) }
             }
 
             #[doc = #doc_observer_method]
             #[doc(alias = "observer")]
             pub fn #method_name(&self, id: quent_model::uuid::Uuid, #(#param_defs,)*) {
-                self.tx.emit(id, #event_enum::from(#name { #(#field_names,)* }));
+                self.inner.emit(id, #event_enum::from(#name { #(#field_names,)* }));
             }
         }
 
@@ -903,18 +927,26 @@ fn expand_rg_attrs(
 
         #[doc = #doc_observer]
             #[doc(alias = "observer")]
-        #[derive(Clone)]
         pub struct #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + 'static,
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<E>>,
+        }
+
+        // Cloning shares the underlying observer; `E: Clone` is not required.
+        impl<E> Clone for #observer_name<E>
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
+        {
+            fn clone(&self) -> Self {
+                Self { inner: self.inner.clone() }
+            }
         }
 
         impl<E> #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + 'static,
+        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                Self { tx: tx.clone() }
+            pub fn new(observer: quent_model::Observer<E>) -> Self {
+                Self { inner: ::std::sync::Arc::new(observer) }
             }
 
             #[doc = #doc_observer_method]
@@ -929,7 +961,7 @@ fn expand_rg_attrs(
                     instance_name: instance_name.to_string(),
                     #(#decl_field_inits)*
                 };
-                self.tx.emit(id, #event_enum::from(event));
+                self.inner.emit(id, #event_enum::from(event));
                 id
             }
         }

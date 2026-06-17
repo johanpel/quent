@@ -6,7 +6,6 @@
 use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{ExporterOptions, create_exporter};
-use quent_exporter_types::Exporter;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::sync::{
@@ -91,16 +90,15 @@ impl<T> EventSender<T> {
 pub struct Context<M> {
     /// Identity of this context, generated on construction.
     id: Uuid,
-    /// Exporter configuration cloned into each observer's pipeline; `None` is a
+    /// Exporter configuration cloned into each observer it builds; `None` is a
     /// no-op context that creates no runtime.
     config: Option<ExporterOptions>,
     handle: Option<Handle>,
+    /// Shared with every [`Observer`] this context builds so the runtime
+    /// outlives them regardless of drop order; `None` when running on a
+    /// caller-provided (ambient) runtime.
+    runtime: Option<Arc<Runtime>>,
     _model: PhantomData<M>,
-
-    // The runtime is the last field so it is dropped last (see
-    // https://doc.rust-lang.org/reference/destructors.html), after the
-    // observers it spawned forwarder tasks for have been dropped and drained.
-    _runtime: Option<Runtime>,
 }
 
 impl<M> Context<M> {
@@ -124,8 +122,8 @@ impl<M> Context<M> {
                 id,
                 config: None,
                 handle: None,
+                runtime: None,
                 _model: PhantomData,
-                _runtime: None,
             });
         };
 
@@ -136,7 +134,7 @@ impl<M> Context<M> {
             debug!("spawning new async runtime");
             if let Ok(runtime) = Runtime::new() {
                 let handle = runtime.handle().clone();
-                (Some(runtime), handle)
+                (Some(Arc::new(runtime)), handle)
             } else {
                 return Err("unable to spawn async runtime")?;
             }
@@ -159,8 +157,8 @@ impl<M> Context<M> {
             id,
             config: Some(config),
             handle: Some(handle),
+            runtime,
             _model: PhantomData,
-            _runtime: runtime,
         })
     }
 
@@ -185,36 +183,38 @@ impl<M> Context<M> {
 
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
-        let exporter: Arc<dyn Exporter<T>> = handle.block_on(create_exporter(kind))?;
+        // The forwarder task owns the exporter outright; no sharing, no `Arc`.
+        let exporter = handle.block_on(create_exporter::<T>(kind))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
         let (events_sender, mut events_receiver) = unbounded_channel();
 
-        let forwarder_handle = handle.spawn({
-            let exporter: Arc<dyn Exporter<T>> = Arc::clone(&exporter);
-            async move {
-                loop {
-                    tokio::select! {
-                        Some(event) = events_receiver.recv() => {
+        let forwarder_handle = handle.spawn(async move {
+            loop {
+                tokio::select! {
+                    Some(event) = events_receiver.recv() => {
+                        if let Err(e) = exporter.push(event).await {
+                            warn!("unable to export event: {e}");
+                        }
+                    },
+                    () = cloned_token.cancelled() => {
+                        events_receiver.close();
+                        // drain events that are buffered
+                        while let Some(event) = events_receiver.recv().await {
                             if let Err(e) = exporter.push(event).await {
                                 warn!("unable to export event: {e}");
                             }
-                        },
-                        () = cloned_token.cancelled() => {
-                            events_receiver.close();
-                            // drain events that are buffered
-                            while let Some(event) = events_receiver.recv().await {
-                                if let Err(e) = exporter.push(event).await {
-                                    warn!("unable to export event: {e}");
-                                }
-                            }
-                            break
-                        },
-                        // the events channel has been closed: nothing left to forward.
-                        else => break,
-                    }
+                        }
+                        break
+                    },
+                    // the events channel has been closed: nothing left to forward.
+                    else => break,
                 }
+            }
+            // Flush once on shutdown, however the loop exited.
+            if let Err(e) = exporter.force_flush().await {
+                warn!("failed to flush exporter: {e}");
             }
         });
 
@@ -223,28 +223,33 @@ impl<M> Context<M> {
                 tx: Some(events_sender),
                 disable_error_log: Arc::new(AtomicBool::new(false)),
             },
-            exporter: Some(exporter),
             cancellation_token,
             forwarder_handle: Some(forwarder_handle),
             handle: Some(handle.clone()),
+            _runtime: self.runtime.clone(),
         })
     }
 }
 
-/// One entity's event pipeline: channel → forwarder task → exporter. Hand out
-/// cloned senders with [`Self::sender`] and emit through them concurrently. On
-/// drop, drains buffered events and flushes the exporter, using the runtime
-/// [`Handle`] it was built with — so an observer must be dropped where
-/// [`Handle::block_on`] is valid and while that runtime is still alive.
+/// One entity's event stream. It owns the channel and the forwarder task (which
+/// in turn owns the exporter) plus a share of the runtime, so it operates
+/// independently of the [`Context`] that built it (typically held behind an
+/// `Arc` and shared across the application). Emit through [`Self::send`] /
+/// [`Self::emit`]. On drop it cancels and waits (via `block_on`) for the
+/// forwarder to drain buffered events and flush the exporter, so it must be
+/// dropped where [`Handle::block_on`] is valid (not on a runtime worker thread).
 pub struct Observer<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
     events_sender: EventSender<T>,
-    exporter: Option<Arc<dyn Exporter<T>>>,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
     handle: Option<Handle>,
+    /// Keeps the runtime alive for as long as this observer lives, so its drop
+    /// flush is valid even after the [`Context`] is gone. `None` for a no-op
+    /// observer or on an ambient runtime.
+    _runtime: Option<Arc<Runtime>>,
 }
 
 impl<T> Observer<T>
@@ -255,16 +260,21 @@ where
     fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
-            exporter: None,
             cancellation_token: CancellationToken::new(),
             forwarder_handle: None,
             handle: None,
+            _runtime: None,
         }
     }
 
-    /// A cloned [`EventSender`] for this stream; cheap and `Send + Sync + Clone`.
-    pub fn sender(&self) -> EventSender<T> {
-        self.events_sender.clone()
+    /// Send a pre-built event into this stream.
+    pub fn send(&self, event: Event<T>) {
+        self.events_sender.send(event);
+    }
+
+    /// Emit an event for entity `id`, converting it into the stream type.
+    pub fn emit(&self, id: Uuid, event: impl Into<T>) {
+        self.events_sender.emit(id, event);
     }
 }
 
@@ -275,20 +285,13 @@ where
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 
-        if let Some(handle) = &self.handle {
-            // Wait for the forwarder to finish processing remaining events.
-            if let Some(forwarder_handle) = self.forwarder_handle.take()
-                && let Err(e) = handle.block_on(forwarder_handle)
-            {
-                warn!("forwarder task failed: {e}");
-            }
-
-            // Flush the exporter to ensure all events are sent.
-            if let Some(exporter) = &self.exporter
-                && let Err(e) = handle.block_on(exporter.force_flush())
-            {
-                warn!("failed to flush exporter: {e}");
-            }
+        // Wait for the forwarder to drain remaining events and flush the
+        // exporter (it owns the exporter and flushes on shutdown).
+        if let Some(handle) = &self.handle
+            && let Some(forwarder_handle) = self.forwarder_handle.take()
+            && let Err(e) = handle.block_on(forwarder_handle)
+        {
+            warn!("forwarder task failed: {e}");
         }
     }
 }
@@ -321,14 +324,13 @@ mod tests {
     fn noop_context_creates_noop_observer() {
         let ctx = Context::<TestModel>::try_new(None).unwrap();
         assert!(ctx.handle.is_none());
-        assert!(ctx._runtime.is_none());
+        assert!(ctx.runtime.is_none());
 
         let observer = ctx.observer::<TestEvent>().unwrap();
-        let sender = observer.sender();
-        assert!(sender.tx.is_none());
+        assert!(observer.events_sender.tx.is_none());
 
-        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
-        sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
+        observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
+        observer.emit(Uuid::now_v7(), TestEvent);
         drop(observer);
         drop(ctx);
     }
@@ -348,8 +350,7 @@ mod tests {
 
         {
             let observer = ctx.observer::<TestEvent>().unwrap();
-            let sender = observer.sender();
-            sender.send(Event::new_now(Uuid::now_v7(), TestEvent));
+            observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.
         }
 

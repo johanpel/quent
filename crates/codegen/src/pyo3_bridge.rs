@@ -434,6 +434,7 @@ fn emit_state_args(
 fn emit_helpers(q: &syn::Path) -> TokenStream {
     quote! {
         use pyo3::prelude::*;
+        use std::sync::Arc;
         use pyo3::types::{
             PyAny, PyBool, PyBoolMethods, PyDict, PyFloat, PyFloatMethods, PyInt, PyModule,
             PyString, PyStringMethods, PyTuple,
@@ -572,46 +573,126 @@ fn emit_context(
     event_type: &syn::Type,
     options: &PyO3Options,
 ) -> TokenStream {
-    let observer_methods: Vec<TokenStream> = model
+    struct ObserverField {
+        field: syn::Ident,
+        method: syn::Ident,
+        class: syn::Ident,
+        stored_ty: TokenStream,
+        build: TokenStream,
+    }
+
+    let observer_fields: Vec<ObserverField> = model
         .entities
         .iter()
         .map(|entity| {
+            let field = format_ident!("{}", entity.name);
             let method = format_ident!("{}", py_export_name(&format!("{}_observer", entity.name)));
             let class = py_class_ident(&py_export_name(&format!(
                 "{}Observer",
                 to_pascal_case(&entity.name)
             )));
-            quote! {
-                pub fn #method(&self) -> PyResult<#class> {
-                    Ok(#class {
-                        tx: self.events_sender()?,
-                    })
-                }
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
+            let entity_event_enum = event_enum_ident(&entity.name);
+            let stored_ty = quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> };
+            let build = quote! {
+                let #field = Arc::new(
+                    inner
+                        .observer::<#component_mod::#entity_event_enum>()
+                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
+                );
+            };
+            ObserverField {
+                field,
+                method,
+                class,
+                stored_ty,
+                build,
             }
         })
         .chain(model.fsms.iter().map(|fsm| {
+            let field = format_ident!("{}", fsm.name);
             let method = format_ident!("{}", py_export_name(&format!("{}_observer", fsm.name)));
             let class = py_class_ident(&py_export_name(&format!(
                 "{}Observer",
                 to_pascal_case(&fsm.name)
             )));
-            quote! {
-                pub fn #method(&self) -> PyResult<#class> {
-                    Ok(#class {
-                        tx: self.events_sender()?,
-                    })
-                }
+            let component_mod: syn::Path =
+                syn::parse_str(&remap_module_path(&fsm.module_path, options)).unwrap();
+            let pascal = to_pascal_case(&fsm.name);
+            let facade = format_ident!("{}Observer", pascal);
+            let fsm_event = format_ident!("{}Event", pascal);
+            let stored_ty = quote! { #component_mod::#facade<#component_mod::#fsm_event> };
+            let build = quote! {
+                let #field = #component_mod::#facade::new(
+                    inner
+                        .observer::<#component_mod::#fsm_event>()
+                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
+                );
+            };
+            ObserverField {
+                field,
+                method,
+                class,
+                stored_ty,
+                build,
             }
         }))
         .collect();
 
+    let struct_fields: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let stored_ty = &o.stored_ty;
+            quote! { #field: Option<#stored_ty> }
+        })
+        .collect();
+
+    let field_builds: Vec<TokenStream> = observer_fields.iter().map(|o| o.build.clone()).collect();
+
+    let field_inits: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            quote! { #field: Some(#field) }
+        })
+        .collect();
+
+    let field_closes: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            quote! { self.#field.take(); }
+        })
+        .collect();
+
     let module_name = &options.module_name;
+
+    let observer_methods: Vec<TokenStream> = observer_fields
+        .iter()
+        .map(|o| {
+            let field = &o.field;
+            let method = &o.method;
+            let class = &o.class;
+            quote! {
+                pub fn #method(&self) -> PyResult<#class> {
+                    let inner = self.#field.clone().ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err(
+                            format!("`{}` context is closed", #module_name),
+                        )
+                    })?;
+                    Ok(#class { inner })
+                }
+            }
+        })
+        .collect();
 
     quote! {
         #[pyclass(name = "Context")]
         pub struct PyContext {
             inner: Option<#q::Context<#event_type>>,
-            tx: #q::EventSender<#event_type>,
+            #(#struct_fields,)*
             id: #q::uuid::Uuid,
         }
 
@@ -641,10 +722,10 @@ fn emit_context(
                 let inner = #q::Context::try_new(opts)
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                 let id = inner.id();
-                let tx = inner.events_sender();
+                #(#field_builds)*
                 Ok(Self {
                     inner: Some(inner),
-                    tx,
+                    #(#field_inits,)*
                     id,
                 })
             }
@@ -655,6 +736,7 @@ fn emit_context(
             }
 
             pub fn close(&mut self) {
+                #(#field_closes)*
                 self.inner.take();
             }
 
@@ -673,24 +755,12 @@ fn emit_context(
 
             #(#observer_methods)*
         }
-
-        impl PyContext {
-            fn events_sender(&self) -> PyResult<#q::EventSender<#event_type>> {
-                if self.inner.is_none() {
-                    return Err(pyo3::exceptions::PyRuntimeError::new_err(
-                        format!("`{}` context is closed", #module_name),
-                    ));
-                }
-                Ok(self.tx.clone())
-            }
-        }
     }
 }
 
 fn emit_entity_bridge(
     entity: &quent_model::EntityDef,
     q: &syn::Path,
-    event_type: &syn::Type,
     options: &PyO3Options,
 ) -> TokenStream {
     let multi_event = entity.events.len() > 1;
@@ -780,9 +850,9 @@ fn emit_entity_bridge(
                 pub fn #method(&self, #(#params,)*) -> PyResult<#ret_ty> {
                     #(#bindings)*
                     let model_event = #model_event;
-                    self.tx.send(#q::Event::new_now(
+                    self.inner.send(#q::Event::new_now(
                         #id_expr,
-                        #component_mod::#entity_event_enum::from(model_event).into(),
+                        #component_mod::#entity_event_enum::from(model_event),
                     ));
                     Ok(#ret_expr)
                 }
@@ -794,7 +864,7 @@ fn emit_entity_bridge(
         quote! {
             #[pyclass(name = #observer_py_name)]
             pub struct #observer {
-                tx: #q::EventSender<#event_type>,
+                inner: Arc<#q::Observer<#component_mod::#entity_event_enum>>,
             }
 
             #[pymethods]
@@ -802,7 +872,7 @@ fn emit_entity_bridge(
                 pub fn create(&self, id: PyRef<'_, PyUuid>) -> PyResult<#handle> {
                     Ok(#handle {
                         id: id.inner,
-                        tx: self.tx.clone(),
+                        inner: self.inner.clone(),
                     })
                 }
             }
@@ -810,7 +880,7 @@ fn emit_entity_bridge(
             #[pyclass(name = #handle_py_name)]
             pub struct #handle {
                 id: #q::uuid::Uuid,
-                tx: #q::EventSender<#event_type>,
+                inner: Arc<#q::Observer<#component_mod::#entity_event_enum>>,
             }
 
             #[pymethods]
@@ -827,7 +897,7 @@ fn emit_entity_bridge(
         quote! {
         #[pyclass(name = #observer_py_name)]
         pub struct #observer {
-            tx: #q::EventSender<#event_type>,
+            inner: Arc<#q::Observer<#component_mod::#entity_event_enum>>,
         }
 
         #[pymethods]
@@ -842,7 +912,6 @@ fn emit_fsm_bridge(
     model: &ModelBuilder,
     fsm: &FsmDef,
     q: &syn::Path,
-    event_type: &syn::Type,
     options: &PyO3Options,
 ) -> TokenStream {
     let pascal_name = to_pascal_case(&fsm.name);
@@ -852,11 +921,9 @@ fn emit_fsm_bridge(
     let handle = py_class_ident(&handle_py_name);
     let component_mod_str = remap_module_path(&fsm.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&component_mod_str).unwrap();
+    let fsm_event = format_ident!("{}Event", pascal_name);
     let model_handle: syn::Type = syn::parse_str(&format!(
-        "{}::{}Handle<{}>",
-        component_mod_str,
-        pascal_name,
-        quote!(#event_type)
+        "{component_mod_str}::{pascal_name}Handle<{component_mod_str}::{pascal_name}Event>",
     ))
     .unwrap();
 
@@ -906,7 +973,7 @@ fn emit_fsm_bridge(
     quote! {
         #[pyclass(name = #observer_py_name)]
         pub struct #observer {
-            tx: #q::EventSender<#event_type>,
+            inner: #component_mod::#observer_name<#component_mod::#fsm_event>,
         }
 
         #[pymethods]
@@ -918,7 +985,7 @@ fn emit_fsm_bridge(
             ) -> PyResult<#handle> {
                 let id = id.inner;
                 #entry_bindings
-                let obs = #component_mod::#observer_name::new(&self.tx);
+                let obs = self.inner.clone();
                 Ok(#handle {
                     inner: obs.#model_entry_method(id, #(#entry_args),*),
                 })
@@ -960,12 +1027,12 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
     let entity_bridges: Vec<TokenStream> = model
         .entities
         .iter()
-        .map(|entity| emit_entity_bridge(entity, &q, &event_type, options))
+        .map(|entity| emit_entity_bridge(entity, &q, options))
         .collect();
     let fsm_bridges: Vec<TokenStream> = model
         .fsms
         .iter()
-        .map(|fsm| emit_fsm_bridge(model, fsm, &q, &event_type, options))
+        .map(|fsm| emit_fsm_bridge(model, fsm, &q, options))
         .collect();
 
     let observer_classes: Vec<syn::Ident> = model

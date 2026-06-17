@@ -3,7 +3,7 @@
 
 //! Umbrella crate providing unified exporter/importer creation.
 
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use quent_events::EntityEvent;
 use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
@@ -120,40 +120,41 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`].
-pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Arc<dyn Exporter<T>>>
+/// Construct an exporter from [`ExporterOptions`]. The caller owns the returned
+/// exporter; wrap it in an [`std::sync::Arc`] if it needs to be shared.
+pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
     match kind {
         ExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => match format {
             #[cfg(feature = "ndjson")]
-            FileSystemFormat::Ndjson => Ok(Arc::new(
+            FileSystemFormat::Ndjson => Ok(Box::new(
                 quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
                     quent_exporter_ndjson::NdjsonExporterOptions { dir: root },
                 )
                 .await?,
-            ) as Arc<dyn Exporter<T>>),
+            ) as Box<dyn Exporter<T>>),
             #[cfg(feature = "msgpack")]
-            FileSystemFormat::Msgpack => Ok(Arc::new(
+            FileSystemFormat::Msgpack => Ok(Box::new(
                 quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
                     quent_exporter_msgpack::MsgpackExporterOptions { dir: root },
                 )
                 .await?,
-            ) as Arc<dyn Exporter<T>>),
+            ) as Box<dyn Exporter<T>>),
             #[cfg(feature = "postcard")]
-            FileSystemFormat::Postcard => Ok(Arc::new(
+            FileSystemFormat::Postcard => Ok(Box::new(
                 quent_exporter_postcard::PostcardExporter::try_new::<T>(
                     quent_exporter_postcard::PostcardExporterOptions { dir: root },
                 )
                 .await?,
-            ) as Arc<dyn Exporter<T>>),
+            ) as Box<dyn Exporter<T>>),
         },
         #[cfg(feature = "collector")]
-        ExporterOptions::Collector(options) => Ok(Arc::new(
+        ExporterOptions::Collector(options) => Ok(Box::new(
             quent_exporter_collector::CollectorExporter::try_new(options)
                 .await
                 .map_err(|e| ExporterError::Collector(e.to_string()))?,
-        ) as Arc<dyn Exporter<T>>),
+        ) as Box<dyn Exporter<T>>),
     }
 }

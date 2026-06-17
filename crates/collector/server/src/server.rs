@@ -3,9 +3,9 @@
 
 //! A gRPC-based server that collects `Event`s from multiple sources and exports them.
 
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-use dashmap::DashMap;
 use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_events::EntityEvent;
 use quent_exporter::{ExporterOptions, create_exporter};
@@ -23,13 +23,16 @@ pub struct CollectorServiceOptions {
     pub exporter: ExporterOptions,
 }
 
+/// Exporters shared across streams, keyed by `application-id`.
+type Exporters<T> = Arc<RwLock<HashMap<Uuid, Arc<dyn Exporter<T>>>>>;
+
 // Simple service to centralize telemetry from distributed clients
 //
 // TODO(johanpel): clean up exporter after timeout or application end.
 pub struct CollectorService<T> {
     // Exporters shared across streams, keyed by `application-id` so concurrent
     // sources of the same application consolidate into one exporter.
-    exporters: Arc<DashMap<Uuid, Arc<dyn Exporter<T>>>>,
+    exporters: Exporters<T>,
     exporter: ExporterOptions,
 }
 
@@ -82,16 +85,22 @@ where
                     Ok(request) => {
                         // Reuse this application's exporter, or create it lazily
                         // on the first batch (so an empty stream writes nothing).
-                        let exporter = if let Some(exporter) = exporters.get(&application_id) {
-                            Arc::clone(&exporter)
+                        // The read guard is dropped before any `.await`.
+                        let cached = exporters.read().unwrap().get(&application_id).cloned();
+                        let exporter = if let Some(exporter) = cached {
+                            exporter
                         } else {
-                            let exporter = match create_exporter::<T>(exporter_kind.clone()).await {
-                                Ok(exporter) => exporter,
-                                Err(e) => {
-                                    error!("unable to construct exporter: {e}");
-                                    break;
-                                }
-                            };
+                            // The server shares one exporter per application across
+                            // its stream handlers, so wrap the owned exporter in an
+                            // `Arc` here — that sharing is local to the collector.
+                            let exporter: Arc<dyn Exporter<T>> =
+                                match create_exporter::<T>(exporter_kind.clone()).await {
+                                    Ok(exporter) => Arc::from(exporter),
+                                    Err(e) => {
+                                        error!("unable to construct exporter: {e}");
+                                        break;
+                                    }
+                                };
                             // Write the provenance sidecar once per application,
                             // alongside the events this exporter just created
                             // the directory for (filesystem exporters only).
@@ -101,7 +110,10 @@ where
                                     warn!("failed to write provenance sidecar: {e}");
                                 }
                             }
-                            exporters.insert(application_id, Arc::clone(&exporter));
+                            exporters
+                                .write()
+                                .unwrap()
+                                .insert(application_id, Arc::clone(&exporter));
                             exporter
                         };
 
@@ -135,11 +147,12 @@ where
                         warn!("collector: stream error: {err:?}");
                         // TODO(johanpel): a client disconnecting (abruptly?) may result in entering this branch.
                         // We should clean up here, but the todo is to figure out what else can go wrong.
-                        if let Some(exporter) = exporters.get(&application_id) {
+                        let exporter = exporters.read().unwrap().get(&application_id).cloned();
+                        if let Some(exporter) = exporter {
                             if let Err(e) = exporter.force_flush().await {
                                 warn!("unable to flush exporter: {e}");
                             }
-                            exporters.remove(&application_id);
+                            exporters.write().unwrap().remove(&application_id);
                         }
                         break;
                     }
@@ -147,7 +160,8 @@ where
             }
 
             // Flush the exporter when stream ends normally
-            if let Some(exporter) = exporters.get(&application_id)
+            let exporter = exporters.read().unwrap().get(&application_id).cloned();
+            if let Some(exporter) = exporter
                 && let Err(e) = exporter.force_flush().await
             {
                 warn!("unable to flush exporter after stream completion: {e}");

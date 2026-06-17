@@ -151,40 +151,46 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         crate::util::to_snake_case(name)
     );
 
-    // One pipeline field per entity, named `<entity>_pipeline`.
-    let pipeline_fields: Vec<Ident> = variants
+    // One observer field per entity, named with the bare entity snake-case name.
+    let observer_fields: Vec<Ident> = variants
         .iter()
-        .map(|variant| format_ident!("{}_pipeline", crate::util::to_snake_case(variant)))
+        .map(|variant| format_ident!("{}", crate::util::to_snake_case(variant)))
         .collect();
 
     let observer_methods: Vec<TokenStream> = variants
         .iter()
         .zip(observer_types.iter())
         .zip(event_types.iter())
-        .zip(pipeline_fields.iter())
-        .map(|(((variant, obs_type), comp_event), pipeline_field)| {
+        .zip(observer_fields.iter())
+        .map(|(((variant, obs_type), comp_event), field)| {
             let method_name = format_ident!("{}_observer", crate::util::to_snake_case(variant));
             let doc_factory = format!("Create an observer for {variant} entities.");
             quote! {
                 #[doc = #doc_factory]
                 pub fn #method_name(&self) -> #obs_type<#comp_event> {
-                    #obs_type::new(&self.#pipeline_field.sender())
+                    self.#field.clone()
                 }
             }
         })
         .collect();
 
-    // Per-entity pipeline declarations and their construction in `try_new`.
-    let pipeline_field_decls: Vec<TokenStream> = pipeline_fields
+    // Per-entity observer field declarations and their construction in `try_new`.
+    let observer_field_decls: Vec<TokenStream> = observer_fields
         .iter()
+        .zip(observer_types.iter())
         .zip(event_types.iter())
-        .map(|(field, comp_event)| quote! { #field: quent_model::Observer<#comp_event> })
+        .map(|((field, obs_type), comp_event)| {
+            quote! { #field: #obs_type<#comp_event> }
+        })
         .collect();
 
-    let pipeline_inits: Vec<TokenStream> = pipeline_fields
+    let observer_inits: Vec<TokenStream> = observer_fields
         .iter()
+        .zip(observer_types.iter())
         .zip(event_types.iter())
-        .map(|(field, comp_event)| quote! { let #field = inner.observer::<#comp_event>()?; })
+        .map(|((field, obs_type), comp_event)| {
+            quote! { let #field = #obs_type::new(inner.observer::<#comp_event>()?); }
+        })
         .collect();
 
     let doc_model = format!("Model type alias for {name}.");
@@ -261,9 +267,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 #[doc = #doc_context]
                 #[doc(alias = "context")]
                 pub struct #context_type {
-                    // Pipelines are declared before `_inner` so they drop first,
-                    // draining and flushing while the runtime is still alive.
-                    #(#pipeline_field_decls,)*
+                    #(#observer_field_decls,)*
                     _inner: quent_model::Context<#event_type>,
                 }
 
@@ -273,9 +277,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
                         let inner = quent_model::Context::<#event_type>::try_new(exporter)?;
-                        #(#pipeline_inits)*
+                        #(#observer_inits)*
                         Ok(Self {
-                            #(#pipeline_fields,)*
+                            #(#observer_fields,)*
                             _inner: inner,
                         })
                     }

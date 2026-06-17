@@ -353,7 +353,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     // Methods are always flat-arg: instance_name + attributes + optional usages.
     let entry_callback = format_ident!("__quent_state_{}", entry_alias.to_string());
     let observer_methods = quote! {
-        #entry_callback!(entry_method pub #handle_name #transition_enum tx);
+        #entry_callback!(entry_method pub #handle_name #transition_enum inner);
     };
 
     let handle_methods = {
@@ -471,17 +471,17 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[doc(alias = "handle")]
         pub struct #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + 'static,
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
             id: quent_model::uuid::Uuid,
             seq: u64,
             exited: bool,
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<E>>,
         }
 
         impl<E> #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + 'static,
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
             #[doc = #doc_handle_uuid]
             pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
@@ -502,7 +502,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 let seq = self.seq;
                 self.seq += 1;
                 let event = quent_model::FsmEvent { seq, state };
-                self.tx.send(quent_model::Event::new(
+                self.inner.send(quent_model::Event::new(
                     self.id,
                     quent_model::timestamp(),
                     E::from(event),
@@ -514,27 +514,36 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
         impl<E> Drop for #handle_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + 'static,
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
             fn drop(&mut self) { self.exit(); }
         }
 
         #[doc = #doc_observer]
         #[doc(alias = "observer")]
-        #[derive(Clone)]
         pub struct #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + 'static,
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            tx: quent_model::EventSender<E>,
+            inner: ::std::sync::Arc<quent_model::Observer<E>>,
+        }
+
+        // Cloning shares the underlying observer; `E: Clone` is not required.
+        impl<E> Clone for #observer_name<E>
+        where
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
+        {
+            fn clone(&self) -> Self {
+                Self { inner: self.inner.clone() }
+            }
         }
 
         impl<E> #observer_name<E>
         where
-            E: From<#event_type> #serde_bound + Send + 'static,
+            E: From<#event_type> #serde_bound + Send + quent_model::EntityEvent + 'static,
         {
-            pub fn new(tx: &quent_model::EventSender<E>) -> Self {
-                Self { tx: tx.clone() }
+            pub fn new(observer: quent_model::Observer<E>) -> Self {
+                Self { inner: ::std::sync::Arc::new(observer) }
             }
 
             #observer_methods

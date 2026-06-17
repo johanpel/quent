@@ -3,8 +3,27 @@
 
 //! Integration test for the `fsm!` proc macro.
 
-use quent_model::{EventSender, FsmEvent, ModelBuilder, ModelComponent, StateMetadata};
+use quent_model::{Context, FsmEvent, ModelBuilder, ModelComponent, Observer, StateMetadata};
 use uuid::Uuid;
+
+/// Model marker used only to obtain a no-op [`Context`] in tests.
+struct TestModel;
+
+impl quent_model::build_info::ModelSource for TestModel {
+    fn package() -> &'static str {
+        "quent-model"
+    }
+    fn source() -> quent_model::build_info::BuildInfo {
+        quent_model::build_info::BuildInfo::unknown()
+    }
+}
+
+fn noop_task_observer() -> Observer<TaskEvent> {
+    Context::<TestModel>::try_new(None)
+        .unwrap()
+        .observer::<TaskEvent>()
+        .unwrap()
+}
 
 // States via state! macro
 
@@ -93,8 +112,7 @@ fn state_metadata() {
 
 #[test]
 fn observer_entry_method() {
-    let tx: EventSender<TaskEvent> = EventSender::default();
-    let observer = TaskObserver::new(&tx);
+    let observer = TaskObserver::new(noop_task_observer());
     let id = Uuid::nil();
     let mut handle = observer.queued(id, "my_task", 5);
     assert_eq!(handle.uuid(), id);
@@ -103,8 +121,7 @@ fn observer_entry_method() {
 
 #[test]
 fn handle_transition_method() {
-    let tx: EventSender<TaskEvent> = EventSender::default();
-    let observer = TaskObserver::new(&tx);
+    let observer = TaskObserver::new(noop_task_observer());
     let id = Uuid::nil();
     let mut handle = observer.queued(id, "my_task", 5);
     handle.running("my_task", Uuid::nil());
