@@ -83,6 +83,7 @@ pub trait ResourceGroup {
 }
 
 // Re-export instrumentation types needed by generated code.
+pub use ciborium;
 pub use quent_attributes as attributes;
 pub use quent_build_info as build_info;
 pub use quent_events::{EntityEvent, Event};

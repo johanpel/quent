@@ -185,8 +185,7 @@ impl<M> Context<M> {
     /// Returns an error if the exporter cannot be constructed.
     pub fn observer<T>(&self) -> Result<Observer<T>, Box<dyn std::error::Error>>
     where
-        T: Serialize + Send + EntityEvent + Into<M> + 'static,
-        M: Serialize + Send + 'static,
+        T: Serialize + Send + EntityEvent + 'static,
     {
         let (Some(config), Some(handle)) = (&self.config, &self.handle) else {
             return Ok(Observer::noop());
@@ -195,8 +194,7 @@ impl<M> Context<M> {
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
         // The forwarder task owns the exporter outright; no sharing, no `Arc`.
-        // `M` is the wire type the collector wraps events into.
-        let exporter = handle.block_on(create_exporter::<T, M>(kind))?;
+        let exporter = handle.block_on(create_exporter::<T>(kind))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -312,9 +310,6 @@ where
 /// source's output. Implemented by generated application contexts; kept separate
 /// from the context's own API so the context stays a local-production type.
 pub trait CollectorContext {
-    /// The event type carried on the wire.
-    type Event;
-
     /// Build a context that reproduces the source identified by `id`.
     fn with_source_id(
         id: Uuid,
@@ -323,8 +318,13 @@ pub trait CollectorContext {
     where
         Self: Sized;
 
-    /// Route a received event to the matching entity observer.
-    fn feed(&self, event: Event<Self::Event>);
+    /// Deserialize a received event for the named `entity` stream and route it
+    /// to that entity's observer.
+    ///
+    /// # Errors
+    /// Returns an error if `entity` names no known stream or the bytes fail to
+    /// deserialize.
+    fn feed(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 #[cfg(test)]

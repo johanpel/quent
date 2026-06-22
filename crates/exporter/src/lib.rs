@@ -122,13 +122,10 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`]. `U` is the type events are
-/// sent as on the wire; the collector wraps each `T` into it. It is irrelevant
-/// for filesystem output.
-pub async fn create_exporter<T, U>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
+/// Construct an exporter from [`ExporterOptions`].
+pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
 where
-    T: Serialize + Send + EntityEvent + Into<U> + 'static,
-    U: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     match kind {
         ExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => match format {
@@ -156,7 +153,7 @@ where
         },
         #[cfg(feature = "collector")]
         ExporterOptions::Collector(options) => Ok(Box::new(
-            quent_exporter_collector::CollectorExporter::<U>::try_new(options)
+            quent_exporter_collector::CollectorExporter::<T>::try_new(options)
                 .await
                 .map_err(|e| ExporterError::Collector(e.to_string()))?,
         ) as Box<dyn Exporter<T>>),

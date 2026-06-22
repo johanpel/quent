@@ -9,7 +9,6 @@ use quent_collector::server::{CollectorService, CollectorServiceOptions};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 
-use serde::Deserialize;
 use tonic::transport::{Server as GrpcServer, server::Router};
 use tower_http::cors::CorsLayer;
 
@@ -46,7 +45,6 @@ pub fn collector_service<C>(
 ) -> Result<Router, Box<dyn std::error::Error>>
 where
     C: quent_collector::CollectorContext + Send + Sync + 'static,
-    for<'de> C::Event: Deserialize<'de>,
 {
     let collector = CollectorService::<C>::new(options);
     Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))

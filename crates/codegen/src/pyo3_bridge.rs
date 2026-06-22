@@ -570,7 +570,7 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
 fn emit_context(
     model: &ModelBuilder,
     q: &syn::Path,
-    event_type: &syn::Type,
+    model_type: &syn::Type,
     options: &PyO3Options,
 ) -> TokenStream {
     struct ObserverField {
@@ -691,7 +691,7 @@ fn emit_context(
     quote! {
         #[pyclass(name = "Context")]
         pub struct PyContext {
-            inner: Option<#q::Context<#event_type>>,
+            inner: Option<#q::Context<#model_type>>,
             #(#struct_fields,)*
             id: #q::uuid::Uuid,
         }
@@ -1018,12 +1018,12 @@ fn emit_fsm_bridge(
 /// Generate PyO3 bridge source code from a model.
 pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
     let q = quent_path(&model.name, options);
-    let event_type: syn::Type = syn::parse_str(&options.event_type(&model.name)).unwrap();
+    let model_type: syn::Type = syn::parse_str(&options.model_type(&model.name)).unwrap();
     let module_fn = module_ident(&options.module_name);
     let module_name = syn::LitStr::new(module_export_name(&options.module_name), Span::call_site());
 
     let helpers = emit_helpers(&q);
-    let context = emit_context(model, &q, &event_type, options);
+    let context = emit_context(model, &q, &model_type, options);
     let entity_bridges: Vec<TokenStream> = model
         .entities
         .iter()

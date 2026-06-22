@@ -15,7 +15,8 @@
 //! }
 //! ```
 //!
-//! Generates `SimulatorModel` (type alias) and `SimulatorEvent` (event enum).
+//! Generates `SimulatorModel` (type alias), `SimulatorEvent` (event enum), and
+//! `Simulator` (the model marker carrying provenance).
 
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
@@ -199,20 +200,29 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .map(|variant| format_ident!("{}_observer", crate::util::to_snake_case(variant)))
         .collect();
 
-    let feed_arms: Vec<TokenStream> = variants
+    // One `feed` arm per entity: match the wire `entity` name against the
+    // entity event type's `NAME`, deserialize its `Event`, and route it.
+    let feed_arms: Vec<TokenStream> = event_types
         .iter()
         .zip(observer_method_names.iter())
-        .map(|(variant, method)| {
+        .map(|(comp_event, method)| {
             quote! {
-                #event_type::#variant(data) => self.#method().send(
-                    quent_model::Event::new(event.id, event.timestamp, data),
-                ),
+                if entity == <#comp_event as quent_model::EntityEvent>::NAME {
+                    let e: quent_model::Event<#comp_event> =
+                        quent_model::ciborium::from_reader(event)?;
+                    self.#method().send(e);
+                    return Ok(());
+                }
             }
         })
         .collect();
 
     let doc_model = format!("Model type alias for {name}.");
     let doc_event = format!("Event types of the {name} model.");
+    let doc_marker = format!(
+        "Marker type for the {name} model. Carries the model's provenance via \
+         its [`ModelSource`](quent_model::build_info::ModelSource) impl."
+    );
     let doc_context = format!(
         "Instrumentation context for `{name}`.\n\
          \n\
@@ -247,12 +257,15 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         )*
 
+        #[doc = #doc_marker]
+        pub struct #name;
+
         // Records this model's package and source git so exporters can trace an
         // artifact back to the crate that defines it — including out-of-repo
         // crates, whose own `build.rs` populates `QUENT_SOURCE_*` (in-repo it
         // falls back to quent's git). `env!`/`option_env!` resolve in the crate
         // that invokes `model!`. The type path and name come from `type_name`.
-        impl quent_model::build_info::ModelSource for #event_type {
+        impl quent_model::build_info::ModelSource for #name {
             fn package() -> &'static str {
                 env!("CARGO_PKG_NAME")
             }
@@ -286,7 +299,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 #[doc(alias = "context")]
                 pub struct #context_type {
                     #(#observer_field_decls,)*
-                    _inner: quent_model::Context<#event_type>,
+                    _inner: quent_model::Context<#name>,
                 }
 
                 impl #context_type {
@@ -294,7 +307,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::<#event_type>::try_new(exporter)?;
+                        let inner = quent_model::Context::<#name>::try_new(exporter)?;
                         #(#observer_inits)*
                         Ok(Self {
                             #(#observer_fields,)*
@@ -313,13 +326,11 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 // Collector routing, kept out of the context's own API.
                 // TODO(jp): gate behind a `collector` feature.
                 impl quent_model::CollectorContext for #context_type {
-                    type Event = #event_type;
-
                     fn with_source_id(
                         id: quent_model::uuid::Uuid,
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::<#event_type>::try_with_id(id, exporter)?;
+                        let inner = quent_model::Context::<#name>::try_with_id(id, exporter)?;
                         #(#observer_inits)*
                         Ok(Self {
                             #(#observer_fields,)*
@@ -327,10 +338,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         })
                     }
 
-                    fn feed(&self, event: quent_model::Event<#event_type>) {
-                        match event.data {
-                            #(#feed_arms)*
-                        }
+                    fn feed(
+                        &self,
+                        entity: &str,
+                        event: &[u8],
+                    ) -> Result<(), Box<dyn std::error::Error>> {
+                        #(#feed_arms)*
+                        Err(format!("unknown entity stream `{entity}`").into())
                     }
                 }
             };

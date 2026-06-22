@@ -5,12 +5,9 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-ciborium = "0.2.2"
 quent-collector-proto = { path = "../proto" }
-quent-events = { path = "../../events" }
 quent-exporter = { path = "../../exporter" }
 quent-instrumentation = { path = "../../instrumentation" }
-serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true

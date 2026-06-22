@@ -416,7 +416,7 @@ fn emit_context_bridge(
 ) -> GeneratedFile {
     let ns = &options.namespace;
     let q = quent_path(model_name, options);
-    let event_type: syn::Type = syn::parse_str(&options.event_type(model_name)).unwrap();
+    let model_type: syn::Type = syn::parse_str(&options.model_type(model_name)).unwrap();
     let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
     let context_type_id = format!("{ns}::Context");
 
@@ -532,7 +532,7 @@ fn emit_context_bridge(
                 )),
                 _ => None,
             };
-            let inner = #q::Context::<#event_type>::try_new(opts)
+            let inner = #q::Context::<#model_type>::try_new(opts)
                 .map_err(|e| e.to_string())?;
             #(#field_builds)*
             Ok(Box::new(Context {

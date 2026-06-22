@@ -10,10 +10,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use quent_events::Event;
 use quent_exporter::ExporterOptions;
 use quent_instrumentation::CollectorContext;
-use serde::Deserialize;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
@@ -59,7 +57,6 @@ impl<C> CollectorService<C> {
 impl<C> proto::collector_server::Collector for CollectorService<C>
 where
     C: CollectorContext + Send + Sync + 'static,
-    for<'de> C::Event: Deserialize<'de>,
 {
     #[tracing::instrument]
     async fn collect_events(
@@ -77,6 +74,16 @@ where
             .ok_or_else(|| {
                 Status::invalid_argument("`source-context-id` metadata is not a valid UUID")
             })?;
+
+        // The source tags its stream with the entity type so the local context
+        // routes each batch to the matching entity observer.
+        let entity_type = request
+            .metadata()
+            .get("entity-type")
+            .ok_or_else(|| Status::invalid_argument("missing `entity-type` metadata"))?
+            .to_str()
+            .map_err(|_| Status::invalid_argument("`entity-type` metadata is not valid UTF-8"))?
+            .to_owned();
 
         let mut stream = request.into_inner();
         let contexts = Arc::clone(&self.contexts);
@@ -121,19 +128,17 @@ where
                             context
                         };
 
-                        tracing::trace_span!("deserializing", num_events = request.event.len())
-                            .in_scope(|| {
+                        tracing::trace_span!("feeding", num_events = request.event.len()).in_scope(
+                            || {
                                 for serialized_event in request.event {
-                                    match ciborium::from_reader::<Event<C::Event>, _>(
-                                        &serialized_event[..],
-                                    ) {
-                                        Ok(event) => context.feed(event),
-                                        Err(e) => {
-                                            warn!("collector: deserialization error: {e}")
-                                        }
+                                    if let Err(e) =
+                                        context.feed(&entity_type, &serialized_event[..])
+                                    {
+                                        warn!("collector: feed error: {e}");
                                     }
                                 }
-                            });
+                            },
+                        );
                     }
                     Err(err) => {
                         warn!("collector: stream error: {err:?}");

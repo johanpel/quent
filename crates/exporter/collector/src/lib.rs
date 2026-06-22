@@ -21,35 +21,34 @@ pub struct CollectorExporterOptions {
     pub source_context_id: Uuid,
 }
 
-/// Streams a model's entity events to a collector, wrapping each entity event
-/// into the umbrella wire type `U` so the serde variant tag identifies the
-/// entity (no separate event-type field is sent).
+/// Streams one entity's events to a collector. The stream is tagged with the
+/// entity name (`T::NAME`) so the collector routes each batch to the matching
+/// entity observer.
 #[derive(Debug)]
-pub struct CollectorExporter<U> {
-    client: Client<U>,
+pub struct CollectorExporter<T> {
+    client: Client<T>,
 }
 
-impl<U> CollectorExporter<U>
+impl<T> CollectorExporter<T>
 where
-    U: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     pub async fn try_new(
         options: CollectorExporterOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(options.source_context_id, options.address).await?;
+        let client = Client::new(options.source_context_id, T::NAME, options.address).await?;
         Ok(Self { client })
     }
 }
 
 #[async_trait::async_trait]
-impl<T, U> Exporter<T> for CollectorExporter<U>
+impl<T> Exporter<T> for CollectorExporter<T>
 where
-    T: Serialize + Send + EntityEvent + Into<U> + 'static,
-    U: Serialize + Send + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     async fn push(&self, event: Event<T>) -> ExporterResult<()> {
         self.client
-            .send(Event::new(event.id, event.timestamp, event.data.into()))
+            .send(event)
             .await
             .map_err(|e| ExporterError::Collector(format!("{e:?}")))?;
         Ok(())

@@ -52,7 +52,11 @@ impl<T> Client<T>
 where
     T: Serialize + Send + 'static,
 {
-    pub async fn new(source_context_id: Uuid, address: String) -> CollectorResult<Client<T>> {
+    pub async fn new(
+        source_context_id: Uuid,
+        entity_type: &str,
+        address: String,
+    ) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -175,7 +179,9 @@ where
 
         debug!("opening stream ...");
 
-        // Identify this stream so the collector reproduces its events under the id.
+        // Identify this stream so the collector reproduces its events under the
+        // id, and tag it with the entity type so the collector routes the batch
+        // to the matching entity observer.
         let mut req = Request::new(ReceiverStream::new(grpc_receiver));
         req.metadata_mut().insert(
             "source-context-id",
@@ -183,6 +189,10 @@ where
                 .to_string()
                 .parse()
                 .expect("valid metadata value"),
+        );
+        req.metadata_mut().insert(
+            "entity-type",
+            entity_type.parse().expect("valid metadata value"),
         );
 
         let mut cloned_client = client.clone();
