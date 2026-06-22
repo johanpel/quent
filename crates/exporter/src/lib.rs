@@ -21,7 +21,8 @@ compile_error!("at least one exporter feature must be enabled");
 #[cfg(feature = "collector")]
 pub use quent_exporter_collector::CollectorExporterOptions;
 
-/// Selects an exporter and its options.
+/// Selects where a context's events go: local files (filesystem) or a collector
+/// service. A context created without any options discards its events.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     FileSystem(FileSystemExporterOptions),
@@ -41,7 +42,7 @@ pub enum FileSystemFormat {
 }
 
 /// Options for exporting events to the filesystem in the given `format`, under
-/// the directory `root`.
+/// the directory `root`, together with a `model.qmi` provenance sidecar.
 #[derive(Debug, Clone)]
 pub struct FileSystemExporterOptions {
     pub format: FileSystemFormat,

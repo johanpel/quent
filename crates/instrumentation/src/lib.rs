@@ -80,13 +80,12 @@ impl<T> EventSender<T> {
 }
 
 /// Identity and runtime owner for a model's instrumentation. Generates the
-/// context id, owns (or locates) the async runtime, and writes the model
-/// provenance sidecar once on construction. Mints one [`Observer`] per entity
-/// event stream via [`Self::observer`].
+/// context id, owns (or locates) the async runtime, and mints one [`Observer`]
+/// per entity event stream via [`Self::observer`].
 ///
-/// `M` is the model marker whose [`ModelSource`] impl supplies the `model.qmi`
-/// provenance. It does not appear in the event streams, which are typed per
-/// entity by the [`Observer`]s.
+/// `M` is the model marker; its [`ModelSource`] impl supplies the provenance a
+/// filesystem exporter records. It does not appear in the event streams, which
+/// are typed per entity by the [`Observer`]s.
 pub struct Context<M> {
     /// Identity of this context, generated on construction.
     id: Uuid,
@@ -102,14 +101,11 @@ pub struct Context<M> {
 }
 
 impl<M> Context<M> {
-    /// Create a context. With `Some(exporter)` this locates or spawns a runtime
-    /// and writes the `model.qmi` provenance sidecar into the context directory;
-    /// with `None` it is a no-op context that creates no runtime and whose
-    /// observers discard events.
+    /// Create a context for the given `exporter` configuration (see
+    /// [`ExporterOptions`]).
     ///
     /// # Errors
-    /// Returns an error if no runtime is available and one cannot be spawned. A
-    /// failure to write the sidecar is logged, not returned.
+    /// Returns an error only if an async runtime is needed but cannot be spawned.
     pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>>
     where
         M: ModelSource,
@@ -118,12 +114,11 @@ impl<M> Context<M> {
     }
 
     /// Like [`Self::try_new`] but adopts an existing `id` instead of generating
-    /// one — used when reproducing another context's output (e.g. the collector
-    /// writing a remote source's streams under that source's context id).
+    /// one — e.g. the collector reproducing a remote source's output under that
+    /// source's id.
     ///
     /// # Errors
-    /// Returns an error if no runtime is available and one cannot be spawned. A
-    /// failure to write the sidecar is logged, not returned.
+    /// Returns an error only if an async runtime is needed but cannot be spawned.
     pub fn try_with_id(
         id: Uuid,
         exporter: Option<ExporterOptions>,
@@ -317,7 +312,7 @@ where
 /// its observers with received umbrella events. Implemented by generated
 /// `{App}Context` types; the routing lives in this trait impl, keeping the
 /// context's inherent API a pure local-production type.
-pub trait CollectorContext: Sized {
+pub trait CollectorContext {
     /// The model's umbrella event type carried on the wire.
     type Event;
 
@@ -325,7 +320,9 @@ pub trait CollectorContext: Sized {
     fn with_source_id(
         id: Uuid,
         exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>>;
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        Self: Sized;
 
     /// Route one received umbrella event to the matching entity observer.
     fn feed(&self, event: Event<Self::Event>);
