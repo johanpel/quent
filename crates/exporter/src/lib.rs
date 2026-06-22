@@ -40,9 +40,8 @@ pub enum FileSystemFormat {
     Postcard,
 }
 
-/// Options for exporting events to the filesystem in the given `format`. Events
-/// are written to `root/<entity>/events.<ext>`, one subdirectory per entity
-/// event stream (see [`create_exporter`]).
+/// Options for exporting events to the filesystem in the given `format`, under
+/// the directory `root`.
 #[derive(Debug, Clone)]
 pub struct FileSystemExporterOptions {
     pub format: FileSystemFormat,
@@ -50,9 +49,8 @@ pub struct FileSystemExporterOptions {
 }
 
 impl ExporterOptions {
-    /// Returns these options with filesystem output relocated into a
-    /// per-context subdirectory `root/<id>/`. Non-filesystem exporters are
-    /// returned unchanged.
+    /// Returns these options scoped to the context `id`, so each context's
+    /// output is kept separate.
     pub fn in_context_dir(self, id: Uuid) -> Self {
         match self {
             ExporterOptions::FileSystem(mut options) => {
@@ -123,8 +121,7 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`]. The caller owns the returned
-/// exporter; wrap it in an [`std::sync::Arc`] if it needs to be shared.
+/// Construct an exporter from [`ExporterOptions`].
 pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
 where
     T: Serialize + Send + EntityEvent + 'static,
