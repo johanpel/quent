@@ -1844,9 +1844,8 @@ dependencies = [
 name = "quent-collector"
 version = "0.1.0"
 dependencies = [
+ "quent-collector-client",
  "quent-collector-proto",
- "quent-exporter",
- "quent-instrumentation",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2047,6 +2046,7 @@ dependencies = [
  "ciborium",
  "quent-attributes",
  "quent-build-info",
+ "quent-collector-client",
  "quent-events",
  "quent-exporter",
  "quent-instrumentation",
@@ -2306,7 +2306,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
- "quent-collector",
  "quent-exporter",
  "quent-query-engine-server",
  "quent-query-engine-ui",

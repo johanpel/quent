@@ -23,6 +23,13 @@ use uuid::Uuid;
 
 use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
 
+/// A sink for serialized per-entity event streams.
+pub trait CollectorSink {
+    /// Decode the serialized `event` belonging to the entity stream named
+    /// `entity`, and record it.
+    fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
+}
+
 #[derive(Debug, Error)]
 pub enum CollectorError {
     #[error("Unable to connect: {0}")]

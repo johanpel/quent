@@ -4,14 +4,13 @@
 //! A gRPC server that reproduces each remote source's local output.
 //!
 //! Each source streams its events tagged with a `source-context-id`; the server
-//! runs one local [`CollectorContext`] per source id and feeds it those events,
-//! so it writes the same output the source would write locally.
+//! runs one local sink per source id and routes those events into it, so it
+//! writes the same output the source would write locally.
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use quent_exporter::ExporterOptions;
-use quent_instrumentation::CollectorContext;
+use quent_collector_client::CollectorSink;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
@@ -19,36 +18,34 @@ use uuid::Uuid;
 
 use quent_collector_proto as proto;
 
-#[derive(Debug, Clone)]
-pub struct CollectorServiceOptions {
-    pub exporter: ExporterOptions,
-}
-
 /// Local contexts keyed by source context id; one per remote source.
 type Contexts<C> = Arc<RwLock<HashMap<Uuid, Arc<C>>>>;
 
+/// Builds a per-source local sink from its source context id.
+type MakeFn<C> = Arc<dyn Fn(Uuid) -> Result<C, String> + Send + Sync>;
+
 // Centralizes telemetry from distributed sources by reproducing each source's
-// local production through a per-source local context.
+// local production through a per-source local sink built by `make`.
 //
 // TODO(johanpel): clean up contexts after timeout or source end.
 pub struct CollectorService<C> {
     contexts: Contexts<C>,
-    exporter: ExporterOptions,
+    make: MakeFn<C>,
 }
 
 impl<C> std::fmt::Debug for CollectorService<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CollectorService")
-            .field("exporter", &self.exporter)
-            .finish()
+        f.debug_struct("CollectorService").finish_non_exhaustive()
     }
 }
 
 impl<C> CollectorService<C> {
-    pub fn new(options: CollectorServiceOptions) -> Self {
+    /// `make` builds a per-source local sink from its source context id; it is
+    /// invoked once per source on the first received batch.
+    pub fn new(make: impl Fn(Uuid) -> Result<C, String> + Send + Sync + 'static) -> Self {
         Self {
             contexts: Default::default(),
-            exporter: options.exporter,
+            make: Arc::new(make),
         }
     }
 }
@@ -56,7 +53,7 @@ impl<C> CollectorService<C> {
 #[tonic::async_trait]
 impl<C> proto::collector_server::Collector for CollectorService<C>
 where
-    C: CollectorContext + Send + Sync + 'static,
+    C: CollectorSink + Send + Sync + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
@@ -87,7 +84,7 @@ where
 
         let mut stream = request.into_inner();
         let contexts = Arc::clone(&self.contexts);
-        let exporter = self.exporter.clone();
+        let make = Arc::clone(&self.make);
         let export_join_handle = tokio::spawn(async move {
             while let Some(item) = stream.next().await {
                 match item {
@@ -102,14 +99,10 @@ where
                             // The context builds its observers with `block_on`,
                             // which would panic on a runtime worker thread, so
                             // construct it on a blocking thread.
-                            let exporter = exporter.clone();
-                            // The error type is not `Send`, so stringify it on
-                            // the blocking thread before crossing the boundary.
-                            let built = tokio::task::spawn_blocking(move || {
-                                C::with_source_id(source_context_id, Some(exporter))
-                                    .map_err(|e| e.to_string())
-                            })
-                            .await;
+                            let make = Arc::clone(&make);
+                            let built =
+                                tokio::task::spawn_blocking(move || (make)(source_context_id))
+                                    .await;
                             let context = match built {
                                 Ok(Ok(context)) => Arc::new(context),
                                 Ok(Err(e)) => {
@@ -128,17 +121,16 @@ where
                             context
                         };
 
-                        tracing::trace_span!("feeding", num_events = request.event.len()).in_scope(
-                            || {
+                        tracing::trace_span!("ingesting", num_events = request.event.len())
+                            .in_scope(|| {
                                 for serialized_event in request.event {
                                     if let Err(e) =
-                                        context.feed(&entity_type, &serialized_event[..])
+                                        context.ingest(&entity_type, &serialized_event[..])
                                     {
-                                        warn!("collector: feed error: {e}");
+                                        warn!("collector: ingest error: {e}");
                                     }
                                 }
-                            },
-                        );
+                            });
                     }
                     Err(err) => {
                         warn!("collector: stream error: {err:?}");

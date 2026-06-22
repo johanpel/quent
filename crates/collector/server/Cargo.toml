@@ -6,8 +6,7 @@ version.workspace = true
 
 [dependencies]
 quent-collector-proto = { path = "../proto" }
-quent-exporter = { path = "../../exporter" }
-quent-instrumentation = { path = "../../instrumentation" }
+quent-collector-client = { path = "../client" }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true

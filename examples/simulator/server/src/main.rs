@@ -6,7 +6,6 @@ use std::{net::ToSocketAddrs, path::PathBuf};
 use uuid::Uuid;
 
 use clap::Parser;
-use quent_collector::server::CollectorServiceOptions;
 use quent_exporter::{
     ExporterOptions, FileSystemExporterOptions, FileSystemFormat, FileSystemImporterOptions,
     ImporterOptions, create_importer,
@@ -102,14 +101,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         root: output_dir,
     });
 
-    let collector_options = CollectorServiceOptions {
-        exporter: exporter_kind,
-    };
     let collector = async {
-        collector_service::<SimulatorContext>(collector_options)?
-            .serve(collector_addr)
-            .await
-            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+        collector_service::<SimulatorContext, _>(move |id| {
+            SimulatorContext::try_with_id(id, Some(exporter_kind.clone()))
+                .map_err(|e| e.to_string())
+        })?
+        .serve(collector_addr)
+        .await
+        .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
     };
 
     let analyzer_addr = analyzer_address

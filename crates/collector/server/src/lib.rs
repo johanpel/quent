@@ -9,5 +9,5 @@ pub mod server;
 
 /// Re-exported so callers constructing a [`server::CollectorService`] over a
 /// generic context type can bound it without depending on
-/// `quent-instrumentation` directly.
-pub use quent_instrumentation::CollectorContext;
+/// `quent-collector-client` directly.
+pub use quent_collector_client::CollectorSink;

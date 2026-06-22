@@ -177,9 +177,8 @@ impl<M> Context<M> {
         self.id
     }
 
-    /// Build the pipeline for one entity's event stream `T`. Filesystem events
-    /// are written to `<root>/<id>/<T::NAME>/`. Returns a no-op observer when
-    /// the context has no exporter configured.
+    /// Create an [`Observer`] for one entity's event stream `T`. Returns a no-op
+    /// observer when the context has no exporter configured.
     ///
     /// # Errors
     /// Returns an error if the exporter cannot be constructed.
@@ -304,27 +303,6 @@ where
             warn!("forwarder task failed: {e}");
         }
     }
-}
-
-/// Replays a remote source's events into a local context, reproducing that
-/// source's output. Implemented by generated application contexts; kept separate
-/// from the context's own API so the context stays a local-production type.
-pub trait CollectorContext {
-    /// Build a context that reproduces the source identified by `id`.
-    fn with_source_id(
-        id: Uuid,
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>>
-    where
-        Self: Sized;
-
-    /// Deserialize a received event for the named `entity` stream and route it
-    /// to that entity's observer.
-    ///
-    /// # Errors
-    /// Returns an error if `entity` names no known stream or the bytes fail to
-    /// deserialize.
-    fn feed(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 #[cfg(test)]

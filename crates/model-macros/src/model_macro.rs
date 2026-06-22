@@ -200,9 +200,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .map(|variant| format_ident!("{}_observer", crate::util::to_snake_case(variant)))
         .collect();
 
-    // One `feed` arm per entity: match the wire `entity` name against the
+    // One `ingest` arm per entity: match the wire `entity` name against the
     // entity event type's `NAME`, deserialize its `Event`, and route it.
-    let feed_arms: Vec<TokenStream> = event_types
+    let ingest_arms: Vec<TokenStream> = event_types
         .iter()
         .zip(observer_method_names.iter())
         .map(|(comp_event, method)| {
@@ -315,18 +315,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         })
                     }
 
-                    /// Identity of this context, generated on construction.
-                    pub fn id(&self) -> quent_model::uuid::Uuid {
-                        self._inner.id()
-                    }
-
-                    #(#observer_methods)*
-                }
-
-                // Collector routing, kept out of the context's own API.
-                // TODO(jp): gate behind a `collector` feature.
-                impl quent_model::CollectorContext for #context_type {
-                    fn with_source_id(
+                    /// Build a context that adopts an existing `id` instead of
+                    /// generating one — e.g. the collector reproducing a remote
+                    /// source's output under that source's id.
+                    pub fn try_with_id(
                         id: quent_model::uuid::Uuid,
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -338,12 +330,23 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         })
                     }
 
-                    fn feed(
+                    /// Identity of this context, generated on construction.
+                    pub fn id(&self) -> quent_model::uuid::Uuid {
+                        self._inner.id()
+                    }
+
+                    #(#observer_methods)*
+                }
+
+                // Collector routing, kept out of the context's own API.
+                #[cfg(feature = "collector")]
+                impl quent_model::CollectorSink for #context_type {
+                    fn ingest(
                         &self,
                         entity: &str,
                         event: &[u8],
                     ) -> Result<(), Box<dyn std::error::Error>> {
-                        #(#feed_arms)*
+                        #(#ingest_arms)*
                         Err(format!("unknown entity stream `{entity}`").into())
                     }
                 }
