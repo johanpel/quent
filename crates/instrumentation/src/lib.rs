@@ -79,8 +79,8 @@ impl<T> EventSender<T> {
     }
 }
 
-/// Identity and runtime owner for a model's instrumentation. Generates the
-/// context id, owns (or locates) the async runtime, and mints one [`Observer`]
+/// Identity and runtime owner for an application's instrumentation: holds the
+/// context id, owns (or locates) the async runtime, and creates one [`Observer`]
 /// per entity event stream via [`Self::observer`].
 ///
 /// `M` is the model marker; its [`ModelSource`] impl supplies the provenance a
@@ -195,7 +195,7 @@ impl<M> Context<M> {
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
         // The forwarder task owns the exporter outright; no sharing, no `Arc`.
-        // `M` is the model's umbrella event, the collector's wire type.
+        // `M` is the wire type the collector wraps events into.
         let exporter = handle.block_on(create_exporter::<T, M>(kind))?;
 
         let cancellation_token = CancellationToken::new();
@@ -308,12 +308,11 @@ where
     }
 }
 
-/// A local model context that reproduces a remote source's output by feeding
-/// its observers with received umbrella events. Implemented by generated
-/// `{App}Context` types; the routing lives in this trait impl, keeping the
-/// context's inherent API a pure local-production type.
+/// Replays a remote source's events into a local context, reproducing that
+/// source's output. Implemented by generated application contexts; kept separate
+/// from the context's own API so the context stays a local-production type.
 pub trait CollectorContext {
-    /// The model's umbrella event type carried on the wire.
+    /// The event type carried on the wire.
     type Event;
 
     /// Build a context that reproduces the source identified by `id`.
@@ -324,7 +323,7 @@ pub trait CollectorContext {
     where
         Self: Sized;
 
-    /// Route one received umbrella event to the matching entity observer.
+    /// Route a received event to the matching entity observer.
     fn feed(&self, event: Event<Self::Event>);
 }
 

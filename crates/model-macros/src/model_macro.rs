@@ -212,13 +212,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .collect();
 
     let doc_model = format!("Model type alias for {name}.");
-    let doc_event = format!("Events emitted by the {name} model.");
+    let doc_event = format!("Event types of the {name} model.");
     let doc_context = format!(
-        "Instrumentation context for the `{name}` model.\n\
+        "Instrumentation context for `{name}`.\n\
          \n\
-         This is the entry point for instrumentation. Create one with \
-         [`Self::try_new()`], then call the `*_observer()` methods to get \
-         observers for each model component."
+         The entry point for instrumentation: create one with \
+         [`Self::try_new()`], then call the `*_observer()` methods to get an \
+         observer per entity."
     );
     let doc_try_new = format!(
         "Create a new {name} instrumentation context.\n\
@@ -310,10 +310,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #(#observer_methods)*
                 }
 
-                // Collector routing for `#context_type`. Kept as a separate
-                // trait impl so the context's inherent API stays a pure
-                // local-production type. Emitted unconditionally for now;
-                // feature-gating it is a future refinement.
+                // Collector routing, kept out of the context's own API.
+                // TODO(jp): gate behind a `collector` feature.
                 impl quent_model::CollectorContext for #context_type {
                     type Event = #event_type;
 

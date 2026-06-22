@@ -1,13 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A gRPC-based server that reproduces each remote source's local output.
+//! A gRPC server that reproduces each remote source's local output.
 //!
-//! Each source streams its umbrella events tagged with a `source-context-id`.
-//! The server runs one local `{App}Context` (a [`CollectorContext`]) per source
-//! id, feeding it the received events so it reproduces, on the server's own
-//! filesystem, exactly what the source produced locally (including the
-//! provenance sidecar the local context writes itself).
+//! Each source streams its events tagged with a `source-context-id`; the server
+//! runs one local [`CollectorContext`] per source id and feeds it those events,
+//! so it writes the same output the source would write locally.
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
