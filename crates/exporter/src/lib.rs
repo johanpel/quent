@@ -19,7 +19,7 @@ use uuid::Uuid;
 compile_error!("at least one exporter feature must be enabled");
 
 #[cfg(feature = "collector")]
-pub use quent_exporter_collector::{CollectorExporter, CollectorExporterOptions};
+pub use quent_exporter_collector::CollectorExporterOptions;
 
 /// Selects an exporter and its options.
 #[derive(Debug, Clone)]
@@ -121,10 +121,13 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`].
-pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
+/// Construct an exporter from [`ExporterOptions`]. `U` is the type events are
+/// sent as on the wire; the collector wraps each `T` into it. It is irrelevant
+/// for filesystem output.
+pub async fn create_exporter<T, U>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Serialize + Send + EntityEvent + Into<U> + 'static,
+    U: Serialize + Send + 'static,
 {
     match kind {
         ExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => match format {
@@ -150,11 +153,11 @@ where
                 .await?,
             ) as Box<dyn Exporter<T>>),
         },
-        // The collector exporter is built by the instrumentation context, which
-        // knows the umbrella wire type; it cannot be constructed from `T` alone.
         #[cfg(feature = "collector")]
-        ExporterOptions::Collector(_) => Err(ExporterError::Collector(
-            "collector exporter is constructed by the instrumentation context".into(),
-        )),
+        ExporterOptions::Collector(options) => Ok(Box::new(
+            quent_exporter_collector::CollectorExporter::<U>::try_new(options)
+                .await
+                .map_err(|e| ExporterError::Collector(e.to_string()))?,
+        ) as Box<dyn Exporter<T>>),
     }
 }

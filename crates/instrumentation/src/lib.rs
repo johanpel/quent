@@ -6,7 +6,6 @@
 use quent_build_info::{ArtifactInfo, ModelSource};
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{ExporterOptions, create_exporter};
-use quent_exporter_types::Exporter;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::sync::{
@@ -201,15 +200,8 @@ impl<M> Context<M> {
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
         // The forwarder task owns the exporter outright; no sharing, no `Arc`.
-        // Filesystem exporters are built by `create_exporter`; the collector
-        // exporter is built here because it needs the umbrella wire type `M`.
-        let exporter: Box<dyn Exporter<T>> = match kind {
-            #[cfg(feature = "collector")]
-            ExporterOptions::Collector(options) => {
-                Box::new(handle.block_on(quent_exporter::CollectorExporter::<M>::try_new(options))?)
-            }
-            other => handle.block_on(create_exporter::<T>(other))?,
-        };
+        // `M` is the model's umbrella event, the collector's wire type.
+        let exporter = handle.block_on(create_exporter::<T, M>(kind))?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
