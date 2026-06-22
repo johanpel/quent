@@ -449,11 +449,8 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
     let entity_snake = &ids.entity_snake;
 
     let doc_observer = format!(
-        "Observer for `{name}` events.\n\n\
-         An observer emits events for a model component. Obtain one from the \
-         instrumentation context via `{entity_snake}_observer()`.\n\n\
-         The type parameter `E` is the model's top-level event enum, allowing \
-         the same component to be reused across different models."
+        "Observer for `{name}` events. Obtain it from the instrumentation \
+         context via `{entity_snake}_observer()`."
     );
 
     if events.len() == 1 {
@@ -634,11 +631,8 @@ fn expand_self_event(
     let doc_struct = format!("`{name}` self-event entity.");
     let doc_event = format!("Events emitted by `{name}`.");
     let doc_observer = format!(
-        "Observer for `{name}` events.\n\n\
-         An observer emits events for a model component. Obtain one from the \
-         instrumentation context via `{entity_snake}_observer()`.\n\n\
-         The type parameter `E` is the model's top-level event enum, allowing \
-         the same component to be reused across different models."
+        "Observer for `{name}` events. Obtain it from the instrumentation \
+         context via `{entity_snake}_observer()`."
     );
     let doc_observer_method = format!("Emit a `{name}` event.");
     let doc_data =
@@ -906,11 +900,8 @@ fn expand_rg_attrs(
     let doc_decl = format!("Declaration attributes for the {name} resource group.");
     let doc_event = format!("Events emitted by {name}.");
     let doc_observer = format!(
-        "Observer for `{name}` resource group declarations.\n\n\
-         An observer emits events for a model component. Obtain one from the \
-         instrumentation context via `{entity_snake}_observer()`.\n\n\
-         The type parameter `E` is the model's top-level event enum, allowing \
-         the same component to be reused across different models."
+        "Observer for `{name}` resource group declarations. Obtain it from the \
+         instrumentation context via `{entity_snake}_observer()`."
     );
     let doc_observer_method = format!("Declare a new `{name}` resource group instance.");
     let doc_data =
