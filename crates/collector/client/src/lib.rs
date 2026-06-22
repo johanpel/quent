@@ -25,8 +25,8 @@ use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClie
 
 /// A sink for serialized per-entity event streams.
 pub trait CollectorSink {
-    /// Decode the serialized `event` belonging to the entity stream named
-    /// `entity`, and record it.
+    /// Ingest a serialized `event` belonging to the entity event stream named
+    /// `entity`.
     fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>>;
 }
 

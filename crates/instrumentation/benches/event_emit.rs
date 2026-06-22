@@ -21,12 +21,13 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
-use quent_collector::server::{CollectorService, CollectorServiceOptions};
+use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
+use quent_events::{EntityEvent, Event};
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
-use quent_instrumentation::Context;
+use quent_instrumentation::{Context, Observer};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -35,15 +36,47 @@ use uuid::Uuid;
 
 type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Serialize, Deserialize)]
-struct BenchEvent;
+/// Model marker for the benchmark context.
+struct Bench;
 
-impl quent_build_info::ModelSource for BenchEvent {
+impl quent_build_info::ModelSource for Bench {
     fn package() -> &'static str {
         "quent-instrumentation"
     }
     fn source() -> quent_build_info::BuildInfo {
         quent_build_info::BuildInfo::unknown()
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct BenchEvent;
+
+impl EntityEvent for BenchEvent {
+    const NAME: &'static str = "BenchEvent";
+}
+
+// The in-process collector server runs this sink per source: it decodes received
+// `BenchEvent`s and records them through a local ndjson observer.
+struct BenchSink {
+    observer: Observer<BenchEvent>,
+}
+
+impl BenchSink {
+    fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
+        let observer = Context::try_with_id::<Bench>(id, exporter)?.observer::<BenchEvent>()?;
+        Ok(Self { observer })
+    }
+}
+
+impl CollectorSink for BenchSink {
+    fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        if entity == BenchEvent::NAME {
+            self.observer
+                .send(ciborium::from_reader::<Event<BenchEvent>, _>(event)?);
+            Ok(())
+        } else {
+            Err(format!("unknown entity stream `{entity}`").into())
+        }
     }
 }
 
@@ -67,7 +100,6 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
         format: FileSystemFormat::Ndjson,
         root: backing_dir.to_path_buf(),
     });
-    let opts = CollectorServiceOptions { exporter: backing };
 
     rt.spawn(async move {
         let listener = match tokio::net::TcpListener::from_std(std_listener) {
@@ -78,7 +110,9 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
             }
         };
         let incoming = TcpListenerStream::new(listener);
-        let service = CollectorService::<BenchEvent>::new(opts);
+        let service = CollectorService::new(move |id| {
+            BenchSink::new(id, Some(backing.clone())).map_err(|e| e.to_string())
+        });
         let _ = GrpcServer::builder()
             .add_service(CollectorServer::new(service))
             .serve_with_incoming(incoming)
@@ -94,13 +128,12 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let ctx = Context::<BenchEvent>::try_new(exporter)?;
-    let sender = ctx.events_sender();
+    let observer = Context::try_new::<Bench>(exporter)?.observer::<BenchEvent>()?;
     let event_id = Uuid::now_v7();
 
     group.bench_function(label, |b| {
         b.iter(|| {
-            sender.emit(black_box(event_id), black_box(BenchEvent));
+            observer.emit(black_box(event_id), black_box(BenchEvent));
         });
     });
 
@@ -108,7 +141,7 @@ fn bench_emit_variant(
     // would dominate cleanup time and is not part of what we measure here.
     // The forwarder keeps its open file handles; writes continue to the
     // (eventually unlinked) inode until process exit.
-    std::mem::forget(ctx);
+    std::mem::forget(observer);
     Ok(())
 }
 

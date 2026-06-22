@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use quent_collector_proto as proto;
 
-/// Local contexts keyed by source context id; one per remote source.
+/// Local contexts keyed by remote source context id.
 type Contexts<C> = Arc<RwLock<HashMap<Uuid, Arc<C>>>>;
 
 /// Builds a per-source local sink from its source context id.

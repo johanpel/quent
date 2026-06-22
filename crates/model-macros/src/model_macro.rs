@@ -299,7 +299,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 #[doc(alias = "context")]
                 pub struct #context_type {
                     #(#observer_field_decls,)*
-                    _inner: quent_model::Context<#name>,
+                    _inner: quent_model::Context,
                 }
 
                 impl #context_type {
@@ -307,7 +307,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::<#name>::try_new(exporter)?;
+                        let inner = quent_model::Context::try_new::<#name>(exporter)?;
                         #(#observer_inits)*
                         Ok(Self {
                             #(#observer_fields,)*
@@ -322,7 +322,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         id: quent_model::uuid::Uuid,
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::<#name>::try_with_id(id, exporter)?;
+                        let inner = quent_model::Context::try_with_id::<#name>(id, exporter)?;
                         #(#observer_inits)*
                         Ok(Self {
                             #(#observer_fields,)*

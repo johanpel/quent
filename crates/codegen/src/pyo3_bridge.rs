@@ -691,7 +691,7 @@ fn emit_context(
     quote! {
         #[pyclass(name = "Context")]
         pub struct PyContext {
-            inner: Option<#q::Context<#model_type>>,
+            inner: Option<#q::Context>,
             #(#struct_fields,)*
             id: #q::uuid::Uuid,
         }
@@ -719,7 +719,7 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new(opts)
+                let inner = #q::Context::try_new::<#model_type>(opts)
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                 let id = inner.id();
                 #(#field_builds)*

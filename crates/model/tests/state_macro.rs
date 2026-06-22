@@ -26,7 +26,7 @@ impl quent_model::build_info::ModelSource for TestModel {
 }
 
 fn noop_task_observer() -> Observer<TaskEvent> {
-    Context::<TestModel>::try_new(None)
+    Context::try_new::<TestModel>(None)
         .unwrap()
         .observer::<TaskEvent>()
         .unwrap()
