@@ -88,7 +88,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Events are written per entity under the context directory.
     let output_dir = root.join(id.to_string());
-    println!("Events written to: {}", output_dir.canonicalize()?.display());
+    println!(
+        "Events written to: {}",
+        output_dir.canonicalize()?.display()
+    );
 
     Ok(())
 }
