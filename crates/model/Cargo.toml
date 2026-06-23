@@ -21,6 +21,7 @@ quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-instrumentation = { path = "../instrumentation" }
 quent-time = { path = "../time" }
+tokio = { workspace = true, features = ["macros"] }
 
 [dev-dependencies]
 quent-stdlib = { path = "../stdlib" }

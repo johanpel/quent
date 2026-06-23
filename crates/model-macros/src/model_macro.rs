@@ -165,7 +165,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .zip(observer_fields.iter())
         .map(|(((variant, obs_type), comp_event), field)| {
             let method_name = format_ident!("{}_observer", crate::util::to_snake_case(variant));
-            let doc_factory = format!("Create an observer for {variant} entities.");
+            let doc_factory = format!("Observer for {variant} entities.");
             quote! {
                 #[doc = #doc_factory]
                 pub fn #method_name(&self) -> #obs_type<#comp_event> {
@@ -175,7 +175,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    // Per-entity observer field declarations and their construction in `try_new`.
+    // Per-entity observer field declarations.
     let observer_field_decls: Vec<TokenStream> = observer_fields
         .iter()
         .zip(observer_types.iter())
@@ -185,32 +185,17 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
-    let observer_inits: Vec<TokenStream> = observer_fields
-        .iter()
-        .zip(observer_types.iter())
-        .zip(event_types.iter())
-        .map(|((field, obs_type), comp_event)| {
-            quote! { let #field = #obs_type::new(inner.observer::<#comp_event>()?); }
-        })
-        .collect();
-
-    // Per-entity observer accessor method names, reused by the router impl.
-    let observer_method_names: Vec<Ident> = variants
-        .iter()
-        .map(|variant| format_ident!("{}_observer", crate::util::to_snake_case(variant)))
-        .collect();
-
     // One `ingest` arm per entity: match the wire `entity` name against the
     // entity event type's `NAME`, deserialize its `Event`, and route it.
     let ingest_arms: Vec<TokenStream> = event_types
         .iter()
-        .zip(observer_method_names.iter())
-        .map(|(comp_event, method)| {
+        .zip(observer_fields.iter())
+        .map(|(comp_event, field)| {
             quote! {
                 if entity == <#comp_event as quent_model::EntityEvent>::NAME {
                     let e: quent_model::Event<#comp_event> =
                         quent_model::ciborium::from_reader(event)?;
-                    self.#method().send(e);
+                    self.#field.send(e);
                     return Ok(());
                 }
             }
@@ -228,10 +213,24 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          \n\
          The entry point for instrumentation: create one with \
          [`Self::try_new()`], then call the `*_observer()` methods to get an \
-         observer per entity."
+         observer per entity.\n\
+         \n\
+         # Runtime\n\
+         \n\
+         Construction and drop are synchronous but block the calling thread \
+         while building exporters and flushing them. Call them from outside any \
+         async runtime, or from within a **multi-threaded** Tokio runtime. They \
+         **panic** on a current-thread runtime (`#[tokio::main(flavor = \
+         \"current_thread\")]`), which has no spare thread to make progress \
+         while the caller blocks. The `*_observer()` accessors are cheap and \
+         have no such restriction."
     );
     let doc_try_new = format!(
         "Create a new {name} instrumentation context.\n\
+         \n\
+         Builds every entity's exporter, blocking until they are ready. See the \
+         [type docs](Self) for the runtime restriction (panics on a \
+         current-thread runtime).\n\
          \n\
          # Arguments\n\
          * `exporter` — optional exporter configuration (e.g., ndjson, msgpack). \
@@ -307,25 +306,46 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new::<#name>(exporter)?;
-                        #(#observer_inits)*
-                        Ok(Self {
-                            #(#observer_fields,)*
-                            _inner: inner,
-                        })
+                        let inner = quent_model::Context::try_new(exporter)?;
+                        Self::assemble(inner)
                     }
 
                     /// Build a context that adopts an existing `id` instead of
                     /// generating one — e.g. the collector reproducing a remote
-                    /// source's output under that source's id.
+                    /// source's output under that source's id. Same blocking and
+                    /// runtime restriction as [`Self::try_new`].
                     pub fn try_with_id(
                         id: quent_model::uuid::Uuid,
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_with_id::<#name>(id, exporter)?;
-                        #(#observer_inits)*
+                        let inner = quent_model::Context::try_with_id(id, exporter)?;
+                        Self::assemble(inner)
+                    }
+
+                    // The single sync/async bridge: build the provenance sidecar
+                    // and every entity observer concurrently on the context's
+                    // runtime, block until all complete, then assemble. Everything
+                    // below this `block_on` is plain async.
+                    fn assemble(
+                        inner: quent_model::Context,
+                    ) -> Result<Self, Box<dyn std::error::Error>> {
+                        let ( #(#observer_fields,)* ) = inner.block_on(async {
+                            let ( _sidecar, #(#observer_fields,)* ) =
+                                quent_model::tokio::try_join!(
+                                    async {
+                                        inner
+                                            .write_sidecar(
+                                                <#name as quent_model::build_info::ModelSource>::model_info(),
+                                            )
+                                            .await;
+                                        Ok::<(), Box<dyn std::error::Error>>(())
+                                    },
+                                    #(inner.observer::<#event_types>(),)*
+                                )?;
+                            Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))
+                        })?;
                         Ok(Self {
-                            #(#observer_fields,)*
+                            #(#observer_fields: #observer_types::new(#observer_fields),)*
                             _inner: inner,
                         })
                     }
@@ -338,7 +358,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #(#observer_methods)*
                 }
 
-                // Collector routing, kept out of the context's own API.
+                // Collector routing, kept out of the context's own API. A
+                // collector factory awaits the `*_observer()` accessors to build
+                // the observers before any `ingest` call reads them.
                 #[cfg(feature = "collector")]
                 impl quent_model::CollectorSink for #context_type {
                     fn ingest(

@@ -2056,6 +2056,7 @@ dependencies = [
  "quent-time",
  "serde",
  "serde_json",
+ "tokio",
  "trybuild",
  "uuid",
 ]

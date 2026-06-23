@@ -3,10 +3,14 @@
 
 //! Quent Instrumentation API
 //!
-use quent_build_info::{ArtifactInfo, ModelSource};
+//! Instrumented application code should not import features from this crate directly
+//! unless there is a very special reason. Instead, it should interact with the
+//! generated instrumentation library only.
+use quent_build_info::{ArtifactInfo, ModelInfo};
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{ExporterOptions, create_exporter};
 use serde::Serialize;
+use std::future::Future;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -20,9 +24,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-/// Wrapper around an optional channel sender. When the inner sender is `None`
-/// (i.e. the noop exporter is selected), `send` is a no-op that avoids any
-/// channel or event-forwarding overhead.
+/// Wrapper around an optional channel sender.
+///
+/// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
+/// is a no-op that avoids any channel or event-forwarding overhead.
 pub struct EventSender<T> {
     tx: Option<UnboundedSender<Event<T>>>,
     /// Flag shared across clones to prevent potentially massive log spam from
@@ -72,21 +77,42 @@ impl<T> EventSender<T> {
     }
 }
 
-/// The runtime an active context's observers run on. `Ambient` borrows a runtime
-/// that already existed (e.g. a `#[tokio::main]` or caller-managed one); `Owned`
-/// keeps alive the one this context spawned.
+/// The runtime an active context's observers run on.
 #[derive(Clone)]
-enum ActiveRuntime {
-    Ambient(Handle),
-    Owned(Arc<Runtime>),
+enum BackendRuntime {
+    /// A handle to a runtime owned elsewhere (`#[tokio::main]`, a caller-managed
+    /// one) and kept alive by that owner.
+    Borrowed(Handle),
+    /// The runtime this context spawned, shared by the context and every observer
+    /// (hence `Arc`) and shut down by the last holder's `Drop`.
+    Owned {
+        handle: Handle,
+        /// `Option` only so `Drop` can move the `Arc` out of `&mut self`; `Some`
+        /// for the value's whole life until then.
+        runtime: Option<Arc<Runtime>>,
+    },
 }
 
-impl ActiveRuntime {
+impl BackendRuntime {
     /// The handle observers spawn and block on.
     fn handle(&self) -> Handle {
         match self {
-            Self::Ambient(h) => h.clone(),
-            Self::Owned(rt) => rt.handle().clone(),
+            Self::Borrowed(handle) | Self::Owned { handle, .. } => handle.clone(),
+        }
+    }
+}
+
+impl Drop for BackendRuntime {
+    fn drop(&mut self) {
+        // On the last holder of a spawned runtime, shut it down without blocking,
+        // since a blocking `Runtime` drop panics on a runtime worker thread.
+        // `into_inner` yields the `Runtime` only when this was the final `Arc`.
+        // Safe to abandon tasks here: the observers' forwarders have already
+        // flushed by the time the last holder drops.
+        if let Self::Owned { runtime, .. } = self
+            && let Some(runtime) = runtime.take().and_then(Arc::into_inner)
+        {
+            runtime.shutdown_background();
         }
     }
 }
@@ -97,34 +123,42 @@ enum Backend {
     Noop,
     Active {
         config: ExporterOptions,
-        runtime: ActiveRuntime,
+        runtime: BackendRuntime,
     },
 }
 
+/// A context responsible for providing an asynchronous back-end to a
+/// synchronous context generated from an application event model.
+///
+/// Instrumented application code should not interact with this type directly
+/// unless there is a very special reason. Instead, it should interact with the
+/// generated context only through a fully synchronous API.
+///
+/// What it is responsible for:
+/// - Resolving the runtime its observers run on. It borrows an ambient one if
+///   present, otherwise spawns its own (see [`BackendRuntime`]).
+/// - Being the single sync→async bridge for async observer + exporter
+///   construction, provenance sidecar write, and the drop-time flush.
+///
+/// # Panics
+///
+/// The blocking sync/async crossings work off a runtime or on a multi-threaded
+/// one, but panic on a current-thread runtime.
 pub struct Context {
-    /// Identity of this context, generated on construction.
+    /// Unique identifier of this context.
     id: Uuid,
+    /// The asynchronous run-time the observers produced by this context operate
+    /// on.
     backend: Backend,
 }
 
 impl Context {
-    /// Create a context for the given `exporter` configuration (see
-    /// [`ExporterOptions`]).
-    ///
-    /// `M` defines the model provenance, which is written into a sidecar file
-    /// alongside events when `exporter` is a filesystem exporter variant.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when an async runtime is needed but cannot be obtained.
-    pub fn try_new<M: ModelSource>(
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::try_with_id::<M>(Uuid::now_v7(), exporter)
+    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_with_id(Uuid::now_v7(), exporter)
     }
 
-    /// Like [`Self::try_new`], but adopts an existing `id`.
-    pub fn try_with_id<M: ModelSource>(
+    /// Construct a new context with the supplied ID.
+    pub fn try_with_id(
         id: Uuid,
         exporter: Option<ExporterOptions>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
@@ -138,25 +172,16 @@ impl Context {
 
         let runtime = if let Ok(handle) = Handle::try_current() {
             debug!("using existing async runtime");
-            ActiveRuntime::Ambient(handle)
+            BackendRuntime::Borrowed(handle)
         } else {
             debug!("spawning new async runtime");
             let runtime =
                 Runtime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
-            ActiveRuntime::Owned(Arc::new(runtime))
-        };
-
-        // Write the provenance sidecar once per context, in the context
-        // directory the per-entity observers nest their streams under.
-        // Filesystem exporters only.
-        if let Some(dir) = config.clone().in_context_dir(id).filesystem_root() {
-            let dir = dir.to_path_buf();
-            if let Err(e) = std::fs::create_dir_all(&dir)
-                .and_then(|()| ArtifactInfo::new(M::model_info()).write_sidecar(&dir))
-            {
-                warn!("failed to write provenance sidecar: {e}");
+            BackendRuntime::Owned {
+                handle: runtime.handle().clone(),
+                runtime: Some(Arc::new(runtime)),
             }
-        }
+        };
 
         Ok(Context {
             id,
@@ -164,9 +189,58 @@ impl Context {
         })
     }
 
-    /// Identity of this context, generated or set on construction.
     pub fn id(&self) -> Uuid {
         self.id
+    }
+
+    /// Drive `fut` to completion on this context's runtime, blocking the
+    /// calling thread.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a current-thread runtime.
+    pub fn block_on<F: Future>(&self, fut: F) -> F::Output {
+        match &self.backend {
+            Backend::Active { runtime, .. } => drive(&runtime.handle(), fut),
+            // A noop context has no runtime, but its async work is immediately
+            // ready, so poll once. Invariant: the noop `observer()`/
+            // `write_sidecar()` futures must never pend (they early-return
+            // before any `.await`); the `unreachable!` below enforces it.
+            Backend::Noop => {
+                let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+                match std::pin::pin!(fut).poll(&mut cx) {
+                    std::task::Poll::Ready(v) => v,
+                    std::task::Poll::Pending => {
+                        unreachable!("noop context future is always ready")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Write the model provenance sidecar file into the context's filesystem
+    /// exporter directory.
+    ///
+    /// If no filesystem exporter is configured, then this is a no-op.
+    pub async fn write_sidecar(&self, model: ModelInfo) {
+        let Backend::Active { config, .. } = &self.backend else {
+            return;
+        };
+        let kind = config.clone().in_context_dir(self.id);
+        let Some(root) = kind.filesystem_root() else {
+            return;
+        };
+        let dir = root.to_path_buf();
+        let result = tokio::task::spawn_blocking(move || {
+            std::fs::create_dir_all(&dir)
+                .and_then(|()| ArtifactInfo::new(model).write_sidecar(&dir))
+        })
+        .await;
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => warn!("failed to write provenance sidecar: {e}"),
+            Err(e) => warn!("provenance sidecar task failed: {e}"),
+        }
     }
 
     /// Create an [`Observer`] of events of one *type* of entity `T`.
@@ -174,7 +248,7 @@ impl Context {
     /// # Errors
     ///
     /// Returns an error if the exporter cannot be constructed.
-    pub fn observer<T>(&self) -> Result<Observer<T>, Box<dyn std::error::Error>>
+    pub async fn observer<T>(&self) -> Result<Observer<T>, Box<dyn std::error::Error>>
     where
         T: Serialize + Send + EntityEvent + 'static,
     {
@@ -185,7 +259,7 @@ impl Context {
 
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().in_context_dir(self.id);
-        let exporter = handle.block_on(create_exporter::<T>(kind))?;
+        let exporter = create_exporter::<T>(kind).await?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -231,12 +305,14 @@ impl Context {
     }
 }
 
-/// Observes events of one *type* of entity `T`.
+/// Provides an event pipeline to "observe" events of one *type* of entity `T`
+/// and export them.
 ///
-/// It does so by dealing out (generated) handles per entity. These handles have
-/// functions with names and signatures generated from an application event
-/// model. Upon calling these functions, events are sent to an exporter that is
-/// managed by this observer.
+/// Instrumented application code should not interact with this type directly
+/// unless they have a very special reason. Instead, it interacts with the
+/// generated observer only.
+///
+/// A generated observer deals out generated handles per entity instance.
 pub struct Observer<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
@@ -247,7 +323,7 @@ where
     /// The runtime this observer's forwarder runs on; `None` for a no-op
     /// observer. An `Owned` runtime is kept alive here for the observer's
     /// lifetime, so its drop flush is valid even after the [`Context`] is gone.
-    runtime: Option<ActiveRuntime>,
+    runtime: Option<BackendRuntime>,
 }
 
 impl<T> Observer<T>
@@ -286,26 +362,34 @@ where
         else {
             return;
         };
-        let handle = runtime.handle();
 
         // The forwarder drains remaining events and flushes the exporter on
-        // cancellation; joining only waits for that to finish. `block_on`
-        // panics on a runtime worker thread, so when dropped inside a runtime
-        // detach the join instead — the flush still runs, but drop no longer
-        // waits for it.
-        if Handle::try_current().is_ok() {
-            handle.spawn(async move {
-                let _ = forwarder_handle.await;
-            });
-        } else if let Err(e) = handle.block_on(forwarder_handle) {
+        // cancellation; joining waits for that to finish. `drive` blocks here
+        // whether dropped off a runtime or on a multi-threaded worker.
+        if let Err(e) = drive(&runtime.handle(), forwarder_handle) {
             warn!("forwarder task failed: {e}");
         }
+    }
+}
+
+/// Drive `fut` to completion on `handle`'s runtime, blocking the current thread.
+///
+/// - Off a runtime, it blocks directly.
+/// - On a multi-threaded runtime worker it uses `block_in_place` so the
+/// scheduler keeps progressing.
+/// - On a current-thread runtime it panics.
+fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
+    if Handle::try_current().is_ok() {
+        tokio::task::block_in_place(|| handle.block_on(fut))
+    } else {
+        handle.block_on(fut)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quent_build_info::ModelSource;
     use quent_exporter::{FileSystemExporterOptions, FileSystemFormat};
 
     #[derive(Debug, serde::Serialize)]
@@ -335,10 +419,10 @@ mod tests {
 
     #[test]
     fn noop_context_creates_noop_observer() {
-        let ctx = Context::try_new::<TestModel>(None).unwrap();
+        let ctx = Context::try_new(None).unwrap();
         assert!(matches!(ctx.backend, Backend::Noop));
 
-        let observer = ctx.observer::<TestEvent>().unwrap();
+        let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
         assert!(observer.events_sender.tx.is_none());
 
         observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
@@ -350,7 +434,7 @@ mod tests {
     #[test]
     fn filesystem_observer_writes_under_entity_subdir_with_sidecar() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Context::try_new::<TestModel>(Some(ExporterOptions::FileSystem(
+        let ctx = Context::try_new(Some(ExporterOptions::FileSystem(
             FileSystemExporterOptions {
                 format: FileSystemFormat::Ndjson,
                 root: dir.path().to_path_buf(),
@@ -361,7 +445,12 @@ mod tests {
         let context_dir = dir.path().join(ctx.id().to_string());
 
         {
-            let observer = ctx.observer::<TestEvent>().unwrap();
+            let observer = ctx
+                .block_on(async {
+                    ctx.write_sidecar(TestModel::model_info()).await;
+                    ctx.observer::<TestEvent>().await
+                })
+                .unwrap();
             observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.
         }

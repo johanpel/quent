@@ -54,7 +54,11 @@ where
         Ok(())
     }
     async fn force_flush(&self) -> ExporterResult<()> {
-        // TODO(johanpel): figure this out, it may be that we don't need this trait fn
+        // Drain buffered events and wait for delivery. The forwarder awaits this
+        // on shutdown, so the client's tasks are joined here rather than in
+        // `Client::drop` (which may run on a runtime worker, where blocking
+        // panics).
+        self.client.shutdown().await;
         Ok(())
     }
 }

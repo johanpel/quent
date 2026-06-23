@@ -578,7 +578,11 @@ fn emit_context(
         method: syn::Ident,
         class: syn::Ident,
         stored_ty: TokenStream,
-        build: TokenStream,
+        /// The entity event type for `Context::observer::<_>()`.
+        event_ty: TokenStream,
+        /// Constructor applied to the freshly built `Observer` to produce the
+        /// stored value (e.g. `Arc::new` or an FSM observer facade's `new`).
+        wrap: TokenStream,
     }
 
     let observer_fields: Vec<ObserverField> = model
@@ -595,19 +599,13 @@ fn emit_context(
                 syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
             let entity_event_enum = event_enum_ident(&entity.name);
             let stored_ty = quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> };
-            let build = quote! {
-                let #field = Arc::new(
-                    inner
-                        .observer::<#component_mod::#entity_event_enum>()
-                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
-                );
-            };
             ObserverField {
                 field,
                 method,
                 class,
                 stored_ty,
-                build,
+                event_ty: quote! { #component_mod::#entity_event_enum },
+                wrap: quote! { Arc::new },
             }
         })
         .chain(model.fsms.iter().map(|fsm| {
@@ -623,19 +621,13 @@ fn emit_context(
             let facade = format_ident!("{}Observer", pascal);
             let fsm_event = format_ident!("{}Event", pascal);
             let stored_ty = quote! { #component_mod::#facade<#component_mod::#fsm_event> };
-            let build = quote! {
-                let #field = #component_mod::#facade::new(
-                    inner
-                        .observer::<#component_mod::#fsm_event>()
-                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
-                );
-            };
             ObserverField {
                 field,
                 method,
                 class,
                 stored_ty,
-                build,
+                event_ty: quote! { #component_mod::#fsm_event },
+                wrap: quote! { #component_mod::#facade::new },
             }
         }))
         .collect();
@@ -649,7 +641,9 @@ fn emit_context(
         })
         .collect();
 
-    let field_builds: Vec<TokenStream> = observer_fields.iter().map(|o| o.build.clone()).collect();
+    let build_fields: Vec<&syn::Ident> = observer_fields.iter().map(|o| &o.field).collect();
+    let build_event_tys: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.event_ty).collect();
+    let build_wraps: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.wrap).collect();
 
     let field_inits: Vec<TokenStream> = observer_fields
         .iter()
@@ -719,10 +713,26 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new::<#model_type>(opts)
+                let inner = #q::Context::try_new(opts)
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                 let id = inner.id();
-                #(#field_builds)*
+                // Single sync/async bridge: build the sidecar and every observer
+                // concurrently on the context's runtime, then block until done.
+                let (#(#build_fields,)*) = inner.block_on(async {
+                    let (_sidecar, #(#build_fields,)*) = #q::tokio::try_join!(
+                        async {
+                            inner
+                                .write_sidecar(
+                                    <#model_type as #q::build_info::ModelSource>::model_info(),
+                                )
+                                .await;
+                            Ok::<(), Box<dyn std::error::Error>>(())
+                        },
+                        #(inner.observer::<#build_event_tys>(),)*
+                    )
+                    .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
+                    Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
+                })?;
                 Ok(Self {
                     inner: Some(inner),
                     #(#field_inits,)*

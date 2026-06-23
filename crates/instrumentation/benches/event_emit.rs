@@ -36,18 +36,6 @@ use uuid::Uuid;
 
 type BenchResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
-/// Model marker for the benchmark context.
-struct Bench;
-
-impl quent_build_info::ModelSource for Bench {
-    fn package() -> &'static str {
-        "quent-instrumentation"
-    }
-    fn source() -> quent_build_info::BuildInfo {
-        quent_build_info::BuildInfo::unknown()
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
 
@@ -56,14 +44,15 @@ impl EntityEvent for BenchEvent {
 }
 
 // The in-process collector server runs this sink per source: it decodes received
-// `BenchEvent`s and records them through a local ndjson observer.
+// `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
     observer: Observer<BenchEvent>,
 }
 
 impl BenchSink {
     fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
-        let observer = Context::try_with_id::<Bench>(id, exporter)?.observer::<BenchEvent>()?;
+        let context = Context::try_with_id(id, exporter)?;
+        let observer = context.block_on(context.observer::<BenchEvent>())?;
         Ok(Self { observer })
     }
 }
@@ -128,7 +117,8 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let observer = Context::try_new::<Bench>(exporter)?.observer::<BenchEvent>()?;
+    let context = Context::try_new(exporter)?;
+    let observer = context.block_on(context.observer::<BenchEvent>())?;
     let event_id = Uuid::now_v7();
 
     group.bench_function(label, |b| {

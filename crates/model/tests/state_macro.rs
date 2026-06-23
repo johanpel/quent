@@ -6,30 +6,9 @@
 use quent_model::{Context, ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
 use uuid::Uuid;
 
-/// Umbrella model event used only to obtain a no-op [`Context`] in tests.
-#[derive(serde::Serialize)]
-struct TestModel(TaskEvent);
-
-impl From<TaskEvent> for TestModel {
-    fn from(e: TaskEvent) -> Self {
-        TestModel(e)
-    }
-}
-
-impl quent_model::build_info::ModelSource for TestModel {
-    fn package() -> &'static str {
-        "quent-model"
-    }
-    fn source() -> quent_model::build_info::BuildInfo {
-        quent_model::build_info::BuildInfo::unknown()
-    }
-}
-
 fn noop_task_observer() -> Observer<TaskEvent> {
-    Context::try_new::<TestModel>(None)
-        .unwrap()
-        .observer::<TaskEvent>()
-        .unwrap()
+    let ctx = Context::try_new(None).unwrap();
+    ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
 }
 
 // States defined with state! macro.
