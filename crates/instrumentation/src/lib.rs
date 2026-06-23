@@ -3,9 +3,10 @@
 
 //! Quent Instrumentation API
 //!
-//! Instrumented application code should not import features from this crate directly
-//! unless there is a very special reason. Instead, it should interact with the
+//! Instrumented application code should not import this crate directly unless
+//! there is a very special reason. Instead, it should interact with the
 //! generated instrumentation library only.
+
 use quent_build_info::{ArtifactInfo, ModelInfo};
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{ExporterOptions, create_exporter};
@@ -157,7 +158,7 @@ impl Context {
         Self::try_with_id(Uuid::now_v7(), exporter)
     }
 
-    /// Construct a new context with the supplied ID.
+    /// Construct a new context with the supplied universally unique identifier.
     pub fn try_with_id(
         id: Uuid,
         exporter: Option<ExporterOptions>,
@@ -189,6 +190,7 @@ impl Context {
         })
     }
 
+    /// Return the universally unique identifier of this context.
     pub fn id(&self) -> Uuid {
         self.id
     }
@@ -312,7 +314,8 @@ impl Context {
 /// unless they have a very special reason. Instead, it interacts with the
 /// generated observer only.
 ///
-/// A generated observer deals out generated handles per entity instance.
+/// A generated observer deals out generated handles per entity instance that
+/// share ownership of this observer.
 pub struct Observer<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
@@ -330,7 +333,8 @@ impl<T> Observer<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    /// A no-op observer that discards events and holds no runtime resources.
+    /// Construct a no-op observer that discards events and holds no runtime
+    /// resources whatesoever.
     fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
@@ -374,10 +378,11 @@ where
 
 /// Drive `fut` to completion on `handle`'s runtime, blocking the current thread.
 ///
-/// - Off a runtime, it blocks directly.
-/// - On a multi-threaded runtime worker it uses `block_in_place` so the
-/// scheduler keeps progressing.
-/// - On a current-thread runtime it panics.
+/// Off a runtime, it blocks directly. On a multi-threaded runtime worker it
+/// uses `block_in_place` so the scheduler keeps progressing.
+///
+/// # Panics
+/// On a current-thread runtime, this panics.
 fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
     if Handle::try_current().is_ok() {
         tokio::task::block_in_place(|| handle.block_on(fut))
