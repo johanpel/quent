@@ -228,7 +228,7 @@ impl Context {
         let Backend::Active { config, .. } = &self.backend else {
             return;
         };
-        let kind = config.clone().in_context_dir(self.id);
+        let kind = config.clone().resolve(self.id);
         let Some(root) = kind.filesystem_root() else {
             return;
         };
@@ -260,7 +260,7 @@ impl Context {
         let handle = runtime.handle();
 
         debug!("constructing exporter for stream `{}`", T::NAME);
-        let kind = config.clone().in_context_dir(self.id);
+        let kind = config.clone().resolve(self.id);
         let exporter = create_exporter::<T>(kind).await?;
 
         let cancellation_token = CancellationToken::new();

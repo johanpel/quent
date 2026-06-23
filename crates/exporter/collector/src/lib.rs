@@ -9,16 +9,15 @@ use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
-/// Options for the collector exporter.
+/// User-facing options for the collector exporter.
 ///
 /// Streams events over gRPC to a remote collector service. Use this for
-/// distributed deployments where events are centralized for analysis.
-/// `source_context_id` identifies this stream to the collector, which
-/// reproduces the source's output under that id.
+/// distributed deployments where events are centralized for analysis. The
+/// source context id the collector reproduces under is supplied separately by
+/// the context when it builds the exporter (see [`CollectorExporter::try_new`]).
 #[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
     pub address: String,
-    pub source_context_id: Uuid,
 }
 
 /// Streams one entity's events to a collector. The stream is tagged with the
@@ -33,10 +32,13 @@ impl<T> CollectorExporter<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
+    /// `source_context_id` identifies this stream to the collector, which
+    /// reproduces the source's output under that id.
     pub async fn try_new(
-        options: CollectorExporterOptions,
+        address: String,
+        source_context_id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = Client::new(options.source_context_id, T::NAME, options.address).await?;
+        let client = Client::new(source_context_id, T::NAME, address).await?;
         Ok(Self { client })
     }
 }

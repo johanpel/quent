@@ -82,7 +82,6 @@ fn collector_client_flushes_all_events_on_drop() {
     // A plain sync client (no ambient runtime); the context spawns its own.
     let ctx = Context::try_new(Some(ExporterOptions::Collector(CollectorExporterOptions {
         address,
-        source_context_id: Uuid::now_v7(),
     })))
     .unwrap();
     {

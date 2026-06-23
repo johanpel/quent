@@ -25,13 +25,37 @@ compile_error!("at least one exporter feature must be enabled");
 #[cfg(feature = "collector")]
 pub use quent_exporter_collector::CollectorExporterOptions;
 
-/// Selects where a context's events go: local files (filesystem) or a collector
-/// service. A context created without any options discards its events.
+/// Where events go: local files (filesystem) or a collector service.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector(CollectorExporterOptions),
+}
+
+/// Like [`ExporterOptions`], but the collector variant also carries the source
+/// context id and a filesystem `root` is the per-context directory.
+#[derive(Debug, Clone)]
+pub enum ResolvedExporterOptions {
+    FileSystem(FileSystemExporterOptions),
+    #[cfg(feature = "collector")]
+    Collector {
+        address: String,
+        source_context_id: Uuid,
+    },
+}
+
+impl ResolvedExporterOptions {
+    /// Filesystem output directory for filesystem exporters; `None` for
+    /// exporters (e.g. the collector) that do not write a local directory.
+    /// Used to locate where a provenance sidecar should be written.
+    pub fn filesystem_root(&self) -> Option<&std::path::Path> {
+        match self {
+            ResolvedExporterOptions::FileSystem(options) => Some(&options.root),
+            #[cfg(feature = "collector")]
+            ResolvedExporterOptions::Collector { .. } => None,
+        }
+    }
 }
 
 /// Serialization format for the filesystem exporter and importer.
@@ -54,30 +78,19 @@ pub struct FileSystemExporterOptions {
 }
 
 impl ExporterOptions {
-    /// Returns these options scoped to the context `id`, so each context's
-    /// output is kept separate.
-    pub fn in_context_dir(self, id: Uuid) -> Self {
+    /// Bind these options to the context `id`: scope a filesystem `root` to the
+    /// context directory, or set the collector's source context id.
+    pub fn resolve(self, id: Uuid) -> ResolvedExporterOptions {
         match self {
             ExporterOptions::FileSystem(mut options) => {
                 options.root = options.root.join(id.to_string());
-                ExporterOptions::FileSystem(options)
+                ResolvedExporterOptions::FileSystem(options)
             }
             #[cfg(feature = "collector")]
-            ExporterOptions::Collector(mut options) => {
-                options.source_context_id = id;
-                ExporterOptions::Collector(options)
-            }
-        }
-    }
-
-    /// Filesystem output directory for filesystem exporters; `None` for
-    /// exporters (e.g. the collector) that do not write a local directory.
-    /// Used to locate where a provenance sidecar should be written.
-    pub fn filesystem_root(&self) -> Option<&std::path::Path> {
-        match self {
-            ExporterOptions::FileSystem(options) => Some(&options.root),
-            #[cfg(feature = "collector")]
-            ExporterOptions::Collector(_) => None,
+            ExporterOptions::Collector(options) => ResolvedExporterOptions::Collector {
+                address: options.address,
+                source_context_id: id,
+            },
         }
     }
 }
@@ -126,38 +139,45 @@ where
     }
 }
 
-/// Construct an exporter from [`ExporterOptions`].
-pub async fn create_exporter<T>(kind: ExporterOptions) -> ExporterResult<Box<dyn Exporter<T>>>
+/// Construct an exporter from [`ResolvedExporterOptions`].
+pub async fn create_exporter<T>(
+    kind: ResolvedExporterOptions,
+) -> ExporterResult<Box<dyn Exporter<T>>>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
     match kind {
-        ExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => match format {
-            #[cfg(feature = "ndjson")]
-            FileSystemFormat::Ndjson => Ok(Box::new(
-                quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
-                    quent_exporter_ndjson::NdjsonExporterOptions { dir: root },
-                )
-                .await?,
-            ) as Box<dyn Exporter<T>>),
-            #[cfg(feature = "msgpack")]
-            FileSystemFormat::Msgpack => Ok(Box::new(
-                quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
-                    quent_exporter_msgpack::MsgpackExporterOptions { dir: root },
-                )
-                .await?,
-            ) as Box<dyn Exporter<T>>),
-            #[cfg(feature = "postcard")]
-            FileSystemFormat::Postcard => Ok(Box::new(
-                quent_exporter_postcard::PostcardExporter::try_new::<T>(
-                    quent_exporter_postcard::PostcardExporterOptions { dir: root },
-                )
-                .await?,
-            ) as Box<dyn Exporter<T>>),
-        },
+        ResolvedExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => {
+            match format {
+                #[cfg(feature = "ndjson")]
+                FileSystemFormat::Ndjson => Ok(Box::new(
+                    quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
+                        quent_exporter_ndjson::NdjsonExporterOptions { dir: root },
+                    )
+                    .await?,
+                ) as Box<dyn Exporter<T>>),
+                #[cfg(feature = "msgpack")]
+                FileSystemFormat::Msgpack => Ok(Box::new(
+                    quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
+                        quent_exporter_msgpack::MsgpackExporterOptions { dir: root },
+                    )
+                    .await?,
+                ) as Box<dyn Exporter<T>>),
+                #[cfg(feature = "postcard")]
+                FileSystemFormat::Postcard => Ok(Box::new(
+                    quent_exporter_postcard::PostcardExporter::try_new::<T>(
+                        quent_exporter_postcard::PostcardExporterOptions { dir: root },
+                    )
+                    .await?,
+                ) as Box<dyn Exporter<T>>),
+            }
+        }
         #[cfg(feature = "collector")]
-        ExporterOptions::Collector(options) => Ok(Box::new(
-            quent_exporter_collector::CollectorExporter::<T>::try_new(options)
+        ResolvedExporterOptions::Collector {
+            address,
+            source_context_id,
+        } => Ok(Box::new(
+            quent_exporter_collector::CollectorExporter::<T>::try_new(address, source_context_id)
                 .await
                 .map_err(|e| ExporterError::Collector(e.to_string()))?,
         ) as Box<dyn Exporter<T>>),
