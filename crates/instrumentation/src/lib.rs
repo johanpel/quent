@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Quent Instrumentation API
+//! Backing structures for generated instrumentation libraries.
 //!
 //! Instrumented application code should not import this crate directly unless
 //! there is a very special reason. Instead, it should interact with the
