@@ -6,8 +6,12 @@
 use std::path::PathBuf;
 
 use quent_events::EntityEvent;
-use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer};
 use serde::{Deserialize, Serialize};
+
+// Part of the public API: `create_importer` returns `ImporterResult`, so callers
+// must be able to name it (and its error).
+pub use quent_exporter_types::{ImporterError, ImporterResult};
 use uuid::Uuid;
 
 #[cfg(not(any(

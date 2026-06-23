@@ -235,6 +235,23 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          Pass `None` for a no-op context that discards events."
     );
 
+    let doc_import = format!(
+        "Reconstruct the [`{event_type}`] stream for a single context directory.\n\
+         \n\
+         Reads each entity's per-stream subdirectory under `dir` in `format`, \
+         deserializes its events, and chains them. The events carry their own \
+         timestamps, so the analyzer orders them; this does not sort.\n\
+         \n\
+         # Assumption\n\
+         \n\
+         Treats one context directory as the complete telemetry of one model \
+         instance: every process of that instance is assumed to build its context \
+         with the same id and export through the collector, which centralizes \
+         their per-entity streams under that one id. This does not cover the \
+         alternative of lazily loading distributed per-node exports on demand \
+         with no collector at capture time."
+    );
+
     let output = quote! {
         #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
@@ -275,6 +292,44 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     option_env!("QUENT_SOURCE_DIRTY"),
                     option_env!("QUENT_SOURCE_BUILT_AT"),
                 )
+            }
+        }
+
+        impl #name {
+            #[doc = #doc_import]
+            pub fn import_events(
+                dir: &std::path::Path,
+                format: quent_model::exporter::FileSystemFormat,
+            ) -> quent_model::exporter::ImporterResult<
+                Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+            > {
+                let mut streams: Vec<
+                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                > = Vec::new();
+                #(
+                    {
+                        let path =
+                            dir.join(<#event_types as quent_model::EntityEvent>::NAME);
+                        if path.is_dir() {
+                            let importer = quent_model::exporter::create_importer::<#event_types>(
+                                &quent_model::exporter::ImporterOptions::FileSystem(
+                                    quent_model::exporter::FileSystemImporterOptions {
+                                        format,
+                                        path,
+                                    },
+                                ),
+                            )?;
+                            streams.push(Box::new(importer.map(|e| {
+                                quent_model::Event::new(
+                                    e.id,
+                                    e.timestamp,
+                                    #event_type::from(e.data),
+                                )
+                            })));
+                        }
+                    }
+                )*
+                Ok(Box::new(streams.into_iter().flatten()))
             }
         }
 

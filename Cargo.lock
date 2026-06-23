@@ -2162,6 +2162,7 @@ dependencies = [
  "quent-collector",
  "quent-collector-proto",
  "quent-events",
+ "quent-exporter",
  "quent-exporter-types",
  "quent-query-engine-analyzer",
  "quent-query-engine-model",
