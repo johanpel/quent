@@ -20,7 +20,6 @@ use quent_query_engine_model::{
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use quent_simulator_instrumentation::SimulatorEvent;
 use rand::{Rng, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
@@ -503,9 +502,9 @@ struct Worker {
     thread_pool: Uuid,
     threads: Vec<Uuid>,
     // Resource handles — kept alive until shut_down().
-    memory_handles: Vec<quent_stdlib::memory::MemoryHandle<SimulatorEvent>>,
-    channel_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
-    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle<SimulatorEvent>>,
+    memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
+    channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
+    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle>,
 }
 
 impl Worker {
@@ -1025,7 +1024,7 @@ struct Engine {
     workers: HashMap<Uuid, Worker>,
     network: Uuid,
     network_links: HashMap<(Uuid, Uuid), Uuid>,
-    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle<SimulatorEvent>>,
+    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle>,
 }
 
 impl Engine {

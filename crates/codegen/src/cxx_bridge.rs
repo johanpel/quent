@@ -424,7 +424,11 @@ fn emit_context_bridge(
         field: syn::Ident,
         method: syn::Ident,
         stored_ty: TokenStream,
-        build: TokenStream,
+        /// The entity event type for `Context::observer::<_>()`.
+        event_ty: TokenStream,
+        /// Constructor applied to the freshly built `Observer` to produce the
+        /// stored value (`Arc::new` or an FSM observer facade's `new`).
+        wrap: TokenStream,
     }
 
     let observer_fields: Vec<ObserverField> = model
@@ -436,19 +440,12 @@ fn emit_context_bridge(
             let component_mod: syn::Path =
                 syn::parse_str(&remap_module_path(&entity.module_path, options)).unwrap();
             let entity_event_enum = format_ident!("{}Event", to_pascal_case(&entity.name));
-            let stored_ty = quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> };
-            let build = quote! {
-                let #field = Arc::new(
-                    inner
-                        .observer::<#component_mod::#entity_event_enum>()
-                        .map_err(|e| e.to_string())?,
-                );
-            };
             ObserverField {
                 field,
                 method,
-                stored_ty,
-                build,
+                stored_ty: quote! { Arc<#q::Observer<#component_mod::#entity_event_enum>> },
+                event_ty: quote! { #component_mod::#entity_event_enum },
+                wrap: quote! { Arc::new },
             }
         })
         .chain(model.fsms.iter().map(|fsm| {
@@ -459,19 +456,12 @@ fn emit_context_bridge(
             let pascal = to_pascal_case(&fsm.name);
             let facade = format_ident!("{}Observer", pascal);
             let fsm_event = format_ident!("{}Event", pascal);
-            let stored_ty = quote! { #component_mod::#facade<#component_mod::#fsm_event> };
-            let build = quote! {
-                let #field = #component_mod::#facade::new(
-                    inner
-                        .observer::<#component_mod::#fsm_event>()
-                        .map_err(|e| e.to_string())?,
-                );
-            };
             ObserverField {
                 field,
                 method,
-                stored_ty,
-                build,
+                stored_ty: quote! { #component_mod::#facade },
+                event_ty: quote! { #component_mod::#fsm_event },
+                wrap: quote! { #component_mod::#facade::new },
             }
         }))
         .collect();
@@ -485,7 +475,9 @@ fn emit_context_bridge(
         })
         .collect();
 
-    let field_builds: Vec<TokenStream> = observer_fields.iter().map(|o| o.build.clone()).collect();
+    let build_fields: Vec<&syn::Ident> = observer_fields.iter().map(|o| &o.field).collect();
+    let build_event_tys: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.event_ty).collect();
+    let build_wraps: Vec<&TokenStream> = observer_fields.iter().map(|o| &o.wrap).collect();
     let field_inits: Vec<syn::Ident> = observer_fields.iter().map(|o| o.field.clone()).collect();
 
     let accessors: Vec<TokenStream> = observer_fields
@@ -532,9 +524,25 @@ fn emit_context_bridge(
                 )),
                 _ => None,
             };
-            let inner = #q::Context::<#model_type>::try_new(opts)
+            let inner = #q::Context::try_new(opts)
                 .map_err(|e| e.to_string())?;
-            #(#field_builds)*
+            // Single sync/async bridge: build the sidecar and every observer
+            // concurrently on the context's runtime, then block until done.
+            let (#(#build_fields,)*) = inner.block_on(async {
+                let (_sidecar, #(#build_fields,)*) = #q::tokio::try_join!(
+                    async {
+                        inner
+                            .write_sidecar(
+                                <#model_type as #q::build_info::ModelSource>::model_info(),
+                            )
+                            .await;
+                        Ok::<(), Box<dyn std::error::Error>>(())
+                    },
+                    #(inner.observer::<#build_event_tys>(),)*
+                )
+                .map_err(|e| e.to_string())?;
+                Ok::<_, String>((#(#build_wraps(#build_fields),)*))
+            })?;
             Ok(Box::new(Context {
                 #(#field_inits,)*
             }))
@@ -1170,7 +1178,7 @@ fn emit_fsm_bridge(
 
     let observer_accessor = observer_handle_method(fsm_name);
     let model_handle: syn::Type = {
-        let s = format!("{remapped}::{pascal_name}Handle<{remapped}::{pascal_name}Event>");
+        let s = format!("{remapped}::{pascal_name}Handle");
         syn::parse_str(&s).unwrap()
     };
 
