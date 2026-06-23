@@ -345,7 +345,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     id: quent_model::uuid::Uuid,
                     #(#attrs_params)*
                     #(#usage_params)*
-                ) -> $handle<E> {
+                ) -> $handle {
                     let state = #name {
                         #(#attrs_field_inits)*
                         #(#usage_field_inits)*

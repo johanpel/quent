@@ -161,14 +161,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let observer_methods: Vec<TokenStream> = variants
         .iter()
         .zip(observer_types.iter())
-        .zip(event_types.iter())
         .zip(observer_fields.iter())
-        .map(|(((variant, obs_type), comp_event), field)| {
+        .map(|((variant, obs_type), field)| {
             let method_name = format_ident!("{}_observer", crate::util::to_snake_case(variant));
             let doc_factory = format!("Observer for {variant} entities.");
             quote! {
                 #[doc = #doc_factory]
-                pub fn #method_name(&self) -> #obs_type<#comp_event> {
+                pub fn #method_name(&self) -> #obs_type {
                     self.#field.clone()
                 }
             }
@@ -179,9 +178,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let observer_field_decls: Vec<TokenStream> = observer_fields
         .iter()
         .zip(observer_types.iter())
-        .zip(event_types.iter())
-        .map(|((field, obs_type), comp_event)| {
-            quote! { #field: #obs_type<#comp_event> }
+        .map(|(field, obs_type)| {
+            quote! { #field: #obs_type }
         })
         .collect();
 

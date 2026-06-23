@@ -620,7 +620,7 @@ fn emit_context(
             let pascal = to_pascal_case(&fsm.name);
             let facade = format_ident!("{}Observer", pascal);
             let fsm_event = format_ident!("{}Event", pascal);
-            let stored_ty = quote! { #component_mod::#facade<#component_mod::#fsm_event> };
+            let stored_ty = quote! { #component_mod::#facade };
             ObserverField {
                 field,
                 method,
@@ -931,11 +931,8 @@ fn emit_fsm_bridge(
     let handle = py_class_ident(&handle_py_name);
     let component_mod_str = remap_module_path(&fsm.module_path, options);
     let component_mod: syn::Path = syn::parse_str(&component_mod_str).unwrap();
-    let fsm_event = format_ident!("{}Event", pascal_name);
-    let model_handle: syn::Type = syn::parse_str(&format!(
-        "{component_mod_str}::{pascal_name}Handle<{component_mod_str}::{pascal_name}Event>",
-    ))
-    .unwrap();
+    let model_handle: syn::Type =
+        syn::parse_str(&format!("{component_mod_str}::{pascal_name}Handle",)).unwrap();
 
     let entry_state = fsm
         .states
@@ -983,7 +980,7 @@ fn emit_fsm_bridge(
     quote! {
         #[pyclass(name = #observer_py_name)]
         pub struct #observer {
-            inner: #component_mod::#observer_name<#component_mod::#fsm_event>,
+            inner: #component_mod::#observer_name,
         }
 
         #[pymethods]

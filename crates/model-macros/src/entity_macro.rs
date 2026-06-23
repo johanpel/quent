@@ -55,9 +55,7 @@ use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{Token, Type, braced};
 
-use crate::util::{
-    resolve_value_type, serde_bound, serde_crate_attr, serde_derives, to_snake_case,
-};
+use crate::util::{resolve_value_type, serde_crate_attr, serde_derives, to_snake_case};
 
 struct InlineField {
     name: Ident,
@@ -338,7 +336,6 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 struct EntityIdents {
     serde_derives: TokenStream,
     serde_crate_attr: TokenStream,
-    serde_bound: TokenStream,
     entity_snake: String,
     event_enum: Ident,
     observer_name: Ident,
@@ -351,7 +348,6 @@ impl EntityIdents {
         Self {
             serde_derives: serde_derives(),
             serde_crate_attr: serde_crate_attr(),
-            serde_bound: serde_bound(),
             event_enum: format_ident!("{}Event", name),
             observer_name: format_ident!("{}Observer", name),
             data_struct: format_ident!("{}Data", name),
@@ -445,7 +441,6 @@ fn codegen_events(events: &[EventEntry], event_enum: &Ident) -> EventCodegen {
 fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIdents) -> TokenStream {
     let event_enum = &ids.event_enum;
     let observer_name = &ids.observer_name;
-    let serde_bound = &ids.serde_bound;
     let entity_snake = &ids.entity_snake;
 
     let doc_observer = format!(
@@ -464,30 +459,24 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         quote! {
             #[doc = #doc_observer]
             #[doc(alias = "observer")]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
-                inner: ::std::sync::Arc<quent_model::Observer<E>>,
+            pub struct #observer_name {
+                inner: ::std::sync::Arc<quent_model::Observer<#event_enum>>,
             }
 
-            // Cloning shares the underlying observer; `E: Clone` is not required.
-            impl<E> Clone for #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
+            // Cloning shares the underlying observer.
+            impl Clone for #observer_name {
                 fn clone(&self) -> Self {
                     Self { inner: self.inner.clone() }
                 }
             }
 
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
-                pub fn new(observer: quent_model::Observer<E>) -> Self {
+            impl #observer_name {
+                pub fn new(observer: quent_model::Observer<#event_enum>) -> Self {
                     Self { inner: ::std::sync::Arc::new(observer) }
                 }
 
                 /// Forward a pre-built event into this entity's stream.
-                pub fn send(&self, event: quent_model::Event<E>) {
+                pub fn send(&self, event: quent_model::Event<#event_enum>) {
                     self.inner.send(event);
                 }
 
@@ -523,16 +512,12 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
         quote! {
             #[doc = #doc_handle]
             #[doc(alias = "handle")]
-            pub struct #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
+            pub struct #handle_name {
                 id: quent_model::uuid::Uuid,
-                inner: ::std::sync::Arc<quent_model::Observer<E>>,
+                inner: ::std::sync::Arc<quent_model::Observer<#event_enum>>,
             }
 
-            impl<E> #handle_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
+            impl #handle_name {
                 #[doc = #doc_handle_uuid]
                 pub fn uuid(&self) -> quent_model::uuid::Uuid { self.id }
                 #(#handle_methods)*
@@ -540,35 +525,29 @@ fn gen_observer_and_handle(name: &Ident, events: &[EventEntry], ids: &EntityIden
 
             #[doc = #doc_observer]
             #[doc(alias = "observer")]
-            pub struct #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
-                inner: ::std::sync::Arc<quent_model::Observer<E>>,
+            pub struct #observer_name {
+                inner: ::std::sync::Arc<quent_model::Observer<#event_enum>>,
             }
 
-            // Cloning shares the underlying observer; `E: Clone` is not required.
-            impl<E> Clone for #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
+            // Cloning shares the underlying observer.
+            impl Clone for #observer_name {
                 fn clone(&self) -> Self {
                     Self { inner: self.inner.clone() }
                 }
             }
 
-            impl<E> #observer_name<E>
-            where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-            {
-                pub fn new(observer: quent_model::Observer<E>) -> Self {
+            impl #observer_name {
+                pub fn new(observer: quent_model::Observer<#event_enum>) -> Self {
                     Self { inner: ::std::sync::Arc::new(observer) }
                 }
 
                 /// Forward a pre-built event into this entity's stream.
-                pub fn send(&self, event: quent_model::Event<E>) {
+                pub fn send(&self, event: quent_model::Event<#event_enum>) {
                     self.inner.send(event);
                 }
 
                 #[doc = #doc_create]
-                pub fn create(&self, id: quent_model::uuid::Uuid) -> #handle_name<E> {
+                pub fn create(&self, id: quent_model::uuid::Uuid) -> #handle_name {
                     #handle_name { id, inner: self.inner.clone() }
                 }
             }
@@ -586,7 +565,6 @@ fn expand_self_event(
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let serde_crate_attr = &ids.serde_crate_attr;
-    let serde_bound = &ids.serde_bound;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
     let observer_name = &ids.observer_name;
@@ -670,30 +648,24 @@ fn expand_self_event(
 
         #[doc = #doc_observer]
             #[doc(alias = "observer")]
-        pub struct #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
-            inner: ::std::sync::Arc<quent_model::Observer<E>>,
+        pub struct #observer_name {
+            inner: ::std::sync::Arc<quent_model::Observer<#event_enum>>,
         }
 
-        // Cloning shares the underlying observer; `E: Clone` is not required.
-        impl<E> Clone for #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
+        // Cloning shares the underlying observer.
+        impl Clone for #observer_name {
             fn clone(&self) -> Self {
                 Self { inner: self.inner.clone() }
             }
         }
 
-        impl<E> #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
-            pub fn new(observer: quent_model::Observer<E>) -> Self {
+        impl #observer_name {
+            pub fn new(observer: quent_model::Observer<#event_enum>) -> Self {
                 Self { inner: ::std::sync::Arc::new(observer) }
             }
 
             /// Forward a pre-built event into this entity's stream.
-            pub fn send(&self, event: quent_model::Event<E>) {
+            pub fn send(&self, event: quent_model::Event<#event_enum>) {
                 self.inner.send(event);
             }
 
@@ -828,7 +800,6 @@ fn expand_rg_attrs(
     let ids = EntityIdents::new(name);
     let serde_derives = &ids.serde_derives;
     let serde_crate_attr = &ids.serde_crate_attr;
-    let serde_bound = &ids.serde_bound;
     let entity_snake = &ids.entity_snake;
     let event_enum = &ids.event_enum;
     let observer_name = &ids.observer_name;
@@ -933,30 +904,24 @@ fn expand_rg_attrs(
 
         #[doc = #doc_observer]
             #[doc(alias = "observer")]
-        pub struct #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
-            inner: ::std::sync::Arc<quent_model::Observer<E>>,
+        pub struct #observer_name {
+            inner: ::std::sync::Arc<quent_model::Observer<#event_enum>>,
         }
 
-        // Cloning shares the underlying observer; `E: Clone` is not required.
-        impl<E> Clone for #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
+        // Cloning shares the underlying observer.
+        impl Clone for #observer_name {
             fn clone(&self) -> Self {
                 Self { inner: self.inner.clone() }
             }
         }
 
-        impl<E> #observer_name<E>
-        where E: From<#event_enum> #serde_bound + Send + quent_model::EntityEvent + 'static,
-        {
-            pub fn new(observer: quent_model::Observer<E>) -> Self {
+        impl #observer_name {
+            pub fn new(observer: quent_model::Observer<#event_enum>) -> Self {
                 Self { inner: ::std::sync::Arc::new(observer) }
             }
 
             /// Forward a pre-built event into this entity's stream.
-            pub fn send(&self, event: quent_model::Event<E>) {
+            pub fn send(&self, event: quent_model::Event<#event_enum>) {
                 self.inner.send(event);
             }
 
