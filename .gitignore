@@ -12,3 +12,4 @@ tarpaulin-report.html
 *.tsbuildinfo
 docs/agents/
 .cursor
+__pycache__/
