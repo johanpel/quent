@@ -232,7 +232,9 @@ fn expand_impl(input: DeriveInput, resizable: bool) -> syn::Result<TokenStream> 
     let resize_state = format_ident!("{}Resizing", name);
     let transition_enum = format_ident!("{}Transition", name);
     let event_type = format_ident!("{}Event", name);
-    let event_name = event_type.to_string();
+    // The stream name (exporter subdirectory, collector wire tag, ingest key) is
+    // the entity's snake-case name.
+    let event_name = name_snake.clone();
     let handle_name = format_ident!("{}Handle", name);
     let observer_name = format_ident!("{}Observer", name);
     let resource_marker = format_ident!("{}Resource", name);

@@ -307,7 +307,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     let input: EntityInput = syn::parse2(input)?;
     let ua = &input.user_attrs;
     let event_enum = format_ident!("{}Event", &input.name);
-    let event_name = event_enum.to_string();
+    // The stream name (exporter subdirectory, collector wire tag, ingest key) is
+    // the entity's snake-case name.
+    let event_name = crate::util::to_snake_case(&input.name);
     let body = match input.kind {
         EntityKind::SelfEvent(fields) => expand_self_event(&input.name, &fields, ua)?,
         EntityKind::MultiEvent(events) => expand_multi_event(&input.name, &events, ua)?,
