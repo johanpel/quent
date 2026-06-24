@@ -145,6 +145,7 @@ enum Backend {
 ///
 /// The blocking sync/async crossings work off a runtime or on a multi-threaded
 /// one, but panic on a current-thread runtime.
+#[doc(hidden)]
 pub struct Context {
     /// Unique identifier of this context.
     id: Uuid,
@@ -314,8 +315,12 @@ impl Context {
 /// unless they have a very special reason. Instead, it interacts with the
 /// generated observer only.
 ///
-/// A generated observer deals out generated handles per entity instance that
-/// share ownership of this observer.
+/// Generated code constructs and shares this type. Instrumented application
+/// code uses the generated observer and its per-instance entity handles
+/// instead. Those manage the shared ownership and flush-on-last-drop this type
+/// relies on, so holding or dropping it directly can lose or prematurely flush
+/// events.
+#[doc(hidden)]
 pub struct Observer<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
