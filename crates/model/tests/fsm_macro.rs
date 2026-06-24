@@ -3,11 +3,12 @@
 
 //! Integration test for the `fsm!` proc macro.
 
+use quent_model::build_info::ModelInfo;
 use quent_model::{Context, FsmEvent, ModelBuilder, ModelComponent, Observer, StateMetadata};
 use uuid::Uuid;
 
 fn noop_task_observer() -> Observer<TaskEvent> {
-    let ctx = Context::try_new(None).unwrap();
+    let ctx = Context::try_new(ModelInfo::unknown(), None).unwrap();
     ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
 }
 

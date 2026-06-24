@@ -85,6 +85,19 @@ impl BuildInfo {
     }
 }
 
+impl ModelInfo {
+    /// A [`ModelInfo`] with no provenance, for placeholders (e.g. tests) where
+    /// the model identity is irrelevant.
+    pub fn unknown() -> Self {
+        Self {
+            name: "unknown".to_string(),
+            package: "unknown".to_string(),
+            type_path: "unknown".to_string(),
+            source: BuildInfo::unknown(),
+        }
+    }
+}
+
 /// The provenance written into the `model.qmi` sidecar of each context directory.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArtifactInfo {
