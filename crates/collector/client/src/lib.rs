@@ -3,7 +3,6 @@
 
 //! A gRPC-based client that can send [`Event`]s to a collector.
 
-use std::sync::Mutex;
 use std::time::Duration;
 
 use quent_events::Event;
@@ -56,10 +55,10 @@ pub struct Client<T> {
     _grpc_client: CollectorClient<Channel>,
     event_sender: Sender<Event<T>>,
     cancellation_token: CancellationToken,
-    // `Mutex<Option<..>>` so the join handles can be taken from `&self` in
-    // `shutdown`; awaited there, never under the lock.
-    events_sender_handle: Mutex<Option<JoinHandle<()>>>,
-    events_collector_handle: Mutex<Option<JoinHandle<()>>>,
+    // Taken via `Option::take` in `shutdown(&mut self)` so they can be joined
+    // once; a second call finds `None` and is a no-op.
+    events_sender_handle: Option<JoinHandle<()>>,
+    events_collector_handle: Option<JoinHandle<()>>,
 }
 
 impl<T> Client<T>
@@ -227,8 +226,8 @@ where
             _grpc_client: client,
             event_sender,
             cancellation_token,
-            events_sender_handle: Mutex::new(Some(events_sender_handle)),
-            events_collector_handle: Mutex::new(Some(events_collector_handle)),
+            events_sender_handle: Some(events_sender_handle),
+            events_collector_handle: Some(events_collector_handle),
         })
     }
 
@@ -245,16 +244,14 @@ where
     /// tasks to finish. Async so it can be awaited from the forwarder rather
     /// than blocking in `Drop` (which would run on a runtime worker thread).
     /// Idempotent; subsequent calls are no-ops.
-    pub async fn shutdown(&self) {
+    pub async fn shutdown(&mut self) {
         self.cancellation_token.cancel();
-        let sender = self.events_sender_handle.lock().unwrap().take();
-        if let Some(handle) = sender
+        if let Some(handle) = self.events_sender_handle.take()
             && let Err(e) = handle.await
         {
             warn!("grpc sender task failed: {e}");
         }
-        let collector = self.events_collector_handle.lock().unwrap().take();
-        if let Some(handle) = collector
+        if let Some(handle) = self.events_collector_handle.take()
             && let Err(e) = handle.await
         {
             warn!("grpc collector task failed: {e}");

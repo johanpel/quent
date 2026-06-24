@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
-    sync::Mutex,
 };
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -34,7 +33,8 @@ pub struct MsgpackExporterOptions {
 
 #[derive(Debug)]
 pub struct MsgpackExporter {
-    writer: Mutex<BufWriter<File>>,
+    /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
+    writer: Option<BufWriter<File>>,
 }
 
 impl MsgpackExporter {
@@ -49,7 +49,7 @@ impl MsgpackExporter {
             .open(&path)
             .await?;
         Ok(Self {
-            writer: Mutex::new(BufWriter::new(file)),
+            writer: Some(BufWriter::new(file)),
         })
     }
 }
@@ -59,25 +59,21 @@ impl<T> Exporter<T> for MsgpackExporter
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
-        let payload =
-            rmp_serde::to_vec(&event).map_err(|e| ExporterError::Serde(format!("{e:?}")))?;
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
+        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        let payload = rmp_serde::to_vec(&event).map_err(ExporterError::other)?;
         let len = (payload.len() as u32).to_be_bytes();
-        let mut lock = self.writer.lock().await;
-        lock.write_all(&len).await?;
-        lock.write_all(&payload).await?;
+        writer.write_all(&len).await?;
+        writer.write_all(&payload).await?;
         Ok(())
     }
 
-    async fn force_flush(&self) -> ExporterResult<()> {
-        match self.writer.lock().await.flush().await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err = format!("unable to flush msgpack exporter: {e}");
-                error!("{err}");
-                Err(ExporterError::Flush(err))
-            }
-        }
+    async fn shutdown(&mut self) -> ExporterResult<()> {
+        let Some(mut writer) = self.writer.take() else {
+            return Ok(());
+        };
+        writer.flush().await?;
+        Ok(())
     }
 }
 

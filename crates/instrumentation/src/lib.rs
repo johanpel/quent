@@ -263,7 +263,7 @@ impl Context {
 
         debug!("constructing exporter for stream `{}`", T::NAME);
         let kind = config.clone().resolve(self.id);
-        let exporter = create_exporter::<T>(kind).await?;
+        let mut exporter = create_exporter::<T>(kind).await?;
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -291,9 +291,9 @@ impl Context {
                     else => break,
                 }
             }
-            // Flush once on shutdown, however the loop exited.
-            if let Err(e) = exporter.force_flush().await {
-                warn!("failed to flush exporter: {e}");
+            // Tear down once, however the loop exited.
+            if let Err(e) = exporter.shutdown().await {
+                warn!("failed to shut down exporter: {e}");
             }
         });
 
