@@ -6,13 +6,12 @@ pub mod demo {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // The context builds one observer per entity. No exporter configured here,
-    // so events go to a noop sink.
     let context = demo::DemoContext::try_new(None)?;
     let observer = context.connection_observer();
     let mut conn = observer.handle();
 
-    // `opened` and `closed` are once-events (take `&mut`); `data` is multi.
+    // The handle (may) hold per-instance state that enforces once-cardinality,
+    // hence it is mut so it can update it state after producing a once-event.
     conn.opened(
         demo::Endpoint {
             host: "localhost".to_owned(),
