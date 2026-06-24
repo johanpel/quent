@@ -1223,9 +1223,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     engine.shut_down(&context);
 
-    drop(context);
+    // Each entity stream flushes only when its last observer clone is released.
+    // `engine` co-owns those clones through its worker and network-link handles,
+    // so it must drop together with the context to write all pending events.
+    drop((engine, context));
 
-    info!("instrumentation context dropped");
     info!("simulation completed");
     Ok(())
 }
