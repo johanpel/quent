@@ -93,8 +93,8 @@ fn collector_client_flushes_all_events_on_drop() {
         for _ in 0..EVENTS {
             observer.emit(Uuid::now_v7(), TestEvent);
         }
-        // Dropping the observer flushes the collector client (force_flush ->
-        // shutdown) and tears down its tasks — this is what must not panic.
+        // Dropping the observer shuts down the collector client and tears down
+        // its tasks — this is what must not panic.
     }
     drop(ctx);
 

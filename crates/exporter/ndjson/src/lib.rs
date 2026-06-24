@@ -14,7 +14,6 @@ use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
-    sync::Mutex,
 };
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -36,7 +35,8 @@ pub struct NdjsonExporterOptions {
 
 #[derive(Debug)]
 pub struct NdjsonExporter {
-    writer: Mutex<BufWriter<File>>,
+    /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
+    writer: Option<BufWriter<File>>,
 }
 
 impl NdjsonExporter {
@@ -52,7 +52,7 @@ impl NdjsonExporter {
             .await?;
 
         Ok(Self {
-            writer: Mutex::new(BufWriter::new(file)),
+            writer: Some(BufWriter::new(file)),
         })
     }
 }
@@ -62,25 +62,22 @@ impl<T> Exporter<T> for NdjsonExporter
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
+        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
         let line = format!(
             "{}\n",
-            serde_json::to_string(&event).map_err(|e| ExporterError::Serde(format!("{e:?}")))?
+            serde_json::to_string(&event).map_err(ExporterError::other)?
         );
-        let mut lock = self.writer.lock().await;
-        lock.write_all(line.as_bytes()).await?;
+        writer.write_all(line.as_bytes()).await?;
         Ok(())
     }
 
-    async fn force_flush(&self) -> ExporterResult<()> {
-        match self.writer.lock().await.flush().await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err = format!("unable to flush ndjson exporter: {e}");
-                error!("{err}");
-                Err(ExporterError::Flush(err))
-            }
-        }
+    async fn shutdown(&mut self) -> ExporterResult<()> {
+        let Some(mut writer) = self.writer.take() else {
+            return Ok(());
+        };
+        writer.flush().await?;
+        Ok(())
     }
 }
 
@@ -134,5 +131,45 @@ where
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Serialize)]
+    struct TestEvent;
+    impl EntityEvent for TestEvent {
+        const NAME: &'static str = "TestEvent";
+    }
+
+    #[tokio::test]
+    async fn push_after_shutdown_errors() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut exporter = NdjsonExporter::try_new::<TestEvent>(NdjsonExporterOptions {
+            dir: dir.path().to_path_buf(),
+        })
+        .await
+        .unwrap();
+
+        exporter
+            .push(Event::new_now(Uuid::now_v7(), TestEvent))
+            .await
+            .unwrap();
+        Exporter::<TestEvent>::shutdown(&mut exporter)
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            exporter
+                .push(Event::new_now(Uuid::now_v7(), TestEvent))
+                .await,
+            Err(ExporterError::Shutdown)
+        ));
+        // A second shutdown is a no-op.
+        Exporter::<TestEvent>::shutdown(&mut exporter)
+            .await
+            .unwrap();
     }
 }

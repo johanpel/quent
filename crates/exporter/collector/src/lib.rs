@@ -25,7 +25,8 @@ pub struct CollectorExporterOptions {
 /// entity observer.
 #[derive(Debug)]
 pub struct CollectorExporter<T> {
-    client: Client<T>,
+    /// `None` once [`shutdown`](Exporter::shutdown) has drained and released it.
+    client: Option<Client<T>>,
 }
 
 impl<T> CollectorExporter<T>
@@ -37,9 +38,11 @@ where
     pub async fn try_new(
         address: http::Uri,
         source_context_id: Uuid,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let client = Client::new(source_context_id, T::NAME, address).await?;
-        Ok(Self { client })
+        Ok(Self {
+            client: Some(client),
+        })
     }
 }
 
@@ -48,19 +51,20 @@ impl<T> Exporter<T> for CollectorExporter<T>
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    async fn push(&self, event: Event<T>) -> ExporterResult<()> {
-        self.client
-            .send(event)
-            .await
-            .map_err(|e| ExporterError::Collector(format!("{e:?}")))?;
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
+        let client = self.client.as_ref().ok_or(ExporterError::Shutdown)?;
+        client.send(event).await.map_err(ExporterError::other)?;
         Ok(())
     }
-    async fn force_flush(&self) -> ExporterResult<()> {
+    async fn shutdown(&mut self) -> ExporterResult<()> {
+        let Some(mut client) = self.client.take() else {
+            return Ok(());
+        };
         // Drain buffered events and wait for delivery. The forwarder awaits this
         // on shutdown, so the client's tasks are joined here rather than in
         // `Client::drop` (which may run on a runtime worker, where blocking
         // panics).
-        self.client.shutdown().await;
+        client.shutdown().await;
         Ok(())
     }
 }

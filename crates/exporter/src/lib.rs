@@ -177,16 +177,14 @@ where
             address,
             source_context_id,
         } => {
-            let address: http::Uri = address
-                .parse()
-                .map_err(|e: http::uri::InvalidUri| ExporterError::Collector(e.to_string()))?;
+            let address: http::Uri = address.parse().map_err(ExporterError::other)?;
             Ok(Box::new(
                 quent_exporter_collector::CollectorExporter::<T>::try_new(
                     address,
                     source_context_id,
                 )
                 .await
-                .map_err(|e| ExporterError::Collector(e.to_string()))?,
+                .map_err(ExporterError::Other)?,
             ) as Box<dyn Exporter<T>>)
         }
     }
