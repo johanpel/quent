@@ -22,14 +22,10 @@ fn fs_opts(root: &Path) -> ExporterOptions {
     })
 }
 
-/// Build sidecar + observer through the one bridge, mirroring what a generated
-/// `{App}Context::try_new` does.
+/// Build an observer through the one bridge, mirroring what a generated
+/// `{App}Context::try_new` does (the sidecar is written at construction).
 fn build(ctx: &Context) -> Observer<TestEvent> {
-    ctx.block_on(async {
-        ctx.write_sidecar(TestModel::model_info()).await;
-        ctx.observer::<TestEvent>().await
-    })
-    .unwrap()
+    ctx.block_on(ctx.observer::<TestEvent>()).unwrap()
 }
 
 /// Assert the observer flushed one non-empty ndjson batch under `<root>/<id>/`.
@@ -57,7 +53,7 @@ fn assert_flushed(root: &Path, id: Uuid) {
 #[test]
 fn plain_sync_app() {
     let dir = tempfile::tempdir().unwrap();
-    let ctx = Context::try_new(Some(fs_opts(dir.path()))).unwrap();
+    let ctx = Context::try_new(TestModel::model_info(), Some(fs_opts(dir.path()))).unwrap();
     let id = ctx.id();
     {
         let observer = build(&ctx);
@@ -71,7 +67,7 @@ fn plain_sync_app() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tokio_main_multi_thread() {
     let dir = tempfile::tempdir().unwrap();
-    let ctx = Context::try_new(Some(fs_opts(dir.path()))).unwrap();
+    let ctx = Context::try_new(TestModel::model_info(), Some(fs_opts(dir.path()))).unwrap();
     let id = ctx.id();
     {
         let observer = build(&ctx);
@@ -87,7 +83,7 @@ async fn tokio_main_multi_thread() {
 #[should_panic]
 async fn current_thread_runtime_panics() {
     let dir = tempfile::tempdir().unwrap();
-    let ctx = Context::try_new(Some(fs_opts(dir.path()))).unwrap();
+    let ctx = Context::try_new(TestModel::model_info(), Some(fs_opts(dir.path()))).unwrap();
     let _ = build(&ctx);
 }
 
@@ -101,7 +97,7 @@ fn self_managed_runtime() {
         .build()
         .unwrap();
     let id = rt.block_on(async {
-        let ctx = Context::try_new(Some(fs_opts(dir.path()))).unwrap();
+        let ctx = Context::try_new(TestModel::model_info(), Some(fs_opts(dir.path()))).unwrap();
         let id = ctx.id();
         let observer = build(&ctx);
         observer.emit(Uuid::now_v7(), TestEvent);
@@ -117,7 +113,7 @@ fn self_managed_runtime() {
 #[test]
 fn owned_runtime_observer_dropped_in_another_runtime() {
     let dir = tempfile::tempdir().unwrap();
-    let ctx = Context::try_new(Some(fs_opts(dir.path()))).unwrap();
+    let ctx = Context::try_new(TestModel::model_info(), Some(fs_opts(dir.path()))).unwrap();
     let id = ctx.id();
     let observer = build(&ctx);
     observer.emit(Uuid::now_v7(), TestEvent);

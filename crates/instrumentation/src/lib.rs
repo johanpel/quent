@@ -138,8 +138,9 @@ enum Backend {
 /// What it is responsible for:
 /// - Resolving the runtime its observers run on. It borrows an ambient one if
 ///   present, otherwise spawns its own (see [`BackendRuntime`]).
+/// - Writing the provenance sidecar at construction.
 /// - Being the single sync→async bridge for async observer + exporter
-///   construction, provenance sidecar write, and the drop-time flush.
+///   construction and the drop-time flush.
 ///
 /// # Panics
 ///
@@ -155,13 +156,17 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::try_with_id(Uuid::now_v7(), exporter)
+    pub fn try_new(
+        model: ModelInfo,
+        exporter: Option<ExporterOptions>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_with_id(Uuid::now_v7(), model, exporter)
     }
 
     /// Construct a new context with the supplied universally unique identifier.
     pub fn try_with_id(
         id: Uuid,
+        model: ModelInfo,
         exporter: Option<ExporterOptions>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let Some(config) = exporter else {
@@ -185,10 +190,31 @@ impl Context {
             }
         };
 
-        Ok(Context {
+        let context = Context {
             id,
             backend: Backend::Active { config, runtime },
-        })
+        };
+        context.write_sidecar(model);
+        Ok(context)
+    }
+
+    /// Write the model provenance sidecar file into the context's filesystem
+    /// exporter directory.
+    ///
+    /// If no filesystem exporter is configured, then this is a no-op.
+    fn write_sidecar(&self, model: ModelInfo) {
+        let Backend::Active { config, .. } = &self.backend else {
+            return;
+        };
+        let kind = config.clone().resolve(self.id);
+        let Some(root) = kind.filesystem_root() else {
+            return;
+        };
+        if let Err(e) = std::fs::create_dir_all(root)
+            .and_then(|()| ArtifactInfo::new(model).write_sidecar(root))
+        {
+            warn!("failed to write provenance sidecar: {e}");
+        }
     }
 
     /// Return the universally unique identifier of this context.
@@ -206,9 +232,9 @@ impl Context {
         match &self.backend {
             Backend::Active { runtime, .. } => drive(&runtime.handle(), fut),
             // A noop context has no runtime, but its async work is immediately
-            // ready, so poll once. Invariant: the noop `observer()`/
-            // `write_sidecar()` futures must never pend (they early-return
-            // before any `.await`); the `unreachable!` below enforces it.
+            // ready, so poll once. Invariant: the noop `observer()` future must
+            // never pend (it early-returns before any `.await`). The
+            // `unreachable!` below enforces it.
             Backend::Noop => {
                 let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
                 match std::pin::pin!(fut).poll(&mut cx) {
@@ -218,31 +244,6 @@ impl Context {
                     }
                 }
             }
-        }
-    }
-
-    /// Write the model provenance sidecar file into the context's filesystem
-    /// exporter directory.
-    ///
-    /// If no filesystem exporter is configured, then this is a no-op.
-    pub async fn write_sidecar(&self, model: ModelInfo) {
-        let Backend::Active { config, .. } = &self.backend else {
-            return;
-        };
-        let kind = config.clone().resolve(self.id);
-        let Some(root) = kind.filesystem_root() else {
-            return;
-        };
-        let dir = root.to_path_buf();
-        let result = tokio::task::spawn_blocking(move || {
-            std::fs::create_dir_all(&dir)
-                .and_then(|()| ArtifactInfo::new(model).write_sidecar(&dir))
-        })
-        .await;
-        match result {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => warn!("failed to write provenance sidecar: {e}"),
-            Err(e) => warn!("provenance sidecar task failed: {e}"),
         }
     }
 
@@ -429,7 +430,7 @@ mod tests {
 
     #[test]
     fn noop_context_creates_noop_observer() {
-        let ctx = Context::try_new(None).unwrap();
+        let ctx = Context::try_new(TestModel::model_info(), None).unwrap();
         assert!(matches!(ctx.backend, Backend::Noop));
 
         let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
@@ -444,23 +445,19 @@ mod tests {
     #[test]
     fn filesystem_observer_writes_under_entity_subdir_with_sidecar() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Context::try_new(Some(ExporterOptions::FileSystem(
-            FileSystemExporterOptions {
+        let ctx = Context::try_new(
+            TestModel::model_info(),
+            Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
                 format: FileSystemFormat::Ndjson,
                 root: dir.path().to_path_buf(),
-            },
-        )))
+            })),
+        )
         .unwrap();
 
         let context_dir = dir.path().join(ctx.id().to_string());
 
         {
-            let observer = ctx
-                .block_on(async {
-                    ctx.write_sidecar(TestModel::model_info()).await;
-                    ctx.observer::<TestEvent>().await
-                })
-                .unwrap();
+            let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
             observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.
         }

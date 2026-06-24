@@ -359,7 +359,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     pub fn try_new(
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new(exporter)?;
+                        let inner = quent_model::Context::try_new(
+                            <#name as quent_model::build_info::ModelSource>::model_info(),
+                            exporter,
+                        )?;
                         Self::assemble(inner)
                     }
 
@@ -371,28 +374,24 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         id: quent_model::uuid::Uuid,
                         exporter: Option<quent_model::exporter::ExporterOptions>,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_with_id(id, exporter)?;
+                        let inner = quent_model::Context::try_with_id(
+                            id,
+                            <#name as quent_model::build_info::ModelSource>::model_info(),
+                            exporter,
+                        )?;
                         Self::assemble(inner)
                     }
 
-                    // The single sync/async bridge: build the provenance sidecar
-                    // and every entity observer concurrently on the context's
-                    // runtime, block until all complete, then assemble. Everything
-                    // below this `block_on` is plain async.
+                    // The single sync/async bridge: build every entity observer
+                    // concurrently on the context's runtime, block until all
+                    // complete, then assemble. Everything below this `block_on`
+                    // is plain async.
                     fn assemble(
                         inner: quent_model::Context,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
-                            let ( _sidecar, #(#observer_fields,)* ) =
+                            let ( #(#observer_fields,)* ) =
                                 quent_model::tokio::try_join!(
-                                    async {
-                                        inner
-                                            .write_sidecar(
-                                                <#name as quent_model::build_info::ModelSource>::model_info(),
-                                            )
-                                            .await;
-                                        Ok::<(), Box<dyn std::error::Error>>(())
-                                    },
                                     #(inner.observer::<#event_types>(),)*
                                 )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))

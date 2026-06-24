@@ -21,6 +21,7 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
+use quent_build_info::{BuildInfo, ModelSource};
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
@@ -43,6 +44,18 @@ impl EntityEvent for BenchEvent {
     const NAME: &'static str = "BenchEvent";
 }
 
+// Provenance for the context's sidecar, written at construction.
+struct BenchModel;
+
+impl ModelSource for BenchModel {
+    fn package() -> &'static str {
+        "quent-instrumentation-bench"
+    }
+    fn source() -> BuildInfo {
+        BuildInfo::unknown()
+    }
+}
+
 // The in-process collector server runs this sink per source: it decodes received
 // `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
@@ -51,7 +64,7 @@ struct BenchSink {
 
 impl BenchSink {
     fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
-        let context = Context::try_with_id(id, exporter)?;
+        let context = Context::try_with_id(id, BenchModel::model_info(), exporter)?;
         let observer = context.block_on(context.observer::<BenchEvent>())?;
         Ok(Self { observer })
     }
@@ -117,7 +130,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let context = Context::try_new(exporter)?;
+    let context = Context::try_new(BenchModel::model_info(), exporter)?;
     let observer = context.block_on(context.observer::<BenchEvent>())?;
     let event_id = Uuid::now_v7();
 

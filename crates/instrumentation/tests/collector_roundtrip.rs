@@ -14,7 +14,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use common::TestEvent;
+use common::{TestEvent, TestModel};
+use quent_build_info::ModelSource;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
@@ -80,9 +81,12 @@ fn collector_client_flushes_all_events_on_drop() {
     let (address, _server) = start_server(received.clone());
 
     // A plain sync client (no ambient runtime); the context spawns its own.
-    let ctx = Context::try_new(Some(ExporterOptions::Collector(CollectorExporterOptions {
-        address,
-    })))
+    let ctx = Context::try_new(
+        TestModel::model_info(),
+        Some(ExporterOptions::Collector(CollectorExporterOptions {
+            address,
+        })),
+    )
     .unwrap();
     {
         let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();

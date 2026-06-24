@@ -713,21 +713,16 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new(opts)
-                    .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
+                let inner = #q::Context::try_new(
+                    <#model_type as #q::build_info::ModelSource>::model_info(),
+                    opts,
+                )
+                .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                 let id = inner.id();
-                // Single sync/async bridge: build the sidecar and every observer
-                // concurrently on the context's runtime, then block until done.
+                // Single sync/async bridge: build every observer concurrently on
+                // the context's runtime, then block until done.
                 let (#(#build_fields,)*) = inner.block_on(async {
-                    let (_sidecar, #(#build_fields,)*) = #q::tokio::try_join!(
-                        async {
-                            inner
-                                .write_sidecar(
-                                    <#model_type as #q::build_info::ModelSource>::model_info(),
-                                )
-                                .await;
-                            Ok::<(), Box<dyn std::error::Error>>(())
-                        },
+                    let (#(#build_fields,)*) = #q::tokio::try_join!(
                         #(inner.observer::<#build_event_tys>(),)*
                     )
                     .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
