@@ -406,9 +406,11 @@ fn observer_handle_method(name: &str) -> syn::Ident {
 
 /// Generate the context bridge module.
 ///
-/// The `Context` owns the inner quent context and one observer per entity/FSM.
-/// C++ callers retain the returned `Box<Context>` and pass a reference to each
-/// observer/FSM factory, which clones the relevant observer from it.
+/// The cxx `Context` holds one observer per entity/FSM; the inner quent context
+/// is used only to build them and is dropped after construction. C++ callers
+/// retain the returned `Box<Context>` and pass a reference to each observer/FSM
+/// factory, which clones the relevant observer from it. A stream flushes when
+/// its last clone drops — the field stored here, plus any the caller still holds.
 fn emit_context_bridge(
     model: &ModelBuilder,
     model_name: &str,
