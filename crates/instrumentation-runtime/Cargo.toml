@@ -1,5 +1,5 @@
 [package]
-name = "quent-instrumentation"
+name = "quent-instrumentation-runtime"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
@@ -14,7 +14,8 @@ quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
 quent-exporter-types = { path = "../exporter/types" }
-serde.workspace = true
+serde = { workspace = true, features = ["derive"] }
+thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tokio-util.workspace = true
 tracing.workspace = true

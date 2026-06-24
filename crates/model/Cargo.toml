@@ -19,7 +19,7 @@ quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
 quent-exporter = { path = "../exporter" }
-quent-instrumentation = { path = "../instrumentation" }
+quent-instrumentation-runtime = { path = "../instrumentation-runtime" }
 quent-time = { path = "../time" }
 tokio = { workspace = true, features = ["macros"] }
 

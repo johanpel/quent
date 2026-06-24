@@ -20,7 +20,7 @@ use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{CollectorExporterOptions, ExporterOptions};
-use quent_instrumentation::Context;
+use quent_instrumentation_runtime::Context;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
 use uuid::Uuid;

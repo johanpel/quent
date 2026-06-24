@@ -8,22 +8,38 @@
 //! generated instrumentation library only.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
-use quent_events::{EntityEvent, Event};
-use quent_exporter::{ExporterOptions, create_exporter};
+use quent_exporter::create_exporter;
 use serde::Serialize;
+
+pub use quent_build_info as build_info;
+pub use quent_events::{EntityEvent, Event};
+pub use quent_exporter::ExporterOptions;
 use std::future::Future;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
 use tokio::{
-    runtime::{Handle, Runtime},
+    runtime::{Handle as RuntimeHandle, Runtime},
     sync::mpsc::{UnboundedSender, unbounded_channel},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
+
+/// Reference from one entity instance to another by id, optionally carrying
+/// payload data `T`.
+///
+/// Placeholder backing the schema generator's `DataType::EntityRef` fields.
+// TODO(johanpel): flesh out ref-target semantics (see `quent.ref-target.v1`).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EntityRef<T = ()> {
+    /// Id of the referenced entity instance.
+    pub target: Uuid,
+    /// Payload carried alongside the reference.
+    pub data: T,
+}
 
 /// Wrapper around an optional channel sender.
 ///
@@ -83,11 +99,11 @@ impl<T> EventSender<T> {
 enum BackendRuntime {
     /// A handle to a runtime owned elsewhere (`#[tokio::main]`, a caller-managed
     /// one) and kept alive by that owner.
-    Borrowed(Handle),
+    Borrowed(RuntimeHandle),
     /// The runtime this context spawned, shared by the context and every observer
     /// (hence `Arc`) and shut down by the last holder's `Drop`.
     Owned {
-        handle: Handle,
+        handle: RuntimeHandle,
         /// `Option` only so `Drop` can move the `Arc` out of `&mut self`; `Some`
         /// for the value's whole life until then.
         runtime: Option<Arc<Runtime>>,
@@ -96,7 +112,7 @@ enum BackendRuntime {
 
 impl BackendRuntime {
     /// The handle observers spawn and block on.
-    fn handle(&self) -> Handle {
+    fn handle(&self) -> RuntimeHandle {
         match self {
             Self::Borrowed(handle) | Self::Owned { handle, .. } => handle.clone(),
         }
@@ -177,7 +193,7 @@ impl Context {
             });
         };
 
-        let runtime = if let Ok(handle) = Handle::try_current() {
+        let runtime = if let Ok(handle) = RuntimeHandle::try_current() {
             debug!("using existing async runtime");
             BackendRuntime::Borrowed(handle)
         } else {
@@ -382,6 +398,79 @@ where
     }
 }
 
+/// An error from emitting through a [`Handle`].
+#[derive(Debug, thiserror::Error)]
+pub enum ObserverError {
+    /// A once-cardinality event was emitted more than once for one entity
+    /// instance.
+    #[error("once-event `{event}` already emitted for this entity instance")]
+    OnceAlreadyEmitted {
+        /// Name of the event that was re-emitted.
+        event: &'static str,
+    },
+}
+
+/// A handle to one entity instance: emits that instance's events through a
+/// shared [`Observer`], enforcing once-cardinality events at most once.
+///
+/// Holds a shared reference to the observer's export pipeline, keeping it alive
+/// while any handle does. Not `Clone`: the once-emit state is unique to one
+/// instance, so a clone could re-emit a once-event.
+#[doc(hidden)]
+pub struct Handle<E>
+where
+    E: Serialize + Send + EntityEvent + 'static,
+{
+    id: Uuid,
+    /// One bit per once-cardinality event, set once that event is emitted.
+    once_flags: u128,
+    observer: Arc<Observer<E>>,
+}
+
+impl<E> Handle<E>
+where
+    E: Serialize + Send + EntityEvent + 'static,
+{
+    /// Create a handle emitting for entity instance `id` through `observer`.
+    pub fn new(id: Uuid, observer: Arc<Observer<E>>) -> Self {
+        Self {
+            id,
+            once_flags: 0,
+            observer,
+        }
+    }
+
+    /// The entity instance id this handle emits for.
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Emit a multi-cardinality event for this instance.
+    pub fn emit(&self, event: E) {
+        self.observer.emit(self.id, event);
+    }
+
+    /// Emit a once-cardinality event, tracked by its `bit` index.
+    ///
+    /// Returns [`ObserverError::OnceAlreadyEmitted`] if this handle already
+    /// emitted the event; otherwise records and emits it. `bit` must be below
+    /// 128.
+    pub fn emit_once(
+        &mut self,
+        bit: u32,
+        event_name: &'static str,
+        event: E,
+    ) -> Result<(), ObserverError> {
+        let mask = 1u128 << bit;
+        if self.once_flags & mask != 0 {
+            return Err(ObserverError::OnceAlreadyEmitted { event: event_name });
+        }
+        self.once_flags |= mask;
+        self.observer.emit(self.id, event);
+        Ok(())
+    }
+}
+
 /// Drive `fut` to completion on `handle`'s runtime, blocking the current thread.
 ///
 /// Off a runtime, it blocks directly. On a multi-threaded runtime worker it
@@ -389,8 +478,8 @@ where
 ///
 /// # Panics
 /// On a current-thread runtime, this panics.
-fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
-    if Handle::try_current().is_ok() {
+fn drive<F: Future>(handle: &RuntimeHandle, fut: F) -> F::Output {
+    if RuntimeHandle::try_current().is_ok() {
         tokio::task::block_in_place(|| handle.block_on(fut))
     } else {
         handle.block_on(fut)
@@ -477,5 +566,22 @@ mod tests {
             1,
             "one UUID-named ndjson batch file in the entity subdirectory"
         );
+    }
+
+    #[test]
+    fn handle_emit_once_rejects_repeat_per_bit() {
+        let ctx = Context::try_new(TestModel::model_info(), None).unwrap();
+        let observer = Arc::new(ctx.block_on(ctx.observer::<TestEvent>()).unwrap());
+        let mut handle = Handle::new(Uuid::now_v7(), observer);
+
+        assert!(handle.emit_once(0, "ev", TestEvent).is_ok());
+        assert!(matches!(
+            handle.emit_once(0, "ev", TestEvent),
+            Err(ObserverError::OnceAlreadyEmitted { event: "ev" })
+        ));
+        // A different bit tracks independently.
+        assert!(handle.emit_once(1, "other", TestEvent).is_ok());
+        // Multi emit is unconditional.
+        handle.emit(TestEvent);
     }
 }
