@@ -35,7 +35,7 @@ where
     /// `source_context_id` identifies this stream to the collector, which
     /// reproduces the source's output under that id.
     pub async fn try_new(
-        address: String,
+        address: http::Uri,
         source_context_id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let client = Client::new(source_context_id, T::NAME, address).await?;

@@ -176,10 +176,18 @@ where
         ResolvedExporterOptions::Collector {
             address,
             source_context_id,
-        } => Ok(Box::new(
-            quent_exporter_collector::CollectorExporter::<T>::try_new(address, source_context_id)
+        } => {
+            let address: http::Uri = address
+                .parse()
+                .map_err(|e: http::uri::InvalidUri| ExporterError::Collector(e.to_string()))?;
+            Ok(Box::new(
+                quent_exporter_collector::CollectorExporter::<T>::try_new(
+                    address,
+                    source_context_id,
+                )
                 .await
                 .map_err(|e| ExporterError::Collector(e.to_string()))?,
-        ) as Box<dyn Exporter<T>>),
+            ) as Box<dyn Exporter<T>>)
+        }
     }
 }

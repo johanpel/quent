@@ -69,7 +69,7 @@ where
     pub async fn new(
         source_context_id: Uuid,
         entity_type: &str,
-        address: String,
+        address: http::Uri,
     ) -> CollectorResult<Client<T>> {
         debug!("connecting to {address}");
         // Try to connect.
