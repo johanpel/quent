@@ -36,20 +36,30 @@
 //!     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 //! }
 //! ```
+//!
+//! # Restrictions
+//!
+//! The schema does not limit how many events an entity declares, but this
+//! generator caps once-cardinality
+//! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
+//! entity; beyond that, generation fails with
+//! [`GenerateError::TooManyOnceEvents`].
 
 mod common;
 mod data_type;
 mod events;
 mod records;
+mod runtime;
 
 use std::path::PathBuf;
 
 use quent_constraints::{BaseConstraintsError, Report, validate};
-use quent_schema::Schema;
+use quent_schema::{Identifier, Schema};
 use quote::quote;
 
 use events::generate_event_types;
 use records::generate_record_types;
+use runtime::generate_runtime_types;
 
 /// Options controlling instrumentation library generation.
 pub struct Options {
@@ -99,6 +109,16 @@ pub enum GenerateError {
     },
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
+    #[error(
+        "entity `{entity}` declares {count} once-events, exceeding the maximum of {max}",
+        max = crate::runtime::MAX_ONCE_EVENTS
+    )]
+    TooManyOnceEvents {
+        /// The offending entity.
+        entity: Identifier,
+        /// The number of once-cardinality events the entity declares.
+        count: usize,
+    },
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -138,10 +158,11 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// Returns [`GenerateError`] if a derive entry is not a parseable Rust path, or
 /// if the generated code is not a valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    // record structs first, then event enums
+    // record structs, event enums, then the live instrumentation surface
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;
-    let file = syn::parse2::<syn::File>(quote! { #records #events })
+    let runtime = generate_runtime_types(schema)?;
+    let file = syn::parse2::<syn::File>(quote! { #records #events #runtime })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
 }

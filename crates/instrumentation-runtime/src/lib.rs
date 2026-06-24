@@ -423,7 +423,7 @@ where
 {
     id: Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
-    once_flags: u128,
+    once_flags: u64,
     observer: Arc<Observer<E>>,
 }
 
@@ -431,8 +431,13 @@ impl<E> Handle<E>
 where
     E: Serialize + Send + EntityEvent + 'static,
 {
-    /// Create a handle emitting for entity instance `id` through `observer`.
-    pub fn new(id: Uuid, observer: Arc<Observer<E>>) -> Self {
+    /// Create a handle for a fresh entity instance, with a generated id.
+    pub fn new(observer: Arc<Observer<E>>) -> Self {
+        Self::with_id(Uuid::now_v7(), observer)
+    }
+
+    /// Create a handle for the entity instance identified by `id`.
+    pub fn with_id(id: Uuid, observer: Arc<Observer<E>>) -> Self {
         Self {
             id,
             once_flags: 0,
@@ -454,14 +459,14 @@ where
     ///
     /// Returns [`ObserverError::OnceAlreadyEmitted`] if this handle already
     /// emitted the event; otherwise records and emits it. `bit` must be below
-    /// 128.
+    /// 64.
     pub fn emit_once(
         &mut self,
         bit: u32,
         event_name: &'static str,
         event: E,
     ) -> Result<(), ObserverError> {
-        let mask = 1u128 << bit;
+        let mask = 1u64 << bit;
         if self.once_flags & mask != 0 {
             return Err(ObserverError::OnceAlreadyEmitted { event: event_name });
         }
@@ -572,7 +577,7 @@ mod tests {
     fn handle_emit_once_rejects_repeat_per_bit() {
         let ctx = Context::try_new(TestModel::model_info(), None).unwrap();
         let observer = Arc::new(ctx.block_on(ctx.observer::<TestEvent>()).unwrap());
-        let mut handle = Handle::new(Uuid::now_v7(), observer);
+        let mut handle = Handle::new(observer);
 
         assert!(handle.emit_once(0, "ev", TestEvent).is_ok());
         assert!(matches!(

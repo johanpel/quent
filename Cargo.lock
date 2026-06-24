@@ -2013,6 +2013,7 @@ dependencies = [
  "quent-attributes",
  "quent-constraints",
  "quent-instrumentation-build",
+ "quent-instrumentation-runtime",
  "quent-schema",
  "serde",
  "serde_json",
