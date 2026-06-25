@@ -31,17 +31,6 @@ use crate::error::{ServerError, ServerResult};
 /// Target number of chunks visible in the current view range.
 const TARGET_CHUNKS_PER_VIEW: u64 = 2;
 
-/// Newtype wrapper for `f64` that provides `Hash` and `Eq` via bit representation.
-/// Two floats are considered equal when their bits are identical (NaN == NaN).
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-struct HashableF64(u64);
-
-impl From<f64> for HashableF64 {
-    fn from(v: f64) -> Self {
-        Self(v.to_bits())
-    }
-}
-
 /// View of a timeline entry's identity fields, excluding viewport config.
 ///
 /// The viewport config (`start`, `end`, `num_bins`) is intentionally omitted:
@@ -52,14 +41,12 @@ impl From<f64> for HashableF64 {
 enum EntryParamsKey<'a, EntryParams> {
     Resource {
         resource_id: Uuid,
-        long_entities_threshold_s: Option<HashableF64>,
         entity_type_name: Option<&'a str>,
         application: &'a EntryParams,
     },
     ResourceGroup {
         resource_group_id: Uuid,
         resource_type_name: &'a str,
-        long_entities_threshold_s: Option<HashableF64>,
         entity_type_name: Option<&'a str>,
         app_params: &'a EntryParams,
     },
@@ -70,14 +57,12 @@ impl<'a, EntryParams> EntryParamsKey<'a, EntryParams> {
         match entry {
             TimelineRequest::Resource(r) => Self::Resource {
                 resource_id: r.resource_id,
-                long_entities_threshold_s: r.long_entities_threshold_s.map(HashableF64::from),
                 entity_type_name: r.entity_filter.entity_type_name.as_deref(),
                 application: &r.application,
             },
             TimelineRequest::ResourceGroup(rg) => Self::ResourceGroup {
                 resource_group_id: rg.resource_group_id,
                 resource_type_name: &rg.resource_type_name,
-                long_entities_threshold_s: rg.long_entities_threshold_s.map(HashableF64::from),
                 entity_type_name: rg.entity_filter.entity_type_name.as_deref(),
                 app_params: &rg.app_params,
             },
@@ -637,21 +622,6 @@ fn combine_chunks(
 
     let is_binned_by_state = matches!(&sorted[0].data, ResourceTimeline::BinnedByState(_));
 
-    // Collect long_fsms from all chunks, deduplicated by ID.
-    let mut seen_fsm_ids = std::collections::HashSet::new();
-    let mut long_fsms = Vec::new();
-    for chunk in &sorted {
-        let chunk_fsms = match &chunk.data {
-            ResourceTimeline::Binned(data) => &data.long_fsms,
-            ResourceTimeline::BinnedByState(data) => &data.long_fsms,
-        };
-        for fsm in chunk_fsms {
-            if seen_fsm_ids.insert(fsm.id) {
-                long_fsms.push(fsm.clone());
-            }
-        }
-    }
-
     if is_binned_by_state {
         let mut combined: std::collections::HashMap<
             String,
@@ -701,7 +671,6 @@ fn combine_chunks(
             data: ResourceTimeline::BinnedByState(ResourceTimelineBinnedByState {
                 config,
                 capacities_states_values: combined,
-                long_fsms,
             }),
         })
     } else {
@@ -748,7 +717,6 @@ fn combine_chunks(
             data: ResourceTimeline::Binned(ResourceTimelineBinned {
                 config,
                 capacities_values: combined,
-                long_fsms,
             }),
         })
     }
@@ -809,17 +777,14 @@ mod tests {
         QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
-    use quent_ui::{
-        FiniteStateMachine, FsmTransition,
-        timeline::{
-            request::{
-                BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, SingleTimelineRequest,
-                TimelineConfig, TimelineRequest,
-            },
-            response::{
-                BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
-                ResourceTimelineBinned, SingleTimelineResponse,
-            },
+    use quent_ui::timeline::{
+        request::{
+            BulkTimelineRequest, EntityFilter, ResourceTimelineRequest, SingleTimelineRequest,
+            TimelineConfig, TimelineRequest,
+        },
+        response::{
+            BulkTimelinesResponse, BulkTimelinesResponseEntry, ResourceTimeline,
+            ResourceTimelineBinned, SingleTimelineResponse,
         },
     };
     use uuid::Uuid;
@@ -950,6 +915,13 @@ mod tests {
             &self.model
         }
 
+        fn list_entities(
+            &self,
+            _request: quent_ui::entities::request::EntityListRequest<QueryFilter>,
+        ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
+            unimplemented!("not needed by timeline cache tests")
+        }
+
         fn single_resource_timeline(
             &self,
             request: SingleTimelineRequest<QueryFilter, OperatorFilter>,
@@ -1015,7 +987,6 @@ mod tests {
             ));
         }
 
-        let params = entry_params(&entry);
         let config = entry.config().try_into_binned_span(0)?;
         let config_secs = config.try_to_secs_relative(0)?;
         let values = (0..config.num_bins.get())
@@ -1024,31 +995,9 @@ mod tests {
                 to_secs_relative(bin.start(), 0) + series_offset as f64
             })
             .collect::<Vec<_>>();
-        let long_fsms = params
-            .operator_id
-            .map(|id| FiniteStateMachine {
-                id,
-                type_name: "task".to_string(),
-                instance_name: format!("operator-{id}"),
-                transitions: vec![
-                    FsmTransition {
-                        name: "start".to_string(),
-                        usages: vec![],
-                        timestamp: config_secs.span.start(),
-                    },
-                    FsmTransition {
-                        name: "end".to_string(),
-                        usages: vec![],
-                        timestamp: config_secs.span.end(),
-                    },
-                ],
-            })
-            .into_iter()
-            .collect();
         let data = ResourceTimeline::Binned(ResourceTimelineBinned {
             config: config_secs,
             capacities_values: HashMap::from([("capacity".to_string(), values)]),
-            long_fsms,
         });
 
         Ok((
@@ -1080,7 +1029,6 @@ mod tests {
                         key.to_string(),
                         TimelineRequest::Resource(ResourceTimelineRequest {
                             resource_id: resource_id_for(key),
-                            long_entities_threshold_s: Some(0.0),
                             entity_filter: EntityFilter {
                                 entity_type_name: None,
                             },
@@ -1104,7 +1052,6 @@ mod tests {
         SingleTimelineRequest {
             entry: TimelineRequest::Resource(ResourceTimelineRequest {
                 resource_id: resource_id_for("single"),
-                long_entities_threshold_s: Some(0.0),
                 entity_filter: EntityFilter {
                     entity_type_name: None,
                 },
@@ -1137,16 +1084,6 @@ mod tests {
                 (config.span.start(), config.span.end())
             }
             _ => panic!("expected ok response"),
-        }
-    }
-
-    fn fsm_ids(response: &BulkTimelinesResponse, key: &str) -> Vec<Uuid> {
-        match response.entries.get(key).unwrap() {
-            BulkTimelinesResponseEntry::Ok {
-                data: ResourceTimeline::Binned(data),
-                ..
-            } => data.long_fsms.iter().map(|fsm| fsm.id).collect(),
-            _ => panic!("expected binned ok response"),
         }
     }
 
@@ -1375,7 +1312,7 @@ mod tests {
                 )
                 .await
                 .unwrap();
-            let response = cache
+            cache
                 .cached_bulk_timeline(
                     Arc::clone(&analyzer),
                     analyzer.engine_id,
@@ -1403,7 +1340,6 @@ mod tests {
                     .count(),
                 2
             );
-            assert_eq!(fsm_ids(&response, "a"), vec![second_operator]);
         });
     }
 

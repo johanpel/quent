@@ -10,6 +10,11 @@ use axum::{
 use quent_analyzer::AnalyzerResult;
 use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
 use quent_query_engine_ui as ui;
+use quent_ui::bulk::{BulkRequest, BulkResponse};
+use quent_ui::entities::{
+    request::{BulkEntityListRequest, EntityListRequest},
+    response::EntityListResponse,
+};
 use quent_ui::timeline::{
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
@@ -261,6 +266,87 @@ where
     ))
 }
 
+/// List the entities of a resource or resource group, ranked and paged.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/entities",
+    tag = "entities",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Ranked, paged list of entities", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn entities<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<EntityListRequest<ui::QueryFilter>>,
+) -> ServerResult<Json<EntityListResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    Ok(Json(analyzer.list_entities(request)?))
+}
+
+/// Run a bundle of timeline and entity-list queries in one request.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    post,
+    path = "/api/engines/{engine_id}/bulk",
+    tag = "bulk",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    request_body = Object,
+    responses(
+        (status = 200, description = "Bundled timeline and entity-list results", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn bulk<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+    Json(request): Json<BulkRequest<ui::QueryFilter, ui::OperatorFilter>>,
+) -> ServerResult<Json<BulkResponse>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+
+    let timelines = match request.timelines {
+        Some(entries) => Some(
+            state
+                .timelines
+                .cached_bulk_timeline(
+                    analyzer.clone(),
+                    engine_id,
+                    BulkTimelineRequest {
+                        entries,
+                        app_params: request.app_params.clone(),
+                    },
+                )
+                .await?,
+        ),
+        None => None,
+    };
+
+    let entities = match request.entities {
+        Some(entries) => Some(analyzer.bulk_list_entities(BulkEntityListRequest {
+            entries,
+            app_params: request.app_params,
+        })?),
+        None => None,
+    };
+
+    Ok(Json(BulkResponse {
+        timelines,
+        entities,
+    }))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -272,10 +358,14 @@ where
         query,
         single_timeline,
         bulk_timelines,
+        entities,
+        bulk,
     ),
     tags(
         (name = "engines", description = "Engine, query group, and query management"),
         (name = "timelines", description = "Resource timeline data"),
+        (name = "entities", description = "Entity list queries"),
+        (name = "bulk", description = "Bundled UI refresh queries"),
     )
 )]
 pub(crate) struct ApiDoc;
@@ -296,5 +386,7 @@ where
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
+        .route("/{engine_id}/entities", post(entities))
+        .route("/{engine_id}/bulk", post(bulk))
         .with_state(state)
 }

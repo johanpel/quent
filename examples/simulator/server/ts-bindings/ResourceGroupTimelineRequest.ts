@@ -16,11 +16,6 @@ resource_group_id: string,
  */
 resource_type_name: string, 
 /**
- * If set, fully include entities that have usages exceeding this amount of
- * time in seconds.
- */
-long_entities_threshold_s: number | null, 
-/**
  * Entity filters.
  */
 entity_filter: EntityFilter, 

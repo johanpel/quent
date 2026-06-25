@@ -11,10 +11,6 @@ export type ResourceTimelineRequest<TimelineParams> = {
  */
 resource_id: string, 
 /**
- * If set, fully include entities that have usages exceeding this amount of time.
- */
-long_entities_threshold_s: number | null, 
-/**
  * Entity filters.
  */
 entity_filter: EntityFilter, 
