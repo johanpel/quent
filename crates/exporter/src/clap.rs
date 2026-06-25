@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[cfg(feature = "collector")]
 use crate::CollectorExporterOptions;
 use crate::ExporterOptions;
-#[cfg(feature = "filesystem")]
+#[cfg(filesystem)]
 use crate::{FileSystemExporterOptions, FileSystemFormat};
 
 /// Exporter selected on the command line. `None` is the no-op exporter.
@@ -67,7 +67,7 @@ impl ExporterArgs {
     /// Resolve to exporter options; `ExporterKind::None` selects the no-op
     /// exporter.
     pub fn into_options(self) -> Option<ExporterOptions> {
-        #[cfg(feature = "filesystem")]
+        #[cfg(filesystem)]
         let filesystem = |format| {
             ExporterOptions::FileSystem(FileSystemExporterOptions {
                 format,
