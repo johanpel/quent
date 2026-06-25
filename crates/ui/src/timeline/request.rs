@@ -3,9 +3,7 @@
 
 use std::{collections::HashMap, num::NonZero};
 
-use quent_time::{
-    TimeError, TimeSec, TimeUnixNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec, to_nanosecs,
-};
+use quent_time::{TimeError, TimeUnixNanoSec, bin::BinnedSpan, span::SpanUnixNanoSec, to_nanosecs};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -53,8 +51,6 @@ pub struct EntityFilter {
 pub struct ResourceTimelineRequest<TimelineParams> {
     /// The ID of the resource
     pub resource_id: Uuid,
-    /// If set, fully include entities that have usages exceeding this amount of time.
-    pub long_entities_threshold_s: Option<TimeSec>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.
@@ -71,9 +67,6 @@ pub struct ResourceGroupTimelineRequest<TimelineParams> {
     /// The type name of the leaf resources for which to produce the timeline
     /// for this group.
     pub resource_type_name: String,
-    /// If set, fully include entities that have usages exceeding this amount of
-    /// time in seconds.
-    pub long_entities_threshold_s: Option<TimeSec>,
     /// Entity filters.
     pub entity_filter: EntityFilter,
     /// Application-specific request parameters, e.g. for filtering.

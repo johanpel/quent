@@ -7,8 +7,6 @@ use quent_time::bin::BinnedSpanSec;
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::FiniteStateMachine;
-
 #[derive(TS, Debug, Clone, Serialize)]
 pub struct ResourceTimelineBinned {
     /// The configuration of the binned timeline.
@@ -16,8 +14,6 @@ pub struct ResourceTimelineBinned {
     /// Maps a resource capacity name to a vector where each element holds an
     /// aggregated value of a time bin.
     pub capacities_values: HashMap<String, Vec<f64>>,
-    /// FSMs that have usage spans exceeding the long_entities_threshold.
-    pub long_fsms: Vec<FiniteStateMachine>,
 }
 
 #[derive(TS, Debug, Clone, Serialize)]
@@ -27,8 +23,6 @@ pub struct ResourceTimelineBinnedByState {
     /// Maps a resource capacity name to a map of a state name to a vector where
     /// each element holds an aggregated value of a time bin.
     pub capacities_states_values: HashMap<String, HashMap<String, Vec<f64>>>,
-    /// FSMs that have usage spans exceeding the long_entities_threshold.
-    pub long_fsms: Vec<FiniteStateMachine>,
 }
 
 #[derive(TS, Debug, Clone, Serialize)]
