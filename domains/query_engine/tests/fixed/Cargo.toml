@@ -14,3 +14,10 @@ quent-query-engine-model = { path = "../../model" }
 quent-simulator-instrumentation = { path = "../../../../examples/simulator/instrumentation" }
 quent-stdlib = { path = "../../../../crates/stdlib" }
 uuid = { workspace = true }
+
+[dev-dependencies]
+quent-simulator-analyzer = { path = "../../../../examples/simulator/analyzer" }
+quent-query-engine-analyzer = { path = "../../analyzer" }
+quent-query-engine-ui = { path = "../../ui" }
+quent-ui = { path = "../../../../crates/ui" }
+tempfile = "3"

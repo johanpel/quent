@@ -2138,10 +2138,15 @@ dependencies = [
  "quent-attributes",
  "quent-exporter",
  "quent-model",
+ "quent-query-engine-analyzer",
  "quent-query-engine-model",
+ "quent-query-engine-ui",
+ "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
  "quent-stdlib",
  "quent-time",
+ "quent-ui",
+ "tempfile",
  "uuid",
 ]
 
