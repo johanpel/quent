@@ -1904,14 +1904,28 @@ dependencies = [
 name = "quent-exporter"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "http",
  "quent-events",
+ "quent-exporter-callback",
  "quent-exporter-collector",
  "quent-exporter-msgpack",
  "quent-exporter-ndjson",
  "quent-exporter-postcard",
  "quent-exporter-types",
  "serde",
+ "uuid",
+]
+
+[[package]]
+name = "quent-exporter-callback"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-exporter-types",
+ "serde",
+ "tokio",
  "uuid",
 ]
 
@@ -2027,6 +2041,7 @@ version = "0.1.0"
 dependencies = [
  "ciborium",
  "criterion",
+ "http",
  "pprof",
  "quent-attributes",
  "quent-build-info",
@@ -2243,6 +2258,16 @@ dependencies = [
  "rustc-hash",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "quent-resource"
+version = "0.1.0"
+dependencies = [
+ "indexmap",
+ "quent-schema",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3228,9 +3253,9 @@ dependencies = [
 
 [[package]]
 name = "ts-rs"
-version = "11.1.0"
+version = "12.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4994acea2522cd2b3b85c1d9529a55991e3ad5e25cdcd3de9d505972c4379424"
+checksum = "756050066659291d47a554a9f558125db17428b073c5ffce1daf5dcb0f7231d8"
 dependencies = [
  "indexmap",
  "serde_json",
@@ -3241,9 +3266,9 @@ dependencies = [
 
 [[package]]
 name = "ts-rs-macros"
-version = "11.1.0"
+version = "12.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee6ff59666c9cbaec3533964505d39154dc4e0a56151fdea30a09ed0301f62e2"
+checksum = "38d90eea51bc7988ef9e674bf80a85ba6804739e535e9cab48e4bb34a8b652aa"
 dependencies = [
  "proc-macro2",
  "quote",

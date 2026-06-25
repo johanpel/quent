@@ -46,7 +46,7 @@ impl CollectorSink for CountingSink {
 /// Start an in-process collector server on a random localhost port. Returns the
 /// dial address and the server's runtime — the caller keeps the runtime alive
 /// for the test and drops it to shut the server down.
-fn start_server(received: Arc<AtomicUsize>) -> (String, tokio::runtime::Runtime) {
+fn start_server(received: Arc<AtomicUsize>) -> (http::Uri, tokio::runtime::Runtime) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -54,7 +54,9 @@ fn start_server(received: Arc<AtomicUsize>) -> (String, tokio::runtime::Runtime)
         .unwrap();
 
     let std_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = format!("http://{}", std_listener.local_addr().unwrap());
+    let address: http::Uri = format!("http://{}", std_listener.local_addr().unwrap())
+        .parse()
+        .unwrap();
     std_listener.set_nonblocking(true).unwrap();
 
     rt.spawn(async move {

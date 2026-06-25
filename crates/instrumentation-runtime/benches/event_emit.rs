@@ -75,7 +75,7 @@ impl CollectorSink for BenchSink {
 // runtime mid-operation triggers an internal `unwrap` panic in tokio's
 // async file path; leaking is fine because the bench process exits
 // immediately after benches finish (OS reaps threads and FDs).
-fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
+fn start_collector_server(backing_dir: &Path) -> BenchResult<http::Uri> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
@@ -83,7 +83,7 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<String> {
         .build()?;
 
     let std_listener = std::net::TcpListener::bind("127.0.0.1:0")?;
-    let address = format!("http://{}", std_listener.local_addr()?);
+    let address: http::Uri = format!("http://{}", std_listener.local_addr()?).parse()?;
     std_listener.set_nonblocking(true)?;
 
     let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {

@@ -17,7 +17,7 @@ use uuid::Uuid;
 /// the context when it builds the exporter (see [`CollectorExporter::try_new`]).
 #[derive(Debug, Default, Clone)]
 pub struct CollectorExporterOptions {
-    pub address: String,
+    pub address: http::Uri,
 }
 
 /// Streams one entity's events to a collector. The stream is tagged with the

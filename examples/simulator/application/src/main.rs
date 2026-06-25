@@ -11,9 +11,7 @@ use std::{
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
-use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
-};
+use quent_exporter::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},
@@ -48,22 +46,8 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
 
-    /// Exporter format:
-    /// - collector: send events to a collector service over gRPC.
-    /// - postcard: binary format, NOT self-describing, most performant.
-    /// - messagepack: binary self-describing format.
-    /// - ndjson: newline-delimited JSON files (human readable).
-    #[arg(long, default_value = "collector")]
-    exporter: String,
-
-    /// Collector address (when --exporter is collector)
-    /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
-    #[arg(
-        long,
-        default_value = "http://localhost:7836",
-        env = "QUENT_COLLECTOR_ADDRESS"
-    )]
-    collector_address: String,
+    #[command(flatten)]
+    exporter: ExporterArgs,
 }
 
 fn initialize_tracing() {
@@ -1140,32 +1124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let exporter = match args.exporter.as_str() {
-        "postcard" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Postcard,
-            root: "data".into(),
-        })),
-        "messagepack" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Msgpack,
-            root: "data".into(),
-        })),
-        "ndjson" => Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
-            root: "data".into(),
-        })),
-        "collector" => Some(ExporterOptions::Collector(CollectorExporterOptions {
-            address: args.collector_address,
-        })),
-        "none" => None,
-        _ => {
-            return Err(format!(
-                "invalid exporter '{}': must be postcard, messagepack, ndjson, collector, or none",
-                args.exporter
-            )
-            .into());
-        }
-    };
-    let context = SimulatorContext::try_new(exporter)?;
+    let context = SimulatorContext::try_new(args.exporter.into_options())?;
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 
