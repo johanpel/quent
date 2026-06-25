@@ -16,6 +16,9 @@ use quent_exporter_types::{Exporter, ExporterResult};
 use serde::Deserialize;
 use serde::Serialize;
 
+#[cfg(feature = "callback")]
+pub use quent_exporter_callback::{CallbackExporter, EventCallback, RecordedEvent};
+
 // Part of the public API: `create_importer` returns `ImporterResult`, so callers
 // must be able to name it (and its error).
 #[cfg(filesystem)]
@@ -26,7 +29,8 @@ use uuid::Uuid;
     feature = "ndjson",
     feature = "msgpack",
     feature = "postcard",
-    feature = "collector"
+    feature = "collector",
+    feature = "callback"
 )))]
 compile_error!("at least one exporter feature must be enabled");
 
@@ -36,13 +40,16 @@ pub use quent_exporter_collector::CollectorExporterOptions;
 #[cfg(feature = "clap")]
 pub mod clap;
 
-/// Where events go: local files (filesystem) or a collector service.
+/// Where events go: local files (filesystem), a collector service, or a
+/// caller-supplied callback (e.g. an in-memory collector for tests).
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     #[cfg(filesystem)]
     FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector(CollectorExporterOptions),
+    #[cfg(feature = "callback")]
+    Callback(EventCallback),
 }
 
 /// Like [`ExporterOptions`], but the collector variant also carries the source
@@ -56,6 +63,8 @@ pub enum ResolvedExporterOptions {
         address: http::Uri,
         source_context_id: Uuid,
     },
+    #[cfg(feature = "callback")]
+    Callback(EventCallback),
 }
 
 impl ResolvedExporterOptions {
@@ -68,6 +77,8 @@ impl ResolvedExporterOptions {
             ResolvedExporterOptions::FileSystem(options) => Some(&options.root),
             #[cfg(feature = "collector")]
             ResolvedExporterOptions::Collector { .. } => None,
+            #[cfg(feature = "callback")]
+            ResolvedExporterOptions::Callback(_) => None,
         }
     }
 }
@@ -112,6 +123,7 @@ pub struct FileSystemExporterOptions {
 impl ExporterOptions {
     /// Bind these options to the context `id`: scope a filesystem `root` to the
     /// context directory, or set the collector's source context id.
+    #[cfg_attr(not(any(filesystem, feature = "collector")), allow(unused_variables))]
     pub fn resolve(self, id: Uuid) -> ResolvedExporterOptions {
         match self {
             #[cfg(filesystem)]
@@ -124,6 +136,8 @@ impl ExporterOptions {
                 address: options.address,
                 source_context_id: id,
             },
+            #[cfg(feature = "callback")]
+            ExporterOptions::Callback(callback) => ResolvedExporterOptions::Callback(callback),
         }
     }
 }
@@ -218,5 +232,9 @@ where
                 .await
                 .map_err(ExporterError::Other)?,
         ) as Box<dyn Exporter<T>>),
+        #[cfg(feature = "callback")]
+        ResolvedExporterOptions::Callback(callback) => {
+            Ok(Box::new(CallbackExporter::new(callback)) as Box<dyn Exporter<T>>)
+        }
     }
 }

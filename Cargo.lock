@@ -1907,12 +1907,25 @@ dependencies = [
  "clap",
  "http",
  "quent-events",
+ "quent-exporter-callback",
  "quent-exporter-collector",
  "quent-exporter-msgpack",
  "quent-exporter-ndjson",
  "quent-exporter-postcard",
  "quent-exporter-types",
  "serde",
+ "uuid",
+]
+
+[[package]]
+name = "quent-exporter-callback"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-exporter-types",
+ "serde",
+ "tokio",
  "uuid",
 ]
 
