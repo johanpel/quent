@@ -3,14 +3,22 @@
 
 //! Umbrella crate providing unified exporter/importer creation.
 
+#[cfg(feature = "filesystem")]
 use std::path::PathBuf;
 
 use quent_events::EntityEvent;
-use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer};
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "collector")]
+use quent_exporter_types::ExporterError;
+#[cfg(feature = "filesystem")]
+use quent_exporter_types::Importer;
+use quent_exporter_types::{Exporter, ExporterResult};
+#[cfg(feature = "filesystem")]
+use serde::Deserialize;
+use serde::Serialize;
 
 // Part of the public API: `create_importer` returns `ImporterResult`, so callers
 // must be able to name it (and its error).
+#[cfg(feature = "filesystem")]
 pub use quent_exporter_types::{ImporterError, ImporterResult};
 use uuid::Uuid;
 
@@ -25,9 +33,13 @@ compile_error!("at least one exporter feature must be enabled");
 #[cfg(feature = "collector")]
 pub use quent_exporter_collector::CollectorExporterOptions;
 
+#[cfg(feature = "clap")]
+pub mod clap;
+
 /// Where events go: local files (filesystem) or a collector service.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
+    #[cfg(feature = "filesystem")]
     FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector(CollectorExporterOptions),
@@ -37,10 +49,11 @@ pub enum ExporterOptions {
 /// context id and a filesystem `root` is the per-context directory.
 #[derive(Debug, Clone)]
 pub enum ResolvedExporterOptions {
+    #[cfg(feature = "filesystem")]
     FileSystem(FileSystemExporterOptions),
     #[cfg(feature = "collector")]
     Collector {
-        address: String,
+        address: http::Uri,
         source_context_id: Uuid,
     },
 }
@@ -51,6 +64,7 @@ impl ResolvedExporterOptions {
     /// Used to locate where a provenance sidecar should be written.
     pub fn filesystem_root(&self) -> Option<&std::path::Path> {
         match self {
+            #[cfg(feature = "filesystem")]
             ResolvedExporterOptions::FileSystem(options) => Some(&options.root),
             #[cfg(feature = "collector")]
             ResolvedExporterOptions::Collector { .. } => None,
@@ -59,6 +73,7 @@ impl ResolvedExporterOptions {
 }
 
 /// Serialization format for the filesystem exporter and importer.
+#[cfg(feature = "filesystem")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileSystemFormat {
     #[cfg(feature = "ndjson")]
@@ -69,8 +84,25 @@ pub enum FileSystemFormat {
     Postcard,
 }
 
+#[cfg(feature = "filesystem")]
+impl TryFrom<&str> for FileSystemFormat {
+    type Error = String;
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(match value.to_ascii_lowercase().as_str() {
+            #[cfg(feature = "ndjson")]
+            "ndjson" => Self::Ndjson,
+            #[cfg(feature = "msgpack")]
+            "msgpack" => Self::Msgpack,
+            #[cfg(feature = "postcard")]
+            "postcard" => Self::Postcard,
+            _ => return Err(format!("invalid filesystem format '{value}'")),
+        })
+    }
+}
+
 /// Options for exporting events to the filesystem in the given `format`, under
 /// the directory `root`, together with a `model.qmi` provenance sidecar.
+#[cfg(feature = "filesystem")]
 #[derive(Debug, Clone)]
 pub struct FileSystemExporterOptions {
     pub format: FileSystemFormat,
@@ -82,6 +114,7 @@ impl ExporterOptions {
     /// context directory, or set the collector's source context id.
     pub fn resolve(self, id: Uuid) -> ResolvedExporterOptions {
         match self {
+            #[cfg(feature = "filesystem")]
             ExporterOptions::FileSystem(mut options) => {
                 options.root = options.root.join(id.to_string());
                 ResolvedExporterOptions::FileSystem(options)
@@ -96,6 +129,7 @@ impl ExporterOptions {
 }
 
 /// Selects an importer and its options.
+#[cfg(feature = "filesystem")]
 #[derive(Debug, Clone)]
 pub enum ImporterOptions {
     FileSystem(FileSystemImporterOptions),
@@ -104,6 +138,7 @@ pub enum ImporterOptions {
 /// Options for importing events from the filesystem in the given `format`.
 /// `path` is either a directory containing the event file (located by the
 /// format's extension) or a direct file path.
+#[cfg(feature = "filesystem")]
 #[derive(Debug, Clone)]
 pub struct FileSystemImporterOptions {
     pub format: FileSystemFormat,
@@ -111,6 +146,7 @@ pub struct FileSystemImporterOptions {
 }
 
 /// Construct an importer from [`ImporterOptions`].
+#[cfg(feature = "filesystem")]
 pub fn create_importer<T>(kind: &ImporterOptions) -> ImporterResult<Box<dyn Importer<T>>>
 where
     T: for<'de> Deserialize<'de> + 'static,
@@ -147,6 +183,7 @@ where
     T: Serialize + Send + EntityEvent + 'static,
 {
     match kind {
+        #[cfg(feature = "filesystem")]
         ResolvedExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => {
             match format {
                 #[cfg(feature = "ndjson")]
@@ -176,16 +213,10 @@ where
         ResolvedExporterOptions::Collector {
             address,
             source_context_id,
-        } => {
-            let address: http::Uri = address.parse().map_err(ExporterError::other)?;
-            Ok(Box::new(
-                quent_exporter_collector::CollectorExporter::<T>::try_new(
-                    address,
-                    source_context_id,
-                )
+        } => Ok(Box::new(
+            quent_exporter_collector::CollectorExporter::<T>::try_new(address, source_context_id)
                 .await
                 .map_err(ExporterError::Other)?,
-            ) as Box<dyn Exporter<T>>)
-        }
+        ) as Box<dyn Exporter<T>>),
     }
 }
