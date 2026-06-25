@@ -18,7 +18,6 @@ function makeResourceRequest(
   return {
     Resource: {
       resource_id: resourceId,
-      long_entities_threshold_s: null,
       entity_filter: { entity_type_name: entityTypeName },
       application: { operator_id: operatorId },
       config: { window_start_s: 0, window_end_s: 1, num_bins: 10 } as never,
@@ -36,7 +35,6 @@ function makeGroupRequest(
     ResourceGroup: {
       resource_group_id: groupId,
       resource_type_name: resourceTypeName,
-      long_entities_threshold_s: null,
       entity_filter: { entity_type_name: entityTypeName },
       app_params: { operator_id: operatorId },
       config: { window_start_s: 0, window_end_s: 1, num_bins: 10 } as never,

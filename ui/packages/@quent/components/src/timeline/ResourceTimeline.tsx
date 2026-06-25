@@ -26,7 +26,6 @@ import {
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
-  getLongEntitiesThreshold,
 } from '../lib/timeline.utils';
 import { TimelineSeries, TimelineMark } from './types';
 import { EntityTypeKey } from '@quent/utils';
@@ -144,7 +143,6 @@ export function ResourceTimeline({
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
-      const windowSeconds = end - start;
       const config = {
         num_bins: getAdaptiveNumBins(),
         start,
@@ -156,7 +154,6 @@ export function ResourceTimeline({
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_id: null },
                 config,
@@ -165,7 +162,6 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_id: null },
                 config,

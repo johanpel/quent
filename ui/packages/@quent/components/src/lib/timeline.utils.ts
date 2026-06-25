@@ -154,10 +154,10 @@ export function getTimelineConfig(response: SingleTimelineResponse): BinnedSpanS
   return response.config;
 }
 
-/** Extract long_fsms from a ResourceTimeline response. */
-export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
-  if ('Binned' in data) return data.Binned.long_fsms;
-  if ('BinnedByState' in data) return data.BinnedByState.long_fsms;
+// STOPGAP: long_fsms was removed from the timeline response; long entities now
+// come from the dedicated /entities endpoint. Returns [] until the UI migrates
+// to query that endpoint. TODO(ui): replace callers with the /entities query.
+export function getLongFsms(_data: ResourceTimeline): FiniteStateMachine[] {
   return [];
 }
 
@@ -631,14 +631,11 @@ export function buildBulkParamsForItem(
   } else {
     fsmTypeName = lookupFsmTypeName(item, entities);
   }
-  const threshold = getLongEntitiesThreshold(config.end - config.start);
-
   if (isGroup) {
     return {
       ResourceGroup: {
         resource_group_id: item.id,
         resource_type_name: resourceTypeName || '',
-        long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
         app_params: { operator_id: operatorId },
         config,
@@ -649,7 +646,6 @@ export function buildBulkParamsForItem(
   return {
     Resource: {
       resource_id: item.id,
-      long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
       application: { operator_id: operatorId },
       config,
