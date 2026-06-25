@@ -10,7 +10,7 @@ use quote::quote;
 
 use super::{event_ident, handle_ident};
 use crate::GenerateError;
-use crate::common::{doc_attr, raw_ident, to_case};
+use crate::common::{doc_attr_or, raw_ident, to_case};
 use crate::data_type::map_data_type;
 
 /// The maximum once-events an entity may declare: one bit per event in the
@@ -49,7 +49,16 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
         .map(|event| {
             let method = raw_ident(to_case(event.name(), Case::Snake));
             let variant = raw_ident(to_case(event.name(), Case::Pascal));
-            let docs = doc_attr(event.annotations().docs());
+            let fallback = match event.cardinality() {
+                Cardinality::Once => format!(
+                    "Emit the once-cardinality `{}` event for this instance.",
+                    event.name()
+                ),
+                Cardinality::Multi => {
+                    format!("Emit a `{}` event for this instance.", event.name())
+                }
+            };
+            let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
             let params: Vec<TokenStream> = event
                 .fields()
@@ -180,6 +189,7 @@ mod tests {
                 pub fn uuid(&self) -> ::uuid::Uuid {
                     self.inner.id()
                 }
+                #[doc = "Emit the once-cardinality `opened` event for this instance."]
                 pub fn opened(
                     &mut self,
                     peer: String,
@@ -187,6 +197,7 @@ mod tests {
                 ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
                     self.inner.emit_once(0, "opened", ConnectionEvent::Opened { peer, port })
                 }
+                #[doc = "Emit a `data` event for this instance."]
                 pub fn data(
                     &self,
                     bytes: u64,
@@ -194,6 +205,7 @@ mod tests {
                     self.inner.emit(ConnectionEvent::Data { bytes });
                     ::core::result::Result::Ok(())
                 }
+                #[doc = "Emit the once-cardinality `closed` event for this instance."]
                 pub fn closed(
                     &mut self,
                 ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {

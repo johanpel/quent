@@ -37,6 +37,13 @@ pub(crate) fn doc_attr(docs: Option<&str>) -> TokenStream {
     }
 }
 
+/// Build a `#[doc = ..]` attribute from `docs`, falling back to `fallback` when
+/// `docs` is `None`, so the item is always documented.
+pub(crate) fn doc_attr_or(docs: Option<&str>, fallback: &str) -> TokenStream {
+    let text = docs.unwrap_or(fallback);
+    quote! { #[doc = #text] }
+}
+
 /// Case-convert a schema identifier without splitting letter/digit boundaries,
 /// so names such as `u8` or `http2` are preserved rather than mangled.
 pub(crate) fn to_case(id: &Identifier, case: Case) -> String {

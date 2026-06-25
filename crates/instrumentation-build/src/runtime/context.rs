@@ -41,7 +41,8 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
 
     let context_doc = format!(
         "Instrumentation context for the `{model_name}` model. Construct it with \
-         [`Self::try_new`], then call the `*_observer()` accessors to emit events."
+         [`Self::try_new`], then call a `*_observer()` accessor to get an entity's \
+         event observer, which creates the per-instance handles that emit events."
     );
 
     quote! {
