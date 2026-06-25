@@ -6,11 +6,17 @@ use std::collections::HashMap;
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
 use quent_query_engine_ui as ui;
-use quent_ui::timeline::{
-    request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
-    response::{
-        BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
-        SingleTimelineResponse,
+use quent_ui::{
+    entities::{
+        request::{BulkEntityListRequest, EntityListRequest},
+        response::{BulkEntityListResponse, BulkEntityListResponseEntry, EntityListResponse},
+    },
+    timeline::{
+        request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},
+        response::{
+            BulkChunkedTimelinesResponse, BulkTimelinesResponse, BulkTimelinesResponseEntry,
+            SingleTimelineResponse,
+        },
     },
 };
 use uuid::Uuid;
@@ -58,6 +64,41 @@ pub trait UiAnalyzer {
         &self,
         request: SingleTimelineRequest<ui::QueryFilter, ui::OperatorFilter>,
     ) -> AnalyzerResult<SingleTimelineResponse>;
+
+    /// List the entities matching a scope, window, and filter, ranked by the
+    /// requested sort key and sliced to the requested page.
+    fn list_entities(
+        &self,
+        request: EntityListRequest<ui::QueryFilter>,
+    ) -> AnalyzerResult<EntityListResponse>;
+
+    /// List entities for several queries at once.
+    ///
+    /// The default runs one [`Self::list_entities`] per entry. Implementors
+    /// should override this to make a single pass over the model's entities.
+    fn bulk_list_entities(
+        &self,
+        request: BulkEntityListRequest<ui::QueryFilter>,
+    ) -> AnalyzerResult<BulkEntityListResponse> {
+        let entries = request
+            .entries
+            .into_iter()
+            .map(|(key, entry)| {
+                let result = self.list_entities(EntityListRequest {
+                    entry,
+                    app_params: request.app_params.clone(),
+                });
+                let entry = match result {
+                    Ok(response) => BulkEntityListResponseEntry::Ok(response),
+                    Err(e) => BulkEntityListResponseEntry::Error {
+                        message: e.to_string(),
+                    },
+                };
+                (key, entry)
+            })
+            .collect();
+        Ok(BulkEntityListResponse { entries })
+    }
 
     /// Return a set of resource timelines in bulk.
     fn bulk_resource_timeline(

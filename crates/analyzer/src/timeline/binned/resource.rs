@@ -5,9 +5,8 @@
 
 use std::hash::Hash;
 
-use quent_time::{SpanNanoSec, TimeNanoSec, bin::BinnedSpan};
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
-use uuid::Uuid;
+use quent_time::{SpanNanoSec, bin::BinnedSpan};
+use rustc_hash::FxHashMap as HashMap;
 
 use crate::{
     AnalyzerResult,
@@ -29,36 +28,29 @@ fn convert_capacity(
 pub struct ResourceTimeline<'a> {
     pub config: BinnedSpan,
     pub data: HashMap<&'a str, Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ResourceTimelineByKey<'a, K> {
     pub config: BinnedSpan,
     pub data: HashMap<(K, &'a str), Vec<f64>>,
-    pub long_entities: Vec<Uuid>,
 }
 
 pub struct ResourceTimelineBuilder<'a> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<&'a str>,
-    long_entities: HashSet<Uuid>,
-    long_entities_threshold: Option<TimeNanoSec>,
 }
 
 impl<'a> ResourceTimelineBuilder<'a> {
     pub fn try_new(
         resource_type: &'a ResourceTypeDecl,
         config: BinnedSpan,
-        long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
         // Construct the aggregator.
         let aggregator = KeyedAggregator::new(config);
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
-            long_entities_threshold,
         })
     }
 
@@ -70,13 +62,6 @@ impl<'a> ResourceTimelineBuilder<'a> {
                 self.aggregator
                     .try_push(usage.span(), (capacity.name, value))?
             }
-        }
-
-        if let Some(threshold) = self.long_entities_threshold
-            && usage.span().duration() > threshold
-            && usage.span().intersects(&self.aggregator.config.span)
-        {
-            self.long_entities.insert(usage.entity_id());
         }
         Ok(())
     }
@@ -95,7 +80,6 @@ impl<'a> ResourceTimelineBuilder<'a> {
         ResourceTimeline {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self.long_entities.into_iter().collect(),
         }
     }
 }
@@ -103,8 +87,6 @@ impl<'a> ResourceTimelineBuilder<'a> {
 pub struct ResourceTimelineByKeyBuilder<'a, K> {
     resource_type: &'a ResourceTypeDecl,
     aggregator: KeyedAggregator<(K, &'a str)>,
-    long_entities: HashSet<Uuid>,
-    long_entities_threshold: Option<TimeNanoSec>,
 }
 
 impl<'a, K> ResourceTimelineByKeyBuilder<'a, K>
@@ -114,15 +96,12 @@ where
     pub fn try_new(
         resource_type: &'a ResourceTypeDecl,
         config: BinnedSpan,
-        long_entities_threshold: Option<TimeNanoSec>,
     ) -> AnalyzerResult<Self> {
         let aggregator = KeyedAggregator::new(config);
 
         Ok(Self {
             resource_type,
             aggregator,
-            long_entities: HashSet::default(),
-            long_entities_threshold,
         })
     }
 
@@ -133,13 +112,6 @@ where
                 self.aggregator
                     .try_push(usage.span(), ((key.clone(), capacity.name), value))?
             }
-        }
-
-        if let Some(threshold) = self.long_entities_threshold
-            && usage.span().duration() > threshold
-            && usage.span().intersects(&self.aggregator.config.span)
-        {
-            self.long_entities.insert(usage.entity_id());
         }
         Ok(())
     }
@@ -158,7 +130,6 @@ where
         ResourceTimelineByKey {
             config: self.aggregator.config,
             data: self.aggregator.finish(),
-            long_entities: self.long_entities.into_iter().collect(),
         }
     }
 }
@@ -184,6 +155,8 @@ mod tests {
     use super::*;
 
     use quent_time::{SpanNanoSec, bin::BinnedSpan};
+    use rustc_hash::FxHashSet as HashSet;
+    use uuid::Uuid;
 
     const ROOT_RESOURCE_ID: Uuid = Uuid::from_u64_pair(0, 1);
 
@@ -258,7 +231,6 @@ mod tests {
                 .resource_type(resources.resource(resource_id).unwrap().type_name())
                 .unwrap(),
             config,
-            None,
         )
         .unwrap();
         builder
@@ -351,7 +323,6 @@ mod tests {
                 NonZero::try_from(10).unwrap(),
             )
             .unwrap(),
-            None,
         )
         .unwrap();
         builder
@@ -440,7 +411,6 @@ mod tests {
         let mut builder = ResourceTimelineBuilder::try_new(
             resources.resource_type_of(resource_id).unwrap(),
             config,
-            None,
         )
         .unwrap();
         builder
@@ -538,7 +508,6 @@ mod tests {
                 .resource_type(resources.resource(resource_id).unwrap().type_name())
                 .unwrap(),
             config,
-            None,
         )
         .unwrap();
 
@@ -672,12 +641,9 @@ mod tests {
             })
             .collect::<HashSet<_>>();
 
-        let mut builder = ResourceTimelineByKeyBuilder::try_new(
-            resources.resource_type("test").unwrap(),
-            config,
-            None,
-        )
-        .unwrap();
+        let mut builder =
+            ResourceTimelineByKeyBuilder::try_new(resources.resource_type("test").unwrap(), config)
+                .unwrap();
         for fsm in fsms.fsms() {
             for (state_name, usage) in fsm.usages_with_state_names() {
                 if group_resources.contains(&usage.resource_id()) {
@@ -722,71 +688,5 @@ mod tests {
                 42.0 * 1.0,
             ],
         );
-    }
-
-    /// Don't include long entities outside the window.
-    #[test]
-    fn test_long_entities_outside_window_excluded() {
-        let resource_id = Uuid::now_v7();
-
-        let mut resources = InMemoryResourcesBuilder::default();
-        build_root_and_memory(&mut resources, resource_id);
-        let resources = resources.try_build().unwrap();
-
-        // Config window: [1000, 2000], threshold: 100 ns (all spans below exceed it)
-        let config = BinnedSpan::try_new(
-            SpanNanoSec::try_new(1000, 2000).unwrap(),
-            NonZero::try_from(10).unwrap(),
-        )
-        .unwrap();
-        let threshold = 100u64;
-
-        let resource_type = resources
-            .resource_type(resources.resource(resource_id).unwrap().type_name())
-            .unwrap();
-
-        let make_fsm = |start, end| {
-            RtFsm::try_new(
-                Uuid::now_v7(),
-                "test",
-                "test",
-                [
-                    RtFsmTransition {
-                        name: "using".into(),
-                        usages: vec![RtFsmStateUsage::new(
-                            resource_id,
-                            [CapacityValue::new("capacity_bytes", 1)],
-                        )],
-                        timestamp: start,
-                        attributes: vec![],
-                    },
-                    RtFsmTransition {
-                        name: "exit".into(),
-                        usages: vec![],
-                        timestamp: end,
-                        attributes: vec![],
-                    },
-                ],
-            )
-            .unwrap()
-        };
-
-        let mut outside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
-        outside_fsms.insert(make_fsm(0, 500));
-        outside_fsms.insert(make_fsm(2500, 3000));
-
-        let mut outside_builder =
-            ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
-        outside_builder.try_extend(outside_fsms.usages()).unwrap();
-        assert!(!outside_builder.build().long_entities.contains(&resource_id));
-
-        let mut inside_fsms = InMemoryFsms::<RtFsm, RtFsmTransition>::new();
-        inside_fsms.insert(make_fsm(500, 1500));
-        inside_fsms.insert(make_fsm(1100, 1900));
-
-        let mut inside_builder =
-            ResourceTimelineBuilder::try_new(resource_type, config, Some(threshold)).unwrap();
-        inside_builder.try_extend(inside_fsms.usages()).unwrap();
-        assert!(inside_builder.build().long_entities.contains(&resource_id));
     }
 }
