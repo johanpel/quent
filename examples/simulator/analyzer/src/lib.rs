@@ -3,7 +3,7 @@
 
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
-use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_analyzer::{entities, ui::UiAnalyzer};
 use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryEntities, QueryFilter};
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
@@ -239,6 +239,34 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
     fn query_engine_model(&self) -> &impl QueryEngineModel {
         &self.model
+    }
+
+    fn list_entities(
+        &self,
+        request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,
+    ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
+        let epoch = self
+            .query_engine_model()
+            .query_epoch(request.app_params.query_id)?;
+        let entry = request.entry;
+        let window = entry.window.try_into_span(epoch)?;
+        let scope = entry
+            .filter
+            .scope
+            .as_ref()
+            .map(|s| entities::resolve_scope(&self.model, s))
+            .transpose()?;
+        let operator_id = entry.application.operator_id;
+        entities::list_entities(
+            &self.model,
+            |task| operator_id.is_none_or(|op| task.operator_id() == Some(op)),
+            scope.as_ref(),
+            window,
+            &entry.filter,
+            entry.sort,
+            entry.page,
+            epoch,
+        )
     }
 
     // TODO(johanpel): consider re-using the bulk request API with a single entry for requests like this.

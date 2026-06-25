@@ -2153,10 +2153,14 @@ dependencies = [
  "quent-attributes",
  "quent-exporter",
  "quent-model",
+ "quent-query-engine-analyzer",
  "quent-query-engine-model",
+ "quent-query-engine-ui",
+ "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
  "quent-stdlib",
  "quent-time",
+ "quent-ui",
  "uuid",
 ]
 
@@ -2325,6 +2329,7 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
+ "quent-exporter",
  "quent-model",
  "quent-query-engine-model",
  "quent-stdlib",
