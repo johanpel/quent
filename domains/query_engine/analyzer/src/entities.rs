@@ -35,7 +35,11 @@ pub struct ListQuery<'a> {
 ///
 /// `keep` is an extra application predicate for filters outside the generic
 /// contract, e.g. by operator.
-pub fn list_entities<M, P>(model: &M, keep: P, query: ListQuery<'_>) -> AnalyzerResult<EntityListResponse>
+pub fn list_entities<M, P>(
+    model: &M,
+    keep: P,
+    query: ListQuery<'_>,
+) -> AnalyzerResult<EntityListResponse>
 where
     M: FsmCollection,
     M::Fsm: for<'a> FsmUsages<'a>,
