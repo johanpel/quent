@@ -9,7 +9,7 @@ use crate::FiniteStateMachine;
 /// A ranked, paged list of entities.
 #[derive(TS, Debug, Clone, Serialize)]
 pub struct EntityListResponse {
-    // TODO(johanpel): generalize to other entity types; only FSMs are
+    // TODO(johanpel): generalize to other entity types, but only FSMs are
     // represented today.
     pub items: Vec<FiniteStateMachine>,
     /// The count of entities matching the filter before paging.

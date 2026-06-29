@@ -8,24 +8,24 @@ use uuid::Uuid;
 
 use crate::paginate::PageParams;
 
-/// Selects which entities are listed: those that have at least one resource
-/// usage on the scope.
+/// Restricts returned entities to appear in a certain scope.
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub enum EntityScope {
-    /// Entities with a usage of this resource.
+    /// Only return entities that use this resource.
     Resource { resource_id: Uuid },
-    /// Entities with a usage of any leaf resource of `resource_type_name` within
-    /// this group.
+    /// Only return entities that use any resource within this group.
     ResourceGroup {
         resource_group_id: Uuid,
         resource_type_name: String,
     },
 }
 
-/// A time window in seconds relative to the query epoch.
+/// A time window, resolved against an epoch supplied at conversion.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TimeWindow {
+    /// The start time of the window in seconds.
     pub start: TimeSec,
+    /// The end time of the window in seconds.
     pub end: TimeSec,
 }
 
@@ -39,47 +39,62 @@ impl TimeWindow {
     }
 }
 
-/// Entity filters. Every set field must match; a `None` field does not filter.
+/// Entity filters.
+///
+/// Every field that is set must match, `None` fields do not filter.
 #[derive(TS, Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EntityListFilter {
-    /// Restrict to entities with a usage on this scope. `None` lists entities
-    /// regardless of which resource they used.
+    /// Restrict resulting entities to be in this scope.
     pub scope: Option<EntityScope>,
+    /// Restrict resulting entities to be of this type.
     pub entity_type_name: Option<String>,
-    /// Keep only entities with resource usages longer than this threshold. Note
-    /// that only Fsm-type entities can have usages.
+    /// Keep only entities with resource usages longer than this threshold.
+    ///
+    /// N.B. only Fsm-type entities can have usages.
     pub min_usage_s: Option<TimeSec>,
 }
 
-/// The key entities are ranked by.
+/// The key entities are sorted by.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum EntitySortKey {
-    /// The longest single resource-usage span within the window — on the scope
-    /// resource if one is set, otherwise on any resource.
+    /// The longest single resource-usage span within the window.
     UsageDuration,
 }
 
+/// The direction to sort in.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SortDir {
+    /// Sort in ascending order.
     Asc,
+    /// Sort in descending order.
     Desc,
 }
 
+/// Sorting parameters.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Sort {
+    /// The key to sort on.
     pub key: EntitySortKey,
+    /// The direction to sort in.
     pub dir: SortDir,
 }
 
 /// A single entity-list query.
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct EntityListEntry<EntryParams> {
+    /// The window of time entities must fall in.
     pub window: TimeWindow,
+    /// Filter parameters.
     pub filter: EntityListFilter,
+    /// Sort parameters.
     pub sort: Sort,
-    /// `None` returns the full filtered set.
+    /// Pagination parameters.
+    ///
+    /// When this is not set, return the full list. Depending on the dataset
+    /// size and other parameters, this may result in a large volume of data and
+    /// should be used with care.
     pub page: Option<PageParams>,
-    /// Per-query application parameters, e.g. an operator filter.
+    /// Per-query application-specific parameters.
     pub application: EntryParams,
 }
 
@@ -87,6 +102,6 @@ pub struct EntityListEntry<EntryParams> {
 #[derive(TS, Debug, Clone, Serialize, Deserialize)]
 pub struct EntityListRequest<GlobalParams, EntryParams> {
     pub entry: EntityListEntry<EntryParams>,
-    /// Global application parameters shared by the query, e.g. the query id.
+    /// Global application parameters shared by the query.
     pub app_params: GlobalParams,
 }

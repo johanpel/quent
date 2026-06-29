@@ -7,12 +7,28 @@ import type { TimeWindow } from "./TimeWindow";
 /**
  * A single entity-list query.
  */
-export type EntityListEntry<EntryParams> = { window: TimeWindow, filter: EntityListFilter, sort: Sort, 
+export type EntityListEntry<EntryParams> = { 
 /**
- * `None` returns the full filtered set.
+ * The window of time entities must fall in.
+ */
+window: TimeWindow, 
+/**
+ * Filter parameters.
+ */
+filter: EntityListFilter, 
+/**
+ * Sort parameters.
+ */
+sort: Sort, 
+/**
+ * Pagination parameters.
+ *
+ * When this is not set, return the full list. Depending on the dataset
+ * size and other parameters, this may result in a large volume of data and
+ * should be used with care.
  */
 page: PageParams | null, 
 /**
- * Per-query application parameters, e.g. an operator filter.
+ * Per-query application-specific parameters.
  */
 application: EntryParams, };

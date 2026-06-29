@@ -6,6 +6,6 @@ import type { EntityListEntry } from "./EntityListEntry";
  */
 export type EntityListRequest<GlobalParams, EntryParams> = { entry: EntityListEntry<EntryParams>, 
 /**
- * Global application parameters shared by the query, e.g. the query id.
+ * Global application parameters shared by the query.
  */
 app_params: GlobalParams, };

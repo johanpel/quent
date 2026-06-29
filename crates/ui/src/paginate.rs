@@ -6,9 +6,11 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// A zero-based page of at most `max` items.
+/// Parameters for paginated lists.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct PageParams {
+    /// The maximum size of a page.
     pub max: u32,
+    /// The zero-based index of the requested page.
     pub page: u32,
 }

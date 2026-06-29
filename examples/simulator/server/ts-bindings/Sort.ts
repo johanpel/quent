@@ -2,4 +2,15 @@
 import type { EntitySortKey } from "./EntitySortKey";
 import type { SortDir } from "./SortDir";
 
-export type Sort = { key: EntitySortKey, dir: SortDir, };
+/**
+ * Sorting parameters.
+ */
+export type Sort = { 
+/**
+ * The key to sort on.
+ */
+key: EntitySortKey, 
+/**
+ * The direction to sort in.
+ */
+dir: SortDir, };

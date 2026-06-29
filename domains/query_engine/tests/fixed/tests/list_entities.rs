@@ -18,8 +18,8 @@ use quent_query_engine_ui::{OperatorFilter, QueryFilter};
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
 use quent_simulator_instrumentation::{SimulatorContext, test_utils::events_from_recorded};
 use quent_ui::entities::request::{
-    EntityListEntry, EntityListFilter, EntityListRequest, EntityScope, EntitySortKey, Sort, SortDir,
-    TimeWindow,
+    EntityListEntry, EntityListFilter, EntityListRequest, EntityScope, EntitySortKey, Sort,
+    SortDir, TimeWindow,
 };
 use quent_ui::entities::response::EntityListResponse;
 use quent_ui::paginate::PageParams;

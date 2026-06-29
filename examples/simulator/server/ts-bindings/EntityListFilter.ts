@@ -2,16 +2,22 @@
 import type { EntityScope } from "./EntityScope";
 
 /**
- * Entity filters. Every set field must match; a `None` field does not filter.
+ * Entity filters.
+ *
+ * Every field that is set must match, `None` fields do not filter.
  */
 export type EntityListFilter = { 
 /**
- * Restrict to entities with a usage on this scope. `None` lists entities
- * regardless of which resource they used.
+ * Restrict resulting entities to be in this scope.
  */
-scope: EntityScope | null, entity_type_name: string | null, 
+scope: EntityScope | null, 
 /**
- * Keep only entities with resource usages longer than this threshold. Note
- * that only Fsm-type entities can have usages.
+ * Restrict resulting entities to be of this type.
+ */
+entity_type_name: string | null, 
+/**
+ * Keep only entities with resource usages longer than this threshold.
+ *
+ * N.B. only Fsm-type entities can have usages.
  */
 min_usage_s: number | null, };
