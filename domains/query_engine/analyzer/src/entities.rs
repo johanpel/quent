@@ -6,67 +6,36 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    AnalyzerResult, Model,
+    AnalyzerResult,
     fsm::{FsmUsages, collection::FsmCollection},
     resource::Usage,
-    resource::tree::ResourceTreeNode,
 };
 use quent_time::{TimeNanoSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs};
 use quent_ui::{
     FiniteStateMachine,
     entities::{
-        request::{EntityListFilter, EntityScope, EntitySortKey, Sort, SortDir},
+        request::{EntityListFilter, EntitySortKey, Sort, SortDir},
         response::EntityListResponse,
     },
     paginate::PageParams,
 };
 use uuid::Uuid;
 
-/// Resolve an entity scope to the leaf resource IDs it covers.
-///
-/// A single resource yields itself; a group yields its leaf resources of the
-/// requested type.
-pub fn resolve_scope(model: &impl Model, scope: &EntityScope) -> AnalyzerResult<HashSet<Uuid>> {
-    match scope {
-        EntityScope::Resource { resource_id } => {
-            model.resource(*resource_id)?;
-            Ok([*resource_id].into_iter().collect())
-        }
-        EntityScope::ResourceGroup {
-            resource_group_id,
-            resource_type_name,
-        } => {
-            let tree = ResourceTreeNode::try_new(model, *resource_group_id)?;
-            Ok(tree
-                .iter_leaf_ids()
-                .filter(|&id| {
-                    model
-                        .resource(id)
-                        .is_ok_and(|r| r.type_name() == resource_type_name)
-                })
-                .collect())
-        }
-    }
+/// A single entity-list query with its scope already resolved to resource IDs.
+pub struct ListQuery<'a> {
+    pub scope: Option<&'a HashSet<Uuid>>,
+    pub window: SpanUnixNanoSec,
+    pub filter: &'a EntityListFilter,
+    pub sort: Sort,
+    pub page: Option<PageParams>,
+    pub epoch: TimeUnixNanoSec,
 }
 
-/// List the FSMs that use the scope within the window, ranked and paged.
+/// List the FSMs matching the scope, window, and filters, ranked and paged.
 ///
-/// `keep` is an application predicate applied before any other filter, for
-/// filters the generic contract does not model (e.g. by operator). Filters by
-/// type name and by `min_usage_s`, ranks by the sort key with the entity UUID
-/// ascending as the stable tiebreaker, sets `total` to the matched count before
-/// paging, and converts the requested page to UI FSMs.
-#[allow(clippy::too_many_arguments)]
-pub fn list_entities<M, P>(
-    model: &M,
-    keep: P,
-    scope_resources: Option<&HashSet<Uuid>>,
-    window: SpanUnixNanoSec,
-    filter: &EntityListFilter,
-    sort: Sort,
-    page: Option<PageParams>,
-    epoch: TimeUnixNanoSec,
-) -> AnalyzerResult<EntityListResponse>
+/// `keep` is an extra application predicate for filters outside the generic
+/// contract, e.g. by operator.
+pub fn list_entities<M, P>(model: &M, keep: P, query: ListQuery<'_>) -> AnalyzerResult<EntityListResponse>
 where
     M: FsmCollection,
     M::Fsm: for<'a> FsmUsages<'a>,
@@ -75,13 +44,12 @@ where
     let ranked = model
         .fsms()
         .filter(|f| keep(f))
-        .filter_map(|f| entry_matches(f, scope_resources, window, filter).map(|m| (f, m)))
+        .filter_map(|f| entry_matches(f, query.scope, query.window, query.filter).map(|m| (f, m)))
         .collect();
-    finalize(ranked, sort, page, epoch)
+    finalize(ranked, query.sort, query.page, query.epoch)
 }
 
-/// The ranking metric for an FSM under one query, or `None` if it does not
-/// match (wrong type, out of scope, or below `min_usage_s`).
+/// The ranking metric if the FSM passes the filters, else `None`.
 fn entry_matches<'a, F>(
     fsm: &'a F,
     scope: Option<&HashSet<Uuid>>,
@@ -143,12 +111,8 @@ where
     Ok(EntityListResponse { items, total })
 }
 
-/// The ranking metric: the longest single usage span within the window, on a
-/// scope resource (or any resource when `scope` is `None`).
-///
-/// Returns `None` only when a `scope` is set and the FSM has no usage on it —
-/// such entities are out of scope. With no scope every FSM is ranked, scoring
-/// `0` when it has no usage in the window.
+/// The longest single usage span within the window on a scope resource, or any
+/// resource when `scope` is `None`.
 fn usage_metric<'a, F>(
     fsm: &'a F,
     scope: Option<&HashSet<Uuid>>,

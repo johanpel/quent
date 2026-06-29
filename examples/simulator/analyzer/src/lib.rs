@@ -254,18 +254,20 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .filter
             .scope
             .as_ref()
-            .map(|s| entities::resolve_scope(&self.model, s))
+            .map(|s| s.resolve(&self.model))
             .transpose()?;
         let operator_id = entry.application.operator_id;
         entities::list_entities(
             &self.model,
             |task| operator_id.is_none_or(|op| task.operator_id() == Some(op)),
-            scope.as_ref(),
-            window,
-            &entry.filter,
-            entry.sort,
-            entry.page,
-            epoch,
+            entities::ListQuery {
+                scope: scope.as_ref(),
+                window,
+                filter: &entry.filter,
+                sort: entry.sort,
+                page: entry.page,
+                epoch,
+            },
         )
     }
 

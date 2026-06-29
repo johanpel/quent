@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
+use quent_analyzer::{AnalyzerResult, Model, resource::tree::ResourceTreeNode};
 use quent_time::{TimeError, TimeSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -18,6 +21,33 @@ pub enum EntityScope {
         resource_group_id: Uuid,
         resource_type_name: String,
     },
+}
+
+impl EntityScope {
+    /// Resolve the scope to the resource IDs it covers: the single resource, or
+    /// the leaf resources of the group that have the requested type.
+    pub fn resolve(&self, model: &impl Model) -> AnalyzerResult<HashSet<Uuid>> {
+        match self {
+            EntityScope::Resource { resource_id } => {
+                model.resource(*resource_id)?;
+                Ok([*resource_id].into_iter().collect())
+            }
+            EntityScope::ResourceGroup {
+                resource_group_id,
+                resource_type_name,
+            } => {
+                let tree = ResourceTreeNode::try_new(model, *resource_group_id)?;
+                Ok(tree
+                    .iter_leaf_ids()
+                    .filter(|&id| {
+                        model
+                            .resource(id)
+                            .is_ok_and(|r| r.type_name() == resource_type_name)
+                    })
+                    .collect())
+            }
+        }
+    }
 }
 
 /// A time window, resolved against an epoch supplied at conversion.
