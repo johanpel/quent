@@ -52,7 +52,7 @@ struct Args {
 
     /// Output directory for collected event data.
     /// Overridden by the QUENT_COLLECTOR_OUTPUT_DIR environment variable if set.
-    #[arg(long, default_value = "data", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
+    #[arg(long, default_value = "events", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
     output_dir: PathBuf,
 
     /// Socket address for the analyzer HTTP server (e.g. `[::]:8080`).
