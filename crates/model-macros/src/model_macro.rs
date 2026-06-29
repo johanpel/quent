@@ -3,15 +3,17 @@
 
 //! `model!` proc macro implementation.
 //!
-//! Syntax:
+//! Syntax (fields in any order; `name` + `root` required, `entities` optional):
 //! ```ignore
 //! model! {
-//!     Simulator {
-//!         root: ResourceRoot,
+//!     name: Simulator,
+//!     root: ResourceRoot,
+//!     entities: {
 //!         quent_query_engine_model::Engine,
 //!         task::Task,
 //!         quent_stdlib::memory::Memory,
-//!     }
+//!     },
+//!     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
 //! }
 //! ```
 //!
@@ -21,53 +23,82 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Path, Token};
+use syn::{LitStr, Path, Token};
 
 struct DefineModelInput {
     name: Ident,
     root: Path,
     components: Vec<Path>,
+    /// Optional `analyzer: "<crate>"`: the cargo package providing this model's
+    /// `QuentViewer` entry, recorded in the provenance sidecar.
+    analyzer_package: Option<LitStr>,
 }
 
 impl Parse for DefineModelInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name: Ident = input.parse()?;
+        // Labeled `key: value` fields in any order: `name`/`root` required,
+        // `entities` optional (a brace-delimited, comma-separated path list).
+        let mut name: Option<Ident> = None;
+        let mut root: Option<Path> = None;
+        let mut components: Option<Vec<Path>> = None;
+        let mut analyzer_package: Option<LitStr> = None;
 
-        let content;
-        syn::braced!(content in input);
-
-        // First entry must be `root: Path`
-        if content.is_empty() {
-            return Err(syn::Error::new_spanned(
-                name,
-                "model! requires at least a root resource group: `root: MyRoot`",
-            ));
-        }
-        let root_kw: Ident = content.parse()?;
-        if root_kw != "root" {
-            return Err(syn::Error::new_spanned(
-                root_kw,
-                "first entry must be `root: <RootResourceGroup>`",
-            ));
-        }
-        content.parse::<Token![:]>()?;
-        let root: Path = content.parse()?;
-        if content.peek(Token![,]) {
-            content.parse::<Token![,]>()?;
-        }
-
-        let mut components = Vec::new();
-        while !content.is_empty() {
-            components.push(content.parse::<Path>()?);
-            if content.peek(Token![,]) {
-                content.parse::<Token![,]>()?;
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![:]>()?;
+            let dup = || syn::Error::new_spanned(&key, format!("duplicate `{key}`"));
+            match key.to_string().as_str() {
+                "name" => {
+                    if name.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "root" => {
+                    if root.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "entities" => {
+                    if components.is_some() {
+                        return Err(dup());
+                    }
+                    let content;
+                    syn::braced!(content in input);
+                    let mut entities = Vec::new();
+                    while !content.is_empty() {
+                        entities.push(content.parse::<Path>()?);
+                        if content.peek(Token![,]) {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                    components = Some(entities);
+                }
+                "analyzer" => {
+                    if analyzer_package.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new_spanned(
+                        &key,
+                        format!(
+                            "unknown `model!` field `{other}`; expected `name`, `root`, `entities`, or `analyzer`"
+                        ),
+                    ));
+                }
+            }
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
             }
         }
 
+        let name = name.ok_or_else(|| input.error("`model!` requires a `name: <Ident>` field"))?;
+        let root = root.ok_or_else(|| input.error("`model!` requires a `root: <Path>` field"))?;
         Ok(DefineModelInput {
             name,
             root,
-            components,
+            components: components.unwrap_or_default(),
+            analyzer_package,
         })
     }
 }
@@ -252,6 +283,16 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          with no collector at capture time."
     );
 
+    // Emit a `ModelSource::analyzer_package()` override only when declared.
+    let analyzer_package_method = match &input.analyzer_package {
+        Some(lit) => quote! {
+            fn analyzer_package() -> Option<&'static str> {
+                Some(#lit)
+            }
+        },
+        None => quote! {},
+    };
+
     let output = quote! {
         #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
@@ -293,6 +334,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     option_env!("QUENT_SOURCE_BUILT_AT"),
                 )
             }
+            #analyzer_package_method
         }
 
         impl #name {
@@ -444,4 +486,29 @@ pub fn expand_instrumentation(input: TokenStream) -> syn::Result<TokenStream> {
     Ok(quote! {
         #impl_macro_name!();
     })
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::DefineModelInput;
+
+    #[test]
+    fn parses_analyzer_field() {
+        let input: DefineModelInput = syn::parse_str(
+            r#"name: App, root: a::Root, entities: { b::Comp }, analyzer: "my-analyzer""#,
+        )
+        .unwrap();
+        assert_eq!(input.components.len(), 1);
+        assert_eq!(
+            input.analyzer_package.map(|l| l.value()),
+            Some("my-analyzer".to_string())
+        );
+    }
+
+    #[test]
+    fn analyzer_is_optional() {
+        let input: DefineModelInput = syn::parse_str("name: App, root: a::Root").unwrap();
+        assert!(input.analyzer_package.is_none());
+        assert!(input.components.is_empty());
+    }
 }
