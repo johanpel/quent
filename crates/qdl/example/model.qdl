@@ -1,0 +1,27 @@
+// The event model, authored in QDL and compiled to instrumentation at build time.
+
+model demo;
+
+/// A network endpoint.
+record Endpoint {
+    host: String,
+    port: u16,
+}
+
+record Meta {
+    tags: Vec<String>,
+    extra: Dynamic,
+}
+
+/// A client connection.
+entity Connection {
+    once opened: {
+        peer: Endpoint,
+        session: Uuid,
+    },
+    multi data: {
+        bytes: u64,
+        meta: Option<Meta>,
+    },
+    once closed: {},
+}
