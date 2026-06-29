@@ -7,10 +7,6 @@ packages:
   # `pnpm-workspace.yaml` re-references `../../packages/@quent/*` so its
   # `workspace:*` deps still resolve to source.
 
-overrides:
-  # tsup@8.5.1 requires esbuild ^0.27.0; pin above the patched version (GHSA-g7r4-m6w7-qqqr)
-  esbuild: '>=0.28.1'
-
 allowBuilds:
   '@parcel/watcher': true
   '@swc/core': true
