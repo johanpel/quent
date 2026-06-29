@@ -5,16 +5,53 @@ on:
     branches: [main]
     paths:
       - "ui/**"
+      - "crates/ui/**"
+      - "domains/query_engine/ui/**"
+      - "examples/simulator/ui/**"
+      - "examples/simulator/server/build.rs"
+      - "examples/simulator/server/Cargo.toml"
       - ".github/workflows/ui.yml"
   pull_request:
     paths:
       - "ui/**"
+      - "crates/ui/**"
+      - "domains/query_engine/ui/**"
+      - "examples/simulator/ui/**"
+      - "examples/simulator/server/build.rs"
+      - "examples/simulator/server/Cargo.toml"
       - ".github/workflows/ui.yml"
 
 permissions:
   contents: read
 
 jobs:
+  generate-bindings:
+    name: Generate TS Bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+        with:
+          cache: true
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - run: pixi run cargo build -p quent-simulator-server --locked
+      - run: corepack enable pnpm
+      - run: pnpm --dir ui install --frozen-lockfile
+      - run: pnpm --dir ui exec prettier --config ui/.prettierrc --write 'examples/simulator/server/ts-bindings/**/*.ts'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings/
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -30,11 +67,16 @@ jobs:
 
   lint:
     name: Lint
+    needs: [generate-bindings]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings
       - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
         with:
           cache: true
@@ -44,11 +86,16 @@ jobs:
 
   typecheck:
     name: Type Check
+    needs: [generate-bindings]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings
       - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
         with:
           cache: true
@@ -57,11 +104,16 @@ jobs:
 
   test:
     name: Test
+    needs: [generate-bindings]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings
       - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
         with:
           cache: true
@@ -78,11 +130,16 @@ jobs:
 
   e2e:
     name: UI E2E
+    needs: [generate-bindings]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings
       - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
         with:
           cache: true
@@ -114,14 +171,66 @@ jobs:
       - run: pixi run pnpm --dir ui install --frozen-lockfile
       - run: pixi run pnpm --dir ui audit --audit-level=high
 
+  diff-bindings:
+    name: TS Binding Diff
+    if: github.event_name == 'pull_request'
+    needs: [generate-bindings]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.base_ref }}
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+        with:
+          cache: true
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+      - run: pixi run cargo build -p quent-simulator-server
+      - run: corepack enable pnpm
+      - run: pnpm --dir ui install --frozen-lockfile
+      - run: pnpm --dir ui exec prettier --config ui/.prettierrc --write 'examples/simulator/server/ts-bindings/**/*.ts'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: pr-bindings
+      - name: Post binding diff to step summary
+        run: |
+          diff -rU3 examples/simulator/server/ts-bindings pr-bindings > ts-bindings.diff || true
+          if [ -s ts-bindings.diff ]; then
+            echo "## TS Binding Changes" >> "$GITHUB_STEP_SUMMARY"
+            echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+            cat ts-bindings.diff >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No TS binding changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "## TS Bindings (PR)" >> "$GITHUB_STEP_SUMMARY"
+          for f in pr-bindings/*.ts; do
+            echo "### $(basename "$f")" >> "$GITHUB_STEP_SUMMARY"
+            echo '```typescript' >> "$GITHUB_STEP_SUMMARY"
+            cat "$f" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          done
+
   build:
     name: Build
-    needs: [fmt, lint, typecheck, test, e2e]
+    needs: [generate-bindings, fmt, lint, typecheck, test, e2e]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ts-bindings
+          path: examples/simulator/server/ts-bindings
       - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
         with:
           cache: true
