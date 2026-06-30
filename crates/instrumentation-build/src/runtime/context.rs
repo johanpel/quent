@@ -92,6 +92,8 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
                         option_env!("QUENT_SOURCE_DIRTY"),
                         option_env!("QUENT_SOURCE_BUILT_AT"),
                     ),
+                    // The schema declares no analyzer entry.
+                    analyzer_package: ::core::option::Option::None,
                 }
             }
 
