@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.10,<2"]
+build-backend = "maturin"
+
+[project]
+name = "quent"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+module-name = "quent._quent"
+python-source = "python"

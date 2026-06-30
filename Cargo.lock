@@ -2076,6 +2076,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-py"
+version = "0.1.0"
+dependencies = [
+ "pyo3",
+ "quent-constraints",
+ "quent-instrumentation-build",
+ "quent-schema",
+]
+
+[[package]]
 name = "quent-qe-bridge"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,3 @@
+# maturin build artifacts (compiled extension placed into the source tree)
+*.so
+*.pyd

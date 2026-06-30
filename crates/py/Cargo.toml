@@ -1,0 +1,15 @@
+[package]
+name = "quent-py"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+name = "_quent"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true, features = ["abi3-py311", "extension-module"] }
+quent-schema = { path = "../schema" }
+quent-constraints = { path = "../constraints" }
+quent-instrumentation-build = { path = "../instrumentation-build" }
