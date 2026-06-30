@@ -343,7 +343,7 @@ impl Context {
 #[doc(hidden)]
 pub struct Observer<T>
 where
-    T: Send + EntityEvent + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     events_sender: EventSender<T>,
     cancellation_token: CancellationToken,
@@ -356,7 +356,7 @@ where
 
 impl<T> Observer<T>
 where
-    T: Send + EntityEvent + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     /// Construct a no-op observer that discards events and holds no runtime
     /// resources whatesoever.
@@ -382,7 +382,7 @@ where
 
 impl<T> Drop for Observer<T>
 where
-    T: Send + EntityEvent + 'static,
+    T: Serialize + Send + EntityEvent + 'static,
 {
     fn drop(&mut self) {
         self.cancellation_token.cancel();
@@ -422,7 +422,7 @@ pub enum ObserverError {
 #[doc(hidden)]
 pub struct Handle<E>
 where
-    E: Send + EntityEvent + 'static,
+    E: Serialize + Send + EntityEvent + 'static,
 {
     id: Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
@@ -432,7 +432,7 @@ where
 
 impl<E> Handle<E>
 where
-    E: Send + EntityEvent + 'static,
+    E: Serialize + Send + EntityEvent + 'static,
 {
     /// Create a handle for a fresh entity instance, with a generated id.
     pub fn new(observer: Arc<Observer<E>>) -> Self {
