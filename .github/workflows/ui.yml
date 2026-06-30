@@ -44,9 +44,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - run: pixi run cargo build -p quent-simulator-server --locked
-      - run: corepack enable pnpm
-      - run: pnpm --dir ui install --frozen-lockfile
-      - run: pnpm --dir ui exec prettier --config ui/.prettierrc --write 'examples/simulator/server/ts-bindings/**/*.ts'
+      - run: pixi run pnpm --dir ui install --frozen-lockfile
+      - run: pixi run pnpm --dir ui exec prettier --config .prettierrc --write '../examples/simulator/server/ts-bindings/**/*.ts'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ts-bindings
@@ -193,9 +192,8 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - run: pixi run cargo build -p quent-simulator-server
-      - run: corepack enable pnpm
-      - run: pnpm --dir ui install --frozen-lockfile
-      - run: pnpm --dir ui exec prettier --config ui/.prettierrc --write 'examples/simulator/server/ts-bindings/**/*.ts'
+      - run: pixi run pnpm --dir ui install --frozen-lockfile
+      - run: pixi run pnpm --dir ui exec prettier --config .prettierrc --write '../examples/simulator/server/ts-bindings/**/*.ts'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ts-bindings
