@@ -1,3 +1,6 @@
 # maturin build artifacts (compiled extension placed into the source tree)
 *.so
 *.pyd
+
+# generated instrumentation from the example
+example/generated/
