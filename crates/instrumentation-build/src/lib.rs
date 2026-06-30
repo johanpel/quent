@@ -159,10 +159,11 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// if the generated code is not a valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     // record structs, event enums, then the live instrumentation surface
+    let reexports = runtime::reexports();
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;
     let runtime = generate_runtime_types(schema)?;
-    let file = syn::parse2::<syn::File>(quote! { #records #events #runtime })
+    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
 }

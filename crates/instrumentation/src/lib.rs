@@ -8,12 +8,15 @@
 //! generated instrumentation library only.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
-use quent_exporter::create_exporter;
+use quent_exporter::{ExporterOptions, create_exporter};
 use serde::Serialize;
 
+// Re-export everything generated instrumentation code references, so a consumer
+// needs only the `quent-instrumentation` dependency. Exporter
+// implementations are the one exception: those come from `quent-exporter`.
+pub use quent_attributes::CustomAttributes;
 pub use quent_build_info as build_info;
 pub use quent_events::{EntityEvent, Event};
-pub use quent_exporter::ExporterOptions;
 use std::future::Future;
 use std::sync::{
     Arc,
@@ -26,7 +29,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
-use uuid::Uuid;
+pub use uuid::Uuid;
 
 /// Reference from one entity instance to another by id, optionally carrying
 /// payload data `T`.

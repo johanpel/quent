@@ -28,7 +28,7 @@ use quent_events::{EntityEvent, Event};
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
-use quent_instrumentation_runtime::{Context, Observer};
+use quent_instrumentation::{Context, Observer};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;

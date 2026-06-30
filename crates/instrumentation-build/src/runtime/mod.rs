@@ -48,12 +48,24 @@ pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, Gen
     })
 }
 
+/// Re-export the always-available runtime types that appear in the generated
+/// API, so consumers reference them through the generated module rather than
+/// `quent_instrumentation`. Opt-in types like the callback exporter are
+/// not re-exported.
+pub(crate) fn reexports() -> TokenStream {
+    quote! {
+        pub use ::quent_instrumentation::{
+            CustomAttributes, EntityRef, Event, ObserverError, Uuid,
+        };
+    }
+}
+
 /// Tie an entity's event enum to its stream name (the entity's snake-case name).
 fn entity_event_impl(entity: &Entity) -> TokenStream {
     let event_ty = event_ident(entity);
     let stream_name = to_case(entity.name(), Case::Snake);
     quote! {
-        impl ::quent_instrumentation_runtime::EntityEvent for #event_ty {
+        impl ::quent_instrumentation::EntityEvent for #event_ty {
             const NAME: &'static str = #stream_name;
         }
     }
@@ -97,9 +109,7 @@ mod tests {
             .unwrap()
             .build();
         let src = pretty(generate_runtime_types(&s).unwrap());
-        assert!(
-            src.contains("impl ::quent_instrumentation_runtime::EntityEvent for ConnectionEvent")
-        );
+        assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
         assert!(src.contains(r#"const NAME: &'static str = "connection""#));
         assert!(src.contains("pub struct ConnectionObserver"));
         assert!(src.contains("pub struct ConnectionHandle"));

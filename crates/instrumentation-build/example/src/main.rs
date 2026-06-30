@@ -1,23 +1,26 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Event, Uuid};
+
 pub mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let context = demo::DemoContext::try_new(None)?;
-    let observer = context.connection_observer();
-    let mut conn = observer.handle();
+    let context: DemoContext = demo::DemoContext::try_new(Some(debug_printing_exporter()))?;
+    let observer: ConnectionObserver = context.connection_observer();
 
     // The handle (may) hold per-instance state that enforces once-cardinality,
-    // hence it is mut so it can update it state after producing a once-event.
+    // hence it is mut so it can update its state after producing a once-event.
+    let mut conn: ConnectionHandle = observer.handle();
+
     conn.opened(
         demo::Endpoint {
             host: "localhost".to_owned(),
             port: 8080,
         },
-        uuid::Uuid::nil(),
+        Uuid::nil(),
     )?;
     conn.data(1234, None)?;
     conn.data(5678, None)?;
@@ -27,4 +30,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(conn.closed().is_err());
 
     Ok(())
+}
+
+/// Return an exporter that debug-prints each emitted event's payload.
+fn debug_printing_exporter() -> ::quent_exporter::ExporterOptions {
+    ::quent_exporter::ExporterOptions::Callback(::quent_exporter::EventCallback::new(|recorded| {
+        if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
+            dbg!(&event);
+        } else {
+            unreachable!()
+        }
+    }))
 }

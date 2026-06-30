@@ -29,7 +29,7 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
     );
     match ty {
         DataType::Bool => quote! { bool },
-        DataType::Uuid => quote! { ::uuid::Uuid },
+        DataType::Uuid => quote! { ::quent_instrumentation::Uuid },
         DataType::String => quote! { String },
         DataType::U8 => quote! { u8 },
         DataType::U16 => quote! { u16 },
@@ -53,13 +53,13 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
             let ident = raw_ident(to_case(name, Case::Pascal));
             quote! { #ident }
         }
-        DataType::DynamicRecord => quote! { ::quent_attributes::CustomAttributes },
+        DataType::DynamicRecord => quote! { ::quent_instrumentation::CustomAttributes },
         DataType::EntityRef { data, .. } => match data {
             Some(inner) => {
                 let inner = map_data_type(inner, depth + 1);
-                quote! { ::quent_instrumentation_runtime::EntityRef<#inner> }
+                quote! { ::quent_instrumentation::EntityRef<#inner> }
             }
-            None => quote! { ::quent_instrumentation_runtime::EntityRef },
+            None => quote! { ::quent_instrumentation::EntityRef },
         },
     }
 }

@@ -49,16 +49,16 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
         #[doc = #context_doc]
         pub struct #context_ty {
             #(#fields: #observer_tys,)*
-            _inner: ::quent_instrumentation_runtime::Context,
+            _inner: ::quent_instrumentation::Context,
         }
 
         impl #context_ty {
             /// Create a context, building every entity's exporter pipeline.
             /// Pass `None` for a no-op context that discards events.
             pub fn try_new(
-                exporter: ::core::option::Option<::quent_instrumentation_runtime::ExporterOptions>,
+                exporter: ::core::option::Option<::quent_exporter::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Self::assemble(::quent_instrumentation_runtime::Context::try_new(
+                Self::assemble(::quent_instrumentation::Context::try_new(
                     Self::model_info(),
                     exporter,
                 )?)
@@ -67,24 +67,24 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             /// Create a context that adopts an existing `id` rather than
             /// generating one.
             pub fn try_with_id(
-                id: ::uuid::Uuid,
-                exporter: ::core::option::Option<::quent_instrumentation_runtime::ExporterOptions>,
+                id: ::quent_instrumentation::Uuid,
+                exporter: ::core::option::Option<::quent_exporter::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Self::assemble(::quent_instrumentation_runtime::Context::try_with_id(
+                Self::assemble(::quent_instrumentation::Context::try_with_id(
                     id,
                     Self::model_info(),
                     exporter,
                 )?)
             }
 
-            fn model_info() -> ::quent_instrumentation_runtime::build_info::ModelInfo {
-                ::quent_instrumentation_runtime::build_info::ModelInfo {
+            fn model_info() -> ::quent_instrumentation::build_info::ModelInfo {
+                ::quent_instrumentation::build_info::ModelInfo {
                     name: #model_name.to_string(),
                     package: env!("CARGO_PKG_NAME").to_string(),
                     // No umbrella event enum on the schema-driven path; record
                     // the module the generated library is included into.
                     type_path: module_path!().to_string(),
-                    source: ::quent_instrumentation_runtime::build_info::source_or_quent(
+                    source: ::quent_instrumentation::build_info::source_or_quent(
                         env!("CARGO_PKG_VERSION"),
                         option_env!("QUENT_SOURCE_REMOTE"),
                         option_env!("QUENT_SOURCE_COMMIT"),
@@ -98,7 +98,7 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             }
 
             fn assemble(
-                inner: ::quent_instrumentation_runtime::Context,
+                inner: ::quent_instrumentation::Context,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
                 let ( #(#fields,)* ) = inner.block_on(async {
                     ::core::result::Result::<_, ::std::boxed::Box<dyn ::std::error::Error>>::Ok((
@@ -112,7 +112,7 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             }
 
             /// Identity of this context.
-            pub fn id(&self) -> ::uuid::Uuid {
+            pub fn id(&self) -> ::quent_instrumentation::Uuid {
                 self._inner.id()
             }
 

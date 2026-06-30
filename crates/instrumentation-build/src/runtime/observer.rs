@@ -31,23 +31,23 @@ pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
         #[doc = #observer_doc]
         #[derive(Clone)]
         pub struct #observer_ty {
-            inner: ::std::sync::Arc<::quent_instrumentation_runtime::Observer<#event_ty>>,
+            inner: ::std::sync::Arc<::quent_instrumentation::Observer<#event_ty>>,
         }
 
         impl #observer_ty {
             #[doc = #handle_fn_doc]
             pub fn handle(&self) -> #handle_ty {
                 #handle_ty {
-                    inner: ::quent_instrumentation_runtime::Handle::new(
+                    inner: ::quent_instrumentation::Handle::new(
                         ::core::clone::Clone::clone(&self.inner),
                     ),
                 }
             }
 
             #[doc = #handle_with_id_doc]
-            pub fn handle_with_id(&self, id: ::uuid::Uuid) -> #handle_ty {
+            pub fn handle_with_id(&self, id: ::quent_instrumentation::Uuid) -> #handle_ty {
                 #handle_ty {
-                    inner: ::quent_instrumentation_runtime::Handle::with_id(
+                    inner: ::quent_instrumentation::Handle::with_id(
                         id,
                         ::core::clone::Clone::clone(&self.inner),
                     ),
@@ -71,21 +71,21 @@ mod tests {
             #[doc = "Observer for `Connection` entities. Obtain a per-instance handle with [`Self::handle`]."]
             #[derive(Clone)]
             pub struct ConnectionObserver {
-                inner: ::std::sync::Arc<::quent_instrumentation_runtime::Observer<ConnectionEvent>>,
+                inner: ::std::sync::Arc<::quent_instrumentation::Observer<ConnectionEvent>>,
             }
             impl ConnectionObserver {
                 #[doc = "Create a handle for a fresh `Connection` instance."]
                 pub fn handle(&self) -> ConnectionHandle {
                     ConnectionHandle {
-                        inner: ::quent_instrumentation_runtime::Handle::new(
+                        inner: ::quent_instrumentation::Handle::new(
                             ::core::clone::Clone::clone(&self.inner),
                         ),
                     }
                 }
                 #[doc = "Create a handle for the `Connection` instance identified by `id`."]
-                pub fn handle_with_id(&self, id: ::uuid::Uuid) -> ConnectionHandle {
+                pub fn handle_with_id(&self, id: ::quent_instrumentation::Uuid) -> ConnectionHandle {
                     ConnectionHandle {
-                        inner: ::quent_instrumentation_runtime::Handle::with_id(
+                        inner: ::quent_instrumentation::Handle::with_id(
                             id,
                             ::core::clone::Clone::clone(&self.inner),
                         ),

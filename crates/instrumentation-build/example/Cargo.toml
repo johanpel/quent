@@ -5,11 +5,11 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-quent-attributes = { path = "../../attributes" }
-quent-instrumentation-runtime = { path = "../../instrumentation-runtime" }
+# The single required dep: everything the generated code references comes from
+# here. `quent-exporter` is the one exception, for selecting exporter features.
+quent-instrumentation = { path = "../../instrumentation" }
+quent-exporter = { path = "../../exporter", features = ["callback"] }
 serde = { workspace = true }
-serde_json = { workspace = true }
-uuid = { workspace = true, features = ["serde"] }
 
 [build-dependencies]
 quent-constraints = { path = "../../constraints" }

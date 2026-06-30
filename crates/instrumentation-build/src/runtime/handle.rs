@@ -91,7 +91,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                         pub fn #method(
                             &mut self,
                             #(#params),*
-                        ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
+                        ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
                             self.inner.emit_once(#bit, #event_name, #construct)
                         }
                     }
@@ -101,7 +101,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                     pub fn #method(
                         &self,
                         #(#params),*
-                    ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
+                    ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
                         self.inner.emit(#construct);
                         ::core::result::Result::Ok(())
                     }
@@ -114,12 +114,12 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
     Ok(quote! {
         #[doc = #handle_doc]
         pub struct #handle_ty {
-            inner: ::quent_instrumentation_runtime::Handle<#event_ty>,
+            inner: ::quent_instrumentation::Handle<#event_ty>,
         }
 
         impl #handle_ty {
             /// Id of the entity instance this handle emits for.
-            pub fn uuid(&self) -> ::uuid::Uuid {
+            pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
                 self.inner.id()
             }
 
@@ -182,11 +182,11 @@ mod tests {
         let expected = quote! {
             #[doc = "Handle to one `Connection` entity instance."]
             pub struct ConnectionHandle {
-                inner: ::quent_instrumentation_runtime::Handle<ConnectionEvent>,
+                inner: ::quent_instrumentation::Handle<ConnectionEvent>,
             }
             impl ConnectionHandle {
                 /// Id of the entity instance this handle emits for.
-                pub fn uuid(&self) -> ::uuid::Uuid {
+                pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
                     self.inner.id()
                 }
                 #[doc = "Emit the once-cardinality `opened` event for this instance."]
@@ -194,21 +194,21 @@ mod tests {
                     &mut self,
                     peer: String,
                     port: u16,
-                ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
+                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
                     self.inner.emit_once(0, "opened", ConnectionEvent::Opened { peer, port })
                 }
                 #[doc = "Emit a `data` event for this instance."]
                 pub fn data(
                     &self,
                     bytes: u64,
-                ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
+                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
                     self.inner.emit(ConnectionEvent::Data { bytes });
                     ::core::result::Result::Ok(())
                 }
                 #[doc = "Emit the once-cardinality `closed` event for this instance."]
                 pub fn closed(
                     &mut self,
-                ) -> ::core::result::Result<(), ::quent_instrumentation_runtime::ObserverError> {
+                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
                     self.inner.emit_once(1, "closed", ConnectionEvent::Closed)
                 }
             }
