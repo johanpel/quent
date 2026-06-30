@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use quent_events::{EntityEvent, Event};
 use quent_exporter_types::{Exporter, ExporterResult};
-use serde::Serialize;
 
 /// One exported event, type-erased so a single callback can receive events of
 /// any entity type. `event` is a boxed `Event<T>` for the entity named by
@@ -49,7 +48,7 @@ impl CallbackExporter {
 #[async_trait::async_trait]
 impl<T> Exporter<T> for CallbackExporter
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Send + EntityEvent + 'static,
 {
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
         (self.callback.0)(RecordedEvent {
@@ -71,6 +70,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
+    use serde::Serialize;
 
     #[derive(Serialize)]
     struct Alpha {

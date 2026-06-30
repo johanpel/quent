@@ -17,12 +17,13 @@
 //! In your crate's `build.rs`:
 //!
 //! ```ignore
-//! use quent_instrumentation_build::{GenerateOptions, generate};
+//! use quent_instrumentation_build::{Options, generate};
 //!
 //! let schema = todo!();
-//! let opts = GenerateOptions {
-//!     event_derives: &["Debug", "Clone"],
-//!     record_derives: &["Debug", "Clone"],
+//! let opts = Options {
+//!     // Exporters serialize events, so a `Serialize` derive is required.
+//!     event_derives: &["Debug", "::serde::Serialize"],
+//!     record_derives: &["Debug", "::serde::Serialize"],
 //!     out_dir: std::env::var("OUT_DIR")?.into(),
 //!     file_name: None, // defaults to `<schema name>.rs`
 //! };
@@ -44,6 +45,11 @@
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
 //! entity; beyond that, generation fails with
 //! [`GenerateError::TooManyOnceEvents`].
+//!
+//! Building an exporter requires the event type to be `Serialize`, so
+//! [`Options::event_derives`] (and [`Options::record_derives`], for events
+//! carrying records or entity refs) must include a `Serialize`-providing
+//! derive; otherwise the generated code will not compile.
 
 mod common;
 mod data_type;
@@ -65,7 +71,8 @@ use runtime::generate_runtime_types;
 pub struct Options {
     /// Derives applied to every generated event payload enum.
     ///
-    /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
+    /// Must include a `Serialize`-providing derive (e.g. `"::serde::Serialize"`):
+    /// the generated context builds exporters, which require it.
     // TODO(johanpel): derives are kept as simple as possible for now, but
     // eventually some built-in options for built-in exporters (e.g. serde-based
     // or Narrow) will surface here as simpler type-safe options.
@@ -73,7 +80,8 @@ pub struct Options {
 
     /// Derives applied to every generated record struct.
     ///
-    /// Use this to apply e.g. `&["Debug", "::serde::Serialize"]`
+    /// Records embedded in events must also be `Serialize`, so include a
+    /// `Serialize`-providing derive (e.g. `"::serde::Serialize"`).
     pub record_derives: &'static [&'static str],
 
     /// Directory the generated file is written into.
