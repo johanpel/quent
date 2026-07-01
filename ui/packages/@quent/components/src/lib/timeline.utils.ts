@@ -278,14 +278,14 @@ export function setOperatorOnEntry(
     return {
       ResourceGroup: {
         ...entry.ResourceGroup,
-        app_params: { ...entry.ResourceGroup.app_params, operator_id: operatorId },
+        app_params: { ...entry.ResourceGroup.app_params, operator_ids: [operatorId] },
       },
     };
   }
   return {
     Resource: {
       ...entry.Resource,
-      application: { ...entry.Resource.application, operator_id: operatorId },
+      application: { ...entry.Resource.application, operator_ids: [operatorId] },
     },
   };
 }
@@ -640,7 +640,7 @@ export function buildBulkParamsForItem(
         resource_type_name: resourceTypeName || '',
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
-        app_params: { operator_id: operatorId },
+        app_params: { operator_ids: operatorId ? [operatorId] : [] },
         config,
       },
     };
@@ -651,7 +651,7 @@ export function buildBulkParamsForItem(
       resource_id: item.id,
       long_entities_threshold_s: threshold,
       entity_filter: { entity_type_name: fsmTypeName },
-      application: { operator_id: operatorId },
+      application: { operator_ids: operatorId ? [operatorId] : [] },
       config,
     },
   };

@@ -163,7 +163,7 @@ function QueryResourceTreeContent({ queryBundle, engineId }: QueryResourceTreePr
             resource_type_name: rootResourceType ?? '',
             long_entities_threshold_s: null,
             entity_filter: { entity_type_name: null },
-            app_params: { operator_id: null },
+            app_params: { operator_ids: [] },
             config: {
               num_bins: getAdaptiveNumBins(),
               start: 0,

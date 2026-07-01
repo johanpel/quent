@@ -158,7 +158,7 @@ export function ResourceTimeline({
                 resource_type_name: resourceTypeName ?? '',
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
-                app_params: { operator_id: null },
+                app_params: { operator_ids: [] },
                 config,
               },
             }
@@ -167,7 +167,7 @@ export function ResourceTimeline({
                 resource_id: resourceId,
                 long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
-                application: { operator_id: null },
+                application: { operator_ids: [] },
                 config,
               },
             },

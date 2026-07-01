@@ -831,7 +831,7 @@ mod tests {
         key: String,
         start: f64,
         end: f64,
-        operator_id: Option<Uuid>,
+        operator_ids: Vec<Uuid>,
     }
 
     struct TestAnalyzer {
@@ -975,7 +975,7 @@ mod tests {
                     key: key.clone(),
                     start: entry.config().start,
                     end: entry.config().end,
-                    operator_id: entry_params(entry).operator_id,
+                    operator_ids: entry_params(entry).operator_ids.clone(),
                 })
                 .collect::<Vec<_>>();
             call.sort_by(|a, b| a.key.cmp(&b.key));
@@ -1025,8 +1025,9 @@ mod tests {
             })
             .collect::<Vec<_>>();
         let long_fsms = params
-            .operator_id
-            .map(|id| FiniteStateMachine {
+            .operator_ids
+            .iter()
+            .map(|&id| FiniteStateMachine {
                 id,
                 type_name: "task".to_string(),
                 instance_name: format!("operator-{id}"),
@@ -1043,7 +1044,6 @@ mod tests {
                     },
                 ],
             })
-            .into_iter()
             .collect();
         let data = ResourceTimeline::Binned(ResourceTimelineBinned {
             config: config_secs,
@@ -1084,7 +1084,9 @@ mod tests {
                             entity_filter: EntityFilter {
                                 entity_type_name: None,
                             },
-                            application: OperatorFilter { operator_id },
+                            application: OperatorFilter {
+                                operator_ids: operator_id.into_iter().collect(),
+                            },
                             config: TimelineConfig {
                                 num_bins: 4,
                                 start,
@@ -1108,7 +1110,9 @@ mod tests {
                 entity_filter: EntityFilter {
                     entity_type_name: None,
                 },
-                application: OperatorFilter { operator_id: None },
+                application: OperatorFilter {
+                    operator_ids: Vec::new(),
+                },
                 config: TimelineConfig {
                     num_bins: 4,
                     start,
@@ -1387,19 +1391,19 @@ mod tests {
             let operator_ids = analyzer
                 .call_entries()
                 .into_iter()
-                .map(|call| call.operator_id)
+                .map(|call| call.operator_ids)
                 .collect::<Vec<_>>();
             assert_eq!(
                 operator_ids
                     .iter()
-                    .filter(|id| **id == Some(first_operator))
+                    .filter(|ids| ids.as_slice() == [first_operator])
                     .count(),
                 2
             );
             assert_eq!(
                 operator_ids
                     .iter()
-                    .filter(|id| **id == Some(second_operator))
+                    .filter(|ids| ids.as_slice() == [second_operator])
                     .count(),
                 2
             );

@@ -55,7 +55,7 @@ function makeResourceEntry(): TimelineRequest<OperatorFilter> {
       resource_id: 'r1',
       long_entities_threshold_s: null,
       entity_filter: baseFilter,
-      application: { operator_id: null },
+      application: { operator_ids: [] },
       config: baseConfig,
     },
   };
@@ -68,7 +68,7 @@ function makeGroupEntry(): TimelineRequest<OperatorFilter> {
       resource_type_name: 'disk',
       long_entities_threshold_s: null,
       entity_filter: baseFilter,
-      app_params: { operator_id: null },
+      app_params: { operator_ids: [] },
       config: baseConfig,
     },
   };
@@ -252,33 +252,33 @@ describe('mergeOverlaySeries', () => {
 // ---- setOperatorOnEntry ----------------------------------------------------
 
 describe('setOperatorOnEntry', () => {
-  it('sets operator_id on a Resource entry', () => {
+  it('sets operator_ids on a Resource entry', () => {
     const entry = makeResourceEntry();
     const updated = setOperatorOnEntry(entry, 'op-42');
-    const opId = 'Resource' in updated ? updated.Resource.application.operator_id : null;
-    expect(opId).toBe('op-42');
+    const opIds = 'Resource' in updated ? updated.Resource.application.operator_ids : [];
+    expect(opIds).toEqual(['op-42']);
   });
 
-  it('sets operator_id on a ResourceGroup entry', () => {
+  it('sets operator_ids on a ResourceGroup entry', () => {
     const entry = makeGroupEntry();
     const updated = setOperatorOnEntry(entry, 'op-42');
-    const opId = 'ResourceGroup' in updated ? updated.ResourceGroup.app_params.operator_id : null;
-    expect(opId).toBe('op-42');
+    const opIds = 'ResourceGroup' in updated ? updated.ResourceGroup.app_params.operator_ids : [];
+    expect(opIds).toEqual(['op-42']);
   });
 
   it('does not mutate the original Resource entry', () => {
     const entry = makeResourceEntry();
     setOperatorOnEntry(entry, 'op-42');
-    const origOpId = 'Resource' in entry ? entry.Resource.application.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds = 'Resource' in entry ? entry.Resource.application.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('does not mutate the original ResourceGroup entry', () => {
     const entry = makeGroupEntry();
     setOperatorOnEntry(entry, 'op-42');
-    const origOpId =
-      'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds =
+      'ResourceGroup' in entry ? entry.ResourceGroup.app_params.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('preserves other fields on a Resource entry', () => {
@@ -302,19 +302,19 @@ describe('setOperatorOnEntries', () => {
   it('applies the operator to all entries in the record', () => {
     const entries = { r1: makeResourceEntry(), g1: makeGroupEntry() };
     const updated = setOperatorOnEntries(entries, 'op-99');
-    const r1OpId = 'Resource' in updated.r1 ? updated.r1.Resource.application.operator_id : null;
-    const g1OpId =
-      'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_id : null;
-    expect(r1OpId).toBe('op-99');
-    expect(g1OpId).toBe('op-99');
+    const r1OpIds = 'Resource' in updated.r1 ? updated.r1.Resource.application.operator_ids : [];
+    const g1OpIds =
+      'ResourceGroup' in updated.g1 ? updated.g1.ResourceGroup.app_params.operator_ids : [];
+    expect(r1OpIds).toEqual(['op-99']);
+    expect(g1OpIds).toEqual(['op-99']);
   });
 
   it('returns a new record without mutating the input', () => {
     const entries = { r1: makeResourceEntry() };
     setOperatorOnEntries(entries, 'op-99');
-    const origOpId =
-      'Resource' in entries.r1 ? entries.r1.Resource.application.operator_id : 'mutated';
-    expect(origOpId).toBeNull();
+    const origOpIds =
+      'Resource' in entries.r1 ? entries.r1.Resource.application.operator_ids : ['mutated'];
+    expect(origOpIds).toEqual([]);
   });
 
   it('returns an empty record for an empty input', () => {
