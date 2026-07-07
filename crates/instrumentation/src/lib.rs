@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Backing structures for generated instrumentation libraries.
+//!
+//! Instrumented application code should not import this crate directly unless
+//! there is a very special reason. Instead, it should interact with the
+//! generated instrumentation library only.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
 use quent_events::{EntityEvent, Event};
@@ -20,8 +24,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-/// Wrapper around an optional channel sender: `Some` forwards events onto the
-/// channel, `None` (a noop context) drops them cheaply.
+/// Wrapper around an optional channel sender.
+///
+/// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
+/// is a no-op that avoids any channel or event-forwarding overhead.
 pub struct EventSender<T> {
     tx: Option<UnboundedSender<Event<T>>>,
     /// Flag shared across clones to prevent potentially massive log spam from
@@ -118,13 +124,18 @@ enum Backend {
     Active { runtime: BackendRuntime },
 }
 
-/// A runtime host for the observers of a model instance.
+/// A context responsible for providing an asynchronous back-end to a
+/// synchronous context generated from an application event model.
+///
+/// Instrumented application code should not interact with this type directly
+/// unless there is a very special reason. Instead, it should interact with the
+/// generated context only through a fully synchronous API.
 ///
 /// What it is responsible for:
 /// - Resolving the runtime its observers run on. It borrows an ambient one if
 ///   present, otherwise spawns its own (see [`BackendRuntime`]).
-/// - Being the single sync→async bridge for observer construction (from
-///   caller-supplied exporters) and the drop-time flush.
+/// - Being the single sync→async bridge for async observer construction and
+///   the drop-time flush.
 ///
 /// # Panics
 ///
@@ -174,9 +185,10 @@ impl Context {
     pub fn block_on<F: Future>(&self, fut: F) -> F::Output {
         match self.runtime() {
             Some(runtime) => drive(&runtime.handle(), fut),
-            // A noop context's async work is immediately ready (the noop
-            // `observer_with()` returns before any `.await`), so poll once;
-            // `unreachable!` guards the pending case.
+            // A noop context has no runtime, but its async work is immediately
+            // ready, so poll once. Invariant: the noop `observer_with()` future
+            // must never pend (it early-returns before any `.await`). The
+            // `unreachable!` below enforces it.
             None => {
                 let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
                 match std::pin::pin!(fut).poll(&mut cx) {
@@ -213,8 +225,10 @@ impl Context {
     }
 }
 
-/// Write the model provenance sidecar into the filesystem exporter's directory.
-/// Only filesystem options produce one.
+/// Write the model provenance sidecar file into the filesystem exporter
+/// directory.
+///
+/// If the options do not target a filesystem exporter, then this is a no-op.
 pub fn write_sidecar(options: &ResolvedExporterOptions, model: ModelInfo) {
     let Some(root) = options.filesystem_root() else {
         return;
@@ -226,11 +240,18 @@ pub fn write_sidecar(options: &ResolvedExporterOptions, model: ModelInfo) {
     }
 }
 
-/// An event pipeline for one entity type `T`: forwards its events to the
-/// exporter and flushes on last drop.
+/// Provides an event pipeline to "observe" events of one *type* of entity `T`
+/// and export them.
 ///
-/// Generated code constructs and shares it; application code uses the generated
-/// observer and its per-instance handles.
+/// Instrumented application code should not interact with this type directly
+/// unless they have a very special reason. Instead, it interacts with the
+/// generated observer only.
+///
+/// Generated code constructs and shares this type. Instrumented application
+/// code uses the generated observer and its per-instance entity handles
+/// instead. Those manage the shared ownership and flush-on-last-drop this type
+/// relies on, so holding or dropping it directly can lose or prematurely flush
+/// events.
 #[doc(hidden)]
 pub struct Observer<T>
 where
@@ -249,7 +270,8 @@ impl<T> Observer<T>
 where
     T: Send + EntityEvent + 'static,
 {
-    /// Construct a no-op observer that discards events.
+    /// Construct a no-op observer that discards events and holds no runtime
+    /// resources whatesoever.
     pub fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
