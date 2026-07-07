@@ -6,13 +6,11 @@ publish.workspace = true
 
 [features]
 default = ["ndjson", "msgpack", "postcard", "collector"]
-# The serializing exporters pull in serde; callback does not.
 ndjson = ["dep:quent-io-ndjson", "dep:serde"]
 msgpack = ["dep:quent-io-msgpack", "dep:serde"]
 postcard = ["dep:quent-io-postcard", "dep:serde"]
 collector = ["dep:quent-io-collector", "dep:http", "dep:serde"]
 clap = ["dep:clap", "dep:http"]
-# Forwards each event to a caller-supplied callback (e.g. in-memory test collection).
 callback = ["dep:quent-io-callback"]
 
 [dependencies]

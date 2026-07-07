@@ -21,15 +21,14 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
-use quent_build_info::ModelInfo;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
+use quent_instrumentation::{Context, Observer};
 use quent_io::{
     CollectorExporterOptions, ExporterOptions, ExporterProvider, ResolvedExporterOptions,
     filesystem,
 };
-use quent_instrumentation::{Context, Observer, write_sidecar};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -56,7 +55,6 @@ fn build_observer(
     };
     let ctx = Context::try_new(id)?;
     let resolved = options.resolve(id);
-    write_sidecar(&resolved, ModelInfo::unknown());
     let observer = ctx.block_on(async {
         let exporter =
             <ResolvedExporterOptions as ExporterProvider<BenchEvent>>::create_exporter(&resolved)
