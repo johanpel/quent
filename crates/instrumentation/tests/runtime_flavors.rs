@@ -11,8 +11,8 @@ use std::path::Path;
 
 use common::{TestEvent, TestModel};
 use quent_build_info::ModelSource;
-use quent_io::{ExporterOptions, ExporterProvider, ResolvedExporterOptions, filesystem};
 use quent_instrumentation::{Context, Observer, write_sidecar};
+use quent_io::{ExporterOptions, ExporterProvider, ResolvedExporterOptions, filesystem};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
