@@ -398,7 +398,8 @@ mod tests {
     use super::*;
     use quent_build_info::ModelSource;
     use quent_exporter::{
-        ExporterOptions, FileSystemExporterOptions, FileSystemFormat, create_exporter,
+        ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
+        OptionsExporterProvider,
     };
 
     struct TestModel;
@@ -450,7 +451,11 @@ mod tests {
         {
             let observer = ctx
                 .block_on(async {
-                    let exporter = create_exporter::<TestEvent>(resolved.clone()).await?;
+                    let exporter =
+                        <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(
+                            &resolved,
+                        )
+                        .await?;
                     ctx.observer_with::<TestEvent>(exporter).await
                 })
                 .unwrap();

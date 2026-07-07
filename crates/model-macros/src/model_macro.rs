@@ -300,33 +300,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         None => quote! {},
     };
 
-    let provider_type = format_ident!("{}ExporterProvider", name);
-
     // Serializing constructors build serializing exporters, so they require the
     // event types to be `Serialize` and are emitted only with the `serde`
     // feature. The provider-injection API (`try_with_provider`, always emitted)
     // is `Serialize`-free.
     let serializing_api = if cfg!(feature = "serde") {
         quote! {
-            #[doc = "Default exporter provider for this model: builds serializing exporters from resolved options. Requires every event type to be `Serialize`."]
-            pub struct #provider_type;
-
-            impl quent_model::exporter::ExporterConfig for #provider_type {
-                type Options = quent_model::exporter::ResolvedExporterOptions;
-            }
-
-            #(
-                impl quent_model::exporter::ExporterProvider<#event_types> for #provider_type {
-                    async fn create_exporter(
-                        options: &quent_model::exporter::ResolvedExporterOptions,
-                    ) -> quent_model::exporter::ExporterResult<
-                        Box<dyn quent_model::exporter::Exporter<#event_types>>,
-                    > {
-                        quent_model::exporter::create_exporter::<#event_types>(options.clone()).await
-                    }
-                }
-            )*
-
             impl #context_type {
                 #[doc = #doc_try_new]
                 pub fn try_new(
@@ -351,7 +330,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                                 &resolved,
                                 <#name as quent_model::build_info::ModelSource>::model_info(),
                             );
-                            Self::build::<#provider_type>(id, resolved)
+                            Self::build::<quent_model::exporter::OptionsExporterProvider>(id, resolved)
                         }
                     }
                 }

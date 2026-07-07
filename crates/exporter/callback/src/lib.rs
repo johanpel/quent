@@ -8,7 +8,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use quent_events::{EntityEvent, Event};
-use quent_exporter_types::{Exporter, ExporterResult};
+use quent_exporter_types::{Exporter, ExporterConfig, ExporterProvider, ExporterResult};
 
 /// One exported event, type-erased so a single callback can receive events of
 /// any entity type. `event` is a boxed `Event<T>` for the entity named by
@@ -60,6 +60,22 @@ where
 
     async fn shutdown(&mut self) -> ExporterResult<()> {
         Ok(())
+    }
+}
+
+/// [`ExporterProvider`] for non-serializing export via a callback.
+pub struct CallbackExporterProvider;
+
+impl ExporterConfig for CallbackExporterProvider {
+    type Options = EventCallback;
+}
+
+impl<T> ExporterProvider<T> for CallbackExporterProvider
+where
+    T: Send + EntityEvent + 'static,
+{
+    async fn create_exporter(callback: &EventCallback) -> ExporterResult<Box<dyn Exporter<T>>> {
+        Ok(Box::new(CallbackExporter::new(callback.clone())))
     }
 }
 

@@ -16,7 +16,9 @@ use common::TestEvent;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{CollectorExporterOptions, ExporterOptions, create_exporter};
+use quent_exporter::{
+    CollectorExporterOptions, ExporterOptions, ExporterProvider, OptionsExporterProvider,
+};
 use quent_instrumentation::Context;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
@@ -86,7 +88,11 @@ fn collector_client_flushes_all_events_on_drop() {
     {
         let observer = ctx
             .block_on(async {
-                let exporter = create_exporter::<TestEvent>(resolved.clone()).await?;
+                let exporter =
+                    <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(
+                        &resolved,
+                    )
+                    .await?;
                 ctx.observer_with::<TestEvent>(exporter).await
             })
             .unwrap();

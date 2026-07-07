@@ -81,6 +81,26 @@ where
 
 pub trait Importer<T>: Iterator<Item = Event<T>> {}
 
+/// The configuration an [`ExporterProvider`] builds its exporters from. One
+/// provider has one options type shared across all entity streams.
+pub trait ExporterConfig {
+    type Options;
+}
+
+/// Type-level builder of the exporter backing entity stream `T` from the
+/// provider's [`ExporterConfig::Options`].
+///
+/// A provider that builds serializing exporters bounds `T: Serialize` in its
+/// impl; one that does not imposes nothing, lifting `Serialize` off
+/// non-serializing event types.
+#[allow(async_fn_in_trait)] // the future is awaited in place during construction, never spawned
+pub trait ExporterProvider<T>: ExporterConfig
+where
+    T: Send + EntityEvent + 'static,
+{
+    async fn create_exporter(options: &Self::Options) -> ExporterResult<Box<dyn Exporter<T>>>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

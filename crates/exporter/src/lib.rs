@@ -6,18 +6,22 @@
 #[cfg(filesystem)]
 use std::path::PathBuf;
 
+#[cfg(any(filesystem, feature = "collector"))]
 use quent_events::EntityEvent;
 #[cfg(feature = "collector")]
 use quent_exporter_types::ExporterError;
 #[cfg(filesystem)]
 use quent_exporter_types::Importer;
-pub use quent_exporter_types::{Exporter, ExporterResult};
+pub use quent_exporter_types::{Exporter, ExporterConfig, ExporterProvider, ExporterResult};
 #[cfg(filesystem)]
 use serde::Deserialize;
+#[cfg(any(filesystem, feature = "collector"))]
 use serde::Serialize;
 
 #[cfg(feature = "callback")]
-pub use quent_exporter_callback::{CallbackExporter, EventCallback, RecordedEvent};
+pub use quent_exporter_callback::{
+    CallbackExporter, CallbackExporterProvider, EventCallback, RecordedEvent,
+};
 
 // Part of the public API: `create_importer` returns `ImporterResult`, so callers
 // must be able to name it (and its error).
@@ -216,91 +220,67 @@ where
     }
 }
 
-/// Construct an exporter from [`ResolvedExporterOptions`].
-pub async fn create_exporter<T>(
-    kind: ResolvedExporterOptions,
-) -> ExporterResult<Box<dyn Exporter<T>>>
+/// The options-driven default [`ExporterProvider`]: builds a serializing
+/// exporter (ndjson/msgpack/postcard/collector) from [`ResolvedExporterOptions`].
+#[cfg(any(filesystem, feature = "collector"))]
+pub struct OptionsExporterProvider;
+
+#[cfg(any(filesystem, feature = "collector"))]
+impl ExporterConfig for OptionsExporterProvider {
+    type Options = ResolvedExporterOptions;
+}
+
+#[cfg(any(filesystem, feature = "collector"))]
+impl<T> ExporterProvider<T> for OptionsExporterProvider
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    match kind {
-        #[cfg(filesystem)]
-        ResolvedExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => {
-            match format {
-                #[cfg(feature = "ndjson")]
-                FileSystemFormat::Ndjson => Ok(Box::new(
-                    quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
-                        quent_exporter_ndjson::NdjsonExporterOptions { dir: root },
-                    )
-                    .await?,
-                ) as Box<dyn Exporter<T>>),
-                #[cfg(feature = "msgpack")]
-                FileSystemFormat::Msgpack => Ok(Box::new(
-                    quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
-                        quent_exporter_msgpack::MsgpackExporterOptions { dir: root },
-                    )
-                    .await?,
-                ) as Box<dyn Exporter<T>>),
-                #[cfg(feature = "postcard")]
-                FileSystemFormat::Postcard => Ok(Box::new(
-                    quent_exporter_postcard::PostcardExporter::try_new::<T>(
-                        quent_exporter_postcard::PostcardExporterOptions { dir: root },
-                    )
-                    .await?,
-                ) as Box<dyn Exporter<T>>),
+    async fn create_exporter(
+        options: &ResolvedExporterOptions,
+    ) -> ExporterResult<Box<dyn Exporter<T>>> {
+        match options {
+            #[cfg(filesystem)]
+            ResolvedExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => {
+                match format {
+                    #[cfg(feature = "ndjson")]
+                    FileSystemFormat::Ndjson => Ok(Box::new(
+                        quent_exporter_ndjson::NdjsonExporter::try_new::<T>(
+                            quent_exporter_ndjson::NdjsonExporterOptions { dir: root.clone() },
+                        )
+                        .await?,
+                    ) as Box<dyn Exporter<T>>),
+                    #[cfg(feature = "msgpack")]
+                    FileSystemFormat::Msgpack => Ok(Box::new(
+                        quent_exporter_msgpack::MsgpackExporter::try_new::<T>(
+                            quent_exporter_msgpack::MsgpackExporterOptions { dir: root.clone() },
+                        )
+                        .await?,
+                    ) as Box<dyn Exporter<T>>),
+                    #[cfg(feature = "postcard")]
+                    FileSystemFormat::Postcard => Ok(Box::new(
+                        quent_exporter_postcard::PostcardExporter::try_new::<T>(
+                            quent_exporter_postcard::PostcardExporterOptions { dir: root.clone() },
+                        )
+                        .await?,
+                    ) as Box<dyn Exporter<T>>),
+                }
             }
-        }
-        #[cfg(feature = "collector")]
-        ResolvedExporterOptions::Collector {
-            address,
-            source_context_id,
-        } => Ok(Box::new(
-            quent_exporter_collector::CollectorExporter::<T>::try_new(address, source_context_id)
+            #[cfg(feature = "collector")]
+            ResolvedExporterOptions::Collector {
+                address,
+                source_context_id,
+            } => Ok(Box::new(
+                quent_exporter_collector::CollectorExporter::<T>::try_new(
+                    address.clone(),
+                    *source_context_id,
+                )
                 .await
                 .map_err(ExporterError::Other)?,
-        ) as Box<dyn Exporter<T>>),
-        #[cfg(feature = "callback")]
-        ResolvedExporterOptions::Callback(callback) => {
-            Ok(Box::new(CallbackExporter::new(callback)) as Box<dyn Exporter<T>>)
+            ) as Box<dyn Exporter<T>>),
+            #[cfg(feature = "callback")]
+            ResolvedExporterOptions::Callback(callback) => {
+                Ok(Box::new(CallbackExporter::new(callback.clone())) as Box<dyn Exporter<T>>)
+            }
         }
-    }
-}
-
-/// The configuration an [`ExporterProvider`] builds its exporters from. One
-/// provider has one options type shared across all entity streams.
-pub trait ExporterConfig {
-    type Options;
-}
-
-/// Type-level builder of the exporter backing entity stream `T` from the
-/// provider's [`ExporterConfig::Options`].
-///
-/// A provider that builds serializing exporters bounds `T: Serialize` in its
-/// impl; one that does not (e.g. [`CallbackExporterProvider`]) imposes nothing,
-/// lifting `Serialize` off non-serializing event types.
-#[allow(async_fn_in_trait)] // the future is awaited in place during construction, never spawned
-pub trait ExporterProvider<T>: ExporterConfig
-where
-    T: Send + EntityEvent + 'static,
-{
-    async fn create_exporter(options: &Self::Options) -> ExporterResult<Box<dyn Exporter<T>>>;
-}
-
-/// [`ExporterProvider`] for non-serializing export via a callback.
-#[cfg(feature = "callback")]
-pub struct CallbackExporterProvider;
-
-#[cfg(feature = "callback")]
-impl ExporterConfig for CallbackExporterProvider {
-    type Options = EventCallback;
-}
-
-#[cfg(feature = "callback")]
-impl<T> ExporterProvider<T> for CallbackExporterProvider
-where
-    T: Send + EntityEvent + 'static,
-{
-    async fn create_exporter(callback: &EventCallback) -> ExporterResult<Box<dyn Exporter<T>>> {
-        Ok(Box::new(CallbackExporter::new(callback.clone())))
     }
 }
