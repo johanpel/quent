@@ -6,5 +6,4 @@ publish.workspace = true
 [dependencies]
 async-trait.workspace = true
 quent-events = { path = "../../events" }
-serde.workspace = true
 thiserror.workspace = true
