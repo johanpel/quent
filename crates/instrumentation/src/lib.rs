@@ -2,15 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Backing structures for generated instrumentation libraries.
-//!
-//! Instrumented application code should not import this crate directly unless
-//! there is a very special reason. Instead, it should interact with the
-//! generated instrumentation library only.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{ExporterOptions, create_exporter};
-use serde::Serialize;
+use quent_exporter::{Exporter, ResolvedExporterOptions};
 use std::future::Future;
 use std::sync::{
     Arc,
@@ -25,10 +20,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-/// Wrapper around an optional channel sender.
-///
-/// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
-/// is a no-op that avoids any channel or event-forwarding overhead.
+/// Wrapper around an optional channel sender: `Some` forwards events onto the
+/// channel, `None` (a noop context) drops them cheaply.
 pub struct EventSender<T> {
     tx: Option<UnboundedSender<Event<T>>>,
     /// Flag shared across clones to prevent potentially massive log spam from
@@ -118,29 +111,20 @@ impl Drop for BackendRuntime {
     }
 }
 
-/// What a context does with events. `Noop` drops them; `Active` carries the
-/// exporter configuration and the runtime its observers run on.
+/// What a context does with events. `Noop` drops them; `Active` runs its
+/// observers' forwarders on the carried runtime.
 enum Backend {
     Noop,
-    Active {
-        config: ExporterOptions,
-        runtime: BackendRuntime,
-    },
+    Active { runtime: BackendRuntime },
 }
 
-/// A context responsible for providing an asynchronous back-end to a
-/// synchronous context generated from an application event model.
-///
-/// Instrumented application code should not interact with this type directly
-/// unless there is a very special reason. Instead, it should interact with the
-/// generated context only through a fully synchronous API.
+/// A runtime host for the observers of a model instance.
 ///
 /// What it is responsible for:
 /// - Resolving the runtime its observers run on. It borrows an ambient one if
 ///   present, otherwise spawns its own (see [`BackendRuntime`]).
-/// - Writing the provenance sidecar at construction.
-/// - Being the single sync→async bridge for async observer + exporter
-///   construction and the drop-time flush.
+/// - Being the single sync→async bridge for observer construction (from
+///   caller-supplied exporters) and the drop-time flush.
 ///
 /// # Panics
 ///
@@ -156,64 +140,23 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn try_new(
-        model: ModelInfo,
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::try_with_id(Uuid::now_v7(), model, exporter)
-    }
-
-    /// Construct a new context with the supplied universally unique identifier.
-    pub fn try_with_id(
-        id: Uuid,
-        model: ModelInfo,
-        exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let Some(config) = exporter else {
-            debug!("using noop exporter");
-            return Ok(Context {
-                id,
-                backend: Backend::Noop,
-            });
-        };
-
-        let runtime = if let Ok(handle) = Handle::try_current() {
-            debug!("using existing async runtime");
-            BackendRuntime::Borrowed(handle)
-        } else {
-            debug!("spawning new async runtime");
-            let runtime =
-                Runtime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
-            BackendRuntime::Owned {
-                handle: runtime.handle().clone(),
-                runtime: Some(Arc::new(runtime)),
-            }
-        };
-
-        let context = Context {
+    /// Construct an active context adopting `id`, with a runtime for its
+    /// observers' forwarders.
+    pub fn try_active(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Context {
             id,
-            backend: Backend::Active { config, runtime },
-        };
-        context.write_sidecar(model);
-        Ok(context)
+            backend: Backend::Active {
+                runtime: resolve_runtime()?,
+            },
+        })
     }
 
-    /// Write the model provenance sidecar file into the context's filesystem
-    /// exporter directory.
-    ///
-    /// If no filesystem exporter is configured, then this is a no-op.
-    fn write_sidecar(&self, model: ModelInfo) {
-        let Backend::Active { config, .. } = &self.backend else {
-            return;
-        };
-        let kind = config.clone().resolve(self.id);
-        let Some(root) = kind.filesystem_root() else {
-            return;
-        };
-        if let Err(e) = std::fs::create_dir_all(root)
-            .and_then(|()| ArtifactInfo::new(model).write_sidecar(root))
-        {
-            warn!("failed to write provenance sidecar: {e}");
+    /// Construct a no-op context: observers built from it discard events.
+    pub fn noop(id: Uuid) -> Self {
+        debug!("using noop context");
+        Context {
+            id,
+            backend: Backend::Noop,
         }
     }
 
@@ -229,13 +172,12 @@ impl Context {
     ///
     /// Panics on a current-thread runtime.
     pub fn block_on<F: Future>(&self, fut: F) -> F::Output {
-        match &self.backend {
-            Backend::Active { runtime, .. } => drive(&runtime.handle(), fut),
-            // A noop context has no runtime, but its async work is immediately
-            // ready, so poll once. Invariant: the noop `observer()` future must
-            // never pend (it early-returns before any `.await`). The
-            // `unreachable!` below enforces it.
-            Backend::Noop => {
+        match self.runtime() {
+            Some(runtime) => drive(&runtime.handle(), fut),
+            // A noop context's async work is immediately ready (the noop
+            // `observer_with()` returns before any `.await`), so poll once;
+            // `unreachable!` guards the pending case.
+            None => {
                 let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
                 match std::pin::pin!(fut).poll(&mut cx) {
                     std::task::Poll::Ready(v) => v,
@@ -247,80 +189,48 @@ impl Context {
         }
     }
 
-    /// Create an [`Observer`] of events of one *type* of entity `T`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the exporter cannot be constructed.
-    pub async fn observer<T>(&self) -> Result<Observer<T>, Box<dyn std::error::Error>>
+    /// The runtime backing an active context; `None` for noop.
+    fn runtime(&self) -> Option<&BackendRuntime> {
+        match &self.backend {
+            Backend::Active { runtime } => Some(runtime),
+            Backend::Noop => None,
+        }
+    }
+
+    /// Create an [`Observer`] of events of one *type* of entity `T` that
+    /// forwards to the caller-supplied `exporter`.
+    pub async fn observer_with<T>(
+        &self,
+        exporter: Box<dyn Exporter<T>>,
+    ) -> Result<Observer<T>, Box<dyn std::error::Error>>
     where
-        T: Serialize + Send + EntityEvent + 'static,
+        T: Send + EntityEvent + 'static,
     {
-        let Backend::Active { config, runtime } = &self.backend else {
+        let Some(runtime) = self.runtime() else {
             return Ok(Observer::noop());
         };
-        let handle = runtime.handle();
-
-        debug!("constructing exporter for stream `{}`", T::NAME);
-        let kind = config.clone().resolve(self.id);
-        let mut exporter = create_exporter::<T>(kind).await?;
-
-        let cancellation_token = CancellationToken::new();
-        let cloned_token = cancellation_token.clone();
-        let (events_sender, mut events_receiver) = unbounded_channel();
-
-        let forwarder_handle = handle.spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(event) = events_receiver.recv() => {
-                        if let Err(e) = exporter.push(event).await {
-                            warn!("unable to export event: {e}");
-                        }
-                    },
-                    () = cloned_token.cancelled() => {
-                        events_receiver.close();
-                        // drain events that are buffered
-                        while let Some(event) = events_receiver.recv().await {
-                            if let Err(e) = exporter.push(event).await {
-                                warn!("unable to export event: {e}");
-                            }
-                        }
-                        break
-                    },
-                    // the events channel has been closed: nothing left to forward.
-                    else => break,
-                }
-            }
-            // Tear down once, however the loop exited.
-            if let Err(e) = exporter.shutdown().await {
-                warn!("failed to shut down exporter: {e}");
-            }
-        });
-
-        Ok(Observer {
-            events_sender: EventSender {
-                tx: Some(events_sender),
-                disable_error_log: Arc::new(AtomicBool::new(false)),
-            },
-            cancellation_token,
-            forwarder_handle: Some(forwarder_handle),
-            runtime: Some(runtime.clone()),
-        })
+        Ok(spawn_forwarder(runtime, exporter))
     }
 }
 
-/// Provides an event pipeline to "observe" events of one *type* of entity `T`
-/// and export them.
+/// Write the model provenance sidecar into the filesystem exporter's directory.
+/// Only filesystem options produce one.
+pub fn write_sidecar(options: &ResolvedExporterOptions, model: ModelInfo) {
+    let Some(root) = options.filesystem_root() else {
+        return;
+    };
+    if let Err(e) =
+        std::fs::create_dir_all(root).and_then(|()| ArtifactInfo::new(model).write_sidecar(root))
+    {
+        warn!("failed to write provenance sidecar: {e}");
+    }
+}
+
+/// An event pipeline for one entity type `T`: forwards its events to the
+/// exporter and flushes on last drop.
 ///
-/// Instrumented application code should not interact with this type directly
-/// unless they have a very special reason. Instead, it interacts with the
-/// generated observer only.
-///
-/// Generated code constructs and shares this type. Instrumented application
-/// code uses the generated observer and its per-instance entity handles
-/// instead. Those manage the shared ownership and flush-on-last-drop this type
-/// relies on, so holding or dropping it directly can lose or prematurely flush
-/// events.
+/// Generated code constructs and shares it; application code uses the generated
+/// observer and its per-instance handles.
 #[doc(hidden)]
 pub struct Observer<T>
 where
@@ -339,9 +249,8 @@ impl<T> Observer<T>
 where
     T: Send + EntityEvent + 'static,
 {
-    /// Construct a no-op observer that discards events and holds no runtime
-    /// resources whatesoever.
-    fn noop() -> Self {
+    /// Construct a no-op observer that discards events.
+    pub fn noop() -> Self {
         Self {
             events_sender: EventSender::noop(),
             cancellation_token: CancellationToken::new(),
@@ -397,20 +306,80 @@ fn drive<F: Future>(handle: &Handle, fut: F) -> F::Output {
     }
 }
 
+/// Resolve the runtime observers run on: borrow an ambient one if present,
+/// otherwise spawn a fresh owned runtime.
+fn resolve_runtime() -> Result<BackendRuntime, Box<dyn std::error::Error>> {
+    if let Ok(handle) = Handle::try_current() {
+        debug!("using existing async runtime");
+        Ok(BackendRuntime::Borrowed(handle))
+    } else {
+        debug!("spawning new async runtime");
+        let runtime = Runtime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
+        Ok(BackendRuntime::Owned {
+            handle: runtime.handle().clone(),
+            runtime: Some(Arc::new(runtime)),
+        })
+    }
+}
+
+/// Spawn the forwarder task for `exporter` on `runtime` and wrap it in an
+/// [`Observer`]. The task drains and flushes the exporter on cancellation.
+fn spawn_forwarder<T>(runtime: &BackendRuntime, mut exporter: Box<dyn Exporter<T>>) -> Observer<T>
+where
+    T: Send + EntityEvent + 'static,
+{
+    let cancellation_token = CancellationToken::new();
+    let cloned_token = cancellation_token.clone();
+    let (events_sender, mut events_receiver) = unbounded_channel();
+
+    let forwarder_handle = runtime.handle().spawn(async move {
+        loop {
+            tokio::select! {
+                Some(event) = events_receiver.recv() => {
+                    if let Err(e) = exporter.push(event).await {
+                        warn!("unable to export event: {e}");
+                    }
+                },
+                () = cloned_token.cancelled() => {
+                    events_receiver.close();
+                    // drain events that are buffered
+                    while let Some(event) = events_receiver.recv().await {
+                        if let Err(e) = exporter.push(event).await {
+                            warn!("unable to export event: {e}");
+                        }
+                    }
+                    break
+                },
+                // the events channel has been closed: nothing left to forward.
+                else => break,
+            }
+        }
+        // Tear down once, however the loop exited.
+        if let Err(e) = exporter.shutdown().await {
+            warn!("failed to shut down exporter: {e}");
+        }
+    });
+
+    Observer {
+        events_sender: EventSender {
+            tx: Some(events_sender),
+            disable_error_log: Arc::new(AtomicBool::new(false)),
+        },
+        cancellation_token,
+        forwarder_handle: Some(forwarder_handle),
+        runtime: Some(runtime.clone()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use quent_build_info::ModelSource;
-    use quent_exporter::{FileSystemExporterOptions, FileSystemFormat};
+    use quent_exporter::{
+        ExporterOptions, FileSystemExporterOptions, FileSystemFormat, create_exporter,
+    };
 
-    #[derive(Debug, serde::Serialize)]
-    struct TestModel(TestEvent);
-
-    impl From<TestEvent> for TestModel {
-        fn from(e: TestEvent) -> Self {
-            TestModel(e)
-        }
-    }
+    struct TestModel;
 
     impl ModelSource for TestModel {
         fn package() -> &'static str {
@@ -429,11 +398,11 @@ mod tests {
     }
 
     #[test]
-    fn noop_context_creates_noop_observer() {
-        let ctx = Context::try_new(TestModel::model_info(), None).unwrap();
+    fn noop_context_discards_events() {
+        let ctx = Context::noop(Uuid::now_v7());
         assert!(matches!(ctx.backend, Backend::Noop));
 
-        let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
+        let observer = Observer::<TestEvent>::noop();
         assert!(observer.events_sender.tx.is_none());
 
         observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
@@ -445,19 +414,24 @@ mod tests {
     #[test]
     fn filesystem_observer_writes_under_entity_subdir_with_sidecar() {
         let dir = tempfile::tempdir().unwrap();
-        let ctx = Context::try_new(
-            TestModel::model_info(),
-            Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-                format: FileSystemFormat::Ndjson,
-                root: dir.path().to_path_buf(),
-            })),
-        )
-        .unwrap();
+        let id = Uuid::now_v7();
+        let ctx = Context::try_active(id).unwrap();
+        let resolved = ExporterOptions::FileSystem(FileSystemExporterOptions {
+            format: FileSystemFormat::Ndjson,
+            root: dir.path().to_path_buf(),
+        })
+        .resolve(id);
+        write_sidecar(&resolved, TestModel::model_info());
 
-        let context_dir = dir.path().join(ctx.id().to_string());
+        let context_dir = dir.path().join(id.to_string());
 
         {
-            let observer = ctx.block_on(ctx.observer::<TestEvent>()).unwrap();
+            let observer = ctx
+                .block_on(async {
+                    let exporter = create_exporter::<TestEvent>(resolved.clone()).await?;
+                    ctx.observer_with::<TestEvent>(exporter).await
+                })
+                .unwrap();
             observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.
         }
@@ -477,5 +451,50 @@ mod tests {
             1,
             "one UUID-named ndjson batch file in the entity subdirectory"
         );
+    }
+
+    // Proof the `observer_with` path drops the `Serialize` bound: this event
+    // type derives no `Serialize`, yet it is observed and exported through a
+    // `CallbackExporterProvider`.
+    #[test]
+    fn observer_with_handles_non_serializable_event() {
+        use quent_exporter::{
+            CallbackExporterProvider, EventCallback, ExporterProvider, RecordedEvent,
+        };
+        use std::sync::Mutex;
+
+        struct NoSerde {
+            value: u32,
+        }
+        impl EntityEvent for NoSerde {
+            const NAME: &'static str = "NoSerde";
+        }
+
+        let seen = Arc::new(Mutex::new(Vec::<u32>::new()));
+        let callback = {
+            let seen = Arc::clone(&seen);
+            EventCallback::new(move |rec: RecordedEvent| {
+                let event = rec.event.downcast::<Event<NoSerde>>().unwrap();
+                seen.lock().unwrap().push(event.data.value);
+            })
+        };
+
+        let ctx = Context::try_active(Uuid::now_v7()).unwrap();
+        {
+            let observer = ctx
+                .block_on(async {
+                    let exporter =
+                        <CallbackExporterProvider as ExporterProvider<NoSerde>>::create_exporter(
+                            &callback,
+                        )
+                        .await?;
+                    ctx.observer_with::<NoSerde>(exporter).await
+                })
+                .unwrap();
+            observer.emit(Uuid::now_v7(), NoSerde { value: 42 });
+        }
+        drop(ctx);
+
+        assert_eq!(*seen.lock().unwrap(), vec![42]);
     }
 }

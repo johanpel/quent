@@ -526,20 +526,34 @@ fn emit_context_bridge(
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(
-                <#model_type as #q::build_info::ModelSource>::model_info(),
-                opts,
-            )
-            .map_err(|e| e.to_string())?;
-            // Single sync/async bridge: build every observer concurrently on the
-            // context's runtime, then block until done.
-            let (#(#build_fields,)*) = inner.block_on(async {
-                let (#(#build_fields,)*) = #q::tokio::try_join!(
-                    #(inner.observer::<#build_event_tys>(),)*
-                )
-                .map_err(|e| e.to_string())?;
-                Ok::<_, String>((#(#build_wraps(#build_fields),)*))
-            })?;
+            let id = #q::uuid::Uuid::now_v7();
+            // Single sync/async bridge: resolve options, build every entity's
+            // exporter and observer concurrently on the context's runtime, block
+            // until done. The observers keep the runtime alive; `inner` drops here.
+            let (#(#build_fields,)*) = match opts {
+                None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
+                Some(options) => {
+                    let inner = #q::Context::try_active(id).map_err(|e| e.to_string())?;
+                    let resolved = options.resolve(id);
+                    #q::write_sidecar(
+                        &resolved,
+                        <#model_type as #q::build_info::ModelSource>::model_info(),
+                    );
+                    inner.block_on(async {
+                        let (#(#build_fields,)*) = #q::tokio::try_join!(
+                            #(async {
+                                let exporter = #q::exporter::create_exporter::<#build_event_tys>(
+                                    resolved.clone(),
+                                )
+                                .await?;
+                                inner.observer_with::<#build_event_tys>(exporter).await
+                            },)*
+                        )
+                        .map_err(|e| e.to_string())?;
+                        Ok::<_, String>((#(#build_wraps(#build_fields),)*))
+                    })?
+                }
+            };
             Ok(Box::new(Context {
                 #(#field_inits,)*
             }))

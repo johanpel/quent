@@ -27,8 +27,9 @@ use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
+    create_exporter,
 };
-use quent_instrumentation::{Context, Observer};
+use quent_instrumentation::{Context, Observer, write_sidecar};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -44,6 +45,25 @@ impl EntityEvent for BenchEvent {
     const NAME: &'static str = "BenchEvent";
 }
 
+/// Build a context and its `BenchEvent` observer from an optional exporter,
+/// mirroring the generated context's construction. `None` yields a noop.
+fn build_observer(
+    id: Uuid,
+    exporter: Option<ExporterOptions>,
+) -> BenchResult<(Context, Observer<BenchEvent>)> {
+    let Some(options) = exporter else {
+        return Ok((Context::noop(id), Observer::noop()));
+    };
+    let ctx = Context::try_active(id)?;
+    let resolved = options.resolve(id);
+    write_sidecar(&resolved, ModelInfo::unknown());
+    let observer = ctx.block_on(async {
+        let exporter = create_exporter::<BenchEvent>(resolved.clone()).await?;
+        ctx.observer_with::<BenchEvent>(exporter).await
+    })?;
+    Ok((ctx, observer))
+}
+
 // The in-process collector server runs this sink per source: it decodes received
 // `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
@@ -52,8 +72,7 @@ struct BenchSink {
 
 impl BenchSink {
     fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
-        let context = Context::try_with_id(id, ModelInfo::unknown(), exporter)?;
-        let observer = context.block_on(context.observer::<BenchEvent>())?;
+        let (_context, observer) = build_observer(id, exporter)?;
         Ok(Self { observer })
     }
 }
@@ -118,8 +137,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let context = Context::try_new(ModelInfo::unknown(), exporter)?;
-    let observer = context.block_on(context.observer::<BenchEvent>())?;
+    let (_context, observer) = build_observer(Uuid::now_v7(), exporter)?;
     let event_id = Uuid::now_v7();
 
     group.bench_function(label, |b| {

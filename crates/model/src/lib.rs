@@ -90,7 +90,7 @@ pub use quent_build_info as build_info;
 pub use quent_collector_client::CollectorSink;
 pub use quent_events::{EntityEvent, Event};
 pub use quent_exporter as exporter;
-pub use quent_instrumentation::{Context, Observer};
+pub use quent_instrumentation::{Context, Observer, write_sidecar};
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]
 pub use serde;
