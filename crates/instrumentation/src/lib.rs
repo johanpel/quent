@@ -324,7 +324,7 @@ impl Context {
 #[doc(hidden)]
 pub struct Observer<T>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Send + EntityEvent + 'static,
 {
     events_sender: EventSender<T>,
     cancellation_token: CancellationToken,
@@ -337,7 +337,7 @@ where
 
 impl<T> Observer<T>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Send + EntityEvent + 'static,
 {
     /// Construct a no-op observer that discards events and holds no runtime
     /// resources whatesoever.
@@ -363,7 +363,7 @@ where
 
 impl<T> Drop for Observer<T>
 where
-    T: Serialize + Send + EntityEvent + 'static,
+    T: Send + EntityEvent + 'static,
 {
     fn drop(&mut self) {
         self.cancellation_token.cancel();

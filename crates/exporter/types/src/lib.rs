@@ -4,7 +4,7 @@
 //! Basic traits for exporter / importer implementations
 
 use quent_events::{EntityEvent, Event};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -69,7 +69,7 @@ pub fn resolve_import_path(
 #[async_trait::async_trait]
 pub trait Exporter<T>: Send
 where
-    T: Serialize + Send + EntityEvent,
+    T: Send + EntityEvent,
 {
     /// Export one event.
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
