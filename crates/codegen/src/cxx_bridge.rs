@@ -518,9 +518,9 @@ fn emit_context_bridge(
 
         pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
-                "ndjson" => Some(#q::exporter::ExporterOptions::FileSystem(
-                    #q::exporter::FileSystemExporterOptions {
-                        format: #q::exporter::FileSystemFormat::Ndjson,
+                "ndjson" => Some(#q::io::ExporterOptions::FileSystem(
+                    #q::io::filesystem::exporter::Options {
+                        format: #q::io::filesystem::Format::Ndjson,
                         root: std::path::PathBuf::from(output_dir),
                     },
                 )),
@@ -542,7 +542,7 @@ fn emit_context_bridge(
                     inner.block_on(async {
                         let (#(#build_fields,)*) = #q::tokio::try_join!(
                             #(async {
-                                let exporter = <#q::exporter::OptionsExporterProvider as #q::exporter::ExporterProvider<#build_event_tys>>::create_exporter(
+                                let exporter = <#q::io::ResolvedExporterOptions as #q::io::ExporterProvider<#build_event_tys>>::create_exporter(
                                     &resolved,
                                 )
                                 .await?;

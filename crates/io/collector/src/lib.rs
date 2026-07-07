@@ -5,7 +5,7 @@
 
 use quent_collector_client::Client;
 use quent_events::{EntityEvent, Event};
-use quent_exporter_types::{Exporter, ExporterError, ExporterResult};
+use quent_io_types::{Exporter, ExporterError, ExporterProvider, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -16,8 +16,31 @@ use uuid::Uuid;
 /// source context id the collector reproduces under is supplied separately by
 /// the context when it builds the exporter (see [`CollectorExporter::try_new`]).
 #[derive(Debug, Default, Clone)]
-pub struct CollectorExporterOptions {
+pub struct Options {
     pub address: http::Uri,
+    pub source_context_id: Uuid,
+}
+
+impl Options {
+    pub fn resolve(mut self, id: Uuid) -> Self {
+        self.source_context_id = id;
+        self
+    }
+}
+
+#[async_trait::async_trait]
+impl<T> ExporterProvider<T> for Options
+where
+    T: Send + EntityEvent + 'static,
+    T: serde::Serialize,
+{
+    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+        Ok(Box::new(
+            CollectorExporter::<T>::try_new(self.address.clone(), self.source_context_id)
+                .await
+                .map_err(ExporterError::Other)?,
+        ) as Box<dyn Exporter<T>>)
+    }
 }
 
 /// Streams one entity's events to a collector. The stream is tagged with the

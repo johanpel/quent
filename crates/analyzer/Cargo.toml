@@ -12,7 +12,7 @@ quent-attributes = { path = "../attributes" }
 quent-events = { path = "../events" }
 quent-model = { path = "../model" }
 quent-time = { path = "../time" }
-quent-exporter-types = { path = "../exporter/types" }
+quent-io-types = { path = "../io/types" }
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
 smallvec = { workspace = true, features = ["serde"] }

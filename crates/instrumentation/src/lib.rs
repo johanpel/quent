@@ -20,10 +20,7 @@ mod tests {
     use super::*;
     use quent_build_info::ModelSource;
     use quent_events::{EntityEvent, Event};
-    use quent_exporter::{
-        ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
-        OptionsExporterProvider,
-    };
+    use quent_io::{ExporterOptions, ExporterProvider, ResolvedExporterOptions, filesystem};
     use uuid::Uuid;
 
     struct TestModel;
@@ -49,8 +46,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let id = Uuid::now_v7();
         let ctx = Context::try_new(id).unwrap();
-        let resolved = ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
+        let resolved = ExporterOptions::FileSystem(filesystem::exporter::Options {
+            format: filesystem::Format::Ndjson,
             root: dir.path().to_path_buf(),
         })
         .resolve(id);
@@ -62,7 +59,7 @@ mod tests {
             let observer = ctx
                 .block_on(async {
                     let exporter =
-                        <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(
+                        <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
                             &resolved,
                         )
                         .await?;

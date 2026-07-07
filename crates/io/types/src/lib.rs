@@ -6,6 +6,30 @@
 use quent_events::{EntityEvent, Event};
 use thiserror::Error;
 
+/// A sink for one entity's event stream.
+#[async_trait::async_trait]
+pub trait Exporter<T>: Send
+where
+    T: Send + EntityEvent,
+{
+    /// Export one event.
+    async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
+
+    /// Make a best-effort to flush any buffered events, then release any internal resources.
+    ///
+    /// Calling [`Self::push`] will result in an error after calling this.
+    async fn shutdown(&mut self) -> ExporterResult<()>;
+}
+
+/// Provides an exporter instance for `T`.
+#[async_trait::async_trait]
+pub trait ExporterProvider<T>
+where
+    T: Send + EntityEvent + 'static,
+{
+    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>>;
+}
+
 #[derive(Debug, Error)]
 pub enum ExporterError {
     /// Push was called after [`Exporter::shutdown`].
@@ -29,14 +53,31 @@ impl From<std::io::Error> for ExporterError {
     }
 }
 
+/// Result of exporters.
+pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
+
 #[derive(Error, Debug)]
 pub enum ImporterError {
     #[error("i/o error: {0}")]
     IoError(#[from] std::io::Error),
 }
 
-pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
+/// Result type for importers.
 pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
+
+/// A source of one entity's events.
+pub trait Importer<T>: Iterator<Item = Event<T>> {}
+
+/// Provides an importer instance for `T`.
+///
+/// Synchronous, unlike [`ExporterProvider`]: importer construction opens files
+/// with blocking I/O and does no async work.
+pub trait ImporterProvider<T>
+where
+    T: Send + EntityEvent + 'static,
+{
+    fn create_importer(&self) -> ImporterResult<Box<dyn Importer<T>>>;
+}
 
 /// Resolve the file an importer should read. If `path` is a directory, returns
 /// the single file in it whose extension is `ext`; otherwise returns `path`
@@ -62,43 +103,6 @@ pub fn resolve_import_path(
         std::io::ErrorKind::NotFound,
         format!("no .{ext} file found in directory {}", path.display()),
     )))
-}
-
-/// A sink for one entity's event stream.
-#[async_trait::async_trait]
-pub trait Exporter<T>: Send
-where
-    T: Send + EntityEvent,
-{
-    /// Export one event.
-    async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
-
-    /// Make a best-effort to flush any buffered events, then release any internal resources.
-    ///
-    /// Calling [`Self::push`] will result in an error after calling this.
-    async fn shutdown(&mut self) -> ExporterResult<()>;
-}
-
-pub trait Importer<T>: Iterator<Item = Event<T>> {}
-
-/// The configuration an [`ExporterProvider`] builds its exporters from. One
-/// provider has one options type shared across all entity streams.
-pub trait ExporterConfig {
-    type Options;
-}
-
-/// Type-level builder of the exporter backing entity stream `T` from the
-/// provider's [`ExporterConfig::Options`].
-///
-/// A provider that builds serializing exporters bounds `T: Serialize` in its
-/// impl; one that does not imposes nothing, lifting `Serialize` off
-/// non-serializing event types.
-#[allow(async_fn_in_trait)] // the future is awaited in place during construction, never spawned
-pub trait ExporterProvider<T>: ExporterConfig
-where
-    T: Send + EntityEvent + 'static,
-{
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>>;
 }
 
 #[cfg(test)]

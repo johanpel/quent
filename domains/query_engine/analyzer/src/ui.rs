@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::AnalyzerResult;
 use quent_events::Event;
-use quent_model::exporter::ImporterResult;
+use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::timeline::{
     request::{BulkChunkedTimelineRequest, BulkTimelineRequest, SingleTimelineRequest},

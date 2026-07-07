@@ -2056,7 +2056,7 @@ version = "0.1.0"
 dependencies = [
  "quent-attributes",
  "quent-events",
- "quent-exporter-types",
+ "quent-io-types",
  "quent-model",
  "quent-time",
  "rustc-hash",
@@ -2171,100 +2171,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-exporter"
-version = "0.1.0"
-dependencies = [
- "clap",
- "http",
- "quent-events",
- "quent-exporter-callback",
- "quent-exporter-collector",
- "quent-exporter-msgpack",
- "quent-exporter-ndjson",
- "quent-exporter-postcard",
- "quent-exporter-types",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-callback"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "quent-events",
- "quent-exporter-types",
- "serde",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-collector"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "http",
- "quent-collector-client",
- "quent-events",
- "quent-exporter-types",
- "serde",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-msgpack"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "quent-events",
- "quent-exporter-types",
- "rmp-serde",
- "serde",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-ndjson"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "quent-events",
- "quent-exporter-types",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-postcard"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "postcard",
- "quent-events",
- "quent-exporter-types",
- "serde",
- "tokio",
- "tracing",
- "uuid",
-]
-
-[[package]]
-name = "quent-exporter-types"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "quent-events",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "quent-fsm"
 version = "0.1.0"
 dependencies = [
@@ -2288,7 +2194,8 @@ dependencies = [
  "quent-collector",
  "quent-collector-proto",
  "quent-events",
- "quent-exporter",
+ "quent-io",
+ "quent-io-collector",
  "serde",
  "tempfile",
  "tokio",
@@ -2327,6 +2234,101 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-io"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "clap",
+ "http",
+ "quent-events",
+ "quent-io-callback",
+ "quent-io-collector",
+ "quent-io-msgpack",
+ "quent-io-ndjson",
+ "quent-io-postcard",
+ "quent-io-types",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-callback"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-io-types",
+ "serde",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-collector"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "http",
+ "quent-collector-client",
+ "quent-events",
+ "quent-io-types",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-msgpack"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-io-types",
+ "rmp-serde",
+ "serde",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-ndjson"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "quent-io-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-postcard"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "postcard",
+ "quent-events",
+ "quent-io-types",
+ "serde",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-io-types"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "quent-events",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
@@ -2335,8 +2337,8 @@ dependencies = [
  "quent-build-info",
  "quent-collector-client",
  "quent-events",
- "quent-exporter",
  "quent-instrumentation",
+ "quent-io",
  "quent-model-macros",
  "quent-stdlib",
  "quent-time",
@@ -2448,7 +2450,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "quent-attributes",
- "quent-exporter",
+ "quent-io",
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-instrumentation",
@@ -2478,8 +2480,7 @@ dependencies = [
  "quent-collector",
  "quent-collector-proto",
  "quent-events",
- "quent-exporter",
- "quent-exporter-types",
+ "quent-io",
  "quent-query-engine-analyzer",
  "quent-query-engine-model",
  "quent-query-engine-ui",
@@ -2585,7 +2586,7 @@ dependencies = [
  "clap",
  "petgraph",
  "quent-attributes",
- "quent-exporter",
+ "quent-io",
  "quent-model",
  "quent-query-engine-model",
  "quent-simulator-instrumentation",
@@ -2635,7 +2636,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
- "quent-exporter",
+ "quent-io",
  "quent-query-engine-server",
  "quent-query-engine-ui",
  "quent-simulator-analyzer",

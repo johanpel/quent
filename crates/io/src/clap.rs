@@ -5,11 +5,7 @@
 
 use std::path::PathBuf;
 
-#[cfg(feature = "collector")]
-use crate::CollectorExporterOptions;
 use crate::ExporterOptions;
-#[cfg(filesystem)]
-use crate::{FileSystemExporterOptions, FileSystemFormat};
 
 /// Exporter selected on the command line. `None` is the no-op exporter.
 #[derive(::clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,7 +26,7 @@ pub enum ExporterKind {
 ///
 /// ```
 /// use clap::Parser;
-/// use quent_exporter::clap::ExporterArgs;
+/// use quent_io::clap::ExporterArgs;
 ///
 /// #[derive(Parser)]
 /// struct Args {
@@ -69,22 +65,27 @@ impl ExporterArgs {
     pub fn into_options(self) -> Option<ExporterOptions> {
         #[cfg(filesystem)]
         let filesystem = |format| {
-            ExporterOptions::FileSystem(FileSystemExporterOptions {
+            ExporterOptions::FileSystem(crate::filesystem::exporter::Options {
                 format,
                 root: self.output_dir.clone(),
             })
         };
         match self.exporter {
             #[cfg(feature = "postcard")]
-            ExporterKind::Postcard => Some(filesystem(FileSystemFormat::Postcard)),
+            ExporterKind::Postcard => Some(filesystem(crate::filesystem::Format::Postcard)),
             #[cfg(feature = "msgpack")]
-            ExporterKind::Messagepack => Some(filesystem(FileSystemFormat::Msgpack)),
+            ExporterKind::Messagepack => Some(filesystem(crate::filesystem::Format::Msgpack)),
             #[cfg(feature = "ndjson")]
-            ExporterKind::Ndjson => Some(filesystem(FileSystemFormat::Ndjson)),
+            ExporterKind::Ndjson => Some(filesystem(crate::filesystem::Format::Ndjson)),
             #[cfg(feature = "collector")]
-            ExporterKind::Collector => Some(ExporterOptions::Collector(CollectorExporterOptions {
-                address: self.collector_address,
-            })),
+            ExporterKind::Collector => {
+                use uuid::Uuid;
+
+                Some(ExporterOptions::Collector(quent_io_collector::Options {
+                    address: self.collector_address,
+                    source_context_id: Uuid::nil(),
+                }))
+            }
             ExporterKind::None => None,
         }
     }

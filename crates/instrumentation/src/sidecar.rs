@@ -4,7 +4,7 @@
 //! Model provenance sidecar written into the filesystem exporter directory.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
-use quent_exporter::ResolvedExporterOptions;
+use quent_io::ResolvedExporterOptions;
 use tracing::warn;
 
 /// Write the model provenance sidecar file into the filesystem exporter

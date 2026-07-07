@@ -11,16 +11,13 @@ use std::path::Path;
 
 use common::{TestEvent, TestModel};
 use quent_build_info::ModelSource;
-use quent_exporter::{
-    ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
-    OptionsExporterProvider, ResolvedExporterOptions,
-};
+use quent_io::{ExporterOptions, ExporterProvider, ResolvedExporterOptions, filesystem};
 use quent_instrumentation::{Context, Observer, write_sidecar};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
-    ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemFormat::Ndjson,
+    ExporterOptions::FileSystem(filesystem::exporter::Options {
+        format: filesystem::Format::Ndjson,
         root: root.to_path_buf(),
     })
 }
@@ -40,7 +37,7 @@ fn active(root: &Path) -> (Context, ResolvedExporterOptions, Uuid) {
 fn build(ctx: &Context, resolved: &ResolvedExporterOptions) -> Observer<TestEvent> {
     ctx.block_on(async {
         let exporter =
-            <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(resolved)
+            <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(resolved)
                 .await?;
         ctx.observer::<TestEvent>(exporter).await
     })

@@ -5,7 +5,7 @@
 
 use crate::observer::{Observer, spawn_forwarder};
 use quent_events::EntityEvent;
-use quent_exporter::Exporter;
+use quent_io::Exporter;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};

@@ -64,7 +64,7 @@ impl QuentViewer for Viewer {
 
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_model::exporter::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+    ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
         Simulator::import_events(dir)
     }
 }
