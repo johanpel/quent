@@ -98,7 +98,7 @@ pub trait ExporterProvider<T>: ExporterConfig
 where
     T: Send + EntityEvent + 'static,
 {
-    async fn create_exporter(options: &Self::Options) -> ExporterResult<Box<dyn Exporter<T>>>;
+    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>>;
 }
 
 #[cfg(test)]

@@ -29,7 +29,7 @@ fn fs_opts(root: &Path) -> ExporterOptions {
 /// mirroring what a generated `{App}Context::try_new` does.
 fn active(root: &Path) -> (Context, ResolvedExporterOptions, Uuid) {
     let id = Uuid::now_v7();
-    let ctx = Context::try_active(id).unwrap();
+    let ctx = Context::try_new(id).unwrap();
     let resolved = fs_opts(root).resolve(id);
     write_sidecar(&resolved, TestModel::model_info());
     (ctx, resolved, id)
@@ -42,7 +42,7 @@ fn build(ctx: &Context, resolved: &ResolvedExporterOptions) -> Observer<TestEven
         let exporter =
             <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(resolved)
                 .await?;
-        ctx.observer_with::<TestEvent>(exporter).await
+        ctx.observer::<TestEvent>(exporter).await
     })
     .unwrap()
 }

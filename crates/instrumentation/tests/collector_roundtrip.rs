@@ -83,7 +83,7 @@ fn collector_client_flushes_all_events_on_drop() {
 
     // A plain sync client (no ambient runtime); the context spawns its own.
     let id = Uuid::now_v7();
-    let ctx = Context::try_active(id).unwrap();
+    let ctx = Context::try_new(id).unwrap();
     let resolved = ExporterOptions::Collector(CollectorExporterOptions { address }).resolve(id);
     {
         let observer = ctx
@@ -93,7 +93,7 @@ fn collector_client_flushes_all_events_on_drop() {
                         &resolved,
                     )
                     .await?;
-                ctx.observer_with::<TestEvent>(exporter).await
+                ctx.observer::<TestEvent>(exporter).await
             })
             .unwrap();
         for _ in 0..EVENTS {

@@ -715,7 +715,7 @@ fn emit_context(
                 };
                 let id = #q::uuid::Uuid::now_v7();
                 let inner = match &opts {
-                    Some(_) => #q::Context::try_active(id)
+                    Some(_) => #q::Context::try_new(id)
                         .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
                     None => #q::Context::noop(id),
                 };
@@ -737,7 +737,7 @@ fn emit_context(
                                         &resolved,
                                     )
                                     .await?;
-                                    inner.observer_with::<#build_event_tys>(exporter).await
+                                    inner.observer::<#build_event_tys>(exporter).await
                                 },)*
                             )
                             .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;

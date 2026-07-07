@@ -533,7 +533,7 @@ fn emit_context_bridge(
             let (#(#build_fields,)*) = match opts {
                 None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
                 Some(options) => {
-                    let inner = #q::Context::try_active(id).map_err(|e| e.to_string())?;
+                    let inner = #q::Context::try_new(id).map_err(|e| e.to_string())?;
                     let resolved = options.resolve(id);
                     #q::write_sidecar(
                         &resolved,
@@ -546,7 +546,7 @@ fn emit_context_bridge(
                                     &resolved,
                                 )
                                 .await?;
-                                inner.observer_with::<#build_event_tys>(exporter).await
+                                inner.observer::<#build_event_tys>(exporter).await
                             },)*
                         )
                         .map_err(|e| e.to_string())?;

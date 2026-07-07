@@ -513,7 +513,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         P: quent_model::exporter::ExporterConfig
                             #(+ quent_model::exporter::ExporterProvider<#event_types>)*,
                     {
-                        let inner = quent_model::Context::try_active(id)?;
+                        let inner = quent_model::Context::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(
@@ -521,7 +521,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                                         let exporter = <P as quent_model::exporter::ExporterProvider<#event_types>>::create_exporter(
                                             &options,
                                         ).await?;
-                                        inner.observer_with::<#event_types>(exporter).await
+                                        inner.observer::<#event_types>(exporter).await
                                     },
                                 )*
                             )?;

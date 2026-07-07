@@ -54,14 +54,14 @@ fn build_observer(
     let Some(options) = exporter else {
         return Ok((Context::noop(id), Observer::noop()));
     };
-    let ctx = Context::try_active(id)?;
+    let ctx = Context::try_new(id)?;
     let resolved = options.resolve(id);
     write_sidecar(&resolved, ModelInfo::unknown());
     let observer = ctx.block_on(async {
         let exporter =
             <OptionsExporterProvider as ExporterProvider<BenchEvent>>::create_exporter(&resolved)
                 .await?;
-        ctx.observer_with::<BenchEvent>(exporter).await
+        ctx.observer::<BenchEvent>(exporter).await
     })?;
     Ok((ctx, observer))
 }
