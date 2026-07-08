@@ -52,7 +52,7 @@ impl<T> EventSender<T> {
     pub fn noop() -> Self {
         Self {
             tx: None,
-            disable_error_log: Arc::new(AtomicBool::new(false)),
+            disable_error_log: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -84,10 +84,7 @@ impl<T> EventSender<T> {
 /// relies on, so holding or dropping it directly can lose or prematurely flush
 /// events.
 #[doc(hidden)]
-pub struct Observer<T>
-where
-    T: Send + EntityEvent + 'static,
-{
+pub struct Observer<T> {
     events_sender: EventSender<T>,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
@@ -99,10 +96,7 @@ where
     runtime: Option<BackendRuntime>,
 }
 
-impl<T> Observer<T>
-where
-    T: Send + EntityEvent + 'static,
-{
+impl<T> Observer<T> {
     /// Construct a no-op observer that discards events and holds no runtime
     /// resources whatesoever.
     pub fn noop() -> Self {
@@ -125,10 +119,7 @@ where
     }
 }
 
-impl<T> Drop for Observer<T>
-where
-    T: Send + EntityEvent + 'static,
-{
+impl<T> Drop for Observer<T> {
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 
