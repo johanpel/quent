@@ -65,10 +65,10 @@ impl ExporterArgs {
     pub fn into_options(self) -> Option<ExporterOptions> {
         #[cfg(filesystem)]
         let filesystem = |format| {
-            ExporterOptions::FileSystem(crate::filesystem::exporter::Options {
+            ExporterOptions::FileSystem(crate::filesystem::exporter::Options::new(
                 format,
-                root: self.output_dir.clone(),
-            })
+                self.output_dir.clone(),
+            ))
         };
         match self.exporter {
             #[cfg(feature = "postcard")]
@@ -78,14 +78,9 @@ impl ExporterArgs {
             #[cfg(feature = "ndjson")]
             ExporterKind::Ndjson => Some(filesystem(crate::filesystem::Format::Ndjson)),
             #[cfg(feature = "collector")]
-            ExporterKind::Collector => {
-                use uuid::Uuid;
-
-                Some(ExporterOptions::Collector(quent_io_collector::Options {
-                    address: self.collector_address,
-                    source_context_id: Uuid::nil(),
-                }))
-            }
+            ExporterKind::Collector => Some(ExporterOptions::Collector(
+                quent_io_collector::Options::new(self.collector_address),
+            )),
             ExporterKind::None => None,
         }
     }

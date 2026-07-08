@@ -519,31 +519,32 @@ fn emit_context_bridge(
         pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
                 "ndjson" => Some(#q::io::ExporterOptions::FileSystem(
-                    #q::io::filesystem::exporter::Options {
-                        format: #q::io::filesystem::Format::Ndjson,
-                        root: std::path::PathBuf::from(output_dir),
-                    },
+                    #q::io::filesystem::exporter::Options::new(
+                        #q::io::filesystem::Format::Ndjson,
+                        std::path::PathBuf::from(output_dir),
+                    ),
                 )),
                 _ => None,
             };
             let id = #q::uuid::Uuid::now_v7();
-            // Single sync/async bridge: resolve options, build every entity's
-            // exporter and observer concurrently on the context's runtime, block
-            // until done. The observers keep the runtime alive; `inner` drops here.
+            // Single sync/async bridge: bind options to the id, build every
+            // entity's exporter and observer concurrently on the context's
+            // runtime, block until done. The observers keep the runtime alive;
+            // `inner` drops here.
             let (#(#build_fields,)*) = match opts {
                 None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
                 Some(options) => {
                     let inner = #q::Context::try_new(id).map_err(|e| e.to_string())?;
-                    let resolved = options.resolve(id);
+                    let options = options.with_context_id(id);
                     #q::write_sidecar(
-                        &resolved,
+                        &options,
                         <#model_type as #q::build_info::ModelSource>::model_info(),
                     );
                     inner.block_on(async {
                         let (#(#build_fields,)*) = #q::tokio::try_join!(
                             #(async {
-                                let exporter = <#q::io::ResolvedExporterOptions as #q::io::ExporterProvider<#build_event_tys>>::create_exporter(
-                                    &resolved,
+                                let exporter = <#q::io::ExporterOptions as #q::io::ExporterProvider<#build_event_tys>>::create_exporter(
+                                    &options,
                                 )
                                 .await?;
                                 inner.observer::<#build_event_tys>(exporter).await

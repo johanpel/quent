@@ -316,12 +316,12 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 match exporter {
                     None => Ok(Self::noop(id)),
                     Some(options) => {
-                        let resolved = options.resolve(id);
+                        let options = options.with_context_id(id);
                         quent_model::write_sidecar(
-                            &resolved,
+                            &options,
                             <#name as quent_model::build_info::ModelSource>::model_info(),
                         );
-                        Self::build(id, resolved)
+                        Self::build(id, options)
                     }
                 }
             }
@@ -481,15 +481,15 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     // complete, and assemble.
                     fn build(
                         id: quent_model::uuid::Uuid,
-                        resolved: quent_model::io::ResolvedExporterOptions,
+                        options: quent_model::io::ExporterOptions,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
                         let inner = quent_model::Context::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(
                                     async {
-                                        let exporter = <quent_model::io::ResolvedExporterOptions as quent_model::io::ExporterProvider<#event_types>>::create_exporter(
-                                            &resolved,
+                                        let exporter = <quent_model::io::ExporterOptions as quent_model::io::ExporterProvider<#event_types>>::create_exporter(
+                                            &options,
                                         ).await?;
                                         inner.observer::<#event_types>(exporter).await
                                     },

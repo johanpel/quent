@@ -11,19 +11,28 @@ use uuid::Uuid;
 
 /// User-facing options for the collector exporter.
 ///
-/// Streams events over gRPC to a remote collector service. Use this for
-/// distributed deployments where events are centralized for analysis. The
-/// source context id the collector reproduces under is supplied separately by
-/// the context when it builds the exporter (see [`CollectorExporter::try_new`]).
+/// Streams events over gRPC to a remote collector service. `context_id`
+/// identifies the source context the collector reproduces events under; set it
+/// with [`Self::with_context_id`] before building an exporter.
 #[derive(Debug, Default, Clone)]
 pub struct Options {
-    pub address: http::Uri,
-    pub source_context_id: Uuid,
+    address: http::Uri,
+    context_id: Uuid,
 }
 
 impl Options {
-    pub fn resolve(mut self, id: Uuid) -> Self {
-        self.source_context_id = id;
+    /// New options with an unset (nil) context id; set it with
+    /// [`Self::with_context_id`] before building an exporter.
+    pub fn new(address: http::Uri) -> Self {
+        Self {
+            address,
+            context_id: Uuid::nil(),
+        }
+    }
+
+    /// Set the source context id the collector reproduces events under.
+    pub fn with_context_id(mut self, id: Uuid) -> Self {
+        self.context_id = id;
         self
     }
 }
@@ -35,8 +44,13 @@ where
     T: serde::Serialize,
 {
     async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+        if self.context_id.is_nil() {
+            return Err(ExporterError::Other(
+                "collector exporter requires a context id; call `with_context_id` first".into(),
+            ));
+        }
         Ok(Box::new(
-            CollectorExporter::<T>::try_new(self.address.clone(), self.source_context_id)
+            CollectorExporter::<T>::try_new(self.address.clone(), self.context_id)
                 .await
                 .map_err(ExporterError::Other)?,
         ) as Box<dyn Exporter<T>>)

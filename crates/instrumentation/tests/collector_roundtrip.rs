@@ -16,9 +16,7 @@ use common::TestEvent;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_io::{
-    CollectorExporterOptions, ExporterOptions, ExporterProvider, ResolvedExporterOptions,
-};
+use quent_io::{CollectorExporterOptions, ExporterOptions, ExporterProvider};
 use quent_instrumentation::Context;
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
@@ -84,17 +82,14 @@ fn collector_client_flushes_all_events_on_drop() {
     // A plain sync client (no ambient runtime); the context spawns its own.
     let id = Uuid::now_v7();
     let ctx = Context::try_new(id).unwrap();
-    let resolved = ExporterOptions::Collector(CollectorExporterOptions {
-        address,
-        ..Default::default()
-    })
-    .resolve(id);
+    let options = ExporterOptions::Collector(CollectorExporterOptions::new(address))
+        .with_context_id(id);
     {
         let observer = ctx
             .block_on(async {
                 let exporter =
-                    <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
-                        &resolved,
+                    <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
+                        &options,
                     )
                     .await?;
                 ctx.observer::<TestEvent>(exporter).await

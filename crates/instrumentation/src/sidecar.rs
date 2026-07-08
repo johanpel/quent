@@ -4,19 +4,19 @@
 //! Model provenance sidecar written into the filesystem exporter directory.
 
 use quent_build_info::{ArtifactInfo, ModelInfo};
-use quent_io::ResolvedExporterOptions;
+use quent_io::ExporterOptions;
 use tracing::warn;
 
 /// Write the model provenance sidecar file into the filesystem exporter
 /// directory.
 ///
 /// If the options do not target a filesystem exporter, then this is a no-op.
-pub fn write_sidecar(options: &ResolvedExporterOptions, model: ModelInfo) {
+pub fn write_sidecar(options: &ExporterOptions, model: ModelInfo) {
     let Some(root) = options.filesystem_root() else {
         return;
     };
     if let Err(e) =
-        std::fs::create_dir_all(root).and_then(|()| ArtifactInfo::new(model).write_sidecar(root))
+        std::fs::create_dir_all(&root).and_then(|()| ArtifactInfo::new(model).write_sidecar(&root))
     {
         warn!("failed to write provenance sidecar: {e}");
     }

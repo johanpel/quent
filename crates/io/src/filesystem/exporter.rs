@@ -4,24 +4,41 @@
 use std::path::PathBuf;
 
 use quent_events::EntityEvent;
-use quent_io_types::{Exporter, ExporterProvider, ExporterResult};
+use quent_io_types::{Exporter, ExporterError, ExporterProvider, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
 use crate::filesystem::Format;
 
 /// Options for exporting events to the filesystem in the given `format`, under
-/// the directory `root`, together with a `model.qmi` provenance sidecar.
+/// `root/<context_id>`, together with a `model.qmi` provenance sidecar.
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub format: Format,
-    pub root: PathBuf,
+    format: Format,
+    root: PathBuf,
+    context_id: Uuid,
 }
 
 impl Options {
-    pub fn resolve(mut self, id: Uuid) -> Self {
-        self.root = self.root.join(id.to_string());
+    /// New options with an unset (nil) context id; set it with
+    /// [`Self::with_context_id`] before building an exporter.
+    pub fn new(format: Format, root: PathBuf) -> Self {
+        Self {
+            format,
+            root,
+            context_id: Uuid::nil(),
+        }
+    }
+
+    /// Scope the output directory to the context `id`.
+    pub fn with_context_id(mut self, id: Uuid) -> Self {
+        self.context_id = id;
         self
+    }
+
+    /// The per-context output directory, `root/<context_id>`.
+    pub(crate) fn dir(&self) -> PathBuf {
+        self.root.join(self.context_id.to_string())
     }
 }
 
@@ -32,31 +49,31 @@ where
     T: Serialize,
 {
     async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+        if self.context_id.is_nil() {
+            return Err(ExporterError::Other(
+                "filesystem exporter requires a context id; call `with_context_id` first".into(),
+            ));
+        }
+        let dir = self.dir();
         match self.format {
             #[cfg(feature = "ndjson")]
             Format::Ndjson => Ok(Box::new(
                 quent_io_ndjson::NdjsonExporter::try_new::<T>(
-                    quent_io_ndjson::NdjsonExporterOptions {
-                        dir: self.root.clone(),
-                    },
+                    quent_io_ndjson::NdjsonExporterOptions { dir },
                 )
                 .await?,
             ) as Box<dyn Exporter<T>>),
             #[cfg(feature = "msgpack")]
             Format::Msgpack => Ok(Box::new(
                 quent_io_msgpack::MsgpackExporter::try_new::<T>(
-                    quent_io_msgpack::MsgpackExporterOptions {
-                        dir: self.root.clone(),
-                    },
+                    quent_io_msgpack::MsgpackExporterOptions { dir },
                 )
                 .await?,
             ) as Box<dyn Exporter<T>>),
             #[cfg(feature = "postcard")]
             Format::Postcard => Ok(Box::new(
                 quent_io_postcard::PostcardExporter::try_new::<T>(
-                    quent_io_postcard::PostcardExporterOptions {
-                        dir: self.root.clone(),
-                    },
+                    quent_io_postcard::PostcardExporterOptions { dir },
                 )
                 .await?,
             ) as Box<dyn Exporter<T>>),

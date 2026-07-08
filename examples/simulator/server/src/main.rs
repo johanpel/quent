@@ -95,10 +95,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "postcard" => Format::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
-    let exporter_kind = ExporterOptions::FileSystem(filesystem::exporter::Options {
-        format,
-        root: output_dir,
-    });
+    let exporter_kind = ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+        format, output_dir,
+    ));
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {

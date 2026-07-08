@@ -40,6 +40,9 @@ pub mod filesystem;
 
 /// Where events go: local files (filesystem), a collector service, or a
 /// caller-supplied callback (e.g. an in-memory collector for tests).
+///
+/// The filesystem/collector variants carry a context id, defaulted to nil and
+/// filled in by [`Self::with_context_id`]; their exporters reject a nil id.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     #[cfg(filesystem)]
@@ -50,79 +53,67 @@ pub enum ExporterOptions {
     Callback(EventCallback),
 }
 
-/// Like [`ExporterOptions`], but the collector variant also carries the source
-/// context id and a filesystem `root` is the per-context directory.
-#[derive(Debug, Clone)]
-pub enum ResolvedExporterOptions {
-    #[cfg(filesystem)]
-    FileSystem(crate::filesystem::exporter::Options),
-    #[cfg(feature = "collector")]
-    Collector(quent_io_collector::Options),
-    #[cfg(feature = "callback")]
-    Callback(quent_io_callback::EventCallback),
-}
-
-impl ResolvedExporterOptions {
-    /// Filesystem output directory for filesystem exporters; `None` for
-    /// exporters (e.g. the collector) that do not write a local directory.
-    /// Used to locate where a provenance sidecar should be written.
-    pub fn filesystem_root(&self) -> Option<&std::path::Path> {
-        match self {
-            #[cfg(filesystem)]
-            ResolvedExporterOptions::FileSystem(options) => Some(&options.root),
-            #[cfg(feature = "collector")]
-            ResolvedExporterOptions::Collector { .. } => None,
-            #[cfg(feature = "callback")]
-            ResolvedExporterOptions::Callback(_) => None,
-        }
-    }
-}
-
 impl ExporterOptions {
-    pub fn resolve(self, id: Uuid) -> ResolvedExporterOptions {
+    /// Bind these options to the context `id`, scoping the filesystem directory
+    /// and the collector's source id. A no-op for the callback variant.
+    #[cfg_attr(not(any(filesystem, feature = "collector")), allow(unused_variables))]
+    pub fn with_context_id(self, id: Uuid) -> Self {
         match self {
             #[cfg(filesystem)]
             ExporterOptions::FileSystem(options) => {
-                ResolvedExporterOptions::FileSystem(options.resolve(id))
+                ExporterOptions::FileSystem(options.with_context_id(id))
             }
             #[cfg(feature = "collector")]
             ExporterOptions::Collector(options) => {
-                ResolvedExporterOptions::Collector(options.resolve(id))
+                ExporterOptions::Collector(options.with_context_id(id))
             }
             #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => ResolvedExporterOptions::Callback(callback),
+            ExporterOptions::Callback(callback) => ExporterOptions::Callback(callback),
+        }
+    }
+
+    /// Filesystem output directory (`root/<context_id>`) for filesystem
+    /// exporters; `None` otherwise. Used to locate the provenance sidecar.
+    pub fn filesystem_root(&self) -> Option<std::path::PathBuf> {
+        match self {
+            #[cfg(filesystem)]
+            ExporterOptions::FileSystem(options) => Some(options.dir()),
+            #[cfg(feature = "collector")]
+            ExporterOptions::Collector(_) => None,
+            #[cfg(feature = "callback")]
+            ExporterOptions::Callback(_) => None,
         }
     }
 }
 
 #[cfg(any(filesystem, feature = "collector"))]
 #[async_trait::async_trait]
-impl<T> ExporterProvider<T> for ResolvedExporterOptions
+impl<T> ExporterProvider<T> for ExporterOptions
 where
     T: serde::Serialize + Send + EntityEvent + 'static,
 {
     async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
         match self {
             #[cfg(filesystem)]
-            ResolvedExporterOptions::FileSystem(options) => options.create_exporter().await,
+            ExporterOptions::FileSystem(options) => options.create_exporter().await,
             #[cfg(feature = "collector")]
-            ResolvedExporterOptions::Collector(options) => options.create_exporter().await,
+            ExporterOptions::Collector(options) => options.create_exporter().await,
             #[cfg(feature = "callback")]
-            ResolvedExporterOptions::Callback(callback) => callback.create_exporter().await,
+            ExporterOptions::Callback(callback) => callback.create_exporter().await,
         }
     }
 }
 
 #[cfg(not(any(filesystem, feature = "collector")))]
 #[async_trait::async_trait]
-impl<T> ExporterProvider<T> for ResolvedExporterOptions
+impl<T> ExporterProvider<T> for ExporterOptions
 where
     T: Send + EntityEvent + 'static,
 {
     async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
         match self {
             #[cfg(feature = "callback")]
-            ResolvedExporterOptions::Callback(callback) => callback.create_exporter().await,
+            ExporterOptions::Callback(callback) => callback.create_exporter().await,
         }
     }
 }
