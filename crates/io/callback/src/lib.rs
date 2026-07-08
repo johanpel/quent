@@ -58,7 +58,7 @@ where
         Ok(())
     }
 
-    async fn shutdown(&mut self) -> ExporterResult<()> {
+    async fn shutdown(self: Box<Self>) -> ExporterResult<()> {
         Ok(())
     }
 }

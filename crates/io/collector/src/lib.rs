@@ -93,7 +93,7 @@ where
         client.send(event).await.map_err(ExporterError::other)?;
         Ok(())
     }
-    async fn shutdown(&mut self) -> ExporterResult<()> {
+    async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut client) = self.client.take() else {
             return Ok(());
         };

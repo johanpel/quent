@@ -128,7 +128,7 @@ pub enum ImporterOptions {
 #[cfg(filesystem)]
 impl<T> ImporterProvider<T> for ImporterOptions
 where
-    T: Send + EntityEvent + 'static,
+    T: 'static,
     for<'a> T: serde::Deserialize<'a>,
 {
     fn create_importer(&self) -> ImporterResult<Box<dyn quent_io_types::Importer<T>>> {

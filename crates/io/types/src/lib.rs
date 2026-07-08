@@ -3,30 +3,27 @@
 
 //! Basic traits for exporter / importer implementations
 
-use quent_events::{EntityEvent, Event};
+use quent_events::Event;
 use thiserror::Error;
 
 /// A sink for one entity's event stream.
+///
+/// This is `Send` because generated application contexts first attempt to
+/// create all exporters (asynchronously). If any errors occur, these are
+/// immediately surfaced through the blocking context creation API. If no errors
+/// occur, the exporters are then moved into their respective forwarder tasks.
 #[async_trait::async_trait]
-pub trait Exporter<T>: Send
-where
-    T: Send + EntityEvent,
-{
+pub trait Exporter<T>: Send {
     /// Export one event.
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
 
     /// Make a best-effort to flush any buffered events, then release any internal resources.
-    ///
-    /// Calling [`Self::push`] will result in an error after calling this.
-    async fn shutdown(&mut self) -> ExporterResult<()>;
+    async fn shutdown(self: Box<Self>) -> ExporterResult<()>;
 }
 
 /// Provides an exporter instance for `T`.
 #[async_trait::async_trait]
-pub trait ExporterProvider<T>
-where
-    T: Send + EntityEvent + 'static,
-{
+pub trait ExporterProvider<T> {
     async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>>;
 }
 
@@ -69,13 +66,7 @@ pub type ImporterResult<T> = std::result::Result<T, ImporterError>;
 pub trait Importer<T>: Iterator<Item = Event<T>> {}
 
 /// Provides an importer instance for `T`.
-///
-/// Synchronous, unlike [`ExporterProvider`]: importer construction opens files
-/// with blocking I/O and does no async work.
-pub trait ImporterProvider<T>
-where
-    T: Send + EntityEvent + 'static,
-{
+pub trait ImporterProvider<T> {
     fn create_importer(&self) -> ImporterResult<Box<dyn Importer<T>>>;
 }
 

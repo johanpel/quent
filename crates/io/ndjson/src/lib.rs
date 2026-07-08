@@ -72,7 +72,7 @@ where
         Ok(())
     }
 
-    async fn shutdown(&mut self) -> ExporterResult<()> {
+    async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut writer) = self.writer.take() else {
             return Ok(());
         };
@@ -131,45 +131,5 @@ where
                 None
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[derive(Serialize)]
-    struct TestEvent;
-    impl EntityEvent for TestEvent {
-        const NAME: &'static str = "TestEvent";
-    }
-
-    #[tokio::test]
-    async fn push_after_shutdown_errors() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut exporter = NdjsonExporter::try_new::<TestEvent>(NdjsonExporterOptions {
-            dir: dir.path().to_path_buf(),
-        })
-        .await
-        .unwrap();
-
-        exporter
-            .push(Event::new_now(Uuid::now_v7(), TestEvent))
-            .await
-            .unwrap();
-        Exporter::<TestEvent>::shutdown(&mut exporter)
-            .await
-            .unwrap();
-
-        assert!(matches!(
-            exporter
-                .push(Event::new_now(Uuid::now_v7(), TestEvent))
-                .await,
-            Err(ExporterError::Shutdown)
-        ));
-        // A second shutdown is a no-op.
-        Exporter::<TestEvent>::shutdown(&mut exporter)
-            .await
-            .unwrap();
     }
 }

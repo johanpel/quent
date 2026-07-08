@@ -68,7 +68,7 @@ where
         Ok(())
     }
 
-    async fn shutdown(&mut self) -> ExporterResult<()> {
+    async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut writer) = self.writer.take() else {
             return Ok(());
         };

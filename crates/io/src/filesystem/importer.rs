@@ -3,7 +3,6 @@
 
 use std::path::PathBuf;
 
-use quent_events::EntityEvent;
 use quent_io_types::{Importer, ImporterProvider, ImporterResult};
 
 use crate::filesystem::Format;
@@ -19,7 +18,7 @@ pub struct Options {
 
 impl<T> ImporterProvider<T> for Options
 where
-    T: Send + EntityEvent + 'static,
+    T: 'static,
     for<'a> T: serde::Deserialize<'a>,
 {
     fn create_importer(&self) -> ImporterResult<Box<dyn Importer<T>>> {
