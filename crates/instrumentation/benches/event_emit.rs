@@ -21,11 +21,10 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
-use quent_build_info::ModelInfo;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_instrumentation::{Context, Observer, write_sidecar};
+use quent_instrumentation::{Context, Observer};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
