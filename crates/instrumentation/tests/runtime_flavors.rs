@@ -10,9 +10,9 @@ mod common;
 use std::path::Path;
 
 use common::TestEvent;
+use quent_instrumentation::{Context, Observer};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ExporterOptions, ExporterProvider};
-use quent_instrumentation::{Context, Observer};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
@@ -35,10 +35,9 @@ fn active(root: &Path) -> (Context, ExporterOptions, Uuid) {
 /// it on the context's runtime.
 fn build(ctx: &Context, exporter_opts: &ExporterOptions) -> Observer<TestEvent> {
     ctx.block_on(async {
-        let exporter = <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
-            exporter_opts,
-        )
-        .await?;
+        let exporter =
+            <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(exporter_opts)
+                .await?;
         ctx.observer::<TestEvent>(exporter).await
     })
     .unwrap()

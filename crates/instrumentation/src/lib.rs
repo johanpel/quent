@@ -61,10 +61,8 @@ mod tests {
             let observer = ctx
                 .block_on(async {
                     let exporter =
-                        <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
-                            &options,
-                        )
-                        .await?;
+                        <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(&options)
+                            .await?;
                     ctx.observer::<TestEvent>(exporter).await
                 })
                 .unwrap();

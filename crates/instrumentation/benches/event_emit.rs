@@ -25,9 +25,9 @@ use quent_build_info::ModelInfo;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
+use quent_instrumentation::{Context, Observer, write_sidecar};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions, ExporterProvider};
-use quent_instrumentation::{Context, Observer, write_sidecar};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -57,8 +57,7 @@ fn build_observer(
     write_sidecar(&options, ModelInfo::unknown());
     let observer = ctx.block_on(async {
         let exporter =
-            <ExporterOptions as ExporterProvider<BenchEvent>>::create_exporter(&options)
-                .await?;
+            <ExporterOptions as ExporterProvider<BenchEvent>>::create_exporter(&options).await?;
         ctx.observer::<BenchEvent>(exporter).await
     })?;
     Ok((ctx, observer))
@@ -172,26 +171,23 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::FileSystem(filesystem::exporter::Options::new(
-            Format::Ndjson,
-            ndjson_dir.path().to_path_buf(),
-        ))),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Ndjson, ndjson_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::FileSystem(filesystem::exporter::Options::new(
-            Format::Msgpack,
-            msgpack_dir.path().to_path_buf(),
-        ))),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Msgpack, msgpack_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::FileSystem(filesystem::exporter::Options::new(
-            Format::Postcard,
-            postcard_dir.path().to_path_buf(),
-        ))),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Postcard, postcard_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
