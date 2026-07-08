@@ -9,7 +9,7 @@ async-trait.workspace = true
 quent-events = { path = "../../events" }
 quent-io-types = { path = "../types" }
 serde.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }
-uuid.workspace = true

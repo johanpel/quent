@@ -11,8 +11,8 @@ use std::path::Path;
 
 use common::TestEvent;
 use quent_instrumentation::{Context, Observer};
+use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
-use quent_io::{ExporterOptions, ExporterProvider};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
@@ -27,20 +27,15 @@ fn fs_opts(root: &Path) -> ExporterOptions {
 fn active(root: &Path) -> (Context, ExporterOptions, Uuid) {
     let id = Uuid::now_v7();
     let ctx = Context::try_new(id).unwrap();
-    let exporter_opts = fs_opts(root).with_context_id(id);
+    let exporter_opts = fs_opts(root);
     (ctx, exporter_opts, id)
 }
 
-/// Build an observer through the one bridge: construct the exporter, then host
-/// it on the context's runtime.
+/// Build an observer through the one bridge: the context builds the exporter
+/// from the options (bound to its id) and hosts it on its runtime.
 fn build(ctx: &Context, exporter_opts: &ExporterOptions) -> Observer<TestEvent> {
-    ctx.block_on(async {
-        let exporter =
-            <ExporterOptions as ExporterProvider<TestEvent>>::create_exporter(exporter_opts)
-                .await?;
-        ctx.observer::<TestEvent>(exporter).await
-    })
-    .unwrap()
+    ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts.clone()).await })
+        .unwrap()
 }
 
 /// Assert the observer flushed one non-empty ndjson batch under `<root>/<id>/`.

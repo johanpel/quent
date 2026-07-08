@@ -8,3 +8,4 @@ publish.workspace = true
 async-trait.workspace = true
 quent-events = { path = "../../events" }
 thiserror.workspace = true
+uuid.workspace = true

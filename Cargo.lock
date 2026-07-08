@@ -2324,6 +2324,7 @@ dependencies = [
  "async-trait",
  "quent-events",
  "thiserror 2.0.18",
+ "uuid",
 ]
 
 [[package]]

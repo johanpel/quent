@@ -27,7 +27,7 @@ use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_instrumentation::{Context, Observer, write_sidecar};
 use quent_io::filesystem::{self, Format};
-use quent_io::{CollectorExporterOptions, ExporterOptions, ExporterProvider};
+use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -53,13 +53,7 @@ fn build_observer(
         return Ok((Context::noop(id), Observer::noop()));
     };
     let ctx = Context::try_new(id)?;
-    let options = options.with_context_id(id);
-    write_sidecar(&options, ModelInfo::unknown());
-    let observer = ctx.block_on(async {
-        let exporter =
-            <ExporterOptions as ExporterProvider<BenchEvent>>::create_exporter(&options).await?;
-        ctx.observer::<BenchEvent>(exporter).await
-    })?;
+    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
     Ok((ctx, observer))
 }
 

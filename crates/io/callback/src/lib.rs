@@ -68,7 +68,10 @@ impl<T> ExporterProvider<T> for EventCallback
 where
     T: Send + EntityEvent + 'static,
 {
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+    async fn create_exporter(
+        &self,
+        _context_id: uuid::Uuid,
+    ) -> ExporterResult<Box<dyn Exporter<T>>> {
         Ok(Box::new(CallbackExporter::new(self.clone())))
     }
 }

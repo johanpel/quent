@@ -40,9 +40,6 @@ pub mod filesystem;
 
 /// Where events go: local files (filesystem), a collector service, or a
 /// caller-supplied callback (e.g. an in-memory collector for tests).
-///
-/// The filesystem/collector variants carry a context id, defaulted to nil and
-/// filled in by [`Self::with_context_id`]; their exporters reject a nil id.
 #[derive(Debug, Clone)]
 pub enum ExporterOptions {
     #[cfg(filesystem)]
@@ -54,30 +51,13 @@ pub enum ExporterOptions {
 }
 
 impl ExporterOptions {
-    /// Bind these options to the context `id`, scoping the filesystem directory
-    /// and the collector's source id. A no-op for the callback variant.
-    #[cfg_attr(not(any(filesystem, feature = "collector")), allow(unused_variables))]
-    pub fn with_context_id(self, id: Uuid) -> Self {
-        match self {
-            #[cfg(filesystem)]
-            ExporterOptions::FileSystem(options) => {
-                ExporterOptions::FileSystem(options.with_context_id(id))
-            }
-            #[cfg(feature = "collector")]
-            ExporterOptions::Collector(options) => {
-                ExporterOptions::Collector(options.with_context_id(id))
-            }
-            #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => ExporterOptions::Callback(callback),
-        }
-    }
-
     /// Filesystem output directory (`root/<context_id>`) for filesystem
     /// exporters; `None` otherwise. Used to locate the provenance sidecar.
-    pub fn filesystem_root(&self) -> Option<std::path::PathBuf> {
+    #[cfg_attr(not(filesystem), allow(unused_variables))]
+    pub fn filesystem_root(&self, context_id: Uuid) -> Option<std::path::PathBuf> {
         match self {
             #[cfg(filesystem)]
-            ExporterOptions::FileSystem(options) => Some(options.dir()),
+            ExporterOptions::FileSystem(options) => Some(options.dir(context_id)),
             #[cfg(feature = "collector")]
             ExporterOptions::Collector(_) => None,
             #[cfg(feature = "callback")]
@@ -92,14 +72,14 @@ impl<T> ExporterProvider<T> for ExporterOptions
 where
     T: serde::Serialize + Send + EntityEvent + 'static,
 {
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+    async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         match self {
             #[cfg(filesystem)]
-            ExporterOptions::FileSystem(options) => options.create_exporter().await,
+            ExporterOptions::FileSystem(options) => options.create_exporter(context_id).await,
             #[cfg(feature = "collector")]
-            ExporterOptions::Collector(options) => options.create_exporter().await,
+            ExporterOptions::Collector(options) => options.create_exporter(context_id).await,
             #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => callback.create_exporter().await,
+            ExporterOptions::Callback(callback) => callback.create_exporter(context_id).await,
         }
     }
 }
@@ -110,10 +90,10 @@ impl<T> ExporterProvider<T> for ExporterOptions
 where
     T: Send + EntityEvent + 'static,
 {
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+    async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         match self {
             #[cfg(feature = "callback")]
-            ExporterOptions::Callback(callback) => callback.create_exporter().await,
+            ExporterOptions::Callback(callback) => callback.create_exporter(context_id).await,
         }
     }
 }

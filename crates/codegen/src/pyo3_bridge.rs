@@ -719,26 +719,20 @@ fn emit_context(
                         .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
                     None => #q::Context::noop(id),
                 };
-                // Single sync/async bridge: bind options to the id, build every
-                // entity's exporter and observer concurrently on the context's
-                // runtime, then block until done.
+                // Single sync/async bridge: build every entity's observer (each
+                // constructing its exporter from the options, bound to the id)
+                // concurrently on the context's runtime, then block until done.
                 let (#(#build_fields,)*) = match opts {
                     None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
                     Some(options) => {
-                        let options = options.with_context_id(id);
                         #q::write_sidecar(
                             &options,
+                            id,
                             <#model_type as #q::build_info::ModelSource>::model_info(),
                         );
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(
-                                #(async {
-                                    let exporter = <#q::io::ExporterOptions as #q::io::ExporterProvider<#build_event_tys>>::create_exporter(
-                                        &options,
-                                    )
-                                    .await?;
-                                    inner.observer::<#build_event_tys>(exporter).await
-                                },)*
+                                #(inner.observer::<#build_event_tys>(options.clone()),)*
                             )
                             .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                             Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))

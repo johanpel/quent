@@ -316,9 +316,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 match exporter {
                     None => Ok(Self::noop(id)),
                     Some(options) => {
-                        let options = options.with_context_id(id);
                         quent_model::write_sidecar(
                             &options,
+                            id,
                             <#name as quent_model::build_info::ModelSource>::model_info(),
                         );
                         Self::build(id, options)
@@ -476,9 +476,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
                 impl #context_type {
                     // The single sync/async bridge: on an active context, build
-                    // every entity's exporter from the resolved options and its
-                    // observer concurrently on the runtime, block until all
-                    // complete, and assemble.
+                    // every entity's observer (each constructing its exporter from
+                    // the options, bound to the context id) concurrently on the
+                    // runtime, block until all complete, and assemble.
                     fn build(
                         id: quent_model::uuid::Uuid,
                         options: quent_model::io::ExporterOptions,
@@ -487,12 +487,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(
-                                    async {
-                                        let exporter = <quent_model::io::ExporterOptions as quent_model::io::ExporterProvider<#event_types>>::create_exporter(
-                                            &options,
-                                        ).await?;
-                                        inner.observer::<#event_types>(exporter).await
-                                    },
+                                    inner.observer::<#event_types>(options.clone()),
                                 )*
                             )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))

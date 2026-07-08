@@ -6,13 +6,14 @@
 use quent_build_info::{ArtifactInfo, ModelInfo};
 use quent_io::ExporterOptions;
 use tracing::warn;
+use uuid::Uuid;
 
 /// Write the model provenance sidecar file into the filesystem exporter
 /// directory.
 ///
 /// If the options do not target a filesystem exporter, then this is a no-op.
-pub fn write_sidecar(options: &ExporterOptions, model: ModelInfo) {
-    let Some(root) = options.filesystem_root() else {
+pub fn write_sidecar(options: &ExporterOptions, context_id: Uuid, model: ModelInfo) {
+    let Some(root) = options.filesystem_root(context_id) else {
         return;
     };
     if let Err(e) =

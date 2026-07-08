@@ -5,7 +5,7 @@
 
 use crate::observer::{Observer, spawn_forwarder};
 use quent_events::EntityEvent;
-use quent_io::Exporter;
+use quent_io::ExporterProvider;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime};
@@ -144,11 +144,15 @@ impl Context {
         }
     }
 
-    /// Create an [`Observer`] of events of one *type* of entity `T` that
-    /// forwards to the supplied `exporter`.
+    /// Create an [`Observer`] of events of one *type* of entity `T`, building its
+    /// exporter from `provider` bound to this context's id.
+    ///
+    /// The exporter is constructed here (so construction errors surface through
+    /// this call) and only then moved into the spawned forwarder task. A noop
+    /// context builds no exporter.
     pub async fn observer<T>(
         &self,
-        exporter: Box<dyn Exporter<T>>,
+        provider: impl ExporterProvider<T>,
     ) -> Result<Observer<T>, Box<dyn std::error::Error>>
     where
         T: Send + EntityEvent + 'static,
@@ -156,6 +160,7 @@ impl Context {
         let Some(runtime) = self.runtime() else {
             return Ok(Observer::noop());
         };
+        let exporter = provider.create_exporter(self.id).await?;
         Ok(spawn_forwarder(runtime, exporter))
     }
 }

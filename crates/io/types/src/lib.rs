@@ -5,6 +5,7 @@
 
 use quent_events::Event;
 use thiserror::Error;
+use uuid::Uuid;
 
 /// A sink for one entity's event stream.
 ///
@@ -21,10 +22,12 @@ pub trait Exporter<T>: Send {
     async fn shutdown(self: Box<Self>) -> ExporterResult<()>;
 }
 
-/// Provides an exporter instance for `T`.
+/// Provides an exporter instance for `T` bound to `context_id` (the id of the
+/// context whose events it exports). Backends that do not scope by context, such
+/// as a callback, ignore it.
 #[async_trait::async_trait]
 pub trait ExporterProvider<T> {
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>>;
+    async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>>;
 }
 
 #[derive(Debug, Error)]

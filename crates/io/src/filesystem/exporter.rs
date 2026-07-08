@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use quent_events::EntityEvent;
-use quent_io_types::{Exporter, ExporterError, ExporterProvider, ExporterResult};
+use quent_io_types::{Exporter, ExporterProvider, ExporterResult};
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -16,29 +16,16 @@ use crate::filesystem::Format;
 pub struct Options {
     format: Format,
     root: PathBuf,
-    context_id: Uuid,
 }
 
 impl Options {
-    /// New options with an unset (nil) context id; set it with
-    /// [`Self::with_context_id`] before building an exporter.
     pub fn new(format: Format, root: PathBuf) -> Self {
-        Self {
-            format,
-            root,
-            context_id: Uuid::nil(),
-        }
-    }
-
-    /// Scope the output directory to the context `id`.
-    pub fn with_context_id(mut self, id: Uuid) -> Self {
-        self.context_id = id;
-        self
+        Self { format, root }
     }
 
     /// The per-context output directory, `root/<context_id>`.
-    pub(crate) fn dir(&self) -> PathBuf {
-        self.root.join(self.context_id.to_string())
+    pub(crate) fn dir(&self, context_id: Uuid) -> PathBuf {
+        self.root.join(context_id.to_string())
     }
 }
 
@@ -48,13 +35,8 @@ where
     T: Send + EntityEvent + 'static,
     T: Serialize,
 {
-    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
-        if self.context_id.is_nil() {
-            return Err(ExporterError::Other(
-                "filesystem exporter requires a context id; call `with_context_id` first".into(),
-            ));
-        }
-        let dir = self.dir();
+    async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
+        let dir = self.dir(context_id);
         match self.format {
             #[cfg(feature = "ndjson")]
             Format::Ndjson => Ok(Box::new(
