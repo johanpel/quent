@@ -9,7 +9,10 @@ updates:
       interval: "weekly"
   - cooldown:
       default-days: 14
-    directory: "/"
+    directories:
+      - "/ui"
+      - "/ui/examples/quent-pivot-table-panel"
+      - "/crates/schema/ts"
     open-pull-requests-limit: 5
     package-ecosystem: "npm"
     schedule:
