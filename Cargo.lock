@@ -2328,6 +2328,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-instrumentation-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-model"
 version = "0.1.0"
 dependencies = [

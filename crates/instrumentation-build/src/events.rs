@@ -116,8 +116,8 @@ mod tests {
                     list: Vec<String>,
                     rec: SomeRecord,
                     dynrec: ::quent_attributes::CustomAttributes,
-                    eref: ::quent_instrumentation_runtime::EntityRef,
-                    eref_payload: ::quent_instrumentation_runtime::EntityRef<u64>
+                    eref: ::quent_instrumentation_types::EntityRef,
+                    eref_payload: ::quent_instrumentation_types::EntityRef<u64>
                 }
             }
         };
@@ -217,7 +217,7 @@ mod tests {
             pub enum EEvent {
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
-                    eref_list: ::quent_instrumentation_runtime::EntityRef<Vec<String>>
+                    eref_list: ::quent_instrumentation_types::EntityRef<Vec<String>>
                 }
             }
         };

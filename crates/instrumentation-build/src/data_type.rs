@@ -57,9 +57,9 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
         DataType::EntityRef { data, .. } => match data {
             Some(inner) => {
                 let inner = map_data_type(inner, depth + 1);
-                quote! { ::quent_instrumentation_runtime::EntityRef<#inner> }
+                quote! { ::quent_instrumentation_types::EntityRef<#inner> }
             }
-            None => quote! { ::quent_instrumentation_runtime::EntityRef },
+            None => quote! { ::quent_instrumentation_types::EntityRef },
         },
     }
 }
