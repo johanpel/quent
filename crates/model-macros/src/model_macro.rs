@@ -330,7 +330,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                                 &resolved,
                                 <#name as quent_model::build_info::ModelSource>::model_info(),
                             );
-                            Self::build::<quent_model::exporter::OptionsExporterProvider>(id, resolved)
+                            Self::build(id, resolved)
                         }
                     }
                 }
@@ -488,30 +488,29 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
                 impl #context_type {
                     /// Build a context backed by a caller-supplied exporter
-                    /// provider `P`, from `P`'s options. Imposes only what `P`
-                    /// requires of each event type, so a non-serializing provider
-                    /// (e.g. `CallbackExporterProvider`) needs no `Serialize`.
+                    /// `provider`. Imposes only what `provider` requires of each
+                    /// event type, so a non-serializing provider (e.g.
+                    /// `CallbackExporterProvider`) needs no `Serialize`.
                     /// Same blocking and runtime restriction as the type docs.
                     pub fn try_with_provider<P>(
-                        options: <P as quent_model::exporter::ExporterConfig>::Options,
+                        provider: P,
                     ) -> Result<Self, Box<dyn std::error::Error>>
                     where
-                        P: quent_model::exporter::ExporterConfig
-                            #(+ quent_model::exporter::ExporterProvider<#event_types>)*,
+                        P: #(quent_model::exporter::ExporterProvider<#event_types> +)*,
                     {
-                        Self::build::<P>(quent_model::uuid::Uuid::now_v7(), options)
+                        Self::build(quent_model::uuid::Uuid::now_v7(), provider)
                     }
 
                     // The single sync/async bridge: on an active context, build
-                    // every entity's exporter (via `P`) and observer concurrently
-                    // on the runtime, block until all complete, and assemble.
+                    // every entity's exporter (via `provider`) and observer
+                    // concurrently on the runtime, block until all complete, and
+                    // assemble.
                     fn build<P>(
                         id: quent_model::uuid::Uuid,
-                        options: <P as quent_model::exporter::ExporterConfig>::Options,
+                        provider: P,
                     ) -> Result<Self, Box<dyn std::error::Error>>
                     where
-                        P: quent_model::exporter::ExporterConfig
-                            #(+ quent_model::exporter::ExporterProvider<#event_types>)*,
+                        P: #(quent_model::exporter::ExporterProvider<#event_types> +)*,
                     {
                         let inner = quent_model::Context::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
@@ -519,7 +518,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                                 #(
                                     async {
                                         let exporter = <P as quent_model::exporter::ExporterProvider<#event_types>>::create_exporter(
-                                            &options,
+                                            &provider,
                                         ).await?;
                                         inner.observer::<#event_types>(exporter).await
                                     },

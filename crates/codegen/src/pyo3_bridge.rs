@@ -733,7 +733,7 @@ fn emit_context(
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(
                                 #(async {
-                                    let exporter = <#q::exporter::OptionsExporterProvider as #q::exporter::ExporterProvider<#build_event_tys>>::create_exporter(
+                                    let exporter = <#q::exporter::ResolvedExporterOptions as #q::exporter::ExporterProvider<#build_event_tys>>::create_exporter(
                                         &resolved,
                                     )
                                     .await?;

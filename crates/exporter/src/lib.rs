@@ -6,13 +6,12 @@
 #[cfg(filesystem)]
 use std::path::PathBuf;
 
-#[cfg(any(filesystem, feature = "collector"))]
 use quent_events::EntityEvent;
 #[cfg(feature = "collector")]
 use quent_exporter_types::ExporterError;
 #[cfg(filesystem)]
 use quent_exporter_types::Importer;
-pub use quent_exporter_types::{Exporter, ExporterConfig, ExporterProvider, ExporterResult};
+pub use quent_exporter_types::{Exporter, ExporterProvider, ExporterResult};
 #[cfg(filesystem)]
 use serde::Deserialize;
 #[cfg(any(filesystem, feature = "collector"))]
@@ -220,25 +219,15 @@ where
     }
 }
 
-/// The options-driven default [`ExporterProvider`]: builds a serializing
-/// exporter (ndjson/msgpack/postcard/collector) from [`ResolvedExporterOptions`].
+/// Serializing exporter builder (ndjson/msgpack/postcard/collector) for
+/// filesystem/collector builds. Bounds `T: Serialize`.
 #[cfg(any(filesystem, feature = "collector"))]
-pub struct OptionsExporterProvider;
-
-#[cfg(any(filesystem, feature = "collector"))]
-impl ExporterConfig for OptionsExporterProvider {
-    type Options = ResolvedExporterOptions;
-}
-
-#[cfg(any(filesystem, feature = "collector"))]
-impl<T> ExporterProvider<T> for OptionsExporterProvider
+impl<T> ExporterProvider<T> for ResolvedExporterOptions
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
-    async fn create_exporter(
-        options: &ResolvedExporterOptions,
-    ) -> ExporterResult<Box<dyn Exporter<T>>> {
-        match options {
+    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+        match self {
             #[cfg(filesystem)]
             ResolvedExporterOptions::FileSystem(FileSystemExporterOptions { format, root }) => {
                 match format {
@@ -277,6 +266,23 @@ where
                 .await
                 .map_err(ExporterError::Other)?,
             ) as Box<dyn Exporter<T>>),
+            #[cfg(feature = "callback")]
+            ResolvedExporterOptions::Callback(callback) => {
+                Ok(Box::new(CallbackExporter::new(callback.clone())) as Box<dyn Exporter<T>>)
+            }
+        }
+    }
+}
+
+/// Non-serializing exporter builder for callback-only builds (serde absent).
+/// Imposes no `Serialize` bound.
+#[cfg(not(any(filesystem, feature = "collector")))]
+impl<T> ExporterProvider<T> for ResolvedExporterOptions
+where
+    T: Send + EntityEvent + 'static,
+{
+    async fn create_exporter(&self) -> ExporterResult<Box<dyn Exporter<T>>> {
+        match self {
             #[cfg(feature = "callback")]
             ResolvedExporterOptions::Callback(callback) => {
                 Ok(Box::new(CallbackExporter::new(callback.clone())) as Box<dyn Exporter<T>>)

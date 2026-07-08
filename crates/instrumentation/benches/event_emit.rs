@@ -27,7 +27,7 @@ use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{
     CollectorExporterOptions, ExporterOptions, ExporterProvider, FileSystemExporterOptions,
-    FileSystemFormat, OptionsExporterProvider,
+    FileSystemFormat, ResolvedExporterOptions,
 };
 use quent_instrumentation::{Context, Observer, write_sidecar};
 use serde::{Deserialize, Serialize};
@@ -59,7 +59,7 @@ fn build_observer(
     write_sidecar(&resolved, ModelInfo::unknown());
     let observer = ctx.block_on(async {
         let exporter =
-            <OptionsExporterProvider as ExporterProvider<BenchEvent>>::create_exporter(&resolved)
+            <ResolvedExporterOptions as ExporterProvider<BenchEvent>>::create_exporter(&resolved)
                 .await?;
         ctx.observer::<BenchEvent>(exporter).await
     })?;

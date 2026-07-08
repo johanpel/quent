@@ -17,7 +17,7 @@ use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, ExporterProvider, OptionsExporterProvider,
+    CollectorExporterOptions, ExporterOptions, ExporterProvider, ResolvedExporterOptions,
 };
 use quent_instrumentation::Context;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -89,7 +89,7 @@ fn collector_client_flushes_all_events_on_drop() {
         let observer = ctx
             .block_on(async {
                 let exporter =
-                    <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(
+                    <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
                         &resolved,
                     )
                     .await?;

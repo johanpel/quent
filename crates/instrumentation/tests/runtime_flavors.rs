@@ -13,7 +13,7 @@ use common::{TestEvent, TestModel};
 use quent_build_info::ModelSource;
 use quent_exporter::{
     ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
-    OptionsExporterProvider, ResolvedExporterOptions,
+    ResolvedExporterOptions,
 };
 use quent_instrumentation::{Context, Observer, write_sidecar};
 use uuid::Uuid;
@@ -40,7 +40,7 @@ fn active(root: &Path) -> (Context, ResolvedExporterOptions, Uuid) {
 fn build(ctx: &Context, resolved: &ResolvedExporterOptions) -> Observer<TestEvent> {
     ctx.block_on(async {
         let exporter =
-            <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(resolved)
+            <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(resolved)
                 .await?;
         ctx.observer::<TestEvent>(exporter).await
     })

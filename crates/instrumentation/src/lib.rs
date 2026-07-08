@@ -22,7 +22,7 @@ mod tests {
     use quent_events::{EntityEvent, Event};
     use quent_exporter::{
         ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
-        OptionsExporterProvider,
+        ResolvedExporterOptions,
     };
     use uuid::Uuid;
 
@@ -62,7 +62,7 @@ mod tests {
             let observer = ctx
                 .block_on(async {
                     let exporter =
-                        <OptionsExporterProvider as ExporterProvider<TestEvent>>::create_exporter(
+                        <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
                             &resolved,
                         )
                         .await?;
