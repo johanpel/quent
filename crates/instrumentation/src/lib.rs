@@ -20,7 +20,7 @@ mod tests {
     use super::*;
     use quent_build_info::ModelSource;
     use quent_events::{EntityEvent, Event};
-    use quent_exporter::{
+    use quent_io::{
         ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
         ResolvedExporterOptions,
     };

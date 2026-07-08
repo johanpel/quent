@@ -10,16 +10,14 @@ mod common;
 use std::path::Path;
 
 use common::TestEvent;
-use quent_exporter::{
-    ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
-    ResolvedExporterOptions,
-};
+use quent_io::filesystem::{self, Format};
+use quent_io::{ExporterOptions, ExporterProvider, ResolvedExporterOptions};
 use quent_instrumentation::{Context, Observer};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
-    ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemFormat::Ndjson,
+    ExporterOptions::FileSystem(filesystem::exporter::Options {
+        format: Format::Ndjson,
         root: root.to_path_buf(),
     })
 }

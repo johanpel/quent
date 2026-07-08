@@ -61,7 +61,7 @@ fn cargo_toml(spec: &ViewerSpec) -> String {
         ),
         (
             // All formats enabled so the analyzer can detect the artifact's format at runtime.
-            "quent-exporter".to_string(),
+            "quent-io".to_string(),
             git_dep(quent, q_rev, &["ndjson", "msgpack", "postcard"]),
         ),
         (
@@ -182,7 +182,7 @@ mod tests {
         assert_eq!(server["rev"].as_str().unwrap(), "quentcommit");
         assert_eq!(server["features"][0].as_str().unwrap(), "ui");
         // The exporter enables all formats so the analyzer detects the artifact's format at runtime.
-        let exporter_features = deps["quent-exporter"]["features"].as_array().unwrap();
+        let exporter_features = deps["quent-io"]["features"].as_array().unwrap();
         for format in ["ndjson", "msgpack", "postcard"] {
             assert!(exporter_features.iter().any(|f| f.as_str() == Some(format)));
         }

@@ -25,9 +25,9 @@ use quent_build_info::ModelInfo;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, ExporterProvider, FileSystemExporterOptions,
-    FileSystemFormat, ResolvedExporterOptions,
+use quent_io::filesystem::{self, Format};
+use quent_io::{
+    CollectorExporterOptions, ExporterOptions, ExporterProvider, ResolvedExporterOptions,
 };
 use quent_instrumentation::{Context, Observer, write_sidecar};
 use serde::{Deserialize, Serialize};
@@ -107,8 +107,8 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<http::Uri> {
     let address: http::Uri = format!("http://{}", std_listener.local_addr()?).parse()?;
     std_listener.set_nonblocking(true)?;
 
-    let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemFormat::Ndjson,
+    let backing = ExporterOptions::FileSystem(filesystem::exporter::Options {
+        format: Format::Ndjson,
         root: backing_dir.to_path_buf(),
     });
 
@@ -174,24 +174,24 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
+        Some(ExporterOptions::FileSystem(filesystem::exporter::Options {
+            format: Format::Ndjson,
             root: ndjson_dir.path().to_path_buf(),
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Msgpack,
+        Some(ExporterOptions::FileSystem(filesystem::exporter::Options {
+            format: Format::Msgpack,
             root: msgpack_dir.path().to_path_buf(),
         })),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Postcard,
+        Some(ExporterOptions::FileSystem(filesystem::exporter::Options {
+            format: Format::Postcard,
             root: postcard_dir.path().to_path_buf(),
         })),
     )?;
@@ -200,6 +200,7 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
         "collector",
         Some(ExporterOptions::Collector(CollectorExporterOptions {
             address: collector_address,
+            ..Default::default()
         })),
     )?;
 

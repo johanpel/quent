@@ -5,7 +5,7 @@
 
 use crate::context::{BackendRuntime, drive};
 use quent_events::{EntityEvent, Event};
-use quent_exporter::Exporter;
+use quent_io::Exporter;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},

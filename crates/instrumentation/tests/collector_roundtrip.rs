@@ -16,7 +16,7 @@ use common::TestEvent;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{
+use quent_io::{
     CollectorExporterOptions, ExporterOptions, ExporterProvider, ResolvedExporterOptions,
 };
 use quent_instrumentation::Context;
@@ -84,7 +84,11 @@ fn collector_client_flushes_all_events_on_drop() {
     // A plain sync client (no ambient runtime); the context spawns its own.
     let id = Uuid::now_v7();
     let ctx = Context::try_new(id).unwrap();
-    let resolved = ExporterOptions::Collector(CollectorExporterOptions { address }).resolve(id);
+    let resolved = ExporterOptions::Collector(CollectorExporterOptions {
+        address,
+        ..Default::default()
+    })
+    .resolve(id);
     {
         let observer = ctx
             .block_on(async {

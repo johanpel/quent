@@ -8,7 +8,7 @@
 use std::{io::BufReader, marker::PhantomData, path::PathBuf};
 
 use quent_events::{EntityEvent, Event};
-use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -91,7 +91,7 @@ pub struct PostcardImporter<T> {
 
 impl<T> PostcardImporter<T> {
     pub fn try_new(options: &PostcardImporterOptions) -> ImporterResult<Self> {
-        let path = quent_exporter_types::resolve_import_path(&options.path, "postcard")?;
+        let path = quent_io_types::resolve_import_path(&options.path, "postcard")?;
         let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),

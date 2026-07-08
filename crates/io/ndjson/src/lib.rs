@@ -9,7 +9,7 @@ use std::{
 };
 
 use quent_events::{EntityEvent, Event};
-use quent_exporter_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -95,7 +95,7 @@ pub struct NdjsonImporter<T> {
 
 impl<T> NdjsonImporter<T> {
     pub fn try_new(options: &NdjsonImporterOptions) -> ImporterResult<Self> {
-        let path = quent_exporter_types::resolve_import_path(&options.path, "ndjson")?;
+        let path = quent_io_types::resolve_import_path(&options.path, "ndjson")?;
         let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),

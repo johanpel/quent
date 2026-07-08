@@ -698,9 +698,9 @@ fn emit_context(
                 output_dir: Option<String>,
             ) -> PyResult<Self> {
                 let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::exporter::ExporterOptions::FileSystem(
-                        #q::exporter::FileSystemExporterOptions {
-                            format: #q::exporter::FileSystemFormat::Ndjson,
+                    Some("ndjson") => Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options {
+                            format: #q::io::filesystem::Format::Ndjson,
                             root: std::path::PathBuf::from(
                                 output_dir.unwrap_or_else(|| ".".to_string()),
                             ),
@@ -733,7 +733,7 @@ fn emit_context(
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(
                                 #(async {
-                                    let exporter = <#q::exporter::ResolvedExporterOptions as #q::exporter::ExporterProvider<#build_event_tys>>::create_exporter(
+                                    let exporter = <#q::io::ResolvedExporterOptions as #q::io::ExporterProvider<#build_event_tys>>::create_exporter(
                                         &resolved,
                                     )
                                     .await?;

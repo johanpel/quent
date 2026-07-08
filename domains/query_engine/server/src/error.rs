@@ -3,7 +3,7 @@
 
 use axum::{http::StatusCode, response::IntoResponse};
 use quent_analyzer::AnalyzerError;
-use quent_exporter_types::ImporterError;
+use quent_io::ImporterError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
