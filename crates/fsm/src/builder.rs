@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_constraints::utils::collapse;
 use quent_schema::{Entity, Identifier};
 
 use crate::{ExitStates, Fsm, FsmError, Transition, check_entity};
@@ -54,10 +55,7 @@ impl<'a> FsmBuilder<'a> {
         };
         let mut errors = Vec::new();
         check_entity(self.entity, &fsm, &mut errors);
-        match errors.len() {
-            0 => Ok(fsm),
-            1 => Err(errors.pop().unwrap()),
-            _ => Err(FsmError::Multiple(errors)),
-        }
+        collapse(errors, FsmError::Multiple)?;
+        Ok(fsm)
     }
 }

@@ -3,7 +3,10 @@
 
 //! Constraint for entity reference restricting the type of entity it can point to.
 
-use quent_constraints::{Constraint, utils::bullet_list};
+use quent_constraints::{
+    Constraint,
+    utils::{bullet_list, collapse},
+};
 use quent_schema::{
     Annotations, DataType, Identifier,
     visitor::{Cursor, Element, Visitor},
@@ -80,11 +83,7 @@ impl Visitor for RefTargetConstraint {
     }
 
     fn finish(self) -> Self::Output {
-        match self.errors.len() {
-            0 => Ok(()),
-            1 => Err(self.errors.into_iter().next().unwrap()),
-            _ => Err(RefTargetError::Multiple(self.errors)),
-        }
+        collapse(self.errors, RefTargetError::Multiple)
     }
 }
 

@@ -68,6 +68,7 @@ impl Error for BaseConstraintsError {}
 
 /// The outcome of [`validate`].
 #[derive(Debug)]
+#[must_use]
 pub struct Report<R> {
     /// The result of validating base constraints.
     pub base_constraints: Result<(), BaseConstraintsError>,

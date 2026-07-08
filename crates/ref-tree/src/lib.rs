@@ -12,7 +12,10 @@ use petgraph::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use thiserror::Error;
 
-use quent_constraints::{Constraint, utils::bullet_list};
+use quent_constraints::{
+    Constraint,
+    utils::{bullet_list, collapse},
+};
 use quent_ref_target::RefTarget;
 use quent_schema::{
     DataType, Identifier,
@@ -228,11 +231,7 @@ impl Visitor for RefTreeConstraint {
             check_events(&graph, &mut errors);
             check_tree(&graph, &index, &entities, &mut errors);
         }
-        match errors.len() {
-            0 => Ok(()),
-            1 => Err(errors.pop().unwrap()),
-            _ => Err(RefTreeError::Multiple(errors)),
-        }
+        collapse(errors, RefTreeError::Multiple)
     }
 }
 
