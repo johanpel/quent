@@ -6,7 +6,6 @@ publish.workspace = true
 
 [features]
 default = ["ndjson", "msgpack", "postcard", "collector"]
-# The serializing exporters pull in serde; callback does not.
 ndjson = ["dep:quent-exporter-ndjson", "dep:serde"]
 msgpack = ["dep:quent-exporter-msgpack", "dep:serde"]
 postcard = ["dep:quent-exporter-postcard", "dep:serde"]
@@ -16,6 +15,7 @@ clap = ["dep:clap", "dep:http"]
 callback = ["dep:quent-exporter-callback"]
 
 [dependencies]
+async-trait.workspace = true
 clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
 http = { workspace = true, optional = true }
 quent-events = { path = "../events" }

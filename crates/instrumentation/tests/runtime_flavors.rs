@@ -9,13 +9,12 @@ mod common;
 
 use std::path::Path;
 
-use common::{TestEvent, TestModel};
-use quent_build_info::ModelSource;
+use common::TestEvent;
 use quent_exporter::{
     ExporterOptions, ExporterProvider, FileSystemExporterOptions, FileSystemFormat,
     ResolvedExporterOptions,
 };
-use quent_instrumentation::{Context, Observer, write_sidecar};
+use quent_instrumentation::{Context, Observer};
 use uuid::Uuid;
 
 fn fs_opts(root: &Path) -> ExporterOptions {
@@ -25,23 +24,23 @@ fn fs_opts(root: &Path) -> ExporterOptions {
     })
 }
 
-/// Build an active context for `root` and write its provenance sidecar,
-/// mirroring what a generated `{App}Context::try_new` does.
+/// Build an active context for `root`, mirroring what a generated
+/// `{App}Context::try_new` does (minus sidecar write).
 fn active(root: &Path) -> (Context, ResolvedExporterOptions, Uuid) {
     let id = Uuid::now_v7();
     let ctx = Context::try_new(id).unwrap();
-    let resolved = fs_opts(root).resolve(id);
-    write_sidecar(&resolved, TestModel::model_info());
-    (ctx, resolved, id)
+    let exporter_opts = fs_opts(root).resolve(id);
+    (ctx, exporter_opts, id)
 }
 
 /// Build an observer through the one bridge: construct the exporter, then host
 /// it on the context's runtime.
-fn build(ctx: &Context, resolved: &ResolvedExporterOptions) -> Observer<TestEvent> {
+fn build(ctx: &Context, exporter_opts: &ResolvedExporterOptions) -> Observer<TestEvent> {
     ctx.block_on(async {
-        let exporter =
-            <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(resolved)
-                .await?;
+        let exporter = <ResolvedExporterOptions as ExporterProvider<TestEvent>>::create_exporter(
+            exporter_opts,
+        )
+        .await?;
         ctx.observer::<TestEvent>(exporter).await
     })
     .unwrap()
@@ -72,9 +71,9 @@ fn assert_flushed(root: &Path, id: Uuid) {
 #[test]
 fn plain_sync_app() {
     let dir = tempfile::tempdir().unwrap();
-    let (ctx, resolved, id) = active(dir.path());
+    let (ctx, exporter_opts, id) = active(dir.path());
     {
-        let observer = build(&ctx, &resolved);
+        let observer = build(&ctx, &exporter_opts);
         observer.emit(Uuid::now_v7(), TestEvent);
     } // observer dropped on this non-runtime thread -> blocking flush
     assert_flushed(dir.path(), id);
@@ -85,9 +84,9 @@ fn plain_sync_app() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn tokio_main_multi_thread() {
     let dir = tempfile::tempdir().unwrap();
-    let (ctx, resolved, id) = active(dir.path());
+    let (ctx, exporter_opts, id) = active(dir.path());
     {
-        let observer = build(&ctx, &resolved);
+        let observer = build(&ctx, &exporter_opts);
         observer.emit(Uuid::now_v7(), TestEvent);
     } // observer dropped on a worker thread -> block_in_place flush
     assert_flushed(dir.path(), id);
@@ -100,8 +99,8 @@ async fn tokio_main_multi_thread() {
 #[should_panic]
 async fn current_thread_runtime_panics() {
     let dir = tempfile::tempdir().unwrap();
-    let (ctx, resolved, _id) = active(dir.path());
-    let _ = build(&ctx, &resolved);
+    let (ctx, exporter_opts, _id) = active(dir.path());
+    let _ = build(&ctx, &exporter_opts);
 }
 
 /// App that builds and manages its own runtime and runs everything inside it.
@@ -114,8 +113,8 @@ fn self_managed_runtime() {
         .build()
         .unwrap();
     let id = rt.block_on(async {
-        let (ctx, resolved, id) = active(dir.path());
-        let observer = build(&ctx, &resolved);
+        let (ctx, exporter_opts, id) = active(dir.path());
+        let observer = build(&ctx, &exporter_opts);
         observer.emit(Uuid::now_v7(), TestEvent);
         drop(observer); // flush on a worker of `rt`
         id
@@ -129,8 +128,8 @@ fn self_managed_runtime() {
 #[test]
 fn owned_runtime_observer_dropped_in_another_runtime() {
     let dir = tempfile::tempdir().unwrap();
-    let (ctx, resolved, id) = active(dir.path());
-    let observer = build(&ctx, &resolved);
+    let (ctx, exporter_opts, id) = active(dir.path());
+    let observer = build(&ctx, &exporter_opts);
     observer.emit(Uuid::now_v7(), TestEvent);
     drop(ctx); // observer now solely keeps the owned runtime alive
 

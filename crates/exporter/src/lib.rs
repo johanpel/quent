@@ -219,9 +219,9 @@ where
     }
 }
 
-/// Serializing exporter builder (ndjson/msgpack/postcard/collector) for
-/// filesystem/collector builds. Bounds `T: Serialize`.
+// Exporter providers when any serde-bound exporter is enabled.
 #[cfg(any(filesystem, feature = "collector"))]
+#[async_trait::async_trait]
 impl<T> ExporterProvider<T> for ResolvedExporterOptions
 where
     T: Serialize + Send + EntityEvent + 'static,
@@ -274,9 +274,9 @@ where
     }
 }
 
-/// Non-serializing exporter builder for callback-only builds (serde absent).
-/// Imposes no `Serialize` bound.
+// Exporter providers when no serde-bound exporters are enabled.
 #[cfg(not(any(filesystem, feature = "collector")))]
+#[async_trait::async_trait]
 impl<T> ExporterProvider<T> for ResolvedExporterOptions
 where
     T: Send + EntityEvent + 'static,

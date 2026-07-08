@@ -81,12 +81,8 @@ where
 
 pub trait Importer<T>: Iterator<Item = Event<T>> {}
 
-/// Builds the exporter backing entity stream `T`.
-///
-/// A provider that builds serializing exporters bounds `T: Serialize` in its
-/// impl; one that does not imposes nothing, lifting `Serialize` off
-/// non-serializing event types.
-#[allow(async_fn_in_trait)] // the future is awaited in place during construction, never spawned
+/// Trait for types that can provide an exporter backing entity stream `T`.
+#[async_trait::async_trait]
 pub trait ExporterProvider<T>
 where
     T: Send + EntityEvent + 'static,

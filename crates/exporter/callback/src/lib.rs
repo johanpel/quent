@@ -63,9 +63,10 @@ where
     }
 }
 
-/// [`ExporterProvider`] for non-serializing export via a callback.
+/// [`ExporterProvider`] for export via a callback fired per event.
 pub struct CallbackExporterProvider(pub EventCallback);
 
+#[async_trait::async_trait]
 impl<T> ExporterProvider<T> for CallbackExporterProvider
 where
     T: Send + EntityEvent + 'static,
