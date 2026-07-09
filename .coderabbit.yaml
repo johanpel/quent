@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+reviews:
+  profile: chill
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "^main$"
+    ignore_usernames: ["rapids-bot", "copy-pr-bot", "dependabot[bot]"]
+  tools:
+    # Markdown is linted in CI via `rumdl fmt` (.rumdl.toml).
+    markdownlint:
+      enabled: false
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+  sequence_diagrams: false
+  collapse_walkthrough: true
+
+  # Reduce noise from status messages
+  request_changes_workflow: false
+  review_status: false
+
+  path_instructions:
+    - path: "crates/**/*.rs"
+      instructions: |
+        For Rust changes:
+        - Flag unwrap/expect/panic on caller-reachable paths; prefer Result propagation.
+        - Check docstrings state the contract, not the mechanism; no restating types.
+        - Verify no new clippy-triggering patterns (needless clone, redundant lifetimes).
+        - Check pub API changes are reflected in docs and CONTRIBUTING where relevant.
+    - path: "ui/**/*.{ts,tsx}"
+      instructions: |
+        For the TypeScript/React UI:
+        - Verify types match the generated schema bindings; flag any `any`.
+        - Check hook dependency arrays and cleanup of subscriptions/effects.
+    - path: "proto/**/*"
+      instructions: |
+        For protobuf: flag field-number reuse and breaking wire changes.
+    - path: "docs/**/*"
+      instructions: |
+        For docs: verify examples match current API; new pages are linked in SUMMARY.md.
+    - path: ".github/workflows/**/*"
+      instructions: |
+        For CI workflows: check for unpinned actions and shell-injection in run steps.
+
+knowledge_base:
+  opt_out: false
+  code_guidelines:
+    filePatterns:
+      - "CONTRIBUTING.md"
