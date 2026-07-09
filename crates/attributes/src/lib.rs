@@ -3,8 +3,10 @@
 
 //! Support for custom attributes defined at run-time.
 
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+#[cfg(feature = "ts")]
 use ts_rs::TS;
 
 /// Error type for Value conversions.
@@ -15,12 +17,15 @@ pub enum ValueError {
 }
 
 /// A group of [`Attribute`]s.
-#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "ts", derive(TS))]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Struct(pub Vec<Attribute>);
 
 /// A sequence of [`Value`]s.
-#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[ts(untagged)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "ts", derive(TS), ts(untagged))]
+#[derive(Clone, Debug, PartialEq)]
 pub enum List {
     U8(Vec<u8>),
     U16(Vec<u16>),
@@ -37,8 +42,9 @@ pub enum List {
 }
 
 /// An [`Attribute`] value.
-#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
-#[ts(untagged)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "ts", derive(TS), ts(untagged))]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     U8(u8),
     U16(u16),
@@ -56,7 +62,9 @@ pub enum Value {
 }
 
 /// A key-value pair.
-#[derive(TS, Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "ts", derive(TS))]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
     pub key: String,
     pub value: Option<Value>,
@@ -180,8 +188,8 @@ impl Attribute {
 ///
 /// Used in model definitions for fields that carry arbitrary runtime metadata.
 /// The CXX bridge codegen emits this as a shared struct with typed vectors.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[serde(transparent)]
+#[derive(Clone, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
 pub struct CustomAttributes(pub Vec<Attribute>);
 
 impl CustomAttributes {

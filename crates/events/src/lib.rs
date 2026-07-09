@@ -4,10 +4,9 @@
 //! Type definitions of entity events.
 
 use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-pub mod trace;
 
 /// Trait for the event type of an entity.
 pub trait EntityEvent {
@@ -15,7 +14,7 @@ pub trait EntityEvent {
     const NAME: &'static str;
 }
 
-#[derive(Deserialize, Serialize)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Event<T> {
     /// The ID of the entity producing this event.
     pub id: Uuid,
