@@ -9,9 +9,9 @@ quent-schema = { path = "../schema", features = ["serde"] }
 quent-constraints = { path = "../constraints" }
 quent-ref-target = { path = "../ref-target" }
 petgraph = { workspace = true }
-serde_json.workspace = true
 thiserror.workspace = true
 rustc-hash = { workspace = true }
 
 [dev-dependencies]
 quent-schema = { path = "../schema", features = ["test-utils"] }
+serde_json.workspace = true

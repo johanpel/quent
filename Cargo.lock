@@ -2256,7 +2256,6 @@ dependencies = [
  "async-trait",
  "quent-events",
  "quent-io-types",
- "serde",
  "tokio",
  "uuid",
 ]
@@ -2663,7 +2662,6 @@ name = "quent-stdlib"
 version = "0.1.0"
 dependencies = [
  "quent-model",
- "serde",
  "uuid",
 ]
 
