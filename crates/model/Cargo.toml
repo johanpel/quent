@@ -19,7 +19,6 @@ collector = ["dep:quent-collector-client"]
 quent-collector-client = { path = "../collector/client", optional = true }
 uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
-ciborium = "0.2.2"
 quent-attributes = { path = "../attributes" }
 quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }

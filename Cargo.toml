@@ -111,6 +111,7 @@ repository = "https://github.com/rapidsai/quent"
 
 [workspace.dependencies]
 async-trait = "0.1.89"
+bitcode = { version = "0.6.9", features = ["serde"] }
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
