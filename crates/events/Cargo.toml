@@ -10,6 +10,5 @@ serde = ["dep:serde"]
 
 [dependencies]
 quent-time = { path = "../time" }
-quent-attributes = { path = "../attributes" }
 uuid = { workspace = true, features = ["serde"] }
 serde = { workspace = true, optional = true }
