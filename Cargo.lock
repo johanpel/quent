@@ -2536,8 +2536,6 @@ version = "0.1.0"
 dependencies = [
  "quent-constraints",
  "quent-schema",
- "serde",
- "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -2550,7 +2548,6 @@ dependencies = [
  "quent-ref-target",
  "quent-schema",
  "rustc-hash",
- "serde_json",
  "thiserror 2.0.18",
 ]
 

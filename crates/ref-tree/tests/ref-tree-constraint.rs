@@ -23,13 +23,12 @@ fn tree_ref() -> DataType {
 
 /// A tree-forming reference restricted to a specific parent entity type.
 fn tree_ref_to(target: &str) -> DataType {
-    let data = serde_json::to_string(&ident(target)).unwrap();
     DataType::EntityRef {
         data: None,
         annotations: AnnotationsBuilder::new()
             .constraint(RefTreeConstraint::NAME, None)
             .unwrap()
-            .constraint(RefTargetConstraint::NAME, Some(data))
+            .constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
             .unwrap()
             .build(),
     }

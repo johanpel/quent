@@ -12,7 +12,7 @@ use quent_schema::{
 // RefTarget is a transparent newtype over Identifier, so the wire format is just
 // the bare entity name.
 fn target_data(target: &str) -> String {
-    serde_json::to_string(&ident(target)).unwrap()
+    ident(target).to_string()
 }
 
 fn ref_with(data: Option<String>) -> DataType {
