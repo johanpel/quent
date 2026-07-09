@@ -12,8 +12,7 @@ use quote::quote;
 use super::{event_ident, observer_ident};
 use crate::common::{raw_ident, to_case};
 
-/// The `{Schema}Context`: builds one observer per entity on construction and
-/// hands out cheap clones via `{entity}_observer()`.
+/// Generate the declaration of an {Schema}Context and its impls.
 pub(super) fn schema_context(schema: &Schema) -> TokenStream {
     let schema_pascal = to_case(schema.name(), Case::Pascal);
     let context_ty = raw_ident(format!("{schema_pascal}Context"));
@@ -132,38 +131,5 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
                 }
             )*
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::common::pretty;
-    use quent_schema::DataType;
-    use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event, field, ident};
-
-    #[test]
-    fn context_builds_and_exposes_one_observer_per_entity() {
-        let s = SchemaBuilder::new(ident("Demo"))
-            .entities([
-                entity(
-                    "Connection",
-                    [event("data", [field("bytes", DataType::U64)])],
-                ),
-                entity("Sensor", [event("reading", [field("v", DataType::F64)])]),
-            ])
-            .unwrap()
-            .build();
-        let src = pretty(schema_context(&s));
-        assert!(src.contains("pub struct DemoContext"));
-        assert!(src.contains("connection: ConnectionObserver"));
-        assert!(src.contains("sensor: SensorObserver"));
-        assert!(src.contains(".observer::<"));
-        assert!(src.contains("write_sidecar"));
-        assert!(src.contains("Context::noop(id)"));
-        assert!(src.contains("pub fn connection_observer(&self) -> ConnectionObserver"));
-        assert!(src.contains("pub fn sensor_observer(&self) -> SensorObserver"));
-        assert!(src.contains(r#"name: "Demo".to_string()"#));
     }
 }

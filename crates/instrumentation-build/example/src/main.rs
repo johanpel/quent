@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     conn.closed()?;
 
     // Emitting a once-event a second time fails.
+    assert!(conn.closed_emitted());
     assert!(conn.closed().is_err());
 
     Ok(())

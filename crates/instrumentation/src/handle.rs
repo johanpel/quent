@@ -78,4 +78,11 @@ impl<E> Handle<E> {
         self.observer.emit(self.id, event);
         Ok(())
     }
+
+    /// Whether the once-cardinality event tracked by `INDEX` has already been
+    /// emitted for this instance.
+    pub fn is_emitted<const INDEX: u32>(&self) -> bool {
+        const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
+        self.once_flags & (1u64 << INDEX) != 0
+    }
 }

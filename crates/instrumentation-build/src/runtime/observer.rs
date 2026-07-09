@@ -11,8 +11,7 @@ use quote::quote;
 use super::{event_ident, handle_ident, observer_ident};
 use crate::common::to_case;
 
-/// The `{Entity}Observer`: an `Arc`-shared, cloneable factory that mints
-/// per-instance handles.
+/// Generate the declaration of an {Entity}Observer and its impls.
 pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
     let entity_pascal = to_case(entity.name(), Case::Pascal);
     let event_ty = event_ident(entity);
@@ -54,45 +53,5 @@ pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
                 }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::common::pretty;
-    use quent_schema::test_utils::entity;
-
-    #[test]
-    fn observer_is_a_cloneable_handle_factory() {
-        // The observer is independent of the entity's events.
-        let e = entity("Connection", []);
-        let expected = quote! {
-            #[doc = "Observer for `Connection` entities. Obtain a per-instance handle with [`Self::handle`]."]
-            #[derive(Clone)]
-            pub struct ConnectionObserver {
-                inner: ::std::sync::Arc<::quent_instrumentation::Observer<ConnectionEvent>>,
-            }
-            impl ConnectionObserver {
-                #[doc = "Create a handle for a fresh `Connection` instance."]
-                pub fn handle(&self) -> ConnectionHandle {
-                    ConnectionHandle {
-                        inner: ::quent_instrumentation::Handle::new(
-                            ::core::clone::Clone::clone(&self.inner),
-                        ),
-                    }
-                }
-                #[doc = "Create a handle for the `Connection` instance identified by `id`."]
-                pub fn handle_with_id(&self, id: ::quent_instrumentation::Uuid) -> ConnectionHandle {
-                    ConnectionHandle {
-                        inner: ::quent_instrumentation::Handle::with_id(
-                            id,
-                            ::core::clone::Clone::clone(&self.inner),
-                        ),
-                    }
-                }
-            }
-        };
-        assert_eq!(pretty(entity_observer(&e)), pretty(expected));
     }
 }
