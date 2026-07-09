@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-instance emit surface over a shared observer.
+//! A per-entity instance handle forwarding events to the observer's event
+//! pipeline.
 
 use std::sync::Arc;
 
@@ -11,7 +12,7 @@ use crate::observer::Observer;
 
 /// An error from emitting through a [`Handle`].
 #[derive(Debug, thiserror::Error)]
-pub enum ObserverError {
+pub enum HandleError {
     /// A once-cardinality event was emitted more than once for one entity
     /// instance.
     #[error("once-event `{event}` already emitted for this entity instance")]
@@ -21,12 +22,11 @@ pub enum ObserverError {
     },
 }
 
-/// A handle to one entity instance: emits that instance's events through a
-/// shared [`Observer`], enforcing once-cardinality events at most once.
+/// A handle to one entity instance.
 ///
-/// Holds a shared reference to the observer's export pipeline, keeping it alive
-/// while any handle does. Not `Clone`: the once-emit state is unique to one
-/// instance, so a clone could re-emit a once-event.
+/// Exports this instance's events through an [`Observer`] shared with other
+/// handles.
+/// Enforces once-cardinality events are sent at most once.
 #[doc(hidden)]
 pub struct Handle<E> {
     id: Uuid,
@@ -36,7 +36,7 @@ pub struct Handle<E> {
 }
 
 impl<E> Handle<E> {
-    /// Create a handle for a fresh entity instance, with a generated id.
+    /// Create a handle for a new entity instance, with a generated id.
     pub fn new(observer: Arc<Observer<E>>) -> Self {
         Self::with_id(Uuid::now_v7(), observer)
     }
@@ -60,20 +60,19 @@ impl<E> Handle<E> {
         self.observer.emit(self.id, event);
     }
 
-    /// Emit a once-cardinality event, tracked by its `bit` index.
+    /// Emit a once-cardinality event.
     ///
-    /// Returns [`ObserverError::OnceAlreadyEmitted`] if this handle already
-    /// emitted the event; otherwise records and emits it. `bit` must be below
-    /// 64.
-    pub fn emit_once(
+    /// Returns [`HandleError::OnceAlreadyEmitted`] if this handle previously
+    /// emitted an event with the same `INDEX`.
+    pub fn emit_once<const INDEX: u32>(
         &mut self,
-        bit: u32,
         event_name: &'static str,
         event: E,
-    ) -> Result<(), ObserverError> {
-        let mask = 1u64 << bit;
+    ) -> Result<(), HandleError> {
+        const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
+        let mask = 1u64 << INDEX;
         if self.once_flags & mask != 0 {
-            return Err(ObserverError::OnceAlreadyEmitted { event: event_name });
+            return Err(HandleError::OnceAlreadyEmitted { event: event_name });
         }
         self.once_flags |= mask;
         self.observer.emit(self.id, event);

@@ -9,11 +9,10 @@ use uuid::Uuid;
 /// payload data `T`.
 ///
 /// Placeholder backing the schema generator's `DataType::EntityRef` fields.
-// TODO(johanpel): flesh out ref-target semantics (see `quent.ref-target.v1`).
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct EntityRef<T = ()> {
-    /// Id of the referenced entity instance.
+    /// Identifier of the referenced entity instance.
     pub target: Uuid,
     /// Payload carried alongside the reference.
     pub data: T,

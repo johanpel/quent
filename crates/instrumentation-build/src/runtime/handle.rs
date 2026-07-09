@@ -91,8 +91,8 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                         pub fn #method(
                             &mut self,
                             #(#params),*
-                        ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
-                            self.inner.emit_once(#bit, #event_name, #construct)
+                        ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                            self.inner.emit_once::<#bit>(#event_name, #construct)
                         }
                     }
                 }
@@ -101,7 +101,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                     pub fn #method(
                         &self,
                         #(#params),*
-                    ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
+                    ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
                         self.inner.emit(#construct);
                         ::core::result::Result::Ok(())
                     }
@@ -194,22 +194,22 @@ mod tests {
                     &mut self,
                     peer: String,
                     port: u16,
-                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
-                    self.inner.emit_once(0, "opened", ConnectionEvent::Opened { peer, port })
+                ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                    self.inner.emit_once::<0>("opened", ConnectionEvent::Opened { peer, port })
                 }
                 #[doc = "Emit a `data` event for this instance."]
                 pub fn data(
                     &self,
                     bytes: u64,
-                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
+                ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
                     self.inner.emit(ConnectionEvent::Data { bytes });
                     ::core::result::Result::Ok(())
                 }
                 #[doc = "Emit the once-cardinality `closed` event for this instance."]
                 pub fn closed(
                     &mut self,
-                ) -> ::core::result::Result<(), ::quent_instrumentation::ObserverError> {
-                    self.inner.emit_once(1, "closed", ConnectionEvent::Closed)
+                ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
+                    self.inner.emit_once::<1>("closed", ConnectionEvent::Closed)
                 }
             }
         };
@@ -223,8 +223,8 @@ mod tests {
             [once("started", []), multi("tick", []), once("finished", [])],
         );
         let src = pretty(entity_handle(&e).unwrap());
-        assert!(src.contains(r#"emit_once(0, "started", JobEvent::Started)"#));
-        assert!(src.contains(r#"emit_once(1, "finished", JobEvent::Finished)"#));
+        assert!(src.contains(r#"emit_once::<0>("started", JobEvent::Started)"#));
+        assert!(src.contains(r#"emit_once::<1>("finished", JobEvent::Finished)"#));
     }
 
     #[test]

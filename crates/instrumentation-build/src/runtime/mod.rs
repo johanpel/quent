@@ -55,7 +55,7 @@ pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, Gen
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            CustomAttributes, EntityRef, Event, ObserverError, Uuid,
+            CustomAttributes, EntityRef, Event, HandleError, Uuid,
         };
     }
 }
