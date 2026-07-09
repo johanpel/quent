@@ -3,7 +3,7 @@
 
 //! In-memory test helpers for the `Simulator` model.
 
-use quent_exporter::RecordedEvent;
+use quent_io_callback::RecordedEvent;
 use quent_model::Event;
 
 use crate::{

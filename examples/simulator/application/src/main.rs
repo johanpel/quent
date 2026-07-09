@@ -11,7 +11,7 @@ use std::{
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_attributes::{Attribute, List, Struct};
-use quent_exporter::clap::ExporterArgs;
+use quent_io::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
     engine::{self, EngineImplementationAttributes},

@@ -6,11 +6,11 @@ use quent_readme_example::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::PathBuf::from("./events");
-    let exporter = quent_model::exporter::ExporterOptions::FileSystem(
-        quent_model::exporter::FileSystemExporterOptions {
-            format: quent_model::exporter::FileSystemFormat::Ndjson,
-            root: root.clone(),
-        },
+    let exporter = quent_model::io::ExporterOptions::FileSystem(
+        quent_model::io::filesystem::exporter::Options::new(
+            quent_model::io::filesystem::Format::Ndjson,
+            root.clone(),
+        ),
     );
     let context = AppContext::try_new(Some(exporter))?;
 

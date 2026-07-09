@@ -4,7 +4,8 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
-use quent_exporter::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_io::ExporterOptions;
+use quent_io::filesystem::{self, Format};
 use quent_query_engine_server::{
     analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
     initialize_tracing,
@@ -52,7 +53,7 @@ struct Args {
 
     /// Output directory for collected event data.
     /// Overridden by the QUENT_COLLECTOR_OUTPUT_DIR environment variable if set.
-    #[arg(long, default_value = "data", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
+    #[arg(long, default_value = "events", env = env::QUENT_COLLECTOR_OUTPUT_DIR)]
     output_dir: PathBuf,
 
     /// Socket address for the analyzer HTTP server (e.g. `[::]:8080`).
@@ -89,15 +90,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lister_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
-        "ndjson" => FileSystemFormat::Ndjson,
-        "msgpack" => FileSystemFormat::Msgpack,
-        "postcard" => FileSystemFormat::Postcard,
+        "ndjson" => Format::Ndjson,
+        "msgpack" => Format::Msgpack,
+        "postcard" => Format::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
-    let exporter_kind = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format,
-        root: output_dir,
-    });
+    let exporter_kind =
+        ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
@@ -116,14 +115,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Index the exported contexts by engine instance: each engine's telemetry is
     // the engine's own context plus its workers' contexts.
-    let lister = move || index_query_engines(&lister_output_dir, format);
+    let lister = move || index_query_engines(&lister_output_dir);
 
     // Reconstruct one context's umbrella event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
     let importer = move |context_id| {
         let dir = importer_output_dir.join(format!("{context_id}"));
-        Ok(Simulator::import_events(&dir, format)?)
+        Ok(Simulator::import_events(&dir)?)
     };
 
     let analyzer = async {

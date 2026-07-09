@@ -11,7 +11,7 @@
 //! (0.75s). `MEMORY_W0` is used by 8 tasks, `MEMORY_W1` by 4. Because the spans
 //! are equal, results are ordered by the UUID tiebreaker.
 
-use quent_exporter::{EventCallback, ExporterOptions};
+use quent_io::{EventCallback, ExporterOptions};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_fixed as fixed;
 use quent_query_engine_ui::{OperatorFilter, QueryFilter};

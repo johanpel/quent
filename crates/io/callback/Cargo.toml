@@ -1,0 +1,15 @@
+[package]
+name = "quent-io-callback"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+quent-events = { path = "../../events" }
+quent-io-types = { path = "../types" }
+serde.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

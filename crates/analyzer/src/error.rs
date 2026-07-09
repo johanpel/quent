@@ -7,7 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Error)]
 pub enum AnalyzerError {
     #[error("importer error: {0}")]
-    Importer(#[from] quent_exporter_types::ImporterError),
+    Importer(#[from] quent_model::io::ImporterError),
     #[error("validation error: {0}")]
     Validation(String),
     #[error("invalid id: {0}")]

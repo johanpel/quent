@@ -21,14 +21,12 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
-use quent_build_info::ModelInfo;
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
-use quent_exporter::{
-    CollectorExporterOptions, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
-};
 use quent_instrumentation::{Context, Observer};
+use quent_io::filesystem::{self, Format};
+use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
 use tempfile::TempDir;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -44,6 +42,20 @@ impl EntityEvent for BenchEvent {
     const NAME: &'static str = "BenchEvent";
 }
 
+/// Build a context and its `BenchEvent` observer from an optional exporter,
+/// mirroring the generated context's construction. `None` yields a noop.
+fn build_observer(
+    id: Uuid,
+    exporter: Option<ExporterOptions>,
+) -> BenchResult<(Context, Observer<BenchEvent>)> {
+    let Some(options) = exporter else {
+        return Ok((Context::noop(id), Observer::noop()));
+    };
+    let ctx = Context::try_new(id)?;
+    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
+    Ok((ctx, observer))
+}
+
 // The in-process collector server runs this sink per source: it decodes received
 // `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
@@ -52,8 +64,7 @@ struct BenchSink {
 
 impl BenchSink {
     fn new(id: Uuid, exporter: Option<ExporterOptions>) -> BenchResult<Self> {
-        let context = Context::try_with_id(id, ModelInfo::unknown(), exporter)?;
-        let observer = context.block_on(context.observer::<BenchEvent>())?;
+        let (_context, observer) = build_observer(id, exporter)?;
         Ok(Self { observer })
     }
 }
@@ -86,10 +97,10 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<http::Uri> {
     let address: http::Uri = format!("http://{}", std_listener.local_addr()?).parse()?;
     std_listener.set_nonblocking(true)?;
 
-    let backing = ExporterOptions::FileSystem(FileSystemExporterOptions {
-        format: FileSystemFormat::Ndjson,
-        root: backing_dir.to_path_buf(),
-    });
+    let backing = ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+        Format::Ndjson,
+        backing_dir.to_path_buf(),
+    ));
 
     rt.spawn(async move {
         let listener = match tokio::net::TcpListener::from_std(std_listener) {
@@ -118,8 +129,7 @@ fn bench_emit_variant(
     label: &str,
     exporter: Option<ExporterOptions>,
 ) -> BenchResult {
-    let context = Context::try_new(ModelInfo::unknown(), exporter)?;
-    let observer = context.block_on(context.observer::<BenchEvent>())?;
+    let (_context, observer) = build_observer(Uuid::now_v7(), exporter)?;
     let event_id = Uuid::now_v7();
 
     group.bench_function(label, |b| {
@@ -154,33 +164,30 @@ fn try_bench_emit(c: &mut Criterion) -> BenchResult {
     bench_emit_variant(
         &mut group,
         "ndjson",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Ndjson,
-            root: ndjson_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Ndjson, ndjson_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "msgpack",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Msgpack,
-            root: msgpack_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Msgpack, msgpack_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "postcard",
-        Some(ExporterOptions::FileSystem(FileSystemExporterOptions {
-            format: FileSystemFormat::Postcard,
-            root: postcard_dir.path().to_path_buf(),
-        })),
+        Some(ExporterOptions::FileSystem(
+            filesystem::exporter::Options::new(Format::Postcard, postcard_dir.path().to_path_buf()),
+        )),
     )?;
     bench_emit_variant(
         &mut group,
         "collector",
-        Some(ExporterOptions::Collector(CollectorExporterOptions {
-            address: collector_address,
-        })),
+        Some(ExporterOptions::Collector(CollectorExporterOptions::new(
+            collector_address,
+        ))),
     )?;
 
     group.finish();

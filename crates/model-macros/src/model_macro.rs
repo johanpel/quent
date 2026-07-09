@@ -3,15 +3,17 @@
 
 //! `model!` proc macro implementation.
 //!
-//! Syntax:
+//! Syntax (fields in any order; `name` + `root` required, `entities` optional):
 //! ```ignore
 //! model! {
-//!     Simulator {
-//!         root: ResourceRoot,
+//!     name: Simulator,
+//!     root: ResourceRoot,
+//!     entities: {
 //!         quent_query_engine_model::Engine,
 //!         task::Task,
 //!         quent_stdlib::memory::Memory,
-//!     }
+//!     },
+//!     analyzer: "my-analyzer", // optional: crate providing the QuentViewer
 //! }
 //! ```
 //!
@@ -21,53 +23,82 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Path, Token};
+use syn::{LitStr, Path, Token};
 
 struct DefineModelInput {
     name: Ident,
     root: Path,
     components: Vec<Path>,
+    /// Optional `analyzer: "<crate>"`: the cargo package providing this model's
+    /// `QuentViewer` entry, recorded in the provenance sidecar.
+    analyzer_package: Option<LitStr>,
 }
 
 impl Parse for DefineModelInput {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let name: Ident = input.parse()?;
+        // Labeled `key: value` fields in any order: `name`/`root` required,
+        // `entities` optional (a brace-delimited, comma-separated path list).
+        let mut name: Option<Ident> = None;
+        let mut root: Option<Path> = None;
+        let mut components: Option<Vec<Path>> = None;
+        let mut analyzer_package: Option<LitStr> = None;
 
-        let content;
-        syn::braced!(content in input);
-
-        // First entry must be `root: Path`
-        if content.is_empty() {
-            return Err(syn::Error::new_spanned(
-                name,
-                "model! requires at least a root resource group: `root: MyRoot`",
-            ));
-        }
-        let root_kw: Ident = content.parse()?;
-        if root_kw != "root" {
-            return Err(syn::Error::new_spanned(
-                root_kw,
-                "first entry must be `root: <RootResourceGroup>`",
-            ));
-        }
-        content.parse::<Token![:]>()?;
-        let root: Path = content.parse()?;
-        if content.peek(Token![,]) {
-            content.parse::<Token![,]>()?;
-        }
-
-        let mut components = Vec::new();
-        while !content.is_empty() {
-            components.push(content.parse::<Path>()?);
-            if content.peek(Token![,]) {
-                content.parse::<Token![,]>()?;
+        while !input.is_empty() {
+            let key: Ident = input.parse()?;
+            input.parse::<Token![:]>()?;
+            let dup = || syn::Error::new_spanned(&key, format!("duplicate `{key}`"));
+            match key.to_string().as_str() {
+                "name" => {
+                    if name.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "root" => {
+                    if root.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                "entities" => {
+                    if components.is_some() {
+                        return Err(dup());
+                    }
+                    let content;
+                    syn::braced!(content in input);
+                    let mut entities = Vec::new();
+                    while !content.is_empty() {
+                        entities.push(content.parse::<Path>()?);
+                        if content.peek(Token![,]) {
+                            content.parse::<Token![,]>()?;
+                        }
+                    }
+                    components = Some(entities);
+                }
+                "analyzer" => {
+                    if analyzer_package.replace(input.parse()?).is_some() {
+                        return Err(dup());
+                    }
+                }
+                other => {
+                    return Err(syn::Error::new_spanned(
+                        &key,
+                        format!(
+                            "unknown `model!` field `{other}`; expected `name`, `root`, `entities`, or `analyzer`"
+                        ),
+                    ));
+                }
+            }
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
             }
         }
 
+        let name = name.ok_or_else(|| input.error("`model!` requires a `name: <Ident>` field"))?;
+        let root = root.ok_or_else(|| input.error("`model!` requires a `root: <Path>` field"))?;
         Ok(DefineModelInput {
             name,
             root,
-            components,
+            components: components.unwrap_or_default(),
+            analyzer_package,
         })
     }
 }
@@ -252,6 +283,130 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          with no collector at capture time."
     );
 
+    // Emit a `ModelSource::analyzer_package()` override only when declared.
+    let analyzer_package_method = match &input.analyzer_package {
+        Some(lit) => quote! {
+            fn analyzer_package() -> Option<&'static str> {
+                Some(#lit)
+            }
+        },
+        None => quote! {},
+    };
+
+    // The options-driven constructors. In a serde build the exporter provider
+    // impl bounds each event type by `Serialize`; in a callback-only build it
+    // does not, so these are `Serialize`-free there.
+    let constructor_api = quote! {
+        impl #context_type {
+            #[doc = #doc_try_new]
+            pub fn try_new(
+                exporter: Option<quent_model::io::ExporterOptions>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                Self::try_with_id(quent_model::uuid::Uuid::now_v7(), exporter)
+            }
+
+            /// Build a context that adopts an existing `id` instead of
+            /// generating one — e.g. the collector reproducing a remote
+            /// source's output under that source's id. Same blocking and
+            /// runtime restriction as [`Self::try_new`].
+            pub fn try_with_id(
+                id: quent_model::uuid::Uuid,
+                exporter: Option<quent_model::io::ExporterOptions>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                match exporter {
+                    None => Ok(Self::noop(id)),
+                    Some(options) => {
+                        quent_model::write_sidecar(
+                            &options,
+                            id,
+                            <#name as quent_model::build_info::ModelSource>::model_info(),
+                        );
+                        Self::build(id, options)
+                    }
+                }
+            }
+
+            /// A no-op context adopting `id`: every observer discards its events.
+            fn noop(id: quent_model::uuid::Uuid) -> Self {
+                Self {
+                    #(#observer_fields: #observer_types::new(
+                        quent_model::Observer::<#event_types>::noop(),
+                    ),)*
+                    _inner: quent_model::Context::noop(id),
+                }
+            }
+        }
+    };
+
+    let collector_sink = if cfg!(feature = "serde") {
+        quote! {
+            // Collector routing, kept out of the context's own API. A collector
+            // factory awaits the `*_observer()` accessors to build the observers
+            // before any `ingest` call reads them.
+            #[cfg(feature = "collector")]
+            impl quent_model::CollectorSink for #context_type {
+                fn ingest(
+                    &self,
+                    entity: &str,
+                    event: &[u8],
+                ) -> Result<(), Box<dyn std::error::Error>> {
+                    #(#ingest_arms)*
+                    Err(format!("unknown entity stream `{entity}`").into())
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
+    let import_events_impl = if cfg!(feature = "serde") {
+        quote! {
+            impl #name {
+                #[doc = #doc_import]
+                pub fn import_events(
+                    dir: &std::path::Path,
+                ) -> quent_model::io::ImporterResult<
+                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                > {
+                    // Detect the on-disk serialization format from the streams present;
+                    // an empty/unrecognized context yields no events.
+                    let Some(format) = quent_model::io::filesystem::Format::detect(dir) else {
+                        return Ok(Box::new(std::iter::empty()));
+                    };
+                    let mut streams: Vec<
+                        Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
+                    > = Vec::new();
+                    #(
+                        {
+                            let path =
+                                dir.join(<#event_types as quent_model::EntityEvent>::NAME);
+                            if path.is_dir() {
+                                let importer = <quent_model::io::ImporterOptions as quent_model::io::ImporterProvider<#event_types>>::create_importer(
+                                    &quent_model::io::ImporterOptions::FileSystem(
+                                        quent_model::io::filesystem::importer::Options {
+                                            format,
+                                            path,
+                                        },
+                                    ),
+                                )?;
+                                streams.push(Box::new(importer.map(|e| {
+                                    quent_model::Event::new(
+                                        e.id,
+                                        e.timestamp,
+                                        #event_type::from(e.data),
+                                    )
+                                })));
+                            }
+                        }
+                    )*
+                    Ok(Box::new(streams.into_iter().flatten()))
+                }
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let output = quote! {
         #[doc = #doc_model]
         pub type #model_type = quent_model::Model<#model_tuple>;
@@ -293,45 +448,10 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     option_env!("QUENT_SOURCE_BUILT_AT"),
                 )
             }
+            #analyzer_package_method
         }
 
-        impl #name {
-            #[doc = #doc_import]
-            pub fn import_events(
-                dir: &std::path::Path,
-                format: quent_model::exporter::FileSystemFormat,
-            ) -> quent_model::exporter::ImporterResult<
-                Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-            > {
-                let mut streams: Vec<
-                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-                > = Vec::new();
-                #(
-                    {
-                        let path =
-                            dir.join(<#event_types as quent_model::EntityEvent>::NAME);
-                        if path.is_dir() {
-                            let importer = quent_model::exporter::create_importer::<#event_types>(
-                                &quent_model::exporter::ImporterOptions::FileSystem(
-                                    quent_model::exporter::FileSystemImporterOptions {
-                                        format,
-                                        path,
-                                    },
-                                ),
-                            )?;
-                            streams.push(Box::new(importer.map(|e| {
-                                quent_model::Event::new(
-                                    e.id,
-                                    e.timestamp,
-                                    #event_type::from(e.data),
-                                )
-                            })));
-                        }
-                    }
-                )*
-                Ok(Box::new(streams.into_iter().flatten()))
-            }
-        }
+        #import_events_impl
 
         const _: () = {
             assert!(
@@ -355,45 +475,21 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
 
                 impl #context_type {
-                    #[doc = #doc_try_new]
-                    pub fn try_new(
-                        exporter: Option<quent_model::exporter::ExporterOptions>,
-                    ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new(
-                            <#name as quent_model::build_info::ModelSource>::model_info(),
-                            exporter,
-                        )?;
-                        Self::assemble(inner)
-                    }
-
-                    /// Build a context that adopts an existing `id` instead of
-                    /// generating one — e.g. the collector reproducing a remote
-                    /// source's output under that source's id. Same blocking and
-                    /// runtime restriction as [`Self::try_new`].
-                    pub fn try_with_id(
+                    // The single sync/async bridge: on an active context, build
+                    // every entity's observer (each constructing its exporter from
+                    // the options, bound to the context id) concurrently on the
+                    // runtime, block until all complete, and assemble.
+                    fn build(
                         id: quent_model::uuid::Uuid,
-                        exporter: Option<quent_model::exporter::ExporterOptions>,
+                        options: quent_model::io::ExporterOptions,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_with_id(
-                            id,
-                            <#name as quent_model::build_info::ModelSource>::model_info(),
-                            exporter,
-                        )?;
-                        Self::assemble(inner)
-                    }
-
-                    // The single sync/async bridge: build every entity observer
-                    // concurrently on the context's runtime, block until all
-                    // complete, then assemble. Everything below this `block_on`
-                    // is plain async.
-                    fn assemble(
-                        inner: quent_model::Context,
-                    ) -> Result<Self, Box<dyn std::error::Error>> {
+                        let inner = quent_model::Context::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
-                            let ( #(#observer_fields,)* ) =
-                                quent_model::tokio::try_join!(
-                                    #(inner.observer::<#event_types>(),)*
-                                )?;
+                            let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
+                                #(
+                                    inner.observer::<#event_types>(options.clone()),
+                                )*
+                            )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))
                         })?;
                         Ok(Self {
@@ -410,20 +506,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #(#observer_methods)*
                 }
 
-                // Collector routing, kept out of the context's own API. A
-                // collector factory awaits the `*_observer()` accessors to build
-                // the observers before any `ingest` call reads them.
-                #[cfg(feature = "collector")]
-                impl quent_model::CollectorSink for #context_type {
-                    fn ingest(
-                        &self,
-                        entity: &str,
-                        event: &[u8],
-                    ) -> Result<(), Box<dyn std::error::Error>> {
-                        #(#ingest_arms)*
-                        Err(format!("unknown entity stream `{entity}`").into())
-                    }
-                }
+                #constructor_api
+                #collector_sink
             };
         }
     };
@@ -444,4 +528,29 @@ pub fn expand_instrumentation(input: TokenStream) -> syn::Result<TokenStream> {
     Ok(quote! {
         #impl_macro_name!();
     })
+}
+
+#[cfg(test)]
+mod parse_tests {
+    use super::DefineModelInput;
+
+    #[test]
+    fn parses_analyzer_field() {
+        let input: DefineModelInput = syn::parse_str(
+            r#"name: App, root: a::Root, entities: { b::Comp }, analyzer: "my-analyzer""#,
+        )
+        .unwrap();
+        assert_eq!(input.components.len(), 1);
+        assert_eq!(
+            input.analyzer_package.map(|l| l.value()),
+            Some("my-analyzer".to_string())
+        );
+    }
+
+    #[test]
+    fn analyzer_is_optional() {
+        let input: DefineModelInput = syn::parse_str("name: App, root: a::Root").unwrap();
+        assert!(input.analyzer_package.is_none());
+        assert!(input.components.is_empty());
+    }
 }

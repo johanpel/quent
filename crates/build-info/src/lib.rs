@@ -68,6 +68,10 @@ pub struct ModelInfo {
     pub type_path: String,
     /// Git provenance of the crate defining the model.
     pub source: BuildInfo,
+    /// Cargo package providing this model's `QuentViewer` entry (shares the
+    /// model's [`source`](Self::source) git); `None` if the model didn't declare one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub analyzer_package: Option<String>,
 }
 
 impl BuildInfo {
@@ -85,6 +89,32 @@ impl BuildInfo {
     }
 }
 
+impl std::fmt::Display for BuildInfo {
+    /// One-line summary of every known field: `version` first, then the commit
+    /// (with branch and a `dirty` marker), the remote, and the build time, each
+    /// omitted when absent.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.version)?;
+        if let Some(commit) = &self.commit {
+            write!(f, " ({commit}")?;
+            if let Some(branch) = &self.branch {
+                write!(f, " on {branch}")?;
+            }
+            if self.dirty == Some(true) {
+                write!(f, ", dirty")?;
+            }
+            write!(f, ")")?;
+        }
+        if let Some(remote) = &self.remote {
+            write!(f, " from {remote}")?;
+        }
+        if let Some(built_at) = &self.built_at {
+            write!(f, " built {built_at}")?;
+        }
+        Ok(())
+    }
+}
+
 impl ModelInfo {
     /// A [`ModelInfo`] with no provenance, for placeholders (e.g. tests) where
     /// the model identity is irrelevant.
@@ -94,6 +124,7 @@ impl ModelInfo {
             package: "unknown".to_string(),
             type_path: "unknown".to_string(),
             source: BuildInfo::unknown(),
+            analyzer_package: None,
         }
     }
 }
@@ -130,6 +161,16 @@ impl ArtifactInfo {
         let tmp = dir.join(format!(".{SIDECAR_FILE_NAME}.tmp"));
         std::fs::write(&tmp, json)?;
         std::fs::rename(&tmp, dir.join(SIDECAR_FILE_NAME))
+    }
+
+    /// Read the [`SIDECAR_FILE_NAME`] sidecar from `dir` and parse it. The
+    /// inverse of [`write_sidecar`](Self::write_sidecar): a missing sidecar
+    /// surfaces as [`std::io::ErrorKind::NotFound`], a malformed one as
+    /// [`std::io::ErrorKind::InvalidData`].
+    pub fn read_sidecar(dir: &Path) -> std::io::Result<Self> {
+        let bytes = std::fs::read(dir.join(SIDECAR_FILE_NAME))?;
+        serde_json::from_slice(&bytes)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 
@@ -185,6 +226,11 @@ pub trait ModelSource {
     fn package() -> &'static str;
     /// Git provenance of the crate defining the model.
     fn source() -> BuildInfo;
+    /// Cargo package providing this model's `QuentViewer` entry, if declared via
+    /// `analyzer_package` in `model!` (shares the model's [`source`](Self::source) git).
+    fn analyzer_package() -> Option<&'static str> {
+        None
+    }
 
     /// Assemble the [`ModelInfo`] for this model: the Rust type path and name
     /// from [`std::any::type_name`], the cargo package and source git from the
@@ -198,6 +244,7 @@ pub trait ModelSource {
             package: Self::package().to_string(),
             type_path: type_path.to_string(),
             source: Self::source(),
+            analyzer_package: Self::analyzer_package().map(str::to_string),
         }
     }
 }
@@ -247,18 +294,54 @@ mod tests {
     }
 
     #[test]
+    fn analyzer_package_threads_and_roundtrips() {
+        struct WithAnalyzer;
+        impl ModelSource for WithAnalyzer {
+            fn package() -> &'static str {
+                "quent-build-info"
+            }
+            fn source() -> BuildInfo {
+                BuildInfo::unknown()
+            }
+            fn analyzer_package() -> Option<&'static str> {
+                Some("quent-simulator-analyzer")
+            }
+        }
+
+        // `model_info()` carries the declared analyzer package...
+        let info = WithAnalyzer::model_info();
+        assert_eq!(
+            info.analyzer_package.as_deref(),
+            Some("quent-simulator-analyzer")
+        );
+        let back: ModelInfo = serde_json::from_slice(&serde_json::to_vec(&info).unwrap()).unwrap();
+        assert_eq!(info, back);
+
+        // ...and absent by default, omitted from the serialized form.
+        let none = TestModel::model_info();
+        assert_eq!(none.analyzer_package, None);
+        assert!(
+            !serde_json::to_string(&none)
+                .unwrap()
+                .contains("analyzer_package")
+        );
+    }
+
+    #[test]
     fn write_sidecar_is_atomic_and_named() {
         let dir = std::env::temp_dir().join("quent_build_info_sidecar_test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        ArtifactInfo::new(TestModel::model_info())
-            .write_sidecar(&dir)
-            .unwrap();
+        let info = ArtifactInfo::new(TestModel::model_info());
+        info.write_sidecar(&dir).unwrap();
 
         assert!(dir.join(SIDECAR_FILE_NAME).is_file());
         // The temp file used for the atomic rename must not linger.
         assert!(!dir.join(format!(".{SIDECAR_FILE_NAME}.tmp")).exists());
+
+        // The sidecar reads back to an equal value.
+        assert_eq!(ArtifactInfo::read_sidecar(&dir).unwrap(), info);
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
