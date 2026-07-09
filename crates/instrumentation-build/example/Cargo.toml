@@ -6,9 +6,9 @@ publish.workspace = true
 
 [dependencies]
 # The single required dep: everything the generated code references comes from
-# here. `quent-exporter` is the one exception, for selecting exporter features.
+# here. `quent-io` is the one exception, for selecting exporter features.
 quent-instrumentation = { path = "../../instrumentation" }
-quent-exporter = { path = "../../exporter", features = ["callback"] }
+quent-io = { path = "../../io", features = ["callback"] }
 serde = { workspace = true }
 
 [build-dependencies]

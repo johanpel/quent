@@ -518,28 +518,37 @@ fn emit_context_bridge(
 
         pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
             let opts = match exporter.as_str() {
-                "ndjson" => Some(#q::exporter::ExporterOptions::FileSystem(
-                    #q::exporter::FileSystemExporterOptions {
-                        format: #q::exporter::FileSystemFormat::Ndjson,
-                        root: std::path::PathBuf::from(output_dir),
-                    },
+                "ndjson" => Some(#q::io::ExporterOptions::FileSystem(
+                    #q::io::filesystem::exporter::Options::new(
+                        #q::io::filesystem::Format::Ndjson,
+                        std::path::PathBuf::from(output_dir),
+                    ),
                 )),
                 _ => None,
             };
-            let inner = #q::Context::try_new(
-                <#model_type as #q::build_info::ModelSource>::model_info(),
-                opts,
-            )
-            .map_err(|e| e.to_string())?;
-            // Single sync/async bridge: build every observer concurrently on the
-            // context's runtime, then block until done.
-            let (#(#build_fields,)*) = inner.block_on(async {
-                let (#(#build_fields,)*) = #q::tokio::try_join!(
-                    #(inner.observer::<#build_event_tys>(),)*
-                )
-                .map_err(|e| e.to_string())?;
-                Ok::<_, String>((#(#build_wraps(#build_fields),)*))
-            })?;
+            let id = #q::uuid::Uuid::now_v7();
+            // Single sync/async bridge: build every entity's observer (each
+            // constructing its exporter from the options, bound to the id)
+            // concurrently on the context's runtime, block until done. The
+            // observers keep the runtime alive; `inner` drops here.
+            let (#(#build_fields,)*) = match opts {
+                None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
+                Some(options) => {
+                    let inner = #q::Context::try_new(id).map_err(|e| e.to_string())?;
+                    #q::write_sidecar(
+                        &options,
+                        id,
+                        <#model_type as #q::build_info::ModelSource>::model_info(),
+                    );
+                    inner.block_on(async {
+                        let (#(#build_fields,)*) = #q::tokio::try_join!(
+                            #(inner.observer::<#build_event_tys>(options.clone()),)*
+                        )
+                        .map_err(|e| e.to_string())?;
+                        Ok::<_, String>((#(#build_wraps(#build_fields),)*))
+                    })?
+                }
+            };
             Ok(Box::new(Context {
                 #(#field_inits,)*
             }))

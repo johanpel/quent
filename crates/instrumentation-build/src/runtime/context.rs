@@ -56,25 +56,48 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             /// Create a context, building every entity's exporter pipeline.
             /// Pass `None` for a no-op context that discards events.
             pub fn try_new(
-                exporter: ::core::option::Option<::quent_exporter::ExporterOptions>,
+                exporter: ::core::option::Option<::quent_io::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Self::assemble(::quent_instrumentation::Context::try_new(
-                    Self::model_info(),
-                    exporter,
-                )?)
+                Self::try_with_id(::quent_instrumentation::Uuid::now_v7(), exporter)
             }
 
             /// Create a context that adopts an existing `id` rather than
             /// generating one.
             pub fn try_with_id(
                 id: ::quent_instrumentation::Uuid,
-                exporter: ::core::option::Option<::quent_exporter::ExporterOptions>,
+                exporter: ::core::option::Option<::quent_io::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Self::assemble(::quent_instrumentation::Context::try_with_id(
-                    id,
-                    Self::model_info(),
-                    exporter,
-                )?)
+                // With an exporter, build an active context, write the provenance
+                // sidecar, then build each entity's observer using the exporter
+                // options as its provider. `None` builds a no-op context and
+                // no-op observers.
+                let ( _inner, #(#fields,)* ) = match &exporter {
+                    ::core::option::Option::Some(options) => {
+                        let context = ::quent_instrumentation::Context::try_new(id)?;
+                        ::quent_instrumentation::write_sidecar(options, id, Self::model_info());
+                        let ( #(#fields,)* ) = context.block_on(async {
+                            ::core::result::Result::<
+                                _,
+                                ::std::boxed::Box<dyn ::std::error::Error>,
+                            >::Ok((
+                                #(
+                                    context
+                                        .observer::<#event_tys>(::core::clone::Clone::clone(options))
+                                        .await?,
+                                )*
+                            ))
+                        })?;
+                        ( context, #(#fields,)* )
+                    }
+                    ::core::option::Option::None => (
+                        ::quent_instrumentation::Context::noop(id),
+                        #( ::quent_instrumentation::Observer::<#event_tys>::noop(), )*
+                    ),
+                };
+                ::core::result::Result::Ok(Self {
+                    #( #fields: #observer_tys { inner: ::std::sync::Arc::new(#fields) }, )*
+                    _inner,
+                })
             }
 
             fn model_info() -> ::quent_instrumentation::build_info::ModelInfo {
@@ -95,20 +118,6 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
                     // The schema declares no analyzer entry.
                     analyzer_package: ::core::option::Option::None,
                 }
-            }
-
-            fn assemble(
-                inner: ::quent_instrumentation::Context,
-            ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                let ( #(#fields,)* ) = inner.block_on(async {
-                    ::core::result::Result::<_, ::std::boxed::Box<dyn ::std::error::Error>>::Ok((
-                        #( inner.observer::<#event_tys>().await?, )*
-                    ))
-                })?;
-                ::core::result::Result::Ok(Self {
-                    #( #fields: #observer_tys { inner: ::std::sync::Arc::new(#fields) }, )*
-                    _inner: inner,
-                })
             }
 
             /// Identity of this context.
@@ -150,8 +159,9 @@ mod tests {
         assert!(src.contains("pub struct DemoContext"));
         assert!(src.contains("connection: ConnectionObserver"));
         assert!(src.contains("sensor: SensorObserver"));
-        assert!(src.contains("inner.observer::<ConnectionEvent>().await?"));
-        assert!(src.contains("inner.observer::<SensorEvent>().await?"));
+        assert!(src.contains(".observer::<"));
+        assert!(src.contains("write_sidecar"));
+        assert!(src.contains("Context::noop(id)"));
         assert!(src.contains("pub fn connection_observer(&self) -> ConnectionObserver"));
         assert!(src.contains("pub fn sensor_observer(&self) -> SensorObserver"));
         assert!(src.contains(r#"name: "Demo".to_string()"#));

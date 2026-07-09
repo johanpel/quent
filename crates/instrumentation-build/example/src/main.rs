@@ -33,8 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Return an exporter that debug-prints each emitted event's payload.
-fn debug_printing_exporter() -> ::quent_exporter::ExporterOptions {
-    ::quent_exporter::ExporterOptions::Callback(::quent_exporter::EventCallback::new(|recorded| {
+fn debug_printing_exporter() -> ::quent_io::ExporterOptions {
+    ::quent_io::ExporterOptions::Callback(::quent_io::EventCallback::new(|recorded| {
         if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
             dbg!(&event);
         } else {

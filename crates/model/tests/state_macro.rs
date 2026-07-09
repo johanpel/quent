@@ -3,13 +3,11 @@
 
 //! Integration test for the `state!` proc macro with flat-arg FSM methods.
 
-use quent_model::build_info::ModelInfo;
-use quent_model::{Context, ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
+use quent_model::{ModelBuilder, ModelComponent, Observer, Ref, StateMetadata};
 use uuid::Uuid;
 
 fn noop_task_observer() -> Observer<TaskEvent> {
-    let ctx = Context::try_new(ModelInfo::unknown(), None).unwrap();
-    ctx.block_on(ctx.observer::<TaskEvent>()).unwrap()
+    Observer::noop()
 }
 
 // States defined with state! macro.

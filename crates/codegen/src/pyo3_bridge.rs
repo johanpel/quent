@@ -698,13 +698,13 @@ fn emit_context(
                 output_dir: Option<String>,
             ) -> PyResult<Self> {
                 let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::exporter::ExporterOptions::FileSystem(
-                        #q::exporter::FileSystemExporterOptions {
-                            format: #q::exporter::FileSystemFormat::Ndjson,
-                            root: std::path::PathBuf::from(
+                    Some("ndjson") => Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(
+                            #q::io::filesystem::Format::Ndjson,
+                            std::path::PathBuf::from(
                                 output_dir.unwrap_or_else(|| ".".to_string()),
                             ),
-                        },
+                        ),
                     )),
                     None => None,
                     Some(other) => {
@@ -713,21 +713,32 @@ fn emit_context(
                         )));
                     }
                 };
-                let inner = #q::Context::try_new(
-                    <#model_type as #q::build_info::ModelSource>::model_info(),
-                    opts,
-                )
-                .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
-                let id = inner.id();
-                // Single sync/async bridge: build every observer concurrently on
-                // the context's runtime, then block until done.
-                let (#(#build_fields,)*) = inner.block_on(async {
-                    let (#(#build_fields,)*) = #q::tokio::try_join!(
-                        #(inner.observer::<#build_event_tys>(),)*
-                    )
-                    .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
-                    Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
-                })?;
+                let id = #q::uuid::Uuid::now_v7();
+                let inner = match &opts {
+                    Some(_) => #q::Context::try_new(id)
+                        .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
+                    None => #q::Context::noop(id),
+                };
+                // Single sync/async bridge: build every entity's observer (each
+                // constructing its exporter from the options, bound to the id)
+                // concurrently on the context's runtime, then block until done.
+                let (#(#build_fields,)*) = match opts {
+                    None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
+                    Some(options) => {
+                        #q::write_sidecar(
+                            &options,
+                            id,
+                            <#model_type as #q::build_info::ModelSource>::model_info(),
+                        );
+                        inner.block_on(async {
+                            let (#(#build_fields,)*) = #q::tokio::try_join!(
+                                #(inner.observer::<#build_event_tys>(options.clone()),)*
+                            )
+                            .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
+                            Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))
+                        })?
+                    }
+                };
                 Ok(Self {
                     inner: Some(inner),
                     #(#field_inits,)*
