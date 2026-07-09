@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use quent_instrumentation::{EventCallback, ExporterOptions};
+
 use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Event, Uuid};
 
-pub mod demo {
+mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
 
@@ -33,8 +35,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Return an exporter that debug-prints each emitted event's payload.
-fn debug_printing_exporter() -> ::quent_io::ExporterOptions {
-    ::quent_io::ExporterOptions::Callback(::quent_io::EventCallback::new(|recorded| {
+fn debug_printing_exporter() -> ExporterOptions {
+    ExporterOptions::Callback(EventCallback::new(|recorded| {
         if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
             dbg!(&event);
         } else {

@@ -2220,18 +2220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-instrumentation-build-example"
-version = "0.1.0"
-dependencies = [
- "quent-constraints",
- "quent-instrumentation",
- "quent-instrumentation-build",
- "quent-io",
- "quent-schema",
- "serde",
-]
-
-[[package]]
 name = "quent-io"
 version = "0.1.0"
 dependencies = [

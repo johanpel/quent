@@ -10,7 +10,8 @@ use uuid::Uuid;
 ///
 /// Placeholder backing the schema generator's `DataType::EntityRef` fields.
 // TODO(johanpel): flesh out ref-target semantics (see `quent.ref-target.v1`).
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone)]
 pub struct EntityRef<T = ()> {
     /// Id of the referenced entity instance.
     pub target: Uuid,

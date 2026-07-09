@@ -20,12 +20,17 @@ pub use observer::{EventSender, Observer};
 pub use sidecar::write_sidecar;
 
 // Re-export everything the generated instrumentation code references, so a
-// consumer needs only the `quent-instrumentation` dependency. Exporter
-// selection is the one exception: it comes from `quent-io`.
+// consumer needs only the `quent-instrumentation` dependency, selecting an
+// exporter backend through its `io-*` features.
 pub use quent_attributes::CustomAttributes;
 pub use quent_build_info as build_info;
 pub use quent_events::{EntityEvent, Event};
+pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;
+
+/// A caller-supplied event sink, selected via the `io-callback` feature.
+#[cfg(feature = "io-callback")]
+pub use quent_io::EventCallback;
 
 #[cfg(test)]
 mod tests {

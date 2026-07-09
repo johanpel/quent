@@ -56,7 +56,7 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             /// Create a context, building every entity's exporter pipeline.
             /// Pass `None` for a no-op context that discards events.
             pub fn try_new(
-                exporter: ::core::option::Option<::quent_io::ExporterOptions>,
+                exporter: ::core::option::Option<::quent_instrumentation::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
                 Self::try_with_id(::quent_instrumentation::Uuid::now_v7(), exporter)
             }
@@ -65,7 +65,7 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
             /// generating one.
             pub fn try_with_id(
                 id: ::quent_instrumentation::Uuid,
-                exporter: ::core::option::Option<::quent_io::ExporterOptions>,
+                exporter: ::core::option::Option<::quent_instrumentation::ExporterOptions>,
             ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
                 // With an exporter, build an active context, write the provenance
                 // sidecar, then build each entity's observer using the exporter

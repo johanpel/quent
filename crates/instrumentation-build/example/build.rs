@@ -13,11 +13,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let schema = demo_schema()?;
 
-    // Observers require the event type to be `Serialize`; records embedded in
-    // events must be too.
     let opts = Options {
-        event_derives: &["Debug", "Clone", "::serde::Serialize"],
-        record_derives: &["Debug", "Clone", "::serde::Serialize"],
+        event_derives: &["Debug"],
+        record_derives: &["Debug"],
         ..Default::default()
     };
 
