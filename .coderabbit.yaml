@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -41,10 +41,10 @@ reviews:
         For the TypeScript/React UI:
         - Verify types match the generated schema bindings; flag any `any`.
         - Check hook dependency arrays and cleanup of subscriptions/effects.
-    - path: "proto/**/*"
+    - path: "proto/**/*.proto"
       instructions: |
         For protobuf: flag field-number reuse and breaking wire changes.
-    - path: "docs/**/*"
+    - path: "docs/**/*.md"
       instructions: |
         For docs: verify examples match current API; new pages are linked in SUMMARY.md.
     - path: ".github/workflows/**/*"
