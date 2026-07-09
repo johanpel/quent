@@ -72,6 +72,25 @@ where
         Ok(())
     }
 
+    async fn push_many(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
+        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        // Concatenate the whole batch into one buffer, then issue a single
+        // write. A record that fails to serialize is logged and skipped so one
+        // bad event does not drop the batch.
+        let mut batch = String::new();
+        for event in &*events {
+            match serde_json::to_string(event) {
+                Ok(line) => {
+                    batch.push_str(&line);
+                    batch.push('\n');
+                }
+                Err(e) => error!("unable to serialize event: {e}"),
+            }
+        }
+        writer.write_all(batch.as_bytes()).await?;
+        Ok(())
+    }
+
     async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut writer) = self.writer.take() else {
             return Ok(());

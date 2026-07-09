@@ -18,6 +18,23 @@ pub trait Exporter<T>: Send {
     /// Export one event.
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
 
+    /// Export every event in `events`, in order.
+    ///
+    /// The contents of `events` on return are unspecified, a caller reusing the
+    /// buffer across batches must clear it.
+    ///
+    /// The default forwards each event to [`push`](Self::push). Override this
+    /// to amortize per-event overhead.
+    async fn push_many(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()>
+    where
+        T: Send + 'async_trait,
+    {
+        for event in events.drain(..) {
+            self.push(event).await?;
+        }
+        Ok(())
+    }
+
     /// Make a best-effort to flush any buffered events, then release any internal resources.
     async fn shutdown(self: Box<Self>) -> ExporterResult<()>;
 }

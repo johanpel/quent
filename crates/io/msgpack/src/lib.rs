@@ -68,6 +68,25 @@ where
         Ok(())
     }
 
+    async fn push_many(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
+        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        // Frame the whole batch into one buffer, then issue a single write. A
+        // record that fails to serialize is logged and skipped so one bad event
+        // does not drop the batch.
+        let mut batch = Vec::new();
+        for event in &*events {
+            match rmp_serde::to_vec(event) {
+                Ok(payload) => {
+                    batch.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+                    batch.extend_from_slice(&payload);
+                }
+                Err(e) => error!("unable to serialize event: {e}"),
+            }
+        }
+        writer.write_all(&batch).await?;
+        Ok(())
+    }
+
     async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut writer) = self.writer.take() else {
             return Ok(());
