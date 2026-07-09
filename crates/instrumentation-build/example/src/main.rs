@@ -5,6 +5,7 @@ use quent_instrumentation::{EventCallback, ExporterOptions};
 
 use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Event, Uuid};
 
+#[allow(unused)]
 mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
@@ -38,7 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn debug_printing_exporter() -> ExporterOptions {
     ExporterOptions::Callback(EventCallback::new(|recorded| {
         if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
-            dbg!(&event);
+            println!("[{} @ {}] {:?}", event.id, event.timestamp, event.data);
         } else {
             unreachable!()
         }
