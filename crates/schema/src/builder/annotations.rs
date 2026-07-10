@@ -91,6 +91,20 @@ impl AnnotationsBuilder {
         Ok(self)
     }
 
+    /// Add a constraint named `name`, returning the builder for chaining.
+    ///
+    /// # Errors
+    ///
+    /// Errors if `name` is empty or already declared.
+    pub fn try_with_constraint(
+        mut self,
+        name: impl Into<String>,
+        data: Option<String>,
+    ) -> Result<Self, BuilderError> {
+        self.try_insert_constraint(name, data)?;
+        Ok(self)
+    }
+
     /// Set the constraint named `name`, returning the replaced entry, if any.
     pub fn set_constraint(
         &mut self,
@@ -120,6 +134,20 @@ impl AnnotationsBuilder {
         let name = name.into();
         self.metadata
             .try_insert(name.clone(), Metadata::from_parts(name, data))?;
+        Ok(self)
+    }
+
+    /// Add a metadata entry named `name`, returning the builder for chaining.
+    ///
+    /// # Errors
+    ///
+    /// Errors if `name` is empty or already declared.
+    pub fn try_with_metadata(
+        mut self,
+        name: impl Into<String>,
+        data: Option<String>,
+    ) -> Result<Self, BuilderError> {
+        self.try_insert_metadata(name, data)?;
         Ok(self)
     }
 

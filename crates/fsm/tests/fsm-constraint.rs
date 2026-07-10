@@ -30,11 +30,10 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
 
 /// Annotations carrying the FSM constraint with `data`.
 fn fsm_annotations(data: Option<String>) -> Annotations {
-    let mut builder = AnnotationsBuilder::new();
-    builder
-        .try_insert_constraint(FsmConstraint::NAME, data)
-        .unwrap();
-    builder.build()
+    AnnotationsBuilder::new()
+        .try_with_constraint(FsmConstraint::NAME, data)
+        .unwrap()
+        .build()
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {

@@ -11,9 +11,10 @@ use quent_schema::{
 
 /// Annotations carrying the constraint `name` without data.
 fn constraint(name: &str) -> Annotations {
-    let mut builder = AnnotationsBuilder::new();
-    builder.try_insert_constraint(name, None).unwrap();
-    builder.build()
+    AnnotationsBuilder::new()
+        .try_with_constraint(name, None)
+        .unwrap()
+        .build()
 }
 
 fn empty_schema() -> Schema {
@@ -111,11 +112,12 @@ fn constraint_without_validator_is_unregistered() {
 #[test]
 fn metadata_is_never_validated() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations({
-            let mut builder = AnnotationsBuilder::new();
-            builder.try_insert_metadata("not_validated", None).unwrap();
-            builder.build()
-        })
+        .annotations(
+            AnnotationsBuilder::new()
+                .try_with_metadata("not_validated", None)
+                .unwrap()
+                .build(),
+        )
         .build();
     let report = validate::<(NoopA,)>(&schema);
     assert!(report.unregistered_constraints.is_empty());
