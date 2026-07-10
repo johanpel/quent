@@ -59,21 +59,19 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
         .annotations(docs("A client connection."))
         .events([
             EventBuilder::new(ident("opened"), Cardinality::Once)
-                .fields([
+                .try_with_fields([
                     field("peer", DataType::Record(ident("Endpoint"))),
                     field("session", DataType::Uuid),
-                ])
-                .unwrap()
+                ])?
                 .build(),
             EventBuilder::new(ident("data"), Cardinality::Multi)
-                .fields([
+                .try_with_fields([
                     field("bytes", DataType::U64),
                     field(
                         "meta",
                         DataType::Option(Box::new(DataType::Record(ident("Meta")))),
                     ),
-                ])
-                .unwrap()
+                ])?
                 .build(),
             EventBuilder::new(ident("closed"), Cardinality::Once).build(),
         ])

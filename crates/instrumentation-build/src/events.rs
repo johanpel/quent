@@ -142,9 +142,9 @@ mod tests {
         };
         let field_x = Field::new(ident("x"), DataType::U8, docs("field doc"));
         let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
-            .fields([field_x])
+            .try_with_field(field_x)
             .unwrap()
-            .annotations(docs("event doc"))
+            .with_annotations(docs("event doc"))
             .build();
         let en = EntityBuilder::new(ident("E"))
             .events([ev])

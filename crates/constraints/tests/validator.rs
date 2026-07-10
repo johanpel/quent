@@ -128,9 +128,9 @@ fn unregistered_constraint_is_reported_once() {
     let unknown = || constraint("unknown");
     let field = Field::new(ident("ef"), DataType::U64, unknown());
     let event = EventBuilder::new(ident("Ev"), Cardinality::Once)
-        .field(field)
+        .try_with_field(field)
         .unwrap()
-        .annotations(unknown())
+        .with_annotations(unknown())
         .build();
     let entity = EntityBuilder::new(ident("E"))
         .event(event)

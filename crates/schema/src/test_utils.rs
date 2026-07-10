@@ -27,7 +27,7 @@ pub fn event_with(
     payload: impl IntoIterator<Item = Field>,
 ) -> Event {
     EventBuilder::new(ident(name), cardinality)
-        .fields(payload)
+        .try_with_fields(payload)
         .unwrap()
         .build()
 }
