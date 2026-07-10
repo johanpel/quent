@@ -35,6 +35,8 @@ pub struct MsgpackExporterOptions {
 pub struct MsgpackExporter {
     /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
     writer: Option<BufWriter<File>>,
+    /// Framing buffer reused across [`drain_events`](Exporter::drain_events).
+    batch: Vec<u8>,
 }
 
 impl MsgpackExporter {
@@ -50,6 +52,7 @@ impl MsgpackExporter {
             .await?;
         Ok(Self {
             writer: Some(BufWriter::new(file)),
+            batch: Vec::new(),
         })
     }
 }
@@ -69,14 +72,15 @@ where
     }
 
     async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
-        let Some(writer) = self.writer.as_mut() else {
+        let Self { writer, batch } = self;
+        let Some(writer) = writer.as_mut() else {
             events.clear();
             return Err(ExporterError::Shutdown);
         };
-        // Frame the whole batch into one buffer, then issue a single write. A
-        // record that fails to serialize is logged and skipped so one bad event
-        // does not drop the batch.
-        let mut batch = Vec::new();
+        // Frame the whole batch into the reused buffer, then issue a single
+        // write. A record that fails to serialize is logged and skipped so one
+        // bad event does not drop the batch.
+        batch.clear();
         for event in events.drain(..) {
             match rmp_serde::to_vec(&event) {
                 Ok(payload) => {
@@ -86,7 +90,7 @@ where
                 Err(e) => error!("unable to serialize event: {e}"),
             }
         }
-        writer.write_all(&batch).await?;
+        writer.write_all(batch).await?;
         Ok(())
     }
 

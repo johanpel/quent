@@ -37,6 +37,8 @@ pub struct NdjsonExporterOptions {
 pub struct NdjsonExporter {
     /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
     writer: Option<BufWriter<File>>,
+    /// Line buffer reused across [`drain_events`](Exporter::drain_events).
+    batch: String,
 }
 
 impl NdjsonExporter {
@@ -53,6 +55,7 @@ impl NdjsonExporter {
 
         Ok(Self {
             writer: Some(BufWriter::new(file)),
+            batch: String::new(),
         })
     }
 }
@@ -73,14 +76,15 @@ where
     }
 
     async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
-        let Some(writer) = self.writer.as_mut() else {
+        let Self { writer, batch } = self;
+        let Some(writer) = writer.as_mut() else {
             events.clear();
             return Err(ExporterError::Shutdown);
         };
-        // Concatenate the whole batch into one buffer, then issue a single
-        // write. A record that fails to serialize is logged and skipped so one
-        // bad event does not drop the batch.
-        let mut batch = String::new();
+        // Concatenate the whole batch into the reused buffer, then issue a
+        // single write. A record that fails to serialize is logged and skipped
+        // so one bad event does not drop the batch.
+        batch.clear();
         for event in events.drain(..) {
             match serde_json::to_string(&event) {
                 Ok(line) => {
