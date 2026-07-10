@@ -68,14 +68,17 @@ where
         Ok(())
     }
 
-    async fn push_many(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
-        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
+    async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
+        let Some(writer) = self.writer.as_mut() else {
+            events.clear();
+            return Err(ExporterError::Shutdown);
+        };
         // Frame the whole batch into one buffer, then issue a single write. A
         // record that fails to serialize is logged and skipped so one bad event
         // does not drop the batch.
         let mut batch = Vec::new();
-        for event in &*events {
-            match postcard::to_allocvec(event) {
+        for event in events.drain(..) {
+            match postcard::to_allocvec(&event) {
                 Ok(payload) => {
                     batch.extend_from_slice(&(payload.len() as u32).to_be_bytes());
                     batch.extend_from_slice(&payload);

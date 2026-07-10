@@ -18,10 +18,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use uuid::Uuid;
 
-/// Max events drained per `recv_many` call, bounding batch memory and
-/// worst-case flush latency.
-const RECV_MANY_LIMIT: usize = 256;
-
 /// Wrapper around an optional channel sender.
 ///
 /// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
@@ -155,32 +151,38 @@ where
     let (events_sender, mut events_receiver) = unbounded_channel();
 
     let forwarder_handle = runtime.handle().spawn(async move {
-        // One buffer for the task's lifetime. `recv_many` appends, so clear it
-        // after each `push_many` (whose post-state is unspecified) to refill
-        // from empty without reallocating.
+        // Reused across batches; `drain_events` leaves it empty and it is reserved
+        // to a full batch before each receive.
         let mut buffer = Vec::new();
         loop {
+            let limit = exporter.batch_size_hint().get();
+            buffer.reserve(limit);
             tokio::select! {
                 // Cancel-safe: if the cancellation branch wins, `buffer` is left
                 // untouched (no events are lost).
-                n = events_receiver.recv_many(&mut buffer, RECV_MANY_LIMIT) => {
+                n = events_receiver.recv_many(&mut buffer, limit) => {
                     // 0 means the channel is closed and drained.
                     if n == 0 {
                         break;
                     }
-                    if let Err(e) = exporter.push_many(&mut buffer).await {
+                    if let Err(e) = exporter.drain_events(&mut buffer).await {
                         warn!("unable to export events: {e}");
                     }
-                    buffer.clear();
+                    debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
                 },
                 () = cloned_token.cancelled() => {
                     events_receiver.close();
                     // drain events that are buffered
-                    while events_receiver.recv_many(&mut buffer, RECV_MANY_LIMIT).await != 0 {
-                        if let Err(e) = exporter.push_many(&mut buffer).await {
+                    loop {
+                        let limit = exporter.batch_size_hint().get();
+                        buffer.reserve(limit);
+                        if events_receiver.recv_many(&mut buffer, limit).await == 0 {
+                            break;
+                        }
+                        if let Err(e) = exporter.drain_events(&mut buffer).await {
                             warn!("unable to export events: {e}");
                         }
-                        buffer.clear();
+                        debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
                     }
                     break
                 },
