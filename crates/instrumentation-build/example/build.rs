@@ -41,20 +41,18 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
 fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
     let endpoint = RecordBuilder::new(ident("Endpoint"))
-        .annotations(docs("A network endpoint."))
-        .fields([
+        .with_annotations(docs("A network endpoint."))
+        .try_with_fields([
             field("host", DataType::String),
             field("port", DataType::U16),
-        ])
-        .unwrap()
+        ])?
         .build();
 
     let meta = RecordBuilder::new(ident("Meta"))
-        .fields([
+        .try_with_fields([
             field("tags", DataType::List(Box::new(DataType::String))),
             field("extra", DataType::DynamicRecord),
-        ])
-        .unwrap()
+        ])?
         .build();
 
     let connection = EntityBuilder::new(ident("Connection"))

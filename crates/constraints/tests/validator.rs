@@ -139,9 +139,9 @@ fn unregistered_constraint_is_reported_once() {
         .build();
     let record_field = Field::new(ident("rf"), DataType::U64, unknown());
     let record = RecordBuilder::new(ident("R"))
-        .field(record_field)
+        .try_with_field(record_field)
         .unwrap()
-        .annotations(unknown())
+        .with_annotations(unknown())
         .build();
     let schema = SchemaBuilder::new(ident("S"))
         .entity(entity)

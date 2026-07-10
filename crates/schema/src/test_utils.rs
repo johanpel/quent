@@ -39,7 +39,7 @@ pub fn entity(name: &str, events: impl IntoIterator<Item = Event>) -> Entity {
 }
 pub fn record(name: &str, fields: impl IntoIterator<Item = Field>) -> Record {
     RecordBuilder::new(ident(name))
-        .fields(fields)
+        .try_with_fields(fields)
         .unwrap()
         .build()
 }
