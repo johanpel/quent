@@ -334,12 +334,13 @@ mod test {
 
     #[test]
     fn recurses_data_types_and_entity_ref_annotations() {
+        let mut annotations = AnnotationsBuilder::new();
+        annotations
+            .try_insert_constraint("my.constraint.v1", None)
+            .unwrap();
         let entity_ref = DataType::EntityRef {
             data: None,
-            annotations: AnnotationsBuilder::new()
-                .constraint("my.constraint.v1", None)
-                .unwrap()
-                .build(),
+            annotations: annotations.build(),
         };
         let schema = schema(
             "S",

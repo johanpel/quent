@@ -3,11 +3,18 @@
 
 use quent_constraints::{Constraint, validate};
 use quent_schema::{
-    Cardinality, DataType, Field, Schema,
+    Annotations, Cardinality, DataType, Field, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
     test_utils::{self, entity, event, field, ident, schema},
     visitor::{Cursor, Visitor},
 };
+
+/// Annotations carrying the constraint `name` without data.
+fn constraint(name: &str) -> Annotations {
+    let mut builder = AnnotationsBuilder::new();
+    builder.try_insert_constraint(name, None).unwrap();
+    builder.build()
+}
 
 fn empty_schema() -> Schema {
     test_utils::schema("TestSchema", vec![], vec![])
@@ -88,12 +95,7 @@ fn passing_constraint_on_empty_schema() {
 #[test]
 fn constraint_without_validator_is_unregistered() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint("unknown", None)
-                .unwrap()
-                .build(),
-        )
+        .annotations(constraint("unknown"))
         .build();
     let report = validate::<(NoopA,)>(&schema);
     assert_eq!(report.unregistered_constraints.len(), 1);
@@ -109,12 +111,11 @@ fn constraint_without_validator_is_unregistered() {
 #[test]
 fn metadata_is_never_validated() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(
-            AnnotationsBuilder::new()
-                .metadata("not_validated", None)
-                .unwrap()
-                .build(),
-        )
+        .annotations({
+            let mut builder = AnnotationsBuilder::new();
+            builder.try_insert_metadata("not_validated", None).unwrap();
+            builder.build()
+        })
         .build();
     let report = validate::<(NoopA,)>(&schema);
     assert!(report.unregistered_constraints.is_empty());
@@ -122,12 +123,7 @@ fn metadata_is_never_validated() {
 
 #[test]
 fn unregistered_constraint_is_reported_once() {
-    let unknown = || {
-        AnnotationsBuilder::new()
-            .constraint("unknown", None)
-            .unwrap()
-            .build()
-    };
+    let unknown = || constraint("unknown");
     let field = Field::new(ident("ef"), DataType::U64, unknown());
     let event = EventBuilder::new(ident("Ev"), Cardinality::Once)
         .field(field)
@@ -174,12 +170,7 @@ fn constraint_failure_is_reported_per_constraint() {
 #[test]
 fn unregistered_and_failure_aggregate() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint("unknown", None)
-                .unwrap()
-                .build(),
-        )
+        .annotations(constraint("unknown"))
         .build();
     let report = validate::<(Failing,)>(&schema);
     assert!(

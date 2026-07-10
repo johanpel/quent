@@ -135,7 +135,11 @@ mod tests {
 
     #[test]
     fn docs_annotations_become_doc_attributes() {
-        let docs = |text: &str| AnnotationsBuilder::new().docs(text).build();
+        let docs = |text: &str| {
+            let mut builder = AnnotationsBuilder::new();
+            builder.set_docs(text);
+            builder.build()
+        };
         let field_x = Field::new(ident("x"), DataType::U8, docs("field doc"));
         let ev = EventBuilder::new(ident("ev"), Cardinality::Once)
             .fields([field_x])

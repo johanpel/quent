@@ -12,10 +12,13 @@ use quent_schema::{
 fn entity_ref(target: Option<&str>) -> DataType {
     DataType::EntityRef {
         data: None,
-        annotations: AnnotationsBuilder::new()
-            .constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
-            .unwrap()
-            .build(),
+        annotations: {
+            let mut builder = AnnotationsBuilder::new();
+            builder
+                .try_insert_constraint(RefTargetConstraint::NAME, target.map(ToString::to_string))
+                .unwrap();
+            builder.build()
+        },
     }
 }
 

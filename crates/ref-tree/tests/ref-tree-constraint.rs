@@ -12,25 +12,27 @@ use quent_schema::{
 
 /// A type-erased tree-forming reference (no target).
 fn tree_ref() -> DataType {
+    let mut builder = AnnotationsBuilder::new();
+    builder
+        .try_insert_constraint(RefTreeConstraint::NAME, None)
+        .unwrap();
     DataType::EntityRef {
         data: None,
-        annotations: AnnotationsBuilder::new()
-            .constraint(RefTreeConstraint::NAME, None)
-            .unwrap()
-            .build(),
+        annotations: builder.build(),
     }
 }
 
 /// A tree-forming reference restricted to a specific parent entity type.
 fn tree_ref_to(target: &str) -> DataType {
+    let mut builder = AnnotationsBuilder::new();
+    builder
+        .try_insert_constraint(RefTreeConstraint::NAME, None)
+        .unwrap()
+        .try_insert_constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
+        .unwrap();
     DataType::EntityRef {
         data: None,
-        annotations: AnnotationsBuilder::new()
-            .constraint(RefTreeConstraint::NAME, None)
-            .unwrap()
-            .constraint(RefTargetConstraint::NAME, Some(ident(target).to_string()))
-            .unwrap()
-            .build(),
+        annotations: builder.build(),
     }
 }
 
