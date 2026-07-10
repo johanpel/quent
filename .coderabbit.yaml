@@ -4,8 +4,9 @@
 
 reviews:
   profile: quiet
+  # Don't edit the PR description, summary in CodeRabbit's own walkthrough comment only:
   high_level_summary: false
-  high_level_summary_in_walkthrough: false
+  high_level_summary_in_walkthrough: true
   poem: false
   auto_review:
     enabled: true
