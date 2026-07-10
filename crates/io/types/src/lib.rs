@@ -6,6 +6,7 @@
 use quent_events::Event;
 use std::num::NonZeroUsize;
 use thiserror::Error;
+use tracing::warn;
 use uuid::Uuid;
 
 /// A sink for one entity's event stream.
@@ -23,19 +24,22 @@ pub trait Exporter<T>: Send {
     ///
     /// Callers may pass fewer in [`drain_events`], or ignore it completely.
     fn batch_size_hint(&self) -> NonZeroUsize {
-        NonZeroUsize::new(256).unwrap()
+        const { NonZeroUsize::new(256).unwrap() }
     }
 
     /// Exports every event in `events`, in order, leaving it empty.
     ///
-    /// The default forwards each event to [`push`](Self::push). Override this
-    /// to amortize per-event overhead.
+    /// The default forwards each event to [`push`](Self::push), logging and
+    /// skipping any that fail so one failure does not drop the rest of the
+    /// batch. Override this to amortize per-event overhead.
     async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()>
     where
         T: Send + 'async_trait,
     {
         for event in events.drain(..) {
-            self.push(event).await?;
+            if let Err(e) = self.push(event).await {
+                warn!("unable to export event: {e}");
+            }
         }
         Ok(())
     }

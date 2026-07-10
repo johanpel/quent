@@ -15,7 +15,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// File extension for ndjson event files.
@@ -91,7 +91,7 @@ where
                     batch.push_str(&line);
                     batch.push('\n');
                 }
-                Err(e) => error!("unable to serialize event: {e}"),
+                Err(e) => warn!("unable to serialize event: {e}"),
             }
         }
         writer.write_all(batch.as_bytes()).await?;

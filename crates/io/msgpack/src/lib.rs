@@ -14,7 +14,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// File extension for MessagePack event files.
@@ -87,7 +87,7 @@ where
                     batch.extend_from_slice(&(payload.len() as u32).to_be_bytes());
                     batch.extend_from_slice(&payload);
                 }
-                Err(e) => error!("unable to serialize event: {e}"),
+                Err(e) => warn!("unable to serialize event: {e}"),
             }
         }
         writer.write_all(batch).await?;
