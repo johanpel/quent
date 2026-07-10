@@ -96,7 +96,7 @@ fn passing_constraint_on_empty_schema() {
 #[test]
 fn constraint_without_validator_is_unregistered() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(constraint("unknown"))
+        .with_annotations(constraint("unknown"))
         .build();
     let report = validate::<(NoopA,)>(&schema);
     assert_eq!(report.unregistered_constraints.len(), 1);
@@ -112,7 +112,7 @@ fn constraint_without_validator_is_unregistered() {
 #[test]
 fn metadata_is_never_validated() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(
+        .with_annotations(
             AnnotationsBuilder::new()
                 .try_with_metadata("not_validated", None)
                 .unwrap()
@@ -144,11 +144,11 @@ fn unregistered_constraint_is_reported_once() {
         .with_annotations(unknown())
         .build();
     let schema = SchemaBuilder::new(ident("S"))
-        .entity(entity)
+        .try_with_entity(entity)
         .unwrap()
-        .record(record)
+        .try_with_record(record)
         .unwrap()
-        .annotations(unknown())
+        .with_annotations(unknown())
         .build();
     let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
@@ -172,7 +172,7 @@ fn constraint_failure_is_reported_per_constraint() {
 #[test]
 fn unregistered_and_failure_aggregate() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
-        .annotations(constraint("unknown"))
+        .with_annotations(constraint("unknown"))
         .build();
     let report = validate::<(Failing,)>(&schema);
     assert!(

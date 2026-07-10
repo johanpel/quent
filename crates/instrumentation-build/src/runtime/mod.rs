@@ -107,7 +107,7 @@ mod tests {
             .unwrap()
             .build();
         let s = SchemaBuilder::new(ident("Demo"))
-            .entity(connection)
+            .try_with_entity(connection)
             .unwrap()
             .build();
         let src = pretty(generate_runtime_types(&s).unwrap());

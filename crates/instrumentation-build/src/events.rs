@@ -152,7 +152,7 @@ mod tests {
             .with_annotations(docs("entity doc"))
             .build();
         let s = SchemaBuilder::new(ident("M"))
-            .entities([en])
+            .try_with_entity(en)
             .unwrap()
             .build();
 

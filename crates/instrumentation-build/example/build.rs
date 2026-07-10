@@ -78,10 +78,8 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
         .build();
 
     let schema = SchemaBuilder::new(ident("Demo"))
-        .records([endpoint, meta])
-        .unwrap()
-        .entities([connection])
-        .unwrap()
+        .try_with_records([endpoint, meta])?
+        .try_with_entity(connection)?
         .build();
 
     Ok(schema)

@@ -49,9 +49,9 @@ pub fn schema(
     records: impl IntoIterator<Item = Record>,
 ) -> Schema {
     SchemaBuilder::new(ident(name))
-        .entities(entities)
+        .try_with_entities(entities)
         .unwrap()
-        .records(records)
+        .try_with_records(records)
         .unwrap()
         .build()
 }
