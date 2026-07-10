@@ -147,9 +147,9 @@ mod tests {
             .with_annotations(docs("event doc"))
             .build();
         let en = EntityBuilder::new(ident("E"))
-            .events([ev])
+            .try_with_event(ev)
             .unwrap()
-            .annotations(docs("entity doc"))
+            .with_annotations(docs("entity doc"))
             .build();
         let s = SchemaBuilder::new(ident("M"))
             .entities([en])

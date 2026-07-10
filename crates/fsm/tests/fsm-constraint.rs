@@ -38,9 +38,9 @@ fn fsm_annotations(data: Option<String>) -> Annotations {
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
     EntityBuilder::new(ident(name))
-        .events(events)
+        .try_with_events(events)
         .unwrap()
-        .annotations(fsm_annotations(Some(data.to_string())))
+        .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
 }
 
@@ -85,9 +85,9 @@ fn single_state_fsm_passes() {
 #[test]
 fn missing_data_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
+        .try_with_event(event("a", Cardinality::Once))
         .unwrap()
-        .annotations(fsm_annotations(None))
+        .with_annotations(fsm_annotations(None))
         .build();
     let errors = validate(&schema_with(entity));
     assert!(
@@ -100,9 +100,9 @@ fn missing_data_is_rejected() {
 #[test]
 fn invalid_json_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
+        .try_with_event(event("a", Cardinality::Once))
         .unwrap()
-        .annotations(fsm_annotations(Some("{ trash".to_string())))
+        .with_annotations(fsm_annotations(Some("{ trash".to_string())))
         .build();
     let errors = validate(&schema_with(entity));
     assert!(

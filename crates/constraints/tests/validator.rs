@@ -133,9 +133,9 @@ fn unregistered_constraint_is_reported_once() {
         .with_annotations(unknown())
         .build();
     let entity = EntityBuilder::new(ident("E"))
-        .event(event)
+        .try_with_event(event)
         .unwrap()
-        .annotations(unknown())
+        .with_annotations(unknown())
         .build();
     let record_field = Field::new(ident("rf"), DataType::U64, unknown());
     let record = RecordBuilder::new(ident("R"))

@@ -33,7 +33,7 @@ pub fn event_with(
 }
 pub fn entity(name: &str, events: impl IntoIterator<Item = Event>) -> Entity {
     EntityBuilder::new(ident(name))
-        .events(events)
+        .try_with_events(events)
         .unwrap()
         .build()
 }

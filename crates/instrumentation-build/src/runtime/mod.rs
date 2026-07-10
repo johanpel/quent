@@ -98,10 +98,12 @@ mod tests {
     #[test]
     fn generate_assembles_event_impl_observer_handle_and_context() {
         let connection = EntityBuilder::new(ident("Connection"))
-            .events([EventBuilder::new(ident("data"), Cardinality::Multi)
-                .try_with_field(field("bytes", DataType::U64))
-                .unwrap()
-                .build()])
+            .try_with_event(
+                EventBuilder::new(ident("data"), Cardinality::Multi)
+                    .try_with_field(field("bytes", DataType::U64))
+                    .unwrap()
+                    .build(),
+            )
             .unwrap()
             .build();
         let s = SchemaBuilder::new(ident("Demo"))

@@ -56,8 +56,8 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
         .build();
 
     let connection = EntityBuilder::new(ident("Connection"))
-        .annotations(docs("A client connection."))
-        .events([
+        .with_annotations(docs("A client connection."))
+        .try_with_events([
             EventBuilder::new(ident("opened"), Cardinality::Once)
                 .try_with_fields([
                     field("peer", DataType::Record(ident("Endpoint"))),
@@ -74,8 +74,7 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
                 ])?
                 .build(),
             EventBuilder::new(ident("closed"), Cardinality::Once).build(),
-        ])
-        .unwrap()
+        ])?
         .build();
 
     let schema = SchemaBuilder::new(ident("Demo"))
