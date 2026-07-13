@@ -1,0 +1,10 @@
+[package]
+name = "quent-yaml"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Pinned exactly: the tree builder relies on parser-level details (spanned
+# events, scalar styles, anchor ids) of a pre-1.0 crate.
+saphyr-parser = "=0.0.9"
