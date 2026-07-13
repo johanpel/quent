@@ -1,21 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Owned YAML tree built from the saphyr parser event stream, with a source
-//! span (position range) on every node.
+//! Owned YAML tree with a source position on every node.
 //!
-//! The tree is built at the event level rather than through the two obvious
-//! shortcuts, because both discard what a source language must report:
+//! A YAML parser can hand back a document in three ways, and this builds the
+//! tree from the lowest of them: the stream of parse events (start mapping,
+//! scalar, end mapping, ...). The two higher-level options both throw away
+//! what a source language must report on:
 //!
-//! - A serde deserializer (such as the archived serde_yaml) carries no
-//!   source positions, silently keeps the last value for duplicate mapping
-//!   keys, and stops at the first error.
-//! - saphyr's own trees (`Yaml`, the span-annotated `MarkedYaml`) also keep
-//!   the last duplicate key silently, and store scalars as parsed values,
-//!   losing the original text and style.
+//! - Deserializing straight into typed structs (as serde_yaml does) drops
+//!   source positions, keeps only the last of any duplicated key, and stops
+//!   at the first error.
+//! - A ready-made document tree (saphyr's own `Yaml` / `MarkedYaml`) also
+//!   silently keeps the last duplicate key, and stores each scalar as an
+//!   already-parsed value, losing its original text and quoting.
 //!
-//! The event stream keeps every node's span, lets duplicate keys survive
-//! until they can be diagnosed, and leaves styles observable.
+//! Building from the event stream keeps every node's position, lets duplicate
+//! keys survive until they can be reported, and leaves each scalar's original
+//! text intact.
 
 use std::collections::HashMap;
 
