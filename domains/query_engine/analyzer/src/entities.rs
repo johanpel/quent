@@ -102,7 +102,9 @@ where
         Some(p) => Box::new(
             ranked
                 .into_iter()
-                .skip((p.page as usize) * (p.max as usize))
+                // Saturate so an out-of-range page skips everything (empty page)
+                // instead of overflowing usize on a 32-bit target.
+                .skip(p.page.saturating_mul(p.max) as usize)
                 .take(p.max as usize),
         ),
         None => Box::new(ranked.into_iter()),

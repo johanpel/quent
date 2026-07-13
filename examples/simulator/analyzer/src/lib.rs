@@ -263,9 +263,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         &self,
         request: quent_ui::entities::request::EntityListRequest<QueryFilter, OperatorFilter>,
     ) -> AnalyzerResult<quent_ui::entities::response::EntityListResponse> {
-        let epoch = self
-            .query_engine_model()
-            .query_epoch(request.app_params.query_id)?;
+        let query_id = request.app_params.query_id;
+        let epoch = self.query_engine_model().query_epoch(query_id)?;
         let entry = request.entry;
         let window = entry.window.try_into_span(epoch)?;
         let scope = entry
@@ -274,10 +273,27 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .as_ref()
             .map(|s| s.resolve(&self.model))
             .transpose()?;
-        let operator_id = entry.application.operator_id;
+        let operator_filter = entry.application.operator_id;
+
+        // Restrict candidates to the requested query: a task belongs to a query
+        // iff its operator is one of that query's operators. Without this, tasks
+        // from a different query sharing a resource and overlapping the window
+        // would leak in.
+        let query_operators: HashSet<Uuid> = self
+            .model
+            .query_view(query_id)?
+            .operators()
+            .map(|op| op.id())
+            .collect();
+
         entities::list_entities(
             &self.model,
-            |task| operator_id.is_none_or(|op| task.operator_id() == Some(op)),
+            |task| {
+                task.operator_id().is_some_and(|op| {
+                    query_operators.contains(&op)
+                        && operator_filter.is_none_or(|filter| op == filter)
+                })
+            },
             entities::ListQuery {
                 scope: scope.as_ref(),
                 window,
