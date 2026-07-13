@@ -70,8 +70,8 @@ pub(crate) fn resolve_plain(text: &str) -> Resolved {
         "" | "~" | "null" | "Null" | "NULL" => Resolved::Null,
         "true" | "True" | "TRUE" => Resolved::Bool(true),
         "false" | "False" | "FALSE" => Resolved::Bool(false),
-        _ if is_core_int(text) => Resolved::Int,
-        _ if is_core_float(text) => Resolved::Float,
+        _ if reads_as_int(text) => Resolved::Int,
+        _ if reads_as_float(text) => Resolved::Float,
         _ => Resolved::Str,
     }
 }
@@ -94,7 +94,7 @@ pub(crate) fn non_string_kind(text: &str, style: ScalarStyle) -> Option<&'static
     }
 }
 
-fn is_core_int(s: &str) -> bool {
+fn reads_as_int(s: &str) -> bool {
     if let Some(hex) = s.strip_prefix("0x") {
         return !hex.is_empty() && hex.bytes().all(|b| b.is_ascii_hexdigit());
     }
@@ -105,7 +105,7 @@ fn is_core_int(s: &str) -> bool {
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
-fn is_core_float(s: &str) -> bool {
+fn reads_as_float(s: &str) -> bool {
     if matches!(s, ".nan" | ".NaN" | ".NAN") {
         return true;
     }
