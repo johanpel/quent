@@ -9,5 +9,5 @@ publish.workspace = true
 # archived, and saphyr is its maintained successor lineage. Pinned exactly
 # because the tree builder relies on parser-level details (spanned events,
 # scalar styles, anchor ids) that may shift between pre-1.0 releases.
-saphyr-parser = "=0.0.9"
+saphyr-parser = "=0.0.11"
 strsim = "0.11"
