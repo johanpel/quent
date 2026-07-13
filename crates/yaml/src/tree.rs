@@ -3,9 +3,12 @@
 
 //! Owned, spanned YAML tree built from the saphyr parser event stream.
 //!
-//! Built at the event level rather than through serde or a stock YAML tree so
-//! that every node keeps its source span, duplicate mapping keys survive until
-//! they can be diagnosed, and scalar styles remain observable.
+//! Built at the event level rather than through a serde deserializer (such as
+//! the archived serde_yaml) because the serde data model cannot deliver what
+//! a source language needs: it carries no source spans, silently keeps the
+//! last value for duplicate mapping keys, and stops at the first error. The
+//! event stream keeps every node's span, lets duplicate keys survive until
+//! they can be diagnosed, and leaves scalar styles observable.
 
 use std::collections::HashMap;
 
@@ -163,8 +166,9 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
     let mut anchors: HashMap<usize, Node> = HashMap::new();
     let mut root: Option<Node> = None;
     let mut document_seen = false;
-    // Total nodes materialized through aliases, capping pathological
-    // expansion (billion laughs) of otherwise tiny inputs.
+    // Total nodes materialized through aliases, capping the "Billion
+    // Laughs" attack: aliases of nested anchors can expand a tiny input
+    // exponentially.
     let mut alias_nodes: usize = 0;
     const MAX_ALIAS_NODES: usize = 65_536;
 
@@ -194,7 +198,7 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
                     sink.error(
                         span,
                         "",
-                        "multiple YAML documents are not supported",
+                        "multiple YAML documents are not supported yet",
                         Some("keep the model in a single document".to_string()),
                     );
                     return None;
@@ -298,10 +302,10 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
     root
 }
 
-/// A zero-width span at a 1-based line and column, for errors that have no
-/// parsed node.
+/// A zero-width span at a line and column counted from 1, as editors
+/// display them, for errors that have no parsed node.
 fn span_at(line: usize, column: usize) -> Span {
-    // Sink renders 0-based marker columns as 1-based.
+    // Sink adds 1 to marker columns, which count from 0.
     let marker = saphyr_parser::Marker::new(0, line, column.saturating_sub(1));
     Span {
         start: marker,
@@ -341,7 +345,8 @@ fn attach(
     true
 }
 
-/// The 1-based line of a leading `%` directive, if the document has one.
+/// The line of a leading `%` directive, counted from 1, if the document has
+/// one.
 ///
 /// Directives are only legal before the content starts, so scanning stops at
 /// the first line that is not blank, a comment, or a directive.

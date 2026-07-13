@@ -10,9 +10,9 @@ use saphyr_parser::Span;
 pub struct Diagnostic {
     /// The source file name, or `"<input>"` for [`crate::load_str`].
     pub file: String,
-    /// 1-based source line.
+    /// Source line, counted from 1 as editors display it.
     pub line: usize,
-    /// 1-based source column.
+    /// Source column, counted from 1 as editors display it.
     pub column: usize,
     /// Dotted semantic path, e.g. `entities.Engine.events.started.once.load`.
     pub path: String,
@@ -106,7 +106,7 @@ impl Sink {
         Diagnostic {
             file: self.file.clone(),
             line: span.start.line(),
-            // saphyr markers are 0-based in the column.
+            // saphyr marker columns count from 0; displayed columns from 1.
             column: span.start.col() + 1,
             path: path.to_string(),
             message,
@@ -132,39 +132,15 @@ pub(crate) fn suggest<'c>(
     let max_distance = (name.len() / 3).max(1);
     candidates
         .into_iter()
-        .map(|c| (levenshtein(name, c), c))
+        .map(|c| (strsim::levenshtein(name, c), c))
         .filter(|&(d, _)| d <= max_distance)
         .min_by_key(|&(d, _)| d)
         .map(|(_, c)| c)
 }
 
-fn levenshtein(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut row: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut prev = row[0];
-        row[0] = i + 1;
-        for (j, &cb) in b.iter().enumerate() {
-            let cost = if ca == cb { prev } else { prev + 1 };
-            prev = row[j + 1];
-            row[j + 1] = cost.min(prev + 1).min(row[j] + 1);
-        }
-    }
-    row[b.len()]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn levenshtein_basics() {
-        assert_eq!(levenshtein("", ""), 0);
-        assert_eq!(levenshtein("abc", "abc"), 0);
-        assert_eq!(levenshtein("abc", "abd"), 1);
-        assert_eq!(levenshtein("strin", "string"), 1);
-        assert_eq!(levenshtein("kitten", "sitting"), 3);
-    }
 
     #[test]
     fn suggest_picks_closest_within_bound() {
