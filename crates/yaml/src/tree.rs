@@ -48,7 +48,7 @@ impl Node {
     }
 }
 
-/// What a plain scalar resolves to under the YAML 1.2 Core schema.
+/// What an unquoted scalar's text means under the YAML 1.2 Core schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Resolved {
     Null,
@@ -58,7 +58,13 @@ pub(crate) enum Resolved {
     Str,
 }
 
-/// Resolve a plain scalar's text under the YAML 1.2 Core schema.
+/// Decide what an unquoted scalar's text means.
+///
+/// The parser hands scalars over as raw text; YAML's typing of unquoted
+/// ("plain") scalars is the 1.2 Core schema implemented here: `true` is a
+/// boolean, `42` an integer, `~` null, and so on, while anything quoted is
+/// always a string. This backs null handling, the quote-your-name rule, and
+/// annotation payload conversion.
 pub(crate) fn resolve_plain(text: &str) -> Resolved {
     match text {
         "" | "~" | "null" | "Null" | "NULL" => Resolved::Null,
