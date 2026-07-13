@@ -168,13 +168,28 @@ enum Frame {
     },
 }
 
+/// Nesting depth past which a document is rejected. saphyr limits flow
+/// collection depth but not block collections, and the tree's recursive
+/// `Drop`/`Clone` would overflow the stack on a deep enough tree.
+const MAX_DEPTH: usize = 128;
+
+/// Byte budget for content reused through anchors and aliases, bounding the
+/// "Billion Laughs" memory amplification (a tiny input whose aliases clone
+/// large or nested anchored content many times over).
+const MAX_REUSE_BYTES: usize = 64 << 20;
+
 /// Parse `src` into a single-document tree.
 ///
 /// Structural problems abort with one located diagnostic: syntax errors,
 /// tags (`!!type` markers), merge keys (`<<`, YAML 1.1 mapping inheritance),
-/// aliases to unknown anchors, and multiple `---`-separated documents in one
-/// file. Everything past this point reports multiple diagnostics per run.
+/// directives (`%...`), aliases to unknown anchors, multiple `---`-separated
+/// documents in one file, and inputs exceeding the depth or reuse limits.
+/// Everything past this point reports multiple diagnostics per run.
 pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
+    // Editors often save a leading byte-order mark; saphyr would otherwise
+    // fold it into the first scalar's text.
+    let src = src.strip_prefix('\u{feff}').unwrap_or(src);
+
     if let Some(line) = leading_directive(src) {
         sink.error(
             span_at(line, 1),
@@ -189,11 +204,8 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
     let mut anchors: HashMap<usize, Node> = HashMap::new();
     let mut root: Option<Node> = None;
     let mut document_seen = false;
-    // Total nodes materialized through aliases, capping the "Billion
-    // Laughs" attack: aliases of nested anchors can expand a tiny input
-    // exponentially.
-    let mut alias_nodes: usize = 0;
-    const MAX_ALIAS_NODES: usize = 65_536;
+    // Bytes cloned for anchor registration and alias expansion so far.
+    let mut reused: usize = 0;
 
     for item in Parser::new_from_str(src) {
         let (event, span) = match item {
@@ -236,26 +248,35 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
                         style,
                     },
                 };
-                if !attach(&mut stack, &mut root, &mut anchors, aid, node, sink) {
+                if !attach(
+                    &mut stack,
+                    &mut root,
+                    &mut anchors,
+                    aid,
+                    node,
+                    &mut reused,
+                    sink,
+                ) {
                     return None;
                 }
             }
             Event::Alias(aid) => match anchors.get(&aid) {
                 Some(node) => {
-                    alias_nodes += node_count(node);
-                    if alias_nodes > MAX_ALIAS_NODES {
-                        sink.error(
-                            span,
-                            "",
-                            format!("alias expansion exceeds {MAX_ALIAS_NODES} nodes"),
-                            None,
-                        );
+                    if !charge(&mut reused, node_bytes(node), span, sink) {
                         return None;
                     }
                     // Keep the anchor's spans: diagnostics inside aliased
                     // content should point at where the content is written.
                     let node = node.clone();
-                    if !attach(&mut stack, &mut root, &mut anchors, 0, node, sink) {
+                    if !attach(
+                        &mut stack,
+                        &mut root,
+                        &mut anchors,
+                        0,
+                        node,
+                        &mut reused,
+                        sink,
+                    ) {
                         return None;
                     }
                 }
@@ -270,6 +291,15 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
                 }
             },
             Event::SequenceStart(aid, _) => {
+                if stack.len() >= MAX_DEPTH {
+                    sink.error(
+                        span,
+                        "",
+                        format!("nesting exceeds the maximum depth of {MAX_DEPTH}"),
+                        None,
+                    );
+                    return None;
+                }
                 stack.push(Frame::Seq {
                     span,
                     aid,
@@ -277,18 +307,40 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
                 });
             }
             Event::SequenceEnd => {
-                let Some(Frame::Seq { span, aid, items }) = stack.pop() else {
+                let Some(Frame::Seq {
+                    span: start,
+                    aid,
+                    items,
+                }) = stack.pop()
+                else {
                     unreachable!("parser balances sequence events");
                 };
                 let node = Node {
-                    span,
+                    span: enclosing(start, span),
                     kind: Kind::Seq(items),
                 };
-                if !attach(&mut stack, &mut root, &mut anchors, aid, node, sink) {
+                if !attach(
+                    &mut stack,
+                    &mut root,
+                    &mut anchors,
+                    aid,
+                    node,
+                    &mut reused,
+                    sink,
+                ) {
                     return None;
                 }
             }
             Event::MappingStart(aid, _) => {
+                if stack.len() >= MAX_DEPTH {
+                    sink.error(
+                        span,
+                        "",
+                        format!("nesting exceeds the maximum depth of {MAX_DEPTH}"),
+                        None,
+                    );
+                    return None;
+                }
                 stack.push(Frame::Map {
                     span,
                     aid,
@@ -298,31 +350,73 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
             }
             Event::MappingEnd => {
                 let Some(Frame::Map {
-                    span, aid, pairs, ..
+                    span: start,
+                    aid,
+                    pairs,
+                    ..
                 }) = stack.pop()
                 else {
                     unreachable!("parser balances mapping events");
                 };
                 let node = Node {
-                    span,
+                    span: enclosing(start, span),
                     kind: Kind::Map(pairs),
                 };
-                if !attach(&mut stack, &mut root, &mut anchors, aid, node, sink) {
+                if !attach(
+                    &mut stack,
+                    &mut root,
+                    &mut anchors,
+                    aid,
+                    node,
+                    &mut reused,
+                    sink,
+                ) {
                     return None;
                 }
             }
         }
     }
 
-    if root.is_none() {
+    // An empty document (`""`) or an explicit-empty one (`---`, `~`) leaves no
+    // mapping to build a model from.
+    match root {
+        Some(node) if !node.is_null() => Some(node),
+        node => {
+            let span = node.map_or_else(|| span_at(1, 1), |n| n.span);
+            sink.error(
+                span,
+                "",
+                "empty document; expected a mapping at the root",
+                None,
+            );
+            None
+        }
+    }
+}
+
+/// The span from `start`'s beginning to `end`'s end, for a collection whose
+/// bounds arrive on separate events.
+fn enclosing(start: Span, end: Span) -> Span {
+    Span {
+        start: start.start,
+        end: end.end,
+    }
+}
+
+/// Charge `bytes` against the anchor/alias reuse budget, reporting at `span`
+/// and returning false when it would be exceeded.
+fn charge(reused: &mut usize, bytes: usize, span: Span, sink: &mut Sink) -> bool {
+    *reused += bytes;
+    if *reused > MAX_REUSE_BYTES {
         sink.error(
-            span_at(1, 1),
+            span,
             "",
-            "empty document; expected a mapping at the root",
+            format!("anchor and alias reuse exceeds {MAX_REUSE_BYTES} bytes"),
             None,
         );
+        return false;
     }
-    root
+    true
 }
 
 /// An empty position range at a line and column counted from 1, as editors
@@ -346,9 +440,13 @@ fn attach(
     anchors: &mut HashMap<usize, Node>,
     aid: usize,
     node: Node,
+    reused: &mut usize,
     sink: &mut Sink,
 ) -> bool {
     if aid != 0 {
+        if !charge(reused, node_bytes(&node), node.span, sink) {
+            return false;
+        }
         anchors.insert(aid, node.clone());
     }
     match stack.last_mut() {
@@ -372,9 +470,11 @@ fn attach(
 /// one.
 ///
 /// Directives are only legal before the content starts, so scanning stops at
-/// the first line that is not blank, a comment, or a directive.
+/// the first line that is not blank, a comment, or a directive. Splits on a
+/// lone `\r` as well, which saphyr treats as a line break but `str::lines`
+/// does not.
 fn leading_directive(src: &str) -> Option<usize> {
-    for (index, line) in src.lines().enumerate() {
+    for (index, line) in src.split(['\n', '\r']).enumerate() {
         let trimmed = line.trim_start();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
@@ -387,14 +487,17 @@ fn leading_directive(src: &str) -> Option<usize> {
     None
 }
 
-/// The number of nodes in a subtree, matching the cost of cloning it.
-fn node_count(node: &Node) -> usize {
+/// The byte weight of a subtree, approximating the memory to clone it: one
+/// byte per node plus the length of every scalar's text.
+///
+/// Recursion is bounded by [`MAX_DEPTH`], enforced before any subtree grows.
+fn node_bytes(node: &Node) -> usize {
     1 + match &node.kind {
-        Kind::Scalar { .. } => 0,
-        Kind::Seq(items) => items.iter().map(node_count).sum(),
+        Kind::Scalar { text, .. } => text.len(),
+        Kind::Seq(items) => items.iter().map(node_bytes).sum(),
         Kind::Map(pairs) => pairs
             .iter()
-            .map(|(k, v)| node_count(k) + node_count(v))
+            .map(|(k, v)| node_bytes(k) + node_bytes(v))
             .sum(),
     }
 }
@@ -467,7 +570,39 @@ mod tests {
         // Undefined aliases are a scan error in saphyr itself; the in-tree
         // alias branch remains as a backstop.
         assert!(parse_err("a: *nope\n").contains("unknown anchor"));
-        assert!(parse_err("").contains("empty document"));
         assert!(parse_err("a: [1\n").contains("YAML syntax error"));
+        assert!(parse_err("%YAML 1.1\n---\na: 1\n").contains("directives are not supported"));
+        // A lone carriage return is a line break to saphyr but not to
+        // `str::lines`, so the directive must still be caught.
+        assert!(parse_err("\r%YAML 1.1\n---\na: 1\n").contains("directives are not supported"));
+    }
+
+    #[test]
+    fn rejects_empty_documents() {
+        assert!(parse_err("").contains("empty document"));
+        // An explicit-empty document yields a null scalar, not no root.
+        assert!(parse_err("---\n").contains("empty document"));
+        assert!(parse_err("~\n").contains("empty document"));
+    }
+
+    #[test]
+    fn strips_leading_byte_order_mark() {
+        let root = parse_ok("\u{feff}a: 1\n");
+        let Kind::Map(pairs) = &root.kind else {
+            panic!("expected map");
+        };
+        assert_eq!(pairs[0].0.scalar().unwrap().0, "a");
+    }
+
+    #[test]
+    fn rejects_excessive_depth() {
+        let deep = "- ".repeat(MAX_DEPTH + 10);
+        assert!(parse_err(&deep).contains("maximum depth"));
+    }
+
+    #[test]
+    fn collection_span_reaches_its_end() {
+        let root = parse_ok("a: 1\nb: 2\n");
+        assert!(root.span.end.line() >= 2, "map span should reach its end");
     }
 }

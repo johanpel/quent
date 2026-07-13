@@ -8,7 +8,7 @@ use saphyr_parser::Span;
 /// A single located problem in a YAML model source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// The source file name, or `"<input>"` for [`crate::load_str`].
+    /// The source file name, or `"<input>"` for text loaded without one.
     pub file: String,
     /// Source line, counted from 1 as editors display it.
     pub line: usize,
@@ -26,9 +26,12 @@ impl std::fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{}:{}:{}: {} ({})",
-            self.file, self.line, self.column, self.message, self.path
+            "{}:{}:{}: {}",
+            self.file, self.line, self.column, self.message
         )?;
+        if !self.path.is_empty() {
+            write!(f, " ({})", self.path)?;
+        }
         if let Some(help) = &self.help {
             write!(f, "\n  help: {help}")?;
         }
@@ -36,7 +39,7 @@ impl std::fmt::Display for Diagnostic {
     }
 }
 
-/// A non-empty collection of [`Diagnostic`]s from one load.
+/// The problems collected from one load, in the order they were detected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostics(pub(crate) Vec<Diagnostic>);
 
@@ -129,7 +132,7 @@ pub(crate) fn suggest<'c>(
     name: &str,
     candidates: impl IntoIterator<Item = &'c str>,
 ) -> Option<&'c str> {
-    let max_distance = (name.len() / 3).max(1);
+    let max_distance = (name.chars().count() / 3).max(1);
     candidates
         .into_iter()
         .map(|c| (strsim::levenshtein(name, c), c))
