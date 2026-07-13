@@ -65,6 +65,11 @@ pub(crate) enum Resolved {
 /// boolean, `42` an integer, `~` null, and so on, while anything quoted is
 /// always a string. This backs null handling, the quote-your-name rule, and
 /// annotation payload conversion.
+///
+/// Classification is by pattern, deliberately not via `saphyr`'s own scalar
+/// parsing: that parses values and silently falls back to string when a
+/// number does not fit (an overflowing integer would quietly load as text),
+/// which would make such cases undiagnosable.
 pub(crate) fn resolve_plain(text: &str) -> Resolved {
     match text {
         "" | "~" | "null" | "Null" | "NULL" => Resolved::Null,
