@@ -4,10 +4,6 @@
 //! Owned YAML tree built from the saphyr parser event stream, with a source
 //! span (position range) on every node.
 //!
-//! A scalar's *style* is how it is written: unquoted (called *plain* in
-//! YAML), quoted, or as an indented block. `&name` puts an *anchor* on a
-//! node and `*name` (an *alias*) reuses the anchored node elsewhere.
-//!
 //! The tree is built at the event level rather than through the two obvious
 //! shortcuts, because both discard what a source language must report:
 //!
