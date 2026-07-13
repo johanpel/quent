@@ -1,14 +1,27 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Owned, spanned YAML tree built from the saphyr parser event stream.
+//! Owned YAML tree built from the saphyr parser event stream, with a source
+//! span (position range) on every node.
 //!
-//! Built at the event level rather than through a serde deserializer (such as
-//! the archived serde_yaml) because the serde data model cannot deliver what
-//! a source language needs: it carries no source spans, silently keeps the
-//! last value for duplicate mapping keys, and stops at the first error. The
-//! event stream keeps every node's span, lets duplicate keys survive until
-//! they can be diagnosed, and leaves scalar styles observable.
+//! YAML terms used throughout this crate: a *scalar* is a single value (as
+//! opposed to a *mapping*, keys to values, and a *sequence*, a list), and a
+//! scalar's *style* is how it is written: unquoted (called *plain* in YAML),
+//! quoted, or as an indented block. `&name` puts an *anchor* on a node and
+//! `*name` (an *alias*) reuses the anchored node elsewhere.
+//!
+//! The tree is built at the event level rather than through the two obvious
+//! shortcuts, because both discard what a source language must report:
+//!
+//! - A serde deserializer (such as the archived serde_yaml) carries no
+//!   source positions, silently keeps the last value for duplicate mapping
+//!   keys, and stops at the first error.
+//! - saphyr's own trees (`Yaml`, the span-annotated `MarkedYaml`) also keep
+//!   the last duplicate key silently, and store scalars as parsed values,
+//!   losing the original text and style.
+//!
+//! The event stream keeps every node's span, lets duplicate keys survive
+//! until they can be diagnosed, and leaves styles observable.
 
 use std::collections::HashMap;
 
@@ -31,7 +44,7 @@ pub(crate) enum Kind {
 }
 
 impl Node {
-    /// The scalar text and style, if this node is a scalar.
+    /// The text and quoting style, if this node is a scalar (single value).
     pub(crate) fn scalar(&self) -> Option<(&str, ScalarStyle)> {
         match &self.kind {
             Kind::Scalar { text, style } => Some((text, *style)),
@@ -39,7 +52,7 @@ impl Node {
         }
     }
 
-    /// True if this node is a plain scalar that resolves to null.
+    /// True if this node is an unquoted scalar meaning null.
     pub(crate) fn is_null(&self) -> bool {
         matches!(
             self.scalar(),
@@ -81,11 +94,11 @@ pub(crate) fn resolve_plain(text: &str) -> Resolved {
     }
 }
 
-/// What a plain scalar in a name position would wrongly resolve to, phrased
-/// for a diagnostic. `None` when the scalar is a string (or not plain).
+/// What an unquoted scalar in a name position would wrongly mean, phrased
+/// for a diagnostic. `None` when it reads as a string (or is quoted).
 ///
-/// This is the single quoting rule for name positions, shared by mapping keys
-/// and name-valued scalars.
+/// This is the single quoting rule for name positions, shared by mapping
+/// keys and name-valued scalars.
 pub(crate) fn non_string_kind(text: &str, style: ScalarStyle) -> Option<&'static str> {
     if style != ScalarStyle::Plain {
         return None;
@@ -159,9 +172,10 @@ enum Frame {
 
 /// Parse `src` into a single-document tree.
 ///
-/// Structural problems (scan errors, tags, merge keys, aliases to unknown
-/// anchors, multiple documents) abort with one located diagnostic; everything
-/// past this point reports multiple diagnostics per run.
+/// Structural problems abort with one located diagnostic: syntax errors,
+/// tags (`!!type` markers), merge keys (`<<`, YAML 1.1 mapping inheritance),
+/// aliases to unknown anchors, and multiple `---`-separated documents in one
+/// file. Everything past this point reports multiple diagnostics per run.
 pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
     if let Some(line) = leading_directive(src) {
         sink.error(
@@ -313,7 +327,7 @@ pub(crate) fn parse(src: &str, sink: &mut Sink) -> Option<Node> {
     root
 }
 
-/// A zero-width span at a line and column counted from 1, as editors
+/// An empty position range at a line and column counted from 1, as editors
 /// display them, for errors that have no parsed node.
 fn span_at(line: usize, column: usize) -> Span {
     // Sink adds 1 to marker columns, which count from 0.
