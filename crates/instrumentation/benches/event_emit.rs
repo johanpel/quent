@@ -21,9 +21,9 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, black_box, measurement::WallTime};
 use pprof::criterion::{Output, PProfProfiler};
-use quent_collector::{CollectorSink, server::CollectorService};
+use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
-use quent_events::{EntityEvent, Event};
+use quent_events::EntityEvent;
 use quent_instrumentation::{Context, Observer};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions};
@@ -72,8 +72,7 @@ impl BenchSink {
 impl CollectorSink for BenchSink {
     fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
         if entity == BenchEvent::NAME {
-            self.observer
-                .send(ciborium::from_reader::<Event<BenchEvent>, _>(event)?);
+            self.observer.send(deserialize_event::<BenchEvent>(event)?);
             Ok(())
         } else {
             Err(format!("unknown entity stream `{entity}`").into())

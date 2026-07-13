@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use common::TestEvent;
-use quent_collector::{CollectorSink, server::CollectorService};
+use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::{EntityEvent, Event};
 use quent_instrumentation::Context;
@@ -34,7 +34,7 @@ impl CollectorSink for CountingSink {
         if entity != TestEvent::NAME {
             return Err(format!("unexpected entity `{entity}`").into());
         }
-        let _: Event<TestEvent> = ciborium::from_reader(event)?;
+        let _: Event<TestEvent> = deserialize_event(event)?;
         self.received.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }

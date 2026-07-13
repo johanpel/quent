@@ -222,8 +222,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         .map(|(comp_event, field)| {
             quote! {
                 if entity == <#comp_event as quent_model::EntityEvent>::NAME {
-                    let e: quent_model::Event<#comp_event> =
-                        quent_model::ciborium::from_reader(event)?;
+                    let e = quent_model::deserialize_event::<#comp_event>(event)?;
                     self.#field.send(e);
                     return Ok(());
                 }

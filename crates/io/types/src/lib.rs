@@ -4,7 +4,9 @@
 //! Basic traits for exporter / importer implementations
 
 use quent_events::Event;
+use std::num::NonZeroUsize;
 use thiserror::Error;
+use tracing::warn;
 use uuid::Uuid;
 
 /// A sink for one entity's event stream.
@@ -18,7 +20,31 @@ pub trait Exporter<T>: Send {
     /// Export one event.
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()>;
 
-    /// Make a best-effort to flush any buffered events, then release any internal resources.
+    /// Suggested max events per [`drain_events`](Self::drain_events) batch.
+    ///
+    /// Callers may pass fewer in [`drain_events`], or ignore it completely.
+    fn batch_size_hint(&self) -> NonZeroUsize {
+        const { NonZeroUsize::new(256).unwrap() }
+    }
+
+    /// Exports every event in `events`, in order, leaving it empty.
+    ///
+    /// The default forwards each event to [`push`](Self::push), logging and
+    /// skipping any that fail so one failure does not drop the rest of the
+    /// batch. Override this to amortize per-event overhead.
+    async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()>
+    where
+        T: Send + 'async_trait,
+    {
+        for event in events.drain(..) {
+            if let Err(e) = self.push(event).await {
+                warn!("unable to export event: {e}");
+            }
+        }
+        Ok(())
+    }
+
+    /// Make a best-effort to flush any buffered events.
     async fn shutdown(self: Box<Self>) -> ExporterResult<()>;
 }
 
