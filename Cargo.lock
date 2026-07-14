@@ -2649,9 +2649,13 @@ name = "quent-resource"
 version = "0.1.0"
 dependencies = [
  "indexmap",
+ "quent-constraints",
+ "quent-fsm",
  "quent-schema",
+ "rustc-hash",
  "serde",
  "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
