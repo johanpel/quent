@@ -7,29 +7,26 @@
 //! with `once`/`multi` events. Field types use a Rust-spelled mini-language
 //! (`String`, `Vec<T>`, `Option<T>` with `T?` sugar, `Ref`, `Uuid`, `Dynamic`,
 //! the integer and float primitives, and bare record names). Every level takes
-//! `doc:` plus generic `constraints:`/`metadata:` annotation maps.
+//! a `doc:` string plus generic `constraints:`/`metadata:` annotation maps.
 //!
-//! Loading parses (YAML 1.2, spanned), lowers through the [`quent_schema`]
-//! builders, and validates the always-on base constraints. Constraint
-//! annotations are opaque pass-through data: nothing validates them at load
-//! time, and each is surfaced once as a [`Loaded::warnings`] entry. All
-//! failures are located [`Diagnostics`].
+//! Loading deserializes the file into intermediate types (see `ast`), lowers
+//! them through the [`quent_schema`] builders, and validates the always-on base
+//! constraints. Constraint annotations are opaque pass-through data, each
+//! surfaced once as a [`Loaded::warnings`] entry. Parse problems carry a source
+//! line and column; lowering problems carry a semantic path.
 
 use std::path::Path;
 
 use quent_constraints::validate;
 use quent_schema::Schema;
 
+mod ast;
 mod diag;
-mod json;
-mod lint;
 mod lower;
-mod tree;
+mod payload;
 mod types;
-mod walk;
 
 pub use diag::{Diagnostic, Diagnostics};
-pub use lint::lint;
 
 /// A successfully loaded model.
 #[derive(Debug)]
@@ -40,7 +37,7 @@ pub struct Loaded {
     pub warnings: Vec<Diagnostic>,
 }
 
-/// Failure while loading a YAML model source.
+/// Failure while loading a model source.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -49,7 +46,7 @@ pub enum Error {
     Invalid(Diagnostics),
 }
 
-/// Parse and lower YAML source text into a validated [`Schema`].
+/// Parse and lower model source text into a validated [`Schema`].
 ///
 /// Diagnostics name the source as `<input>`; see [`load_str_named`] and
 /// [`load`] to name it.
@@ -57,7 +54,7 @@ pub fn load_str(src: &str) -> Result<Loaded, Error> {
     load_str_named(src, "<input>")
 }
 
-/// Read a YAML model file and load it via [`load_str`] semantics.
+/// Read a model file and load it via [`load_str`] semantics.
 pub fn load(path: impl AsRef<Path>) -> Result<Loaded, Error> {
     let path = path.as_ref();
     let src = std::fs::read_to_string(path)?;
@@ -67,12 +64,17 @@ pub fn load(path: impl AsRef<Path>) -> Result<Loaded, Error> {
 /// Like [`load_str`], naming the source `file` in diagnostics.
 pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
     let mut sink = diag::Sink::new(file);
-    let Some(root) = tree::parse(src, &mut sink) else {
-        return Err(Error::Invalid(sink.into_diagnostics()));
+
+    let model: ast::Model = match serde_norway::from_str(src) {
+        Ok(model) => model,
+        Err(e) => {
+            let location = e.location().map(|l| (l.line(), l.column()));
+            sink.error_at(location, e.to_string());
+            return Err(Error::Invalid(sink.into_diagnostics()));
+        }
     };
-    let Some((schema, map)) = lower::lower(&root, &mut sink) else {
-        return Err(Error::Invalid(sink.into_diagnostics()));
-    };
+
+    let schema = lower::lower(&model, &mut sink);
     if sink.has_errors() {
         return Err(Error::Invalid(sink.into_diagnostics()));
     }
@@ -80,13 +82,7 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
     let report = validate::<()>(&schema);
     if let Err(e) = report.base_constraints {
         for record in e.recursive_records {
-            let span = map
-                .record_spans
-                .get(&record)
-                .copied()
-                .unwrap_or(map.model_span);
             sink.error(
-                span,
                 &format!("records.{record}"),
                 format!("record `{record}` is recursive"),
                 Some(
@@ -95,15 +91,8 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
                 ),
             );
         }
-        // Unresolved references are pre-empted by the loader's own deferred
-        // checks; this is a backstop for anything those miss.
         for reference in e.invalid_references {
-            sink.error(
-                map.model_span,
-                "",
-                format!("unresolved reference: {reference}"),
-                None,
-            );
+            sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
     if sink.has_errors() {
@@ -114,13 +103,7 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
         .unregistered_constraints
         .into_iter()
         .map(|name| {
-            let span = map
-                .constraint_first
-                .get(&name)
-                .copied()
-                .unwrap_or(map.model_span);
             sink.make(
-                span,
                 "",
                 format!("constraint `{name}` has no registered validator"),
                 Some(

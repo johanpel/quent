@@ -1,12 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! `quent-yaml-check`: load YAML model files and report located diagnostics.
+//! `quent-yaml-check`: load model files and report diagnostics.
 //!
-//! Usage: `quent-yaml-check [--warnings] <file>...`. Exits non-zero if any file
-//! fails to load. With `--warnings`, also reports unregistered-constraint
-//! warnings and style lints. Diagnostics are emitted as `tracing` events on
-//! stderr.
+//! Usage: `quent-yaml-check [--warnings] <file>...`. Exits non-zero if any
+//! file fails to load. With `--warnings`, also reports unregistered-constraint
+//! warnings. Diagnostics are emitted as `tracing` events on stderr.
 
 use std::fmt::Write as _;
 use std::process::ExitCode;
@@ -15,8 +14,6 @@ use quent_yaml::{Diagnostic, Error};
 use tracing::{error, info, warn};
 
 fn main() -> ExitCode {
-    // Compiler-style diagnostics: timestamps and targets would clutter the
-    // caret blocks.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_target(false)
@@ -66,9 +63,6 @@ fn check(file: &str, warnings: bool) -> bool {
                 for warning in &loaded.warnings {
                     warn!("{}", render(&src, warning));
                 }
-                for lint in quent_yaml::lint(&src, file) {
-                    warn!("{}", render(&src, &lint));
-                }
             }
             let events: usize = loaded.schema.entities().map(|e| e.events().count()).sum();
             info!(
@@ -79,8 +73,6 @@ fn check(file: &str, warnings: bool) -> bool {
             );
             true
         }
-        // Unreachable: the source was already read, so only diagnostics
-        // remain.
         Err(Error::Io(e)) => {
             error!("{file}: {e}");
             false
@@ -94,20 +86,15 @@ fn check(file: &str, warnings: bool) -> bool {
     }
 }
 
-/// Render one diagnostic with its source line and a caret under the column,
-/// as a single multi-line block so the event stays together.
+/// Render one diagnostic, adding a source line and caret when it is located.
 fn render(src: &str, diagnostic: &Diagnostic) -> String {
-    let mut out = format!(
-        "{}:{}:{}: {}",
-        diagnostic.file, diagnostic.line, diagnostic.column, diagnostic.message
-    );
-    if let Some(line) = src.lines().nth(diagnostic.line.saturating_sub(1)) {
-        let gutter = format!("{:>4} | ", diagnostic.line);
-        let padding = " ".repeat(gutter.len() + diagnostic.column.saturating_sub(1));
-        write!(out, "\n{gutter}{line}\n{padding}^").expect("writing to a String");
-    }
-    if let Some(help) = &diagnostic.help {
-        write!(out, "\n     = help: {help}").expect("writing to a String");
+    let mut out = diagnostic.to_string();
+    if let Some((line, column)) = diagnostic.location
+        && let Some(text) = src.lines().nth(line.saturating_sub(1))
+    {
+        let gutter = format!("{line:>4} | ");
+        let padding = " ".repeat(gutter.len() + column.saturating_sub(1));
+        write!(out, "\n{gutter}{text}\n{padding}^").expect("writing to a String");
     }
     out
 }

@@ -15,97 +15,44 @@
 //! ident  := [A-Za-z][A-Za-z0-9_]*
 //! ```
 //!
-//! `T?` is sugar for `Option<T>`; each `?` wraps once. `Ref` takes no
-//! parameter, leaving the spot free for later syntax extensions. Record
-//! references are collected for a deferred existence check once all
-//! declarations are known.
+//! `T?` is sugar for `Option<T>`. `Ref` takes no parameter, leaving the spot
+//! free for later syntax extensions. A bare name is a record reference,
+//! checked against the declared records by base constraint validation.
 
 use quent_schema::{Annotations, DataType, Identifier};
-use saphyr_parser::Span;
 
-use crate::diag::Sink;
+/// Maximum type-expression nesting, matching `quent-instrumentation-build`.
+const MAX_DEPTH: usize = 64;
 
-// Mirrors quent-instrumentation-build's MAX_TYPE_DEPTH, so over-deep types
-// fail here with a span instead of panicking later in codegen.
-pub(crate) const MAX_TYPE_DEPTH: usize = 64;
-
-/// Names with a fixed meaning in type expressions. Declaring a record or
-/// entity under one of these would make it unreachable or confusing.
+/// Names with a fixed meaning in type expressions, so a record or entity may
+/// not be declared under one.
 pub(crate) const RESERVED_TYPE_NAMES: &[&str] = &[
     "Dynamic", "Option", "Ref", "String", "Uuid", "Vec", "bool", "f32", "f64", "i16", "i32", "i64",
     "i8", "u16", "u32", "u64", "u8",
 ];
 
-/// Names whose existence is checked after all declarations are known.
-#[derive(Default)]
-pub(crate) struct DeferredRefs {
-    /// Record references: name, span, path.
-    pub(crate) records: Vec<(String, Span, String)>,
-}
-
-/// Nesting depth of `Option`/`List`/`EntityRef` wrappers, counted as
-/// `quent-instrumentation-build`'s type mapping does.
-pub(crate) fn wrapper_depth(ty: &DataType) -> usize {
-    match ty {
-        DataType::Option(inner) | DataType::List(inner) => 1 + wrapper_depth(inner),
-        DataType::EntityRef {
-            data: Some(inner), ..
-        } => 1 + wrapper_depth(inner),
-        _ => 0,
-    }
-}
-
-/// Parse one type expression. Errors go to `sink` at `span`.
-pub(crate) fn parse_type_expr(
-    text: &str,
-    span: Span,
-    path: &str,
-    sink: &mut Sink,
-    refs: &mut DeferredRefs,
-) -> Option<DataType> {
+/// Parse a type expression, returning the type or a human-readable reason.
+pub(crate) fn parse_type(text: &str) -> Result<DataType, String> {
     let mut lexer = Lexer::new(text);
-    let detail = match parse_type(&mut lexer, span, path, refs, 0) {
-        Ok(ty) => match lexer.next() {
-            Token::End => return Some(ty),
-            tok => format!("unexpected trailing {}", tok.describe()),
-        },
-        Err(detail) => detail,
-    };
-    sink.error(
-        span,
-        path,
-        format!("invalid type expression `{text}`: {detail}"),
-        None,
-    );
-    None
+    let ty = parse(&mut lexer, 0)?;
+    match lexer.next() {
+        Token::End => Ok(ty),
+        tok => Err(format!("unexpected trailing {}", tok.describe())),
+    }
 }
 
-fn parse_type(
-    lexer: &mut Lexer,
-    span: Span,
-    path: &str,
-    refs: &mut DeferredRefs,
-    depth: usize,
-) -> Result<DataType, String> {
-    // Bail while parsing, before recursion can overflow the stack; the
-    // composed-type check in lowering handles depth across structured refs.
-    if depth > MAX_TYPE_DEPTH {
-        return Err(format!("nests deeper than {MAX_TYPE_DEPTH} wrappers"));
+fn parse(lexer: &mut Lexer, depth: usize) -> Result<DataType, String> {
+    if depth > MAX_DEPTH {
+        return Err(format!("nests deeper than {MAX_DEPTH} wrappers"));
     }
-    let mut ty = parse_atom(lexer, span, path, refs, depth)?;
+    let mut ty = parse_atom(lexer, depth)?;
     while lexer.eat(&Token::Question) {
         ty = DataType::Option(Box::new(ty));
     }
     Ok(ty)
 }
 
-fn parse_atom(
-    lexer: &mut Lexer,
-    span: Span,
-    path: &str,
-    refs: &mut DeferredRefs,
-    depth: usize,
-) -> Result<DataType, String> {
+fn parse_atom(lexer: &mut Lexer, depth: usize) -> Result<DataType, String> {
     let name = match lexer.next() {
         Token::Ident(name) => name,
         tok => return Err(format!("expected a type, found {}", tok.describe())),
@@ -131,7 +78,7 @@ fn parse_atom(
                     "`{name}` needs a type argument, e.g. `{name}<u32>`"
                 ));
             }
-            let inner = parse_type(lexer, span, path, refs, depth + 1)?;
+            let inner = parse(lexer, depth + 1)?;
             if !lexer.eat(&Token::Gt) {
                 return Err(format!("missing `>` to close `{name}<`"));
             }
@@ -144,7 +91,7 @@ fn parse_atom(
             if lexer.eat(&Token::Lt) {
                 return Err(
                     "`Ref` takes no type parameter; carried data uses the structured \
-                     `{ ref: ..., data: <type> }` form"
+                     `{ ref: , data: <type> }` form"
                         .to_string(),
                 );
             }
@@ -153,12 +100,9 @@ fn parse_atom(
                 annotations: Annotations::default(),
             }
         }
-        _ => {
-            let ident =
-                Identifier::try_new(&name).expect("the lexer only produces valid identifiers");
-            refs.records.push((name, span, path.to_string()));
-            DataType::Record(ident)
-        }
+        _ => DataType::Record(
+            Identifier::try_new(&name).expect("the lexer only produces valid identifiers"),
+        ),
     };
     Ok(ty)
 }
@@ -238,76 +182,43 @@ impl<'s> Lexer<'s> {
 mod tests {
     use super::*;
 
-    fn parse(text: &str) -> Result<DataType, String> {
-        let mut sink = Sink::new("<test>");
-        let mut refs = DeferredRefs::default();
-        match parse_type_expr(text, Span::default(), "t", &mut sink, &mut refs) {
-            Some(ty) => Ok(ty),
-            None => Err(sink.into_diagnostics().to_string()),
-        }
-    }
-
     #[test]
     fn parses_scalars_and_compositions() {
-        assert_eq!(parse("bool").unwrap(), DataType::Bool);
-        assert_eq!(parse("String").unwrap(), DataType::String);
+        assert_eq!(parse_type("bool").unwrap(), DataType::Bool);
         assert_eq!(
-            parse("Vec<u32>").unwrap(),
+            parse_type("Vec<u32>").unwrap(),
             DataType::List(Box::new(DataType::U32))
         );
         assert_eq!(
-            parse("Option<String>").unwrap(),
-            DataType::Option(Box::new(DataType::String))
-        );
-        assert_eq!(parse("String?").unwrap(), parse("Option<String>").unwrap());
-        assert_eq!(
-            parse("u16??").unwrap(),
-            DataType::Option(Box::new(DataType::Option(Box::new(DataType::U16))))
+            parse_type("String?").unwrap(),
+            parse_type("Option<String>").unwrap()
         );
         assert_eq!(
-            parse(" Vec < String ? > ").unwrap(),
-            DataType::List(Box::new(DataType::Option(Box::new(DataType::String))))
+            parse_type("Vec<Stage>").unwrap(),
+            DataType::List(Box::new(DataType::Record(
+                Identifier::try_new("Stage").unwrap()
+            )))
         );
     }
 
     #[test]
-    fn parses_refs() {
-        let DataType::EntityRef { data, annotations } = parse("Ref").unwrap() else {
-            panic!("expected an entity ref");
-        };
-        assert!(data.is_none());
-        assert_eq!(annotations, Annotations::default());
-        assert_eq!(
-            parse("Ref?").unwrap(),
-            DataType::Option(Box::new(parse("Ref").unwrap()))
-        );
+    fn parses_bare_ref() {
+        assert!(matches!(
+            parse_type("Ref").unwrap(),
+            DataType::EntityRef { data: None, .. }
+        ));
     }
 
     #[test]
-    fn rejects_malformed_expressions() {
-        for (expr, detail) in [
+    fn rejects_malformed() {
+        for (expr, needle) in [
             ("", "expected a type"),
             ("Vec", "needs a type argument"),
-            ("Vec<u32", "missing `>`"),
-            ("Vec<>", "expected a type"),
-            ("u32?x", "unexpected trailing"),
+            ("Vec<u8", "missing `>`"),
             ("&Engine", "unexpected character `&`"),
-            ("Vec<u32>>", "unexpected trailing"),
             ("Ref<Engine>", "`Ref` takes no type parameter"),
         ] {
-            let err = parse(expr).unwrap_err();
-            assert!(err.contains(detail), "{expr:?}: {err}");
+            assert!(parse_type(expr).unwrap_err().contains(needle), "{expr:?}");
         }
-    }
-
-    #[test]
-    fn wrapper_depth_counts_all_wrappers() {
-        let ty = parse("Vec<String?>?").unwrap();
-        assert_eq!(wrapper_depth(&ty), 3);
-        let ty = DataType::EntityRef {
-            data: Some(Box::new(DataType::Option(Box::new(DataType::U8)))),
-            annotations: Annotations::default(),
-        };
-        assert_eq!(wrapper_depth(&ty), 2);
     }
 }

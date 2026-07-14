@@ -1,20 +1,21 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Located diagnostics for YAML model sources.
+//! Diagnostics for model sources.
+//!
+//! `serde` reports parse and shape errors with a source line and column;
+//! lowering reports its own problems with a dotted semantic path instead
+//! (the deserializer has consumed the structure by then).
 
-use saphyr_parser::Span;
-
-/// A single located problem in a YAML model source.
+/// A single problem in a model source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// The source file name, or `"<input>"` for [`crate::load_str`].
+    /// The source file name, or `"<input>"` for text loaded without one.
     pub file: String,
-    /// 1-based source line.
-    pub line: usize,
-    /// 1-based source column.
-    pub column: usize,
-    /// Dotted semantic path, e.g. `entities.Engine.events.started.once.load`.
+    /// A source line and column (counted from 1), for parse-stage problems.
+    pub location: Option<(usize, usize)>,
+    /// Dotted semantic path, e.g. `entities.Engine.events.started`, for
+    /// lowering-stage problems. Empty when a location is set.
     pub path: String,
     /// What is wrong.
     pub message: String,
@@ -24,11 +25,13 @@ pub struct Diagnostic {
 
 impl std::fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}:{}:{}: {} ({})",
-            self.file, self.line, self.column, self.message, self.path
-        )?;
+        write!(f, "{}", self.file)?;
+        match self.location {
+            Some((line, column)) => write!(f, ":{line}:{column}")?,
+            None if !self.path.is_empty() => write!(f, " ({})", self.path)?,
+            None => {}
+        }
+        write!(f, ": {}", self.message)?;
         if let Some(help) = &self.help {
             write!(f, "\n  help: {help}")?;
         }
@@ -36,12 +39,12 @@ impl std::fmt::Display for Diagnostic {
     }
 }
 
-/// A non-empty collection of [`Diagnostic`]s from one load.
+/// The problems collected from one load, in the order they were detected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostics(pub(crate) Vec<Diagnostic>);
 
 impl Diagnostics {
-    /// The diagnostics, in source order of detection.
+    /// The diagnostics, in order of detection.
     pub fn iter(&self) -> impl Iterator<Item = &Diagnostic> + '_ {
         self.0.iter()
     }
@@ -86,32 +89,30 @@ impl Sink {
         }
     }
 
-    pub(crate) fn error(
-        &mut self,
-        span: Span,
-        path: &str,
-        message: impl Into<String>,
-        help: Option<String>,
-    ) {
-        self.out.push(self.make(span, path, message.into(), help));
+    /// Report a lowering problem at semantic `path`.
+    pub(crate) fn error(&mut self, path: &str, message: impl Into<String>, help: Option<String>) {
+        self.out.push(self.make(path, message.into(), help));
     }
 
-    pub(crate) fn make(
-        &self,
-        span: Span,
-        path: &str,
-        message: String,
-        help: Option<String>,
-    ) -> Diagnostic {
+    pub(crate) fn make(&self, path: &str, message: String, help: Option<String>) -> Diagnostic {
         Diagnostic {
             file: self.file.clone(),
-            line: span.start.line(),
-            // saphyr markers are 0-based in the column.
-            column: span.start.col() + 1,
+            location: None,
             path: path.to_string(),
             message,
             help,
         }
+    }
+
+    /// Report a parse problem at a source `line` and `column`.
+    pub(crate) fn error_at(&mut self, location: Option<(usize, usize)>, message: String) {
+        self.out.push(Diagnostic {
+            file: self.file.clone(),
+            location,
+            path: String::new(),
+            message,
+            help: None,
+        });
     }
 
     pub(crate) fn has_errors(&self) -> bool {
@@ -120,55 +121,5 @@ impl Sink {
 
     pub(crate) fn into_diagnostics(self) -> Diagnostics {
         Diagnostics(self.out)
-    }
-}
-
-/// Return the closest of `candidates` to `name`, if any is close enough to be
-/// a plausible typo.
-pub(crate) fn suggest<'c>(
-    name: &str,
-    candidates: impl IntoIterator<Item = &'c str>,
-) -> Option<&'c str> {
-    let max_distance = (name.len() / 3).max(1);
-    candidates
-        .into_iter()
-        .map(|c| (levenshtein(name, c), c))
-        .filter(|&(d, _)| d <= max_distance)
-        .min_by_key(|&(d, _)| d)
-        .map(|(_, c)| c)
-}
-
-fn levenshtein(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut row: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut prev = row[0];
-        row[0] = i + 1;
-        for (j, &cb) in b.iter().enumerate() {
-            let cost = if ca == cb { prev } else { prev + 1 };
-            prev = row[j + 1];
-            row[j + 1] = cost.min(prev + 1).min(row[j] + 1);
-        }
-    }
-    row[b.len()]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn levenshtein_basics() {
-        assert_eq!(levenshtein("", ""), 0);
-        assert_eq!(levenshtein("abc", "abc"), 0);
-        assert_eq!(levenshtein("abc", "abd"), 1);
-        assert_eq!(levenshtein("strin", "string"), 1);
-        assert_eq!(levenshtein("kitten", "sitting"), 3);
-    }
-
-    #[test]
-    fn suggest_picks_closest_within_bound() {
-        assert_eq!(suggest("strin", ["string", "bool", "u16"]), Some("string"));
-        assert_eq!(suggest("zzz", ["string", "bool"]), None);
     }
 }
