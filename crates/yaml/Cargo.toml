@@ -11,8 +11,9 @@ quent-constraints = { path = "../constraints" }
 quent-schema = { path = "../schema" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-# serde_yaml is archived; serde_norway is its maintained fork.
-serde_norway = "0.9"
+# Deserialize directly from YAML 1.2 through saphyr (the maintained lineage),
+# so 1.1 keyword names like `on` stay strings and errors carry a location.
+serde-saphyr = "0.0.29"
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["fmt"] }

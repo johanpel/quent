@@ -65,11 +65,13 @@ pub fn load(path: impl AsRef<Path>) -> Result<Loaded, Error> {
 pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
     let mut sink = diag::Sink::new(file);
 
-    let model: ast::Model = match serde_norway::from_str(src) {
+    let model: ast::Model = match serde_saphyr::from_str(src) {
         Ok(model) => model,
         Err(e) => {
-            let location = e.location().map(|l| (l.line(), l.column()));
-            sink.error_at(location, e.to_string());
+            let location = e
+                .location()
+                .map(|l| (l.line() as usize, l.column() as usize));
+            sink.error_at(location, parse_message(&e));
             return Err(Error::Invalid(sink.into_diagnostics()));
         }
     };
@@ -114,4 +116,16 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
         })
         .collect();
     Ok(Loaded { schema, warnings })
+}
+
+/// The human message of a serde-saphyr error, without its location prefix or
+/// source snippet (the location is reported separately).
+fn parse_message(e: &serde_saphyr::Error) -> String {
+    let full = e.to_string();
+    let first = full.lines().next().unwrap_or(&full);
+    let first = first.strip_prefix("error: ").unwrap_or(first);
+    match first.split_once(": ") {
+        Some((prefix, rest)) if prefix.starts_with("line ") => rest.to_string(),
+        _ => first.to_string(),
+    }
 }

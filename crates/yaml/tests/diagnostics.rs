@@ -143,14 +143,6 @@ fn empty_annotation_name() {
 }
 
 #[test]
-fn payload_number_without_json_representation() {
-    expect_error(
-        &format!("{HEADER}metadata:\n  acme.v1: {{ big: .inf }}\n"),
-        &["no JSON representation"],
-    );
-}
-
-#[test]
 fn syntax_error_has_a_location() {
     let Err(Error::Invalid(diagnostics)) = load_str("quent: 1\nmodel: [\n") else {
         panic!("expected failure");

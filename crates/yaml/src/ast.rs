@@ -15,9 +15,11 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_norway::Value;
+use serde_json::Value;
 
 /// A constraint or metadata map, keyed by name with an opaque payload.
+///
+/// serde-saphyr deserializes each YAML payload straight into a JSON value.
 pub(crate) type Anns = IndexMap<String, Value>;
 
 /// A whole model file.

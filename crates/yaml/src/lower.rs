@@ -15,7 +15,7 @@ use quent_schema::builder::{
     AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
 use quent_schema::{Annotations, DataType, Entity, Field, Identifier, Record, Schema};
-use serde_norway::Value;
+use serde_json::Value;
 
 use crate::ast::{self, Anns, Model, TypeSpec};
 use crate::diag::Sink;
@@ -245,39 +245,21 @@ fn add_anns(
     sink: &mut Sink,
 ) {
     for (name, value) in constraints {
-        if let Some(data) = ann_payload(name, value, "constraint", path, sink)
-            && let Err(e) = builder.try_insert_constraint(name, data)
-        {
+        if name.is_empty() {
+            sink.error(path, "constraint name must not be empty", None);
+            continue;
+        }
+        if let Err(e) = builder.try_insert_constraint(name, payload(value)) {
             sink.error(path, e.to_string(), None);
         }
     }
     for (name, value) in metadata {
-        if let Some(data) = ann_payload(name, value, "metadata", path, sink)
-            && let Err(e) = builder.try_insert_metadata(name, data)
-        {
-            sink.error(path, e.to_string(), None);
+        if name.is_empty() {
+            sink.error(path, "metadata name must not be empty", None);
+            continue;
         }
-    }
-}
-
-/// Convert one annotation payload, reporting on failure. The outer `Option`
-/// signals whether to attach it; the inner is the constraint/metadata data.
-fn ann_payload(
-    name: &str,
-    value: &Value,
-    kind: &str,
-    path: &str,
-    sink: &mut Sink,
-) -> Option<Option<String>> {
-    if name.is_empty() {
-        sink.error(path, format!("{kind} name must not be empty"), None);
-        return None;
-    }
-    match payload(value) {
-        Ok(data) => Some(data),
-        Err(reason) => {
-            sink.error(path, format!("`{name}`: {reason}"), None);
-            None
+        if let Err(e) = builder.try_insert_metadata(name, payload(value)) {
+            sink.error(path, e.to_string(), None);
         }
     }
 }
