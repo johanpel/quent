@@ -452,7 +452,6 @@ dependencies = [
  "quent-schema",
  "serde",
  "serde-saphyr",
- "serde_json",
  "thiserror",
  "tracing",
  "tracing-subscriber",

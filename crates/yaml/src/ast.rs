@@ -5,9 +5,8 @@
 //!
 //! These mirror the YAML one-to-one; `serde` fills them in and [`crate::lower`]
 //! turns them into a schema. Names stay raw `String`s here (validated as
-//! identifiers during lowering) and constraint/metadata payloads stay opaque
-//! [`Value`]s (converted during lowering). Maps are [`IndexMap`]s so
-//! declaration order is preserved.
+//! identifiers during lowering). Maps are [`IndexMap`]s so declaration order is
+//! preserved.
 //!
 //! `doc`, `constraints`, and `metadata` are repeated on each element rather
 //! than shared through one flattened struct: `serde`'s `deny_unknown_fields`,
@@ -15,12 +14,13 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
-use serde_json::Value;
 
-/// A constraint or metadata map, keyed by name with an opaque payload.
+/// A constraint or metadata map: a name to an opaque payload string, or `None`
+/// when the name is written with no value.
 ///
-/// serde-saphyr deserializes each YAML payload straight into a JSON value.
-pub(crate) type Anns = IndexMap<String, Value>;
+/// Payloads are plain scalars, not structured data; a non-scalar value fails to
+/// deserialize.
+pub(crate) type Anns = IndexMap<String, Option<String>>;
 
 /// A whole model file.
 #[derive(Debug, Deserialize)]
@@ -174,18 +174,26 @@ pub(crate) struct OptionType {
 
 /// The entity reference form: `{ ref: , data: <type>, ... }`.
 ///
-/// `ref` is required (it marks the form) and its value must be null; the value
-/// is reserved for later syntax extensions.
+/// `ref` is required (it marks the form) and its value must be empty; a target
+/// name is reserved for a later syntax extension.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RefType {
-    pub(crate) r#ref: Value,
+    pub(crate) r#ref: RefValue,
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
     #[serde(default)]
     pub(crate) constraints: Anns,
     #[serde(default)]
     pub(crate) metadata: Anns,
+}
+
+/// The value of a `ref:` key: empty now, a target name later.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum RefValue {
+    Empty(()),
+    Target(String),
 }
 
 impl From<Cardinality> for quent_schema::Cardinality {

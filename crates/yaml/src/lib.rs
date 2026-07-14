@@ -24,7 +24,6 @@ use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 mod ast;
 mod diag;
 mod lower;
-mod payload;
 
 pub use diag::{Diagnostic, Diagnostics};
 

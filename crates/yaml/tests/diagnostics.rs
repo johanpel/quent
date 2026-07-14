@@ -5,10 +5,15 @@
 
 use quent_yaml::{Error, load_str};
 
+const HEADER: &str = "\
+quent: 1
+model: m
+";
+
 /// Load `src`, expect failure, and assert one diagnostic contains all
 /// `needles` (checked against message and help).
 #[track_caller]
-fn expect_error(src: &str, needles: &[&str]) {
+fn expect_raw(src: &str, needles: &[&str]) {
     let diagnostics = match load_str(src) {
         Err(Error::Invalid(d)) => d,
         Err(e) => panic!("expected diagnostics, got {e:?}"),
@@ -25,27 +30,47 @@ fn expect_error(src: &str, needles: &[&str]) {
     );
 }
 
-const HEADER: &str = "quent: 1\nmodel: m\n";
+/// Like [`expect_raw`], prefixing the standard `quent: 1` / `model: m` header
+/// so a test spells out only the body under scrutiny.
+#[track_caller]
+fn expect_error(body: &str, needles: &[&str]) {
+    expect_raw(&format!("{HEADER}{body}"), needles);
+}
 
 #[test]
 fn bad_format_version() {
-    expect_error("quent: 2\nmodel: m\n", &["unsupported format version `2`"]);
+    expect_raw(
+        "\
+quent: 2
+model: m
+",
+        &["unsupported format version `2`"],
+    );
 }
 
 #[test]
 fn unknown_keys_rejected() {
     // On direct structs, serde's deny_unknown_fields names the bad key.
-    expect_error(&format!("{HEADER}fsm: {{}}\n"), &["unknown field `fsm`"]);
+    expect_error("fsm: {}\n", &["unknown field `fsm`"]);
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    bogus: 1\n"),
+        "\
+records:
+  R:
+    bogus: 1
+",
         &["unknown field `bogus`"],
     );
     // Inside a field mapping (an untagged enum), serde only reports that no
     // variant matched — a known limitation, still an error.
     expect_error(
-        &format!(
-            "{HEADER}records:\n  R:\n    fields:\n      f:\n        type: u8\n        docs: x\n"
-        ),
+        "\
+records:
+  R:
+    fields:
+      f:
+        type: u8
+        docs: x
+",
         &["did not match any variant"],
     );
 }
@@ -53,13 +78,24 @@ fn unknown_keys_rejected() {
 #[test]
 fn event_cardinality_required() {
     expect_error(
-        &format!("{HEADER}entities:\n  E:\n    events:\n      started:\n        doc: x\n"),
+        "\
+entities:
+  E:
+    events:
+      started:
+        doc: x
+",
         &["event must declare a cardinality"],
     );
     expect_error(
-        &format!(
-            "{HEADER}entities:\n  E:\n    events:\n      started:\n        once: {{}}\n        multi: {{}}\n"
-        ),
+        "\
+entities:
+  E:
+    events:
+      started:
+        once: {}
+        multi: {}
+",
         &["both `once` and `multi`"],
     );
 }
@@ -68,12 +104,22 @@ fn event_cardinality_required() {
 fn malformed_types() {
     // A compact Rust-style spelling is just an unusable bare type name.
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    fields:\n      f: Vec<u8>\n"),
+        "\
+records:
+  R:
+    fields:
+      f: Vec<u8>
+",
         &["invalid type `Vec<u8>`"],
     );
     // An unrecognized type-wrapper key matches no `TypeExpr` variant.
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    fields:\n      f: {{ lst: u8 }}\n"),
+        "\
+records:
+  R:
+    fields:
+      f: { lst: u8 }
+",
         &["did not match any variant"],
     );
 }
@@ -81,11 +127,18 @@ fn malformed_types() {
 #[test]
 fn invalid_and_reserved_names() {
     expect_error(
-        &format!("{HEADER}records:\n  'has space':\n"),
+        "\
+records:
+  'has space':
+",
         &["invalid name `has space`"],
     );
     expect_error(
-        &format!("{HEADER}records:\n  string:\n    fields: {{ x: u8 }}\n"),
+        "\
+records:
+  string:
+    fields: { x: u8 }
+",
         &["`string` is a reserved type name"],
     );
 }
@@ -93,9 +146,16 @@ fn invalid_and_reserved_names() {
 #[test]
 fn ref_value_reserved() {
     expect_error(
-        &format!(
-            "{HEADER}entities:\n  E:\n    events:\n      up:\n        once:\n          f:\n            type:\n              ref: E\n"
-        ),
+        "\
+entities:
+  E:
+    events:
+      up:
+        once:
+          f:
+            type:
+              ref: E
+",
         &["`ref` takes no value"],
     );
 }
@@ -103,7 +163,12 @@ fn ref_value_reserved() {
 #[test]
 fn unknown_record_reference() {
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    fields:\n      f: Ghost\n"),
+        "\
+records:
+  R:
+    fields:
+      f: Ghost
+",
         &["unresolved reference"],
     );
 }
@@ -111,7 +176,12 @@ fn unknown_record_reference() {
 #[test]
 fn recursive_record() {
     expect_error(
-        &format!("{HEADER}records:\n  Node:\n    fields:\n      next: {{ option: Node }}\n"),
+        "\
+records:
+  Node:
+    fields:
+      next: { option: Node }
+",
         &["record `Node` is recursive"],
     );
 }
@@ -121,7 +191,11 @@ fn invalid_sibling_names_do_not_panic() {
     // Two records with invalid names must both surface as diagnostics rather
     // than reaching the builder as a shared placeholder and panicking.
     expect_error(
-        &format!("{HEADER}records:\n  'a b':\n  'c d':\n"),
+        "\
+records:
+  'a b':
+  'c d':
+",
         &["invalid name `a b`"],
     );
 }
@@ -129,14 +203,22 @@ fn invalid_sibling_names_do_not_panic() {
 #[test]
 fn empty_annotation_name() {
     expect_error(
-        &format!("{HEADER}constraints:\n  '': x\n"),
+        "\
+constraints:
+  '': x
+",
         &["constraint name must not be empty"],
     );
 }
 
 #[test]
 fn syntax_error_has_a_location() {
-    let Err(Error::Invalid(diagnostics)) = load_str("quent: 1\nmodel: [\n") else {
+    let Err(Error::Invalid(diagnostics)) = load_str(
+        "\
+quent: 1
+model: [
+",
+    ) else {
         panic!("expected failure");
     };
     assert!(

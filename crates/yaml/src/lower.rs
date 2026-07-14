@@ -13,11 +13,9 @@ use quent_schema::builder::{
 };
 use quent_schema::{Annotations, DataType, Entity, Field, Identifier, Record, Schema};
 use serde::Deserialize;
-use serde_json::Value;
 
 use crate::ast::{self, Anns, Model, TypeExpr};
 use crate::diag::Sink;
-use crate::payload::payload;
 
 /// Lower `model` to a schema, reporting problems into `sink`.
 pub(crate) fn lower(model: &Model, sink: &mut Sink) -> Schema {
@@ -191,10 +189,10 @@ fn type_of(expr: &TypeExpr, path: &str, sink: &mut Sink) -> Option<DataType> {
         TypeExpr::List(t) => Some(DataType::List(Box::new(type_of(&t.list, path, sink)?))),
         TypeExpr::Option(t) => Some(DataType::Option(Box::new(type_of(&t.option, path, sink)?))),
         TypeExpr::Ref(r) => {
-            if !matches!(r.r#ref, Value::Null) {
+            if let ast::RefValue::Target(name) = &r.r#ref {
                 sink.error(
                     path,
-                    "`ref` takes no value; reference targets are not supported yet",
+                    format!("`ref` takes no value (found `{name}`); reference targets are not supported yet"),
                     Some("write `ref:` and leave it empty".to_string()),
                 );
                 return None;
@@ -284,7 +282,7 @@ fn add_anns(
             sink.error(path, "constraint name must not be empty", None);
             continue;
         }
-        if let Err(e) = builder.try_insert_constraint(name, payload(value)) {
+        if let Err(e) = builder.try_insert_constraint(name, value.clone()) {
             sink.error(path, e.to_string(), None);
         }
     }
@@ -293,7 +291,7 @@ fn add_anns(
             sink.error(path, "metadata name must not be empty", None);
             continue;
         }
-        if let Err(e) = builder.try_insert_metadata(name, payload(value)) {
+        if let Err(e) = builder.try_insert_metadata(name, value.clone()) {
             sink.error(path, e.to_string(), None);
         }
     }
