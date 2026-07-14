@@ -101,19 +101,19 @@ pub(crate) struct EventBody {
 /// An event payload: field name to field, or null for no fields.
 pub(crate) type Payload = Option<IndexMap<String, Field>>;
 
-/// A field, written either as a bare type expression or as a mapping with a
-/// `type:` plus annotations.
+/// A field, written either as a bare type or as a mapping with a `type:` plus
+/// annotations.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum Field {
-    Short(String),
+    Bare(TypeExpr),
     Full(Box<FieldBody>),
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct FieldBody {
-    pub(crate) r#type: TypeSpec,
+    pub(crate) r#type: TypeExpr,
     #[serde(default)]
     pub(crate) doc: Option<String>,
     #[serde(default)]
@@ -122,24 +122,66 @@ pub(crate) struct FieldBody {
     pub(crate) metadata: Anns,
 }
 
-/// A field's type: a bare type expression, or the structured reference form.
+/// A field's type.
+///
+/// A bare name is a built-in ([`BuiltinType`]) or, failing that, a record.
+/// `{ list: T }` and `{ option: T }` wrap another type, and the `{ ref:, data: }`
+/// form is an entity reference. Composition nests through the YAML rather than a
+/// string grammar.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-pub(crate) enum TypeSpec {
-    Expr(String),
-    Ref(RefSpec),
+pub(crate) enum TypeExpr {
+    Builtin(BuiltinType),
+    Record(String),
+    List(ListType),
+    Option(OptionType),
+    Ref(RefType),
 }
 
-/// The structured entity reference: `{ ref: , data: <type> }`.
+/// The bare-name types with a fixed meaning. Variant names are the YAML
+/// spellings (`u8`, `string`, `ref`, …) via `rename_all`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum BuiltinType {
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    F32,
+    F64,
+    String,
+    Uuid,
+    Dynamic,
+    Ref,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ListType {
+    pub(crate) list: Box<TypeExpr>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct OptionType {
+    pub(crate) option: Box<TypeExpr>,
+}
+
+/// The entity reference form: `{ ref: , data: <type>, ... }`.
 ///
 /// `ref` is required (it marks the form) and its value must be null; the value
 /// is reserved for later syntax extensions.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct RefSpec {
+pub(crate) struct RefType {
     pub(crate) r#ref: Value,
     #[serde(default)]
-    pub(crate) data: Option<Box<TypeSpec>>,
+    pub(crate) data: Option<Box<TypeExpr>>,
     #[serde(default)]
     pub(crate) constraints: Anns,
     #[serde(default)]

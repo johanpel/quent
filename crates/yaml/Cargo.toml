@@ -5,14 +5,11 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-convert_case = "0.8"
 indexmap = { workspace = true, features = ["serde"] }
 quent-constraints = { path = "../constraints" }
 quent-schema = { path = "../schema" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-# Deserialize directly from YAML 1.2 through saphyr (the maintained lineage),
-# so 1.1 keyword names like `on` stay strings and errors carry a location.
 serde-saphyr = "0.0.29"
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -66,13 +66,15 @@ fn event_cardinality_required() {
 
 #[test]
 fn malformed_types() {
+    // A compact Rust-style spelling is just an unusable bare type name.
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    fields:\n      f: Vec<u8\n"),
-        &["invalid type", "missing `>`"],
+        &format!("{HEADER}records:\n  R:\n    fields:\n      f: Vec<u8>\n"),
+        &["invalid type `Vec<u8>`"],
     );
+    // An unrecognized type-wrapper key matches no `TypeExpr` variant.
     expect_error(
-        &format!("{HEADER}records:\n  R:\n    fields:\n      f: Ref<Engine>\n"),
-        &["`Ref` takes no type parameter"],
+        &format!("{HEADER}records:\n  R:\n    fields:\n      f: {{ lst: u8 }}\n"),
+        &["did not match any variant"],
     );
 }
 
@@ -83,8 +85,8 @@ fn invalid_and_reserved_names() {
         &["invalid name `has space`"],
     );
     expect_error(
-        &format!("{HEADER}records:\n  String:\n    fields: {{ x: u8 }}\n"),
-        &["`String` is a reserved type name"],
+        &format!("{HEADER}records:\n  string:\n    fields: {{ x: u8 }}\n"),
+        &["`string` is a reserved type name"],
     );
 }
 
@@ -109,28 +111,18 @@ fn unknown_record_reference() {
 #[test]
 fn recursive_record() {
     expect_error(
-        &format!("{HEADER}records:\n  Node:\n    fields:\n      next: Node?\n"),
+        &format!("{HEADER}records:\n  Node:\n    fields:\n      next: {{ option: Node }}\n"),
         &["record `Node` is recursive"],
     );
 }
 
 #[test]
-fn generated_type_collision() {
+fn invalid_sibling_names_do_not_panic() {
+    // Two records with invalid names must both surface as diagnostics rather
+    // than reaching the builder as a shared placeholder and panicking.
     expect_error(
-        &format!(
-            "{HEADER}records:\n  EngineEvent:\n    fields: {{ x: u8 }}\nentities:\n  Engine:\n    events: {{ started: once }}\n"
-        ),
-        &["both generate the type `EngineEvent`"],
-    );
-}
-
-#[test]
-fn case_collision() {
-    expect_error(
-        &format!(
-            "{HEADER}entities:\n  E:\n    events:\n      startUp: once\n      start_up: once\n"
-        ),
-        &["generate the identifier `StartUp`"],
+        &format!("{HEADER}records:\n  'a b':\n  'c d':\n"),
+        &["invalid name `a b`"],
     );
 }
 

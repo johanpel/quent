@@ -8,12 +8,12 @@ records:
   Endpoint:
     doc: A network endpoint.
     fields:
-      host: String
+      host: string
       port: u16
   Meta:
     fields:
-      tags: Vec<String>
-      extra: Dynamic
+      tags: { list: string }
+      extra: dynamic
 
 entities:
   Connection:
@@ -23,9 +23,9 @@ entities:
         doc: The connection was accepted.
         once:
           peer: Endpoint
-          session: Uuid
+          session: uuid
       data:
         multi:
           bytes: u64
-          meta: Meta?
+          meta: { option: Meta }
       closed: once

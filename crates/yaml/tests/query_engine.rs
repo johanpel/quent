@@ -22,18 +22,18 @@ records:
   Endpoint:
     doc: A network endpoint.
     fields:
-      host: String
+      host: string
       port: u16
   CostEstimate:
     fields: { cpu: f64, mem_bytes: u64 }
   Stage:
     fields:
-      operator_ids: Vec<Uuid>
-      estimate: CostEstimate?
+      operator_ids: { list: uuid }
+      estimate: { option: CostEstimate }
   Stats:
     fields:
       rows: u64
-      extra: Dynamic
+      extra: dynamic
 
 entities:
   Cluster:
@@ -42,7 +42,7 @@ entities:
       'on':
         doc: First engine registered.
         once:
-          region: String
+          region: string
       'off': once
 
   Engine:
@@ -68,7 +68,7 @@ entities:
       submitted:
         once:
           text:
-            type: String
+            type: string
             constraints:
               quent.pii.v1: redact
           engine:
@@ -82,7 +82,7 @@ entities:
       finished:
         once:
           ok: bool
-          error: String?
+          error: { option: string }
 "#;
 
 fn schema() -> (Schema, Vec<String>) {

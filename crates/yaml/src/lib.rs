@@ -4,10 +4,10 @@
 //! YAML source format for [`quent_schema`] application event models, format 1.
 //!
 //! A model file declares `quent: 1`, a `model` name, `records`, and `entities`
-//! with `once`/`multi` events. Field types use a Rust-spelled mini-language
-//! (`String`, `Vec<T>`, `Option<T>` with `T?` sugar, `Ref`, `Uuid`, `Dynamic`,
-//! the integer and float primitives, and bare record names). Every level takes
-//! a `doc:` string plus generic `constraints:`/`metadata:` annotation maps.
+//! with `once`/`multi` events. A field type is a bare name (a scalar, a record,
+//! or `Ref`), a `{ list: T }` / `{ option: T }` wrapper, or the `{ ref:, data: }`
+//! form. Every level takes a `doc:` string plus generic
+//! `constraints:`/`metadata:` annotation maps.
 //!
 //! Loading deserializes the file into intermediate types (see `ast`), lowers
 //! them through the [`quent_schema`] builders, and validates the always-on base
@@ -19,12 +19,12 @@ use std::path::Path;
 
 use quent_constraints::validate;
 use quent_schema::Schema;
+use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
 mod ast;
 mod diag;
 mod lower;
 mod payload;
-mod types;
 
 pub use diag::{Diagnostic, Diagnostics};
 
@@ -71,7 +71,10 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
             let location = e
                 .location()
                 .map(|l| (l.line() as usize, l.column() as usize));
-            sink.error_at(location, parse_message(&e));
+            sink.error_at(
+                location,
+                UserMessageFormatter.format_message(&e).into_owned(),
+            );
             return Err(Error::Invalid(sink.into_diagnostics()));
         }
     };
@@ -116,16 +119,4 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
         })
         .collect();
     Ok(Loaded { schema, warnings })
-}
-
-/// The human message of a serde-saphyr error, without its location prefix or
-/// source snippet (the location is reported separately).
-fn parse_message(e: &serde_saphyr::Error) -> String {
-    let full = e.to_string();
-    let first = full.lines().next().unwrap_or(&full);
-    let first = first.strip_prefix("error: ").unwrap_or(first);
-    match first.split_once(": ") {
-        Some((prefix, rest)) if prefix.starts_with("line ") => rest.to_string(),
-        _ => first.to_string(),
-    }
 }

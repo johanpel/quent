@@ -7,7 +7,6 @@
 //! file fails to load. With `--warnings`, also reports unregistered-constraint
 //! warnings. Diagnostics are emitted as `tracing` events on stderr.
 
-use std::fmt::Write as _;
 use std::process::ExitCode;
 
 use quent_yaml::{Diagnostic, Error};
@@ -86,15 +85,25 @@ fn check(file: &str, warnings: bool) -> bool {
     }
 }
 
-/// Render one diagnostic, adding a source line and caret when it is located.
+/// Render one diagnostic, inserting a source line and caret under the column
+/// when it is located, so the caret stays directly under the message.
+///
+/// Builds on the diagnostic's own `Display`: the caret block is spliced in
+/// after the header line, before any `help:` line, rather than re-formatting
+/// the header and help here.
 fn render(src: &str, diagnostic: &Diagnostic) -> String {
-    let mut out = diagnostic.to_string();
-    if let Some((line, column)) = diagnostic.location
-        && let Some(text) = src.lines().nth(line.saturating_sub(1))
-    {
-        let gutter = format!("{line:>4} | ");
-        let padding = " ".repeat(gutter.len() + column.saturating_sub(1));
-        write!(out, "\n{gutter}{text}\n{padding}^").expect("writing to a String");
+    let full = diagnostic.to_string();
+    let Some((line, column)) = diagnostic.location else {
+        return full;
+    };
+    let Some(text) = src.lines().nth(line.saturating_sub(1)) else {
+        return full;
+    };
+    let gutter = format!("{line:>4} | ");
+    let padding = " ".repeat(gutter.len() + column.saturating_sub(1));
+    let caret = format!("\n{gutter}{text}\n{padding}^");
+    match full.split_once('\n') {
+        Some((header, rest)) => format!("{header}{caret}\n{rest}"),
+        None => format!("{full}{caret}"),
     }
-    out
 }

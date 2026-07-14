@@ -2750,7 +2750,6 @@ dependencies = [
 name = "quent-yaml"
 version = "0.1.0"
 dependencies = [
- "convert_case",
  "indexmap",
  "quent-constraints",
  "quent-schema",
