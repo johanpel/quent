@@ -29,13 +29,13 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 ///
 /// 1. A resource is an entity with at least one [`Capacity`].
 /// 2. The [`Identifier`] of a [`Capacity`] is unique within a resource.
-/// 3. If and only if any of the resource's [`Capacities`] have a bound, the
+/// 3. If and only if any of the resource's capacities have a bound, the
 ///    resource entity has at least one event (the "bounds event") which
-///    declares the bounds of all [`Capacities`] that are bounded.
-/// 4. An entity can use some quantity of a resource's [`Capacities`] if and
+///    declares the bounds of all capacities that are bounded.
+/// 4. An entity can use some quantity of a resource's capacities if and
 ///    only if it is an FSM.
 /// 5. The resource named by a usage or bounds is a declared resource.
-/// 6. A usage claims only [`Capacities`] declared by its resource.
+/// 6. A usage claims only capacities declared by its resource.
 /// 7. A usage record is used only as the data carried by an entity reference.
 /// 8. A bounds record is used only by events of the resource it names.
 #[derive(Default)]
