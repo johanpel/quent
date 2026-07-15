@@ -181,7 +181,7 @@ impl Visitor for FsmConstraint {
 }
 
 impl Constraint for FsmConstraint {
-    const NAME: &'static str = "quent.fsm.v1";
+    const NAME: &'static str = "quent.fsm.v0.1.0";
 }
 
 pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {
