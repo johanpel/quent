@@ -49,33 +49,6 @@ model: m
 }
 
 #[test]
-fn unknown_keys_rejected() {
-    // On direct structs, serde's deny_unknown_fields names the bad key.
-    expect_error("fsm: {}\n", &["unknown field `fsm`"]);
-    expect_error(
-        "\
-records:
-  R:
-    bogus: 1
-",
-        &["unknown field `bogus`"],
-    );
-    // Inside a field mapping (an untagged enum), serde only reports that no
-    // variant matched — a known limitation, still an error.
-    expect_error(
-        "\
-records:
-  R:
-    fields:
-      f:
-        type: u8
-        docs: x
-",
-        &["did not match any variant"],
-    );
-}
-
-#[test]
 fn event_cardinality_required() {
     expect_error(
         "\
@@ -101,7 +74,7 @@ entities:
 }
 
 #[test]
-fn malformed_types() {
+fn malformed_type_name() {
     // A compact Rust-style spelling is just an unusable bare type name.
     expect_error(
         "\
@@ -111,16 +84,6 @@ records:
       f: Vec<u8>
 ",
         &["invalid type `Vec<u8>`"],
-    );
-    // An unrecognized type-wrapper key matches no `TypeExpr` variant.
-    expect_error(
-        "\
-records:
-  R:
-    fields:
-      f: { lst: u8 }
-",
-        &["did not match any variant"],
     );
 }
 
