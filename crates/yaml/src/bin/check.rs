@@ -39,7 +39,12 @@ fn main() -> ExitCode {
 
     let mut failed = false;
     for file in &files {
-        failed |= !check(file, warnings);
+        if let Err(e) = check(file, warnings) {
+            if let Error::Io(e) = e {
+                error!("{file}: {e}");
+            }
+            failed = true;
+        }
     }
     if failed {
         ExitCode::FAILURE
@@ -48,14 +53,8 @@ fn main() -> ExitCode {
     }
 }
 
-fn check(file: &str, warnings: bool) -> bool {
-    let src = match std::fs::read_to_string(file) {
-        Ok(src) => src,
-        Err(e) => {
-            error!("{file}: {e}");
-            return false;
-        }
-    };
+fn check(file: &str, warnings: bool) -> Result<(), Error> {
+    let src = std::fs::read_to_string(file)?;
     match quent_yaml::parse_from_str(&src, Some(file)) {
         Ok(parsed) => {
             if warnings {
@@ -70,18 +69,15 @@ fn check(file: &str, warnings: bool) -> bool {
                 parsed.schema.records().count(),
                 parsed.schema.entities().count(),
             );
-            true
-        }
-        Err(Error::Io(e)) => {
-            error!("{file}: {e}");
-            false
+            Ok(())
         }
         Err(Error::Invalid(diagnostics)) => {
             for diagnostic in diagnostics.iter() {
                 error!("{}", render(&src, diagnostic));
             }
-            false
+            Err(Error::Invalid(diagnostics))
         }
+        Err(e) => Err(e),
     }
 }
 
