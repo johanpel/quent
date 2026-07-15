@@ -81,25 +81,32 @@ fn check(file: &str, warnings: bool) -> Result<(), Error> {
     }
 }
 
-/// Render one diagnostic, inserting a source line and caret under the column
-/// when it is located, so the caret stays directly under the message.
-///
-/// Builds on the diagnostic's own `Display`: the caret block is spliced in
-/// after the header line, before any `help:` line, rather than re-formatting
-/// the header and help here.
-fn render(src: &str, diagnostic: &Diagnostic) -> String {
-    let full = diagnostic.to_string();
-    let Origin::Location { line, column } = diagnostic.origin else {
-        return full;
-    };
-    let Some(text) = src.lines().nth(line.saturating_sub(1)) else {
-        return full;
-    };
-    let gutter = format!("{line:>4} | ");
-    let padding = " ".repeat(gutter.len() + column.saturating_sub(1));
-    let caret = format!("\n{gutter}{text}\n{padding}^");
-    match full.split_once('\n') {
-        Some((header, rest)) => format!("{header}{caret}\n{rest}"),
-        None => format!("{full}{caret}"),
+/// A diagnostic rendered with source context when available.
+struct RenderedDiagnostic<'a> {
+    src: &'a str,
+    diagnostic: &'a Diagnostic,
+}
+
+impl std::fmt::Display for RenderedDiagnostic<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let full = self.diagnostic.to_string();
+        let Origin::Location { line, column } = self.diagnostic.origin else {
+            return f.write_str(&full);
+        };
+        let Some(text) = self.src.lines().nth(line.saturating_sub(1)) else {
+            return f.write_str(&full);
+        };
+        let gutter = format!("{line:>4} | ");
+        let padding = " ".repeat(gutter.len() + column.saturating_sub(1));
+        match full.split_once('\n') {
+            Some((header, rest)) => {
+                write!(f, "{header}\n{gutter}{text}\n{padding}^\n{rest}")
+            }
+            None => write!(f, "{full}\n{gutter}{text}\n{padding}^"),
+        }
     }
+}
+
+fn render<'a>(src: &'a str, diagnostic: &'a Diagnostic) -> RenderedDiagnostic<'a> {
+    RenderedDiagnostic { src, diagnostic }
 }
