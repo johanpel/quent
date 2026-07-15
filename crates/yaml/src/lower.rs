@@ -28,11 +28,11 @@ use crate::diag::Diagnostics;
 /// Always returns a schema, but it is only meaningful when `sink` reports no
 /// errors; on any error the caller discards it.
 pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
-    if model.quent != 1 {
+    if model.quent != "alpha" {
         sink.error(
             "quent",
             format!("unsupported format version `{}`", model.quent),
-            Some("supported versions: 1".to_string()),
+            Some("supported versions: alpha".to_string()),
         );
     }
 

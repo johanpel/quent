@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The shape a model file deserializes into, format 1.
+//! The shape a model file deserializes into, format `alpha`.
 //!
 //! These types mirror the YAML one to one. Names stay as plain strings and are
 //! checked when the schema is built; the ordered maps keep declaration order.
@@ -25,8 +25,8 @@ pub(crate) type AnnotationMap = IndexMap<String, Option<String>>;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Model {
-    /// The format version. Only `1` is supported.
-    pub(crate) quent: u32,
+    /// The format version. Only `alpha` is supported.
+    pub(crate) quent: String,
     pub(crate) model: String,
     #[serde(default)]
     pub(crate) doc: Option<String>,

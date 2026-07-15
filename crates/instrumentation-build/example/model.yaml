@@ -1,6 +1,6 @@
 # The event model, authored in YAML and compiled to instrumentation at build time.
 
-quent: 1
+quent: alpha
 model: demo
 doc: Instrumentation model of the demo connection server.
 
