@@ -13,13 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={}", model.display());
 
     // YAML source -> quent_schema::Schema. Errors carry file:line:column.
-    let parsed = match quent_yaml::parse_from_file(&model) {
-        Ok(parsed) => parsed,
-        Err(e) => {
-            eprintln!("{e}");
-            std::process::exit(1);
-        }
-    };
+    let parsed = quent_yaml::parse_from_file(&model)?;
     // Constraints no validator handles (none in this model).
     for warning in &parsed.warnings {
         println!("cargo:warning={warning}");
