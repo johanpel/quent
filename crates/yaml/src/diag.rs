@@ -7,16 +7,26 @@
 //! lowering reports its own problems with a dotted semantic path instead
 //! (the deserializer has consumed the structure by then).
 
+/// Where in the source a diagnostic points.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Origin {
+    /// A source line and column (counted from 1), from parsing.
+    Location { line: usize, column: usize },
+    /// A dotted semantic path, e.g. `entities.Engine.events.started`, from
+    /// lowering.
+    Path(String),
+    /// The model as a whole, with no finer location.
+    Whole,
+}
+
 /// A single problem in a model source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    /// The source file name, or `"<input>"` for text loaded without one.
-    pub file: String,
-    /// A source line and column (counted from 1), for parse-stage problems.
-    pub location: Option<(usize, usize)>,
-    /// Dotted semantic path, e.g. `entities.Engine.events.started`, for
-    /// lowering-stage problems. Empty when a location is set.
-    pub path: String,
+    /// The source name (e.g. a file path), or `None` when the input was
+    /// unnamed.
+    pub source: Option<String>,
+    /// Where in the source the problem is.
+    pub origin: Origin,
     /// What is wrong.
     pub message: String,
     /// Optional hint on how to fix it.
@@ -25,13 +35,17 @@ pub struct Diagnostic {
 
 impl std::fmt::Display for Diagnostic {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.file)?;
-        match self.location {
-            Some((line, column)) => write!(f, ":{line}:{column}")?,
-            None if !self.path.is_empty() => write!(f, " ({})", self.path)?,
-            None => {}
+        match (&self.source, &self.origin) {
+            (Some(source), Origin::Location { line, column }) => {
+                write!(f, "{source}:{line}:{column}: ")?
+            }
+            (Some(source), Origin::Path(path)) => write!(f, "{source} ({path}): ")?,
+            (Some(source), Origin::Whole) => write!(f, "{source}: ")?,
+            (None, Origin::Location { line, column }) => write!(f, "{line}:{column}: ")?,
+            (None, Origin::Path(path)) => write!(f, "({path}): ")?,
+            (None, Origin::Whole) => {}
         }
-        write!(f, ": {}", self.message)?;
+        write!(f, "{}", self.message)?;
         if let Some(help) = &self.help {
             write!(f, "\n  help: {help}")?;
         }
@@ -39,20 +53,74 @@ impl std::fmt::Display for Diagnostic {
     }
 }
 
-/// The problems collected from one load, in the order they were detected.
+/// The problems from one parse, in the order they were detected.
+///
+/// The crate pushes into it as it parses and lowers (so one run reports every
+/// problem instead of stopping at the first), stamping each with the shared
+/// source name; it is then returned as [`crate::Error::Invalid`]. Callers read
+/// it via [`Self::iter`] or `Display`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Diagnostics(pub(crate) Vec<Diagnostic>);
+pub struct Diagnostics {
+    source: Option<String>,
+    items: Vec<Diagnostic>,
+}
 
 impl Diagnostics {
+    pub(crate) fn new(source: Option<&str>) -> Self {
+        Self {
+            source: source.map(str::to_string),
+            items: Vec::new(),
+        }
+    }
+
     /// The diagnostics, in order of detection.
     pub fn iter(&self) -> impl Iterator<Item = &Diagnostic> + '_ {
-        self.0.iter()
+        self.items.iter()
+    }
+
+    /// Record a lowering problem at semantic `path`.
+    pub(crate) fn error(&mut self, path: &str, message: impl Into<String>, help: Option<String>) {
+        let diagnostic = self.make(path, message.into(), help);
+        self.items.push(diagnostic);
+    }
+
+    /// Record a parse problem at a source `line` and `column`.
+    pub(crate) fn error_at(&mut self, location: Option<(usize, usize)>, message: String) {
+        let origin = match location {
+            Some((line, column)) => Origin::Location { line, column },
+            None => Origin::Whole,
+        };
+        self.items.push(Diagnostic {
+            source: self.source.clone(),
+            origin,
+            message,
+            help: None,
+        });
+    }
+
+    /// Build a diagnostic stamped with the source, without recording it.
+    pub(crate) fn make(&self, path: &str, message: String, help: Option<String>) -> Diagnostic {
+        let origin = if path.is_empty() {
+            Origin::Whole
+        } else {
+            Origin::Path(path.to_string())
+        };
+        Diagnostic {
+            source: self.source.clone(),
+            origin,
+            message,
+            help,
+        }
+    }
+
+    pub(crate) fn has_errors(&self) -> bool {
+        !self.items.is_empty()
     }
 }
 
 impl std::fmt::Display for Diagnostics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (i, d) in self.0.iter().enumerate() {
+        for (i, d) in self.items.iter().enumerate() {
             if i > 0 {
                 writeln!(f)?;
             }
@@ -68,58 +136,6 @@ impl IntoIterator for Diagnostics {
     type Item = Diagnostic;
     type IntoIter = std::vec::IntoIter<Diagnostic>;
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-/// Collector that stamps every diagnostic with the source file name.
-///
-/// Lowering pushes into one shared sink so a single run reports every problem
-/// instead of aborting at the first.
-pub(crate) struct Sink {
-    file: String,
-    out: Vec<Diagnostic>,
-}
-
-impl Sink {
-    pub(crate) fn new(file: impl Into<String>) -> Self {
-        Self {
-            file: file.into(),
-            out: Vec::new(),
-        }
-    }
-
-    /// Report a lowering problem at semantic `path`.
-    pub(crate) fn error(&mut self, path: &str, message: impl Into<String>, help: Option<String>) {
-        self.out.push(self.make(path, message.into(), help));
-    }
-
-    pub(crate) fn make(&self, path: &str, message: String, help: Option<String>) -> Diagnostic {
-        Diagnostic {
-            file: self.file.clone(),
-            location: None,
-            path: path.to_string(),
-            message,
-            help,
-        }
-    }
-
-    /// Report a parse problem at a source `line` and `column`.
-    pub(crate) fn error_at(&mut self, location: Option<(usize, usize)>, message: String) {
-        self.out.push(Diagnostic {
-            file: self.file.clone(),
-            location,
-            path: String::new(),
-            message,
-            help: None,
-        });
-    }
-
-    pub(crate) fn has_errors(&self) -> bool {
-        !self.out.is_empty()
-    }
-
-    pub(crate) fn into_diagnostics(self) -> Diagnostics {
-        Diagnostics(self.out)
+        self.items.into_iter()
     }
 }

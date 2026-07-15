@@ -1,19 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! YAML source format for [`quent_schema`] application event models, format 1.
+//! Parses a YAML model file into a [`Schema`].
 //!
-//! A model file declares `quent: 1`, a `model` name, `records`, and `entities`
-//! with `once`/`multi` events. A field type is a bare name (a scalar, a record,
-//! or `Ref`), a `{ list: T }` / `{ option: T }` wrapper, or the `{ ref:, data: }`
-//! form. Every level takes a `doc:` string plus generic
-//! `constraints:`/`metadata:` annotation maps.
-//!
-//! Loading deserializes the file into intermediate types (see `ast`), lowers
-//! them through the [`quent_schema`] builders, and validates the always-on base
-//! constraints. Constraint annotations are opaque pass-through data, each
-//! surfaced once as a [`Loaded::warnings`] entry. Parse problems carry a source
-//! line and column; lowering problems carry a semantic path.
+//! [`parse_from_file`] takes a path, [`parse_from_str`] a string; both return
+//! the schema plus any warnings, or the diagnostics explaining why it could not
+//! be parsed.
 
 use std::path::Path;
 
@@ -25,18 +17,18 @@ mod ast;
 mod diag;
 mod lower;
 
-pub use diag::{Diagnostic, Diagnostics};
+pub use diag::{Diagnostic, Diagnostics, Origin};
 
-/// A successfully loaded model.
+/// A successfully parsed model.
 #[derive(Debug)]
-pub struct Loaded {
+pub struct Parsed {
+    /// The parsed schema.
     pub schema: Schema,
-    /// Constraint names in the model that no validator handles. These are
-    /// passed through for downstream validators, not errors.
+    /// Advisory problems that did not prevent parsing.
     pub warnings: Vec<Diagnostic>,
 }
 
-/// Failure while loading a model source.
+/// Failure while parsing a model source.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -47,22 +39,11 @@ pub enum Error {
 
 /// Parse and lower model source text into a validated [`Schema`].
 ///
-/// Diagnostics name the source as `<input>`; see [`load_str_named`] and
-/// [`load`] to name it.
-pub fn load_str(src: &str) -> Result<Loaded, Error> {
-    load_str_named(src, "<input>")
-}
-
-/// Read a model file and load it via [`load_str`] semantics.
-pub fn load(path: impl AsRef<Path>) -> Result<Loaded, Error> {
-    let path = path.as_ref();
-    let src = std::fs::read_to_string(path)?;
-    load_str_named(&src, &path.display().to_string())
-}
-
-/// Like [`load_str`], naming the source `file` in diagnostics.
-pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
-    let mut sink = diag::Sink::new(file);
+/// Diagnostics name the source `source`, or leave it unnamed when `None`. See
+/// [`parse_from_file`] to read and name a file.
+pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Parsed, Error> {
+    let src = src.as_ref();
+    let mut sink = diag::Diagnostics::new(source);
 
     let model: ast::Model = match serde_saphyr::from_str(src) {
         Ok(model) => model,
@@ -74,13 +55,13 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
                 location,
                 UserMessageFormatter.format_message(&e).into_owned(),
             );
-            return Err(Error::Invalid(sink.into_diagnostics()));
+            return Err(Error::Invalid(sink));
         }
     };
 
     let schema = lower::lower(&model, &mut sink);
     if sink.has_errors() {
-        return Err(Error::Invalid(sink.into_diagnostics()));
+        return Err(Error::Invalid(sink));
     }
 
     let report = validate::<()>(&schema);
@@ -100,7 +81,7 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
         }
     }
     if sink.has_errors() {
-        return Err(Error::Invalid(sink.into_diagnostics()));
+        return Err(Error::Invalid(sink));
     }
 
     let warnings = report
@@ -117,5 +98,12 @@ pub fn load_str_named(src: &str, file: &str) -> Result<Loaded, Error> {
             )
         })
         .collect();
-    Ok(Loaded { schema, warnings })
+    Ok(Parsed { schema, warnings })
+}
+
+/// Read a model file and parse it via [`parse_from_str`], naming it by path.
+pub fn parse_from_file(path: impl AsRef<Path>) -> Result<Parsed, Error> {
+    let path = path.as_ref();
+    let src = std::fs::read_to_string(path)?;
+    parse_from_str(&src, Some(&path.display().to_string()))
 }

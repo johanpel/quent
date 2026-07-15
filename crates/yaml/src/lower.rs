@@ -1,11 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Lowering from the deserialized [`Model`] to a [`Schema`].
+//! Lowering from the deserialized model to a schema.
 //!
-//! Each element lowers independently into a shared diagnostic sink, so one run
-//! reports every problem. Constraint and metadata payloads are opaque: they
-//! are converted to strings and attached, never interpreted.
+//! Lowering deliberately avoids the usual `Result`/`?` path, which would stop
+//! at the first error. Instead each function reports any problems into one
+//! shared sink and carries on — returning what it built, or `None` (skip the
+//! element) or a stand-in when a name is rejected — so a single run surfaces
+//! every problem in the file, not just the first. Whether it succeeded is
+//! decided by the caller from the sink, not from a `Result`.
+//!
+//! Constraint and metadata payloads are opaque: attached as written, never
+//! interpreted.
 
 use indexmap::IndexMap;
 use quent_schema::builder::{
@@ -14,21 +20,25 @@ use quent_schema::builder::{
 use quent_schema::{Annotations, DataType, Entity, Field, Identifier, Record, Schema};
 use serde::Deserialize;
 
-use crate::ast::{self, Anns, Model, TypeExpr};
-use crate::diag::Sink;
+use crate::ast::{self, AnnotationMap, Model, TypeExpr};
+use crate::diag::Diagnostics;
 
 /// Lower `model` to a schema, reporting problems into `sink`.
-pub(crate) fn lower(model: &Model, sink: &mut Sink) -> Schema {
+///
+/// Always returns a schema, but it is only meaningful when `sink` reports no
+/// errors; on any error the caller discards it.
+pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
     if model.quent != 1 {
         sink.error(
             "quent",
             format!("unsupported format version `{}`", model.quent),
-            Some("this quent-yaml reads format 1; write `quent: 1`".to_string()),
+            Some("supported versions: 1".to_string()),
         );
     }
 
-    // The schema is discarded when any error is recorded, so a rejected model
-    // name only needs a valid stand-in to let the rest of the file lower.
+    // Keep going after a bad name so one run reports every problem, not just the
+    // first. The caller discards this schema whenever the sink holds errors, so
+    // building it with a valid stand-in name here is harmless.
     let name = ident(&model.model, "model", sink)
         .unwrap_or_else(|| Identifier::try_new("invalid").expect("stand-in is valid"));
 
@@ -62,7 +72,7 @@ pub(crate) fn lower(model: &Model, sink: &mut Sink) -> Schema {
 ///
 /// Fields are lowered for their diagnostics even when the name is bad, but a
 /// bad name skips the record so no placeholder identifier reaches the builder.
-fn record_of(name: &str, record: &ast::Record, sink: &mut Sink) -> Option<Record> {
+fn record_of(name: &str, record: &ast::Record, sink: &mut Diagnostics) -> Option<Record> {
     let path = format!("records.{name}");
     let id = type_decl_ident(name, "records", sink);
     let fields = fields_of(&record.fields, &path, sink);
@@ -82,7 +92,7 @@ fn record_of(name: &str, record: &ast::Record, sink: &mut Sink) -> Option<Record
 }
 
 /// Lower one entity, or `None` (after reporting) if its name is rejected.
-fn entity_of(name: &str, entity: &ast::Entity, sink: &mut Sink) -> Option<Entity> {
+fn entity_of(name: &str, entity: &ast::Entity, sink: &mut Diagnostics) -> Option<Entity> {
     let path = format!("entities.{name}");
     let id = type_decl_ident(name, "entities", sink);
     let events: Vec<_> = entity
@@ -110,7 +120,7 @@ fn event_of(
     name: &str,
     event: &ast::Event,
     entity_path: &str,
-    sink: &mut Sink,
+    sink: &mut Diagnostics,
 ) -> Option<quent_schema::Event> {
     let events_path = format!("{entity_path}.events");
     let path = format!("{events_path}.{name}");
@@ -154,7 +164,11 @@ fn event_of(
     }
 }
 
-fn fields_of(fields: &IndexMap<String, ast::Field>, path: &str, sink: &mut Sink) -> Vec<Field> {
+fn fields_of(
+    fields: &IndexMap<String, ast::Field>,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> Vec<Field> {
     fields
         .iter()
         .filter_map(|(name, field)| {
@@ -169,7 +183,7 @@ fn field_of(
     id: Option<Identifier>,
     field: &ast::Field,
     path: &str,
-    sink: &mut Sink,
+    sink: &mut Diagnostics,
 ) -> Option<Field> {
     let (ty, ann) = match field {
         ast::Field::Bare(expr) => (type_of(expr, path, sink)?, Annotations::default()),
@@ -182,7 +196,7 @@ fn field_of(
     Some(Field::new(id?, ty, ann))
 }
 
-fn type_of(expr: &TypeExpr, path: &str, sink: &mut Sink) -> Option<DataType> {
+fn type_of(expr: &TypeExpr, path: &str, sink: &mut Diagnostics) -> Option<DataType> {
     match expr {
         TypeExpr::Builtin(b) => Some(builtin_data_type(b)),
         TypeExpr::Record(name) => record_ref(name, path, sink),
@@ -202,7 +216,7 @@ fn type_of(expr: &TypeExpr, path: &str, sink: &mut Sink) -> Option<DataType> {
                 None => None,
             };
             let mut builder = AnnotationsBuilder::new();
-            add_anns(&mut builder, &r.constraints, &r.metadata, path, sink);
+            add_annotations(&mut builder, &r.constraints, &r.metadata, path, sink);
             Some(DataType::EntityRef {
                 data,
                 annotations: builder.build(),
@@ -212,7 +226,7 @@ fn type_of(expr: &TypeExpr, path: &str, sink: &mut Sink) -> Option<DataType> {
 }
 
 /// A bare name that is not a [`BuiltinType`], lowered as a record reference.
-fn record_ref(name: &str, path: &str, sink: &mut Sink) -> Option<DataType> {
+fn record_ref(name: &str, path: &str, sink: &mut Diagnostics) -> Option<DataType> {
     match Identifier::try_new(name) {
         Ok(id) => Some(DataType::Record(id)),
         Err(e) => {
@@ -257,25 +271,25 @@ fn is_builtin_type(name: &str) -> bool {
 
 fn annotations(
     doc: &Option<String>,
-    constraints: &Anns,
-    metadata: &Anns,
+    constraints: &AnnotationMap,
+    metadata: &AnnotationMap,
     path: &str,
-    sink: &mut Sink,
+    sink: &mut Diagnostics,
 ) -> Annotations {
     let mut builder = AnnotationsBuilder::new();
     if let Some(doc) = doc {
         builder.set_docs(doc.clone());
     }
-    add_anns(&mut builder, constraints, metadata, path, sink);
+    add_annotations(&mut builder, constraints, metadata, path, sink);
     builder.build()
 }
 
-fn add_anns(
+fn add_annotations(
     builder: &mut AnnotationsBuilder,
-    constraints: &Anns,
-    metadata: &Anns,
+    constraints: &AnnotationMap,
+    metadata: &AnnotationMap,
     path: &str,
-    sink: &mut Sink,
+    sink: &mut Diagnostics,
 ) {
     for (name, value) in constraints {
         if name.is_empty() {
@@ -303,7 +317,7 @@ fn add_anns(
 /// Records and entities are referenced by a bare name, so their names may not
 /// shadow a built-in type ([`builtin_type`]). Field and event names are never
 /// in type position and use [`ident`] directly.
-fn type_decl_ident(name: &str, path: &str, sink: &mut Sink) -> Option<Identifier> {
+fn type_decl_ident(name: &str, path: &str, sink: &mut Diagnostics) -> Option<Identifier> {
     if is_builtin_type(name) {
         sink.error(
             path,
@@ -315,7 +329,7 @@ fn type_decl_ident(name: &str, path: &str, sink: &mut Sink) -> Option<Identifier
     ident(name, path, sink)
 }
 
-fn ident(name: &str, path: &str, sink: &mut Sink) -> Option<Identifier> {
+fn ident(name: &str, path: &str, sink: &mut Diagnostics) -> Option<Identifier> {
     match Identifier::try_new(name) {
         Ok(id) => Some(id),
         Err(e) => {

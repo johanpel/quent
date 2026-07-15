@@ -3,21 +3,21 @@
 
 //! Diagnostics tests: every rejection carries a useful message.
 
-use quent_yaml::{Error, load_str};
+use quent_yaml::{Error, Origin, parse_from_str};
 
 const HEADER: &str = "\
 quent: 1
 model: m
 ";
 
-/// Load `src`, expect failure, and assert one diagnostic contains all
+/// Parse `src`, expect failure, and assert one diagnostic contains all
 /// `needles` (checked against message and help).
 #[track_caller]
 fn expect_raw(src: &str, needles: &[&str]) {
-    let diagnostics = match load_str(src) {
+    let diagnostics = match parse_from_str(src, None) {
         Err(Error::Invalid(d)) => d,
         Err(e) => panic!("expected diagnostics, got {e:?}"),
-        Ok(_) => panic!("expected failure, loaded fine:\n{src}"),
+        Ok(_) => panic!("expected failure, parsed fine:\n{src}"),
     };
     let matched = diagnostics.iter().any(|d| {
         needles.iter().all(|needle| {
@@ -213,16 +213,19 @@ constraints:
 
 #[test]
 fn syntax_error_has_a_location() {
-    let Err(Error::Invalid(diagnostics)) = load_str(
+    let Err(Error::Invalid(diagnostics)) = parse_from_str(
         "\
 quent: 1
 model: [
 ",
+        None,
     ) else {
         panic!("expected failure");
     };
     assert!(
-        diagnostics.iter().any(|d| d.location.is_some()),
+        diagnostics
+            .iter()
+            .any(|d| matches!(d.origin, Origin::Location { .. })),
         "parse errors should carry a location: {diagnostics}"
     );
 }

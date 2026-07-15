@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Loads the YAML model and generates the instrumentation library into `OUT_DIR`.
+//! Parses the YAML model and generates the instrumentation library into `OUT_DIR`.
 
 use std::path::Path;
 
@@ -13,15 +13,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={}", model.display());
 
     // YAML source -> quent_schema::Schema. Errors carry file:line:column.
-    let loaded = match quent_yaml::load(&model) {
-        Ok(loaded) => loaded,
+    let parsed = match quent_yaml::parse_from_file(&model) {
+        Ok(parsed) => parsed,
         Err(e) => {
             eprintln!("{e}");
             std::process::exit(1);
         }
     };
-    // Constraint names the loader does not validate (none in this model).
-    for warning in &loaded.warnings {
+    // Constraints no validator handles (none in this model).
+    for warning in &parsed.warnings {
         println!("cargo:warning={warning}");
     }
 
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         record_derives: &["Debug"],
         ..Default::default()
     };
-    let GenerateInfo { path, warnings } = generate(&loaded.schema, &opts)?;
+    let GenerateInfo { path, warnings } = generate(&parsed.schema, &opts)?;
 
     if !warnings.is_empty() {
         println!("cargo:warning= {}", warnings.join("\n"));

@@ -1,15 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! `quent-yaml-check`: load model files and report diagnostics.
+//! `quent-yaml-check`: parse model files and report diagnostics.
 //!
 //! Usage: `quent-yaml-check [--warnings] <file>...`. Exits non-zero if any
-//! file fails to load. With `--warnings`, also reports unregistered-constraint
+//! file fails to parse. With `--warnings`, also reports unregistered-constraint
 //! warnings. Diagnostics are emitted as `tracing` events on stderr.
 
 use std::process::ExitCode;
 
-use quent_yaml::{Diagnostic, Error};
+use quent_yaml::{Diagnostic, Error, Origin};
 use tracing::{error, info, warn};
 
 fn main() -> ExitCode {
@@ -56,19 +56,19 @@ fn check(file: &str, warnings: bool) -> bool {
             return false;
         }
     };
-    match quent_yaml::load_str_named(&src, file) {
-        Ok(loaded) => {
+    match quent_yaml::parse_from_str(&src, Some(file)) {
+        Ok(parsed) => {
             if warnings {
-                for warning in &loaded.warnings {
+                for warning in &parsed.warnings {
                     warn!("{}", render(&src, warning));
                 }
             }
-            let events: usize = loaded.schema.entities().map(|e| e.events().count()).sum();
+            let events: usize = parsed.schema.entities().map(|e| e.events().count()).sum();
             info!(
                 "{file}: ok — model `{}`: {} records, {} entities, {events} events",
-                loaded.schema.name(),
-                loaded.schema.records().count(),
-                loaded.schema.entities().count(),
+                parsed.schema.name(),
+                parsed.schema.records().count(),
+                parsed.schema.entities().count(),
             );
             true
         }
@@ -93,7 +93,7 @@ fn check(file: &str, warnings: bool) -> bool {
 /// the header and help here.
 fn render(src: &str, diagnostic: &Diagnostic) -> String {
     let full = diagnostic.to_string();
-    let Some((line, column)) = diagnostic.location else {
+    let Origin::Location { line, column } = diagnostic.origin else {
         return full;
     };
     let Some(text) = src.lines().nth(line.saturating_sub(1)) else {
