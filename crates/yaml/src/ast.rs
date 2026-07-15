@@ -127,9 +127,9 @@ pub(crate) struct FieldBody {
 
 /// A field's type.
 ///
-/// A bare name is either a built-in type or the name of a record. The list and
-/// option forms wrap another type, and the reference form points at an entity.
-/// Nested types are written as nested YAML, not packed into one string.
+/// A bare name is a built-in type (including `ref`, a plain entity reference)
+/// or the name of a record. The list and option forms wrap another type. Nested
+/// types are written as nested YAML, not packed into one string.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum TypeExpr {
@@ -137,7 +137,6 @@ pub(crate) enum TypeExpr {
     Record(String),
     List(ListType),
     Option(OptionType),
-    Ref(RefType),
 }
 
 /// The bare names that stand for a built-in type. Each is written lowercase in
@@ -174,30 +173,6 @@ pub(crate) struct ListType {
 #[serde(deny_unknown_fields)]
 pub(crate) struct OptionType {
     pub(crate) option: Box<TypeExpr>,
-}
-
-/// A reference to an entity, optionally carrying data.
-///
-/// The `ref` key marks this form and must be present; its value has to be empty
-/// for now. Naming a target there is reserved for a later syntax extension.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct RefType {
-    pub(crate) r#ref: RefValue,
-    #[serde(default)]
-    pub(crate) data: Option<Box<TypeExpr>>,
-    #[serde(default)]
-    pub(crate) constraints: AnnotationMap,
-    #[serde(default)]
-    pub(crate) metadata: AnnotationMap,
-}
-
-/// The value written after `ref`: empty for now, a target name later.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum RefValue {
-    Empty(()),
-    Target(String),
 }
 
 impl From<Cardinality> for quent_schema::Cardinality {

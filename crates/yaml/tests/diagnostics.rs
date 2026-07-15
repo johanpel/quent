@@ -144,23 +144,6 @@ records:
 }
 
 #[test]
-fn ref_value_reserved() {
-    expect_error(
-        "\
-entities:
-  E:
-    events:
-      up:
-        once:
-          f:
-            type:
-              ref: E
-",
-        &["`ref` takes no value"],
-    );
-}
-
-#[test]
 fn unknown_record_reference() {
     expect_error(
         "\

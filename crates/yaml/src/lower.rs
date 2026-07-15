@@ -202,26 +202,6 @@ fn type_of(expr: &TypeExpr, path: &str, sink: &mut Diagnostics) -> Option<DataTy
         TypeExpr::Record(name) => record_ref(name, path, sink),
         TypeExpr::List(t) => Some(DataType::List(Box::new(type_of(&t.list, path, sink)?))),
         TypeExpr::Option(t) => Some(DataType::Option(Box::new(type_of(&t.option, path, sink)?))),
-        TypeExpr::Ref(r) => {
-            if let ast::RefValue::Target(name) = &r.r#ref {
-                sink.error(
-                    path,
-                    format!("`ref` takes no value (found `{name}`); reference targets are not supported yet"),
-                    Some("write `ref:` and leave it empty".to_string()),
-                );
-                return None;
-            }
-            let data = match &r.data {
-                Some(inner) => Some(Box::new(type_of(inner, path, sink)?)),
-                None => None,
-            };
-            let mut builder = AnnotationsBuilder::new();
-            add_annotations(&mut builder, &r.constraints, &r.metadata, path, sink);
-            Some(DataType::EntityRef {
-                data,
-                annotations: builder.build(),
-            })
-        }
     }
 }
 
