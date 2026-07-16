@@ -108,10 +108,25 @@ entities:
     events:
       started:
         once:
-          parent: { scope-ref: Cluster }
+          parent:
+            scope-ref: Cluster
+            data: u64
 ",
     );
-    let anns = ref_annotations(&schema, "Engine", "started", "parent");
-    assert_eq!(anns.constraint(REF_TARGET).unwrap().data(), Some("Cluster"));
-    assert!(anns.has_constraint(REF_TREE));
+    let field = schema
+        .entity(&ident("Engine"))
+        .unwrap()
+        .event(&ident("started"))
+        .unwrap()
+        .field(&ident("parent"))
+        .unwrap();
+    let DataType::EntityRef { data, annotations } = field.ty() else {
+        panic!("expected an entity ref");
+    };
+    assert_eq!(data.as_deref(), Some(&DataType::U64));
+    assert_eq!(
+        annotations.constraint(REF_TARGET).unwrap().data(),
+        Some("Cluster")
+    );
+    assert!(annotations.has_constraint(REF_TREE));
 }
