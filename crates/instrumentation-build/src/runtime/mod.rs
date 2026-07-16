@@ -31,10 +31,12 @@ pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, Gen
     let entities: Vec<TokenStream> = schema
         .entities()
         .map(|entity| {
+            let marker = entity_marker(entity);
             let event_impl = entity_event_impl(entity);
             let observer = observer::entity_observer(entity);
             let handle = handle::entity_handle(entity)?;
             Ok::<_, GenerateError>(quote! {
+                #marker
                 #event_impl
                 #observer
                 #handle
@@ -55,8 +57,23 @@ pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, Gen
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            CustomAttributes, EntityRef, Event, HandleError, Uuid,
+            AnyEntity, CustomAttributes, EntityRef, Event, HandleError, Uuid,
         };
+    }
+}
+
+/// `{Entity}` — the zero-size marker naming the entity, used as the target
+/// type of [`EntityRef`](quent_instrumentation::EntityRef) fields that point at it.
+fn entity_marker(entity: &Entity) -> TokenStream {
+    let marker = marker_ident(entity);
+    let doc = format!(
+        "Marker type for the `{}` entity.",
+        to_case(entity.name(), Case::Pascal)
+    );
+    quote! {
+        #[doc = #doc]
+        #[derive(Debug, Clone, Copy)]
+        pub struct #marker;
     }
 }
 
@@ -74,6 +91,11 @@ fn entity_event_impl(entity: &Entity) -> TokenStream {
 /// `{Entity}Event` — the entity's event enum.
 fn event_ident(entity: &Entity) -> Ident {
     raw_ident(format!("{}Event", to_case(entity.name(), Case::Pascal)))
+}
+
+/// `{Entity}` — the entity's ref-target marker type.
+fn marker_ident(entity: &Entity) -> Ident {
+    raw_ident(to_case(entity.name(), Case::Pascal))
 }
 
 /// `{Entity}Observer`.

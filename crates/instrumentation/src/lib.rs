@@ -14,7 +14,7 @@ mod observer;
 mod sidecar;
 
 pub use context::Context;
-pub use entity_ref::EntityRef;
+pub use entity_ref::{AnyEntity, EntityRef};
 pub use handle::{Handle, HandleError};
 pub use observer::{EventSender, Observer};
 pub use sidecar::write_sidecar;

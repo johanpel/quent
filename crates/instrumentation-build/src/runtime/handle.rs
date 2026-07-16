@@ -8,7 +8,7 @@ use proc_macro2::{Literal, TokenStream};
 use quent_schema::{Cardinality, Entity};
 use quote::quote;
 
-use super::{event_ident, handle_ident};
+use super::{event_ident, handle_ident, marker_ident};
 use crate::GenerateError;
 use crate::common::{doc_attr_or, raw_ident, to_case};
 use crate::data_type::map_data_type;
@@ -27,6 +27,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
     let entity_pascal = to_case(entity.name(), Case::Pascal);
     let event_ty = event_ident(entity);
     let handle_ty = handle_ident(entity);
+    let marker_ty = marker_ident(entity);
 
     let once_count = entity
         .events()
@@ -131,6 +132,28 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
             /// Id of the entity instance this handle emits for.
             pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
                 self.inner.id()
+            }
+
+            /// A typed reference to this instance, carrying no data.
+            pub fn as_entity_ref(&self) -> ::quent_instrumentation::EntityRef<#marker_ty> {
+                ::quent_instrumentation::EntityRef::new(self.uuid(), ())
+            }
+
+            /// A typed reference to this instance, carrying `data`.
+            pub fn as_entity_ref_with<T>(&self, data: T) -> ::quent_instrumentation::EntityRef<#marker_ty, T> {
+                ::quent_instrumentation::EntityRef::new(self.uuid(), data)
+            }
+
+            /// A reference to this instance for a field not restricted to a
+            /// target entity type, carrying no data.
+            pub fn as_any_entity_ref(&self) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity> {
+                ::quent_instrumentation::EntityRef::new(self.uuid(), ())
+            }
+
+            /// A reference to this instance for a field not restricted to a
+            /// target entity type, carrying `data`.
+            pub fn as_any_entity_ref_with<T>(&self, data: T) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity, T> {
+                ::quent_instrumentation::EntityRef::new(self.uuid(), data)
             }
 
             #(#methods)*

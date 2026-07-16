@@ -3,9 +3,11 @@
 
 //! Mapping from schema [`DataType`]s to Rust type tokens.
 
-use convert_case::Case;
+use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
-use quent_schema::DataType;
+use quent_constraints::Constraint;
+use quent_ref_target::RefTargetConstraint;
+use quent_schema::{Annotations, DataType};
 use quote::quote;
 
 use crate::common::{raw_ident, to_case};
@@ -54,13 +56,32 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
             quote! { #ident }
         }
         DataType::DynamicRecord => quote! { ::quent_instrumentation::CustomAttributes },
-        DataType::EntityRef { data, .. } => match data {
-            Some(inner) => {
-                let inner = map_data_type(inner, depth + 1);
-                quote! { ::quent_instrumentation::EntityRef<#inner> }
+        DataType::EntityRef { data, annotations } => {
+            let target = ref_target_marker(annotations);
+            match data {
+                Some(inner) => {
+                    let inner = map_data_type(inner, depth + 1);
+                    quote! { ::quent_instrumentation::EntityRef<#target, #inner> }
+                }
+                None => quote! { ::quent_instrumentation::EntityRef<#target> },
             }
-            None => quote! { ::quent_instrumentation::EntityRef },
-        },
+        }
+    }
+}
+
+/// The target-entity marker type for an entity reference, taken from its
+/// ref-target constraint, or the `AnyEntity` marker when it is not restricted
+/// to a target entity.
+fn ref_target_marker(annotations: &Annotations) -> TokenStream {
+    match annotations
+        .constraint(RefTargetConstraint::NAME)
+        .and_then(|c| c.data())
+    {
+        Some(entity) => {
+            let marker = raw_ident(entity.to_case(Case::Pascal));
+            quote! { #marker }
+        }
+        None => quote! { AnyEntity },
     }
 }
 

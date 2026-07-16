@@ -3,7 +3,7 @@
 
 use quent_instrumentation::{EventCallback, ExporterOptions};
 
-use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, EntityRef, Event, Uuid};
+use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Event, Uuid};
 
 #[allow(unused)]
 mod demo {
@@ -29,11 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: 8080,
         },
         Uuid::nil(),
-        // `scope-ref` field: point at the hosting server by its instance id.
-        EntityRef {
-            target: server.uuid(),
-            data: (),
-        },
+        server.as_entity_ref(),
     )?;
     conn.data(1234, None)?;
 
@@ -51,11 +47,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
 
-    // `ref` field carrying data: reference the server plus details of the edge.
-    conn.routed(EntityRef {
-        target: server.uuid(),
-        data: demo::Route { hops: 3 },
-    })?;
+    // `ref` field carrying data: the server reference plus details of the edge.
+    conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
 
     conn.closed()?;
 

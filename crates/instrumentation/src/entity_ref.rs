@@ -3,17 +3,40 @@
 
 //! Reference from one entity instance to another.
 
+use std::marker::PhantomData;
+
 use uuid::Uuid;
 
-/// Reference from one entity instance to another by id, optionally carrying
-/// payload data `T`.
+/// Reference to an entity instance of type `E`, optionally carrying payload
+/// data `T`.
 ///
-/// Placeholder backing the schema generator's `DataType::EntityRef` fields.
+/// In instrumentation libraries generated with `instrumentation-build`, `E` is
+/// typically a marker type.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
-pub struct EntityRef<T = ()> {
+pub struct EntityRef<E, T = ()> {
+    #[cfg_attr(feature = "serde", serde(skip))]
+    _entity: PhantomData<E>,
     /// Identifier of the referenced entity instance.
     pub target: Uuid,
     /// Payload carried alongside the reference.
     pub data: T,
 }
+
+impl<E, T> EntityRef<E, T> {
+    /// A reference to the entity instance identified by `target`, carrying `data`.
+    pub fn new(target: Uuid, data: T) -> Self {
+        Self {
+            _entity: PhantomData,
+            target,
+            data,
+        }
+    }
+}
+
+/// Entity marker for a reference not restricted to a single entity type.
+///
+/// Untargeted entity reference fields in instrumentation have the type:
+/// `EntityRef<AnyEntity, ...>`.
+#[derive(Debug, Clone, Copy)]
+pub struct AnyEntity;
