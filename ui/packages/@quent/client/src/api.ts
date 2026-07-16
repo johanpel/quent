@@ -15,6 +15,8 @@ import type {
   OperatorFilter,
   EntityRef,
   Engine,
+  EntityListRequest,
+  EntityListResponse,
 } from '@quent/utils';
 
 interface ApiFetchOptions {
@@ -98,6 +100,18 @@ export async function fetchBulkTimelines(
   request: BulkTimelineRequest<QueryFilter, OperatorFilter>
 ): Promise<BulkTimelinesResponse> {
   return apiFetch<BulkTimelinesResponse>(`/engines/${engineId}/timeline/bulk`, {
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
+}
+
+export async function fetchEntities(
+  engineId: string,
+  request: EntityListRequest<QueryFilter, OperatorFilter>
+): Promise<EntityListResponse> {
+  return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
     fetchOptions: {
       method: 'POST',
       body: JSON.stringify(request),

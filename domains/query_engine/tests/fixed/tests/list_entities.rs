@@ -131,7 +131,7 @@ fn request(
 }
 
 fn ids(resp: &EntityListResponse) -> Vec<Uuid> {
-    resp.items.iter().map(|fsm| fsm.id).collect()
+    resp.items.iter().map(|item| item.entity.id).collect()
 }
 
 #[test]
@@ -143,6 +143,7 @@ fn lists_all_tasks_on_a_resource_ranked_by_uuid_tiebreak() {
 
     assert_eq!(resp.total, 8);
     assert_eq!(ids(&resp), MEMORY_W0_TASKS);
+    assert!(resp.items.iter().all(|item| item.usage_duration_s == 0.75));
 }
 
 #[test]

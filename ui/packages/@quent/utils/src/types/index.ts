@@ -12,7 +12,14 @@ export type { Edge } from '../../../../../../examples/simulator/server/ts-bindin
 export type { Engine } from '../../../../../../examples/simulator/server/ts-bindings/Engine';
 export type { EngineImplementationAttributes } from '../../../../../../examples/simulator/server/ts-bindings/EngineImplementationAttributes';
 export type { EntityFilter } from '../../../../../../examples/simulator/server/ts-bindings/EntityFilter';
+export type { EntityListEntry } from '../../../../../../examples/simulator/server/ts-bindings/EntityListEntry';
+export type { EntityListFilter } from '../../../../../../examples/simulator/server/ts-bindings/EntityListFilter';
+export type { EntityListItem } from '../../../../../../examples/simulator/server/ts-bindings/EntityListItem';
+export type { EntityListRequest } from '../../../../../../examples/simulator/server/ts-bindings/EntityListRequest';
+export type { EntityListResponse } from '../../../../../../examples/simulator/server/ts-bindings/EntityListResponse';
 export type { EntityRef } from '../../../../../../examples/simulator/server/ts-bindings/EntityRef';
+export type { EntityScope } from '../../../../../../examples/simulator/server/ts-bindings/EntityScope';
+export type { EntitySortKey } from '../../../../../../examples/simulator/server/ts-bindings/EntitySortKey';
 export type { FiniteStateMachine } from '../../../../../../examples/simulator/server/ts-bindings/FiniteStateMachine';
 export type { FsmStateTypeDecl } from '../../../../../../examples/simulator/server/ts-bindings/FsmStateTypeDecl';
 export type { FsmTransition } from '../../../../../../examples/simulator/server/ts-bindings/FsmTransition';
@@ -23,6 +30,7 @@ export type { List } from '../../../../../../examples/simulator/server/ts-bindin
 export type { Operator } from '../../../../../../examples/simulator/server/ts-bindings/Operator';
 export type { OperatorFilter } from '../../../../../../examples/simulator/server/ts-bindings/OperatorFilter';
 export type { OperatorStatistics } from '../../../../../../examples/simulator/server/ts-bindings/OperatorStatistics';
+export type { PageParams } from '../../../../../../examples/simulator/server/ts-bindings/PageParams';
 export type { Plan } from '../../../../../../examples/simulator/server/ts-bindings/Plan';
 export type { PlanTree } from '../../../../../../examples/simulator/server/ts-bindings/PlanTree';
 export type { Port } from '../../../../../../examples/simulator/server/ts-bindings/Port';
@@ -47,9 +55,12 @@ export type { ResourceTree } from '../../../../../../examples/simulator/server/t
 export type { ResourceTypeDecl } from '../../../../../../examples/simulator/server/ts-bindings/ResourceTypeDecl';
 export type { SingleTimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/SingleTimelineRequest';
 export type { SingleTimelineResponse } from '../../../../../../examples/simulator/server/ts-bindings/SingleTimelineResponse';
+export type { Sort } from '../../../../../../examples/simulator/server/ts-bindings/Sort';
+export type { SortDir } from '../../../../../../examples/simulator/server/ts-bindings/SortDir';
 export type { SpanSec } from '../../../../../../examples/simulator/server/ts-bindings/SpanSec';
 export type { Struct } from '../../../../../../examples/simulator/server/ts-bindings/Struct';
 export type { TimelineConfig } from '../../../../../../examples/simulator/server/ts-bindings/TimelineConfig';
 export type { TimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/TimelineRequest';
+export type { TimeWindow } from '../../../../../../examples/simulator/server/ts-bindings/TimeWindow';
 export type { Value } from '../../../../../../examples/simulator/server/ts-bindings/Value';
 export type { Worker } from '../../../../../../examples/simulator/server/ts-bindings/Worker';

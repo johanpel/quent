@@ -10,12 +10,12 @@ use quent_analyzer::{
     fsm::{FsmUsages, collection::FsmCollection},
     resource::Usage,
 };
-use quent_time::{TimeNanoSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs};
+use quent_time::{TimeNanoSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs, to_secs};
 use quent_ui::{
     FiniteStateMachine,
     entities::{
         request::{EntityListFilter, EntitySortKey, Sort, SortDir},
-        response::EntityListResponse,
+        response::{EntityListItem, EntityListResponse},
     },
     paginate::PageParams,
 };
@@ -111,8 +111,13 @@ where
     };
 
     let items = page_iter
-        .map(|(f, _)| FiniteStateMachine::try_from_fsm(f, epoch))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|(f, usage_duration)| {
+            FiniteStateMachine::try_from_fsm(f, epoch).map(|entity| EntityListItem {
+                usage_duration_s: to_secs(usage_duration),
+                entity,
+            })
+        })
+        .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
 
     Ok(EntityListResponse { items, total })
 }

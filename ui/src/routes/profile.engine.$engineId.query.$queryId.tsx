@@ -47,6 +47,14 @@ function QueryLayout() {
           >
             Operators
           </Link>
+          <Link
+            to="/profile/engine/$engineId/query/$queryId/entities"
+            params={{ engineId, queryId }}
+            className={tabClass}
+            activeProps={{ className: activeTabClass }}
+          >
+            Entities
+          </Link>
         </div>
       </div>
       <div className="flex-1 min-h-0">
