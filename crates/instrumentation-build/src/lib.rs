@@ -51,6 +51,7 @@
 //! carrying records or entity refs) must include a `Serialize`-providing
 //! derive; otherwise the generated code will not compile.
 
+mod any_event;
 mod common;
 mod data_type;
 mod events;
@@ -90,6 +91,10 @@ pub struct Options {
     /// File name to write; defaults to `<schema name>.rs` (lowercased) when
     /// `None`.
     pub file_name: Option<String>,
+
+    /// Emit `AnyEvent` and `AnyEvent::from_any`, a decoder from a type-erased
+    /// `&dyn Any` back to the concrete `Event<T>`. Carries [`Self::event_derives`].
+    pub any_event: bool,
 }
 
 impl Default for Options {
@@ -99,6 +104,7 @@ impl Default for Options {
             record_derives: Default::default(),
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
+            any_event: false,
         }
     }
 }
@@ -171,7 +177,12 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;
     let runtime = generate_runtime_types(schema)?;
-    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime })
+    let any_event = if opts.any_event {
+        any_event::generate_any_event(schema, opts)?
+    } else {
+        quote! {}
+    };
+    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime #any_event })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
 }
