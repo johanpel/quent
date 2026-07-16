@@ -2783,6 +2783,8 @@ version = "0.1.0"
 dependencies = [
  "indexmap",
  "quent-constraints",
+ "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "serde",
  "serde-saphyr",
