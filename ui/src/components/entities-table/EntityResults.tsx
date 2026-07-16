@@ -1,0 +1,185 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { ChevronFirst, ChevronLast } from 'lucide-react';
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@quent/components';
+import { cn, formatDuration } from '@quent/utils';
+import type { FiniteStateMachine } from '@quent/utils';
+import type { EntityTableRow } from './types';
+
+interface EntityResultsProps {
+  rows: EntityTableRow[];
+  selected: FiniteStateMachine | null;
+  isError: boolean;
+  isLoading: boolean;
+  error: unknown;
+  requestPending: boolean;
+  hasValidationErrors: boolean;
+  page: number;
+  pageCount: number;
+  paginationDisabled: boolean;
+  total: number;
+  visibleStart: number;
+  visibleEnd: number;
+  onSelect: (fsm: FiniteStateMachine) => void;
+  onPageChange: (page: number) => void;
+}
+
+export function EntityResults({
+  rows,
+  selected,
+  isError,
+  isLoading,
+  error,
+  requestPending,
+  hasValidationErrors,
+  page,
+  pageCount,
+  paginationDisabled,
+  total,
+  visibleStart,
+  visibleEnd,
+  onSelect,
+  onPageChange,
+}: EntityResultsProps) {
+  return (
+    <>
+      <div
+        aria-busy={requestPending}
+        className={cn(
+          'flex-1 min-h-0 overflow-auto transition-opacity duration-150',
+          requestPending && rows.length > 0 ? 'opacity-60' : 'opacity-100'
+        )}
+      >
+        {isError ? (
+          <div className="p-4 text-sm text-destructive">
+            Failed to load entities: {error instanceof Error ? error.message : 'unknown error'}
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Instance</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">States</TableHead>
+                <TableHead className="text-right">Start</TableHead>
+                <TableHead className="text-right">End</TableHead>
+                <TableHead className="text-right">FSM span</TableHead>
+                <TableHead className="text-right">Longest usage</TableHead>
+                <TableHead>ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(row => (
+                <EntityRow
+                  key={row.fsm.id}
+                  row={row}
+                  selected={selected?.id === row.fsm.id}
+                  onSelect={onSelect}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {!isError && !isLoading && !hasValidationErrors && rows.length === 0 && (
+          <div className="p-4 text-sm text-muted-foreground">No entities match the filters.</div>
+        )}
+        {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading…</div>}
+      </div>
+
+      <div className="shrink-0 border-t bg-card p-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {visibleStart}–{visibleEnd} of {total} {total === 1 ? 'entity' : 'entities'}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="First page"
+            disabled={paginationDisabled || page <= 0}
+            onClick={() => onPageChange(0)}
+          >
+            <ChevronFirst className="size-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={paginationDisabled || page <= 0}
+            onClick={() => onPageChange(Math.max(0, page - 1))}
+          >
+            Previous
+          </Button>
+          <span>
+            Page {page + 1} / {pageCount}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={paginationDisabled || page + 1 >= pageCount}
+            onClick={() => onPageChange(page + 1)}
+          >
+            Next
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Last page"
+            disabled={paginationDisabled || page + 1 >= pageCount}
+            onClick={() => onPageChange(pageCount - 1)}
+          >
+            <ChevronLast className="size-4" />
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function EntityRow({
+  row,
+  selected,
+  onSelect,
+}: {
+  row: EntityTableRow;
+  selected: boolean;
+  onSelect: (fsm: FiniteStateMachine) => void;
+}) {
+  const select = () => onSelect(row.fsm);
+
+  return (
+    <TableRow
+      className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      tabIndex={0}
+      aria-selected={selected}
+      data-state={selected ? 'selected' : undefined}
+      onClick={select}
+      onKeyDown={event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          select();
+        }
+      }}
+    >
+      <TableCell className="font-medium">{row.fsm.instance_name}</TableCell>
+      <TableCell>{row.fsm.type_name}</TableCell>
+      <TableCell className="text-right tabular-nums">{row.fsm.transitions.length}</TableCell>
+      <TableCell className="text-right tabular-nums">{row.start.toFixed(3)}s</TableCell>
+      <TableCell className="text-right tabular-nums">{row.end.toFixed(3)}s</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {formatDuration((row.end - row.start) * 1000)}
+      </TableCell>
+      <TableCell className="text-right tabular-nums">
+        {formatDuration(row.usageDurationS * 1000)}
+      </TableCell>
+      <TableCell className="font-mono text-xs text-muted-foreground">{row.fsm.id}</TableCell>
+    </TableRow>
+  );
+}

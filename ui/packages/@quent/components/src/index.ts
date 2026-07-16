@@ -65,6 +65,8 @@ export {
 } from './ui/select';
 export { SelectField } from './ui/select-field';
 export type { SelectFieldProps, SelectFieldOption } from './ui/select-field';
+export { SearchableSelect } from './ui/searchable-select';
+export type { SearchableSelectProps } from './ui/searchable-select';
 export { Skeleton } from './ui/skeleton';
 export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';
