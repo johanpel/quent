@@ -38,6 +38,32 @@ pub(crate) struct Model {
     pub(crate) records: IndexMap<String, Record>,
     #[serde(default)]
     pub(crate) entities: IndexMap<String, Entity>,
+    /// FSMs keyed by the name of the entity whose events they declare.
+    #[serde(default)]
+    pub(crate) fsms: IndexMap<String, FsmSpec>,
+}
+
+/// An FSM overlaying an entity: its states, keyed by name. Each state becomes
+/// one of the entity's events.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FsmSpec {
+    pub(crate) states: IndexMap<String, StateSpec>,
+}
+
+/// One state of an FSM: its payload attributes, the states it may transition
+/// to, and whether it is the initial or an exit state.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StateSpec {
+    #[serde(default)]
+    pub(crate) initial: bool,
+    #[serde(default)]
+    pub(crate) exit: bool,
+    #[serde(default)]
+    pub(crate) attributes: IndexMap<String, Field>,
+    #[serde(default)]
+    pub(crate) to: Vec<String>,
 }
 
 /// A record: named fields plus annotations.

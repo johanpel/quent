@@ -15,6 +15,7 @@
 
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
+use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmShapeError, StateDecl};
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_schema::builder::{
@@ -53,8 +54,17 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
     let entities: Vec<Entity> = model
         .entities
         .iter()
-        .filter_map(|(name, entity)| entity_of(name, entity, sink))
+        .filter_map(|(name, entity)| entity_of(name, entity, model.fsms.get(name), sink))
         .collect();
+    for name in model.fsms.keys() {
+        if !model.entities.contains_key(name) {
+            sink.error(
+                &format!("fsms.{name}"),
+                format!("`fsms` declares `{name}`, but there is no such entity"),
+                None,
+            );
+        }
+    }
 
     SchemaBuilder::new(name)
         .try_with_records(records)
@@ -95,27 +105,119 @@ fn record_of(name: &str, record: &ast::Record, sink: &mut Diagnostics) -> Option
 }
 
 /// Lower one entity, or `None` (after reporting) if its name is rejected.
-fn entity_of(name: &str, entity: &ast::Entity, sink: &mut Diagnostics) -> Option<Entity> {
+///
+/// An FSM entity's events come from its FSM states (via [`FsmEntityBuilder`],
+/// which derives cardinality); a plain entity's come from its `events:`.
+fn entity_of(
+    name: &str,
+    entity: &ast::Entity,
+    fsm_spec: Option<&ast::FsmSpec>,
+    sink: &mut Diagnostics,
+) -> Option<Entity> {
     let path = format!("entities.{name}");
     let id = type_decl_ident(name, "entities", sink);
-    let events: Vec<_> = entity
-        .events
-        .iter()
-        .filter_map(|(event_name, event)| event_of(event_name, event, &path, sink))
-        .collect();
-    Some(
-        EntityBuilder::new(id?)
-            .try_with_events(events)
-            .expect("event names are unique")
-            .with_annotations(annotations(
-                &entity.doc,
-                &entity.constraints,
-                &entity.metadata,
-                &path,
-                sink,
-            ))
-            .build(),
-    )
+    let anns = annotations_builder(
+        &entity.doc,
+        &entity.constraints,
+        &entity.metadata,
+        &path,
+        sink,
+    );
+
+    match fsm_spec {
+        Some(spec) => {
+            if !entity.events.is_empty() {
+                sink.error(
+                    &path,
+                    "an FSM entity declares its events as FSM states; remove `events:`",
+                    None,
+                );
+            }
+            fsm_entity(id, spec, anns, &format!("fsms.{name}"), sink)
+        }
+        None => {
+            let events: Vec<_> = entity
+                .events
+                .iter()
+                .filter_map(|(event_name, event)| event_of(event_name, event, &path, sink))
+                .collect();
+            Some(
+                EntityBuilder::new(id?)
+                    .try_with_events(events)
+                    .expect("event names are unique")
+                    .with_annotations(anns.build())
+                    .build(),
+            )
+        }
+    }
+}
+
+/// Lower an FSM entity: feed its states into [`FsmEntityBuilder`], which derives
+/// each state event's cardinality and attaches the FSM constraint. Topology
+/// validity is checked later by the FSM constraint.
+fn fsm_entity(
+    id: Option<Identifier>,
+    spec: &ast::FsmSpec,
+    annotations: AnnotationsBuilder,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> Option<Entity> {
+    // Lower the states first, before bailing on a rejected entity name, so one
+    // run still reports problems inside the states.
+    let mut states = Vec::new();
+    let mut complete = true;
+    for (name, state) in &spec.states {
+        let Some(state_id) = ident(name, path, sink) else {
+            complete = false;
+            continue;
+        };
+        let attributes = fields_of(&state.attributes, &format!("{path}.states.{name}"), sink);
+        let to = state
+            .to
+            .iter()
+            .filter_map(|target| ident(target, path, sink))
+            .collect();
+        states.push(StateDecl {
+            name: state_id,
+            attributes,
+            to,
+            initial: state.initial,
+            exit: state.exit,
+        });
+    }
+
+    // A rejected state name leaves a reduced set whose structural checks would
+    // mislead (e.g. reporting a missing initial state), so stop once one is bad.
+    let id = id?;
+    if !complete {
+        return None;
+    }
+
+    let built = FsmEntityBuilder::new(id, annotations)
+        .try_with_states(states)
+        .expect("state names are unique (deserialized from a map)")
+        .build();
+    match built {
+        Ok(entity) => Some(entity),
+        Err(error) => {
+            fsm_shape_error(&error, path, sink);
+            None
+        }
+    }
+}
+
+/// Report an FSM structural error, using the YAML `initial: true` / `exit: true`
+/// wording for the flag problems.
+fn fsm_shape_error(error: &FsmShapeError, path: &str, sink: &mut Diagnostics) {
+    let message = match error {
+        FsmShapeError::NoInitialState => "no state marked `initial: true`".to_string(),
+        FsmShapeError::MultipleInitialStates(_) => {
+            "more than one state marked `initial: true`".to_string()
+        }
+        FsmShapeError::NoExitState => "no state marked `exit: true`".to_string(),
+        other => other.to_string(),
+    };
+    sink.error(path, message, None);
 }
 
 /// Lower one event, or `None` (after reporting) if its name is rejected.
@@ -290,12 +392,25 @@ fn annotations(
     path: &str,
     sink: &mut Diagnostics,
 ) -> Annotations {
+    annotations_builder(doc, constraints, metadata, path, sink).build()
+}
+
+/// Assemble an [`AnnotationsBuilder`] from doc, constraints, and metadata,
+/// reporting problems. Left unbuilt so callers that add more (e.g. an FSM
+/// constraint) can amend it first.
+fn annotations_builder(
+    doc: &Option<String>,
+    constraints: &AnnotationMap,
+    metadata: &AnnotationMap,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> AnnotationsBuilder {
     let mut builder = AnnotationsBuilder::new();
     if let Some(doc) = doc {
         builder.set_docs(doc.clone());
     }
     add_annotations(&mut builder, constraints, metadata, path, sink);
-    builder.build()
+    builder
 }
 
 fn add_annotations(
@@ -308,6 +423,16 @@ fn add_annotations(
     for (name, value) in constraints {
         if name.is_empty() {
             sink.error(path, "constraint name must not be empty", None);
+            continue;
+        }
+        // The FSM constraint is produced only by the builder, from an `fsms:`
+        // block, never written by hand.
+        if name == FsmConstraint::NAME {
+            sink.error(
+                path,
+                "the FSM constraint is set from an `fsms:` block, not written directly",
+                None,
+            );
             continue;
         }
         if let Err(e) = builder.try_insert_constraint(name, value.clone()) {
