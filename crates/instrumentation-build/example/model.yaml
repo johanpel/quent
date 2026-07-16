@@ -33,8 +33,6 @@ entities:
         once:
           peer: Endpoint
           session: uuid
-          # The hosting server. `scope-ref` makes Connection a child of Server
-          # in the entity ref-tree (Server is the root).
           host: { scope-ref: Server }
       data:
         multi:
@@ -43,7 +41,5 @@ entities:
       routed:
         doc: Forwarded to an upstream server.
         once:
-          # `ref` carrying `data`: the referenced server plus a record
-          # describing this routing edge.
           upstream: { ref: Server, data: Route }
       closed: once
