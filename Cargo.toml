@@ -60,6 +60,9 @@ members = [
     "crates/resource",
     "crates/instrumentation-build",
     "crates/instrumentation-build/example",
+    # quent-vs-OpenTelemetry throughput benchmark (opt-in; kept out of
+    # default-members so its OTel deps never touch default builds).
+    "bench",
 ]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
