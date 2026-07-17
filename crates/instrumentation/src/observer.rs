@@ -151,25 +151,41 @@ where
     let (events_sender, mut events_receiver) = unbounded_channel();
 
     let forwarder_handle = runtime.handle().spawn(async move {
+        // Reused across batches; `drain_events` leaves it empty and it is reserved
+        // to a full batch before each receive.
+        let mut buffer = Vec::new();
         loop {
+            let limit = exporter.batch_size_hint().get();
+            buffer.reserve(limit);
             tokio::select! {
-                Some(event) = events_receiver.recv() => {
-                    if let Err(e) = exporter.push(event).await {
-                        warn!("unable to export event: {e}");
+                // Cancel-safe: if the cancellation branch wins, `buffer` is left
+                // untouched (no events are lost).
+                n = events_receiver.recv_many(&mut buffer, limit) => {
+                    // 0 means the channel is closed and drained.
+                    if n == 0 {
+                        break;
                     }
+                    if let Err(e) = exporter.drain_events(&mut buffer).await {
+                        warn!("unable to export events: {e}");
+                    }
+                    debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
                 },
                 () = cloned_token.cancelled() => {
                     events_receiver.close();
                     // drain events that are buffered
-                    while let Some(event) = events_receiver.recv().await {
-                        if let Err(e) = exporter.push(event).await {
-                            warn!("unable to export event: {e}");
+                    loop {
+                        let limit = exporter.batch_size_hint().get();
+                        buffer.reserve(limit);
+                        if events_receiver.recv_many(&mut buffer, limit).await == 0 {
+                            break;
                         }
+                        if let Err(e) = exporter.drain_events(&mut buffer).await {
+                            warn!("unable to export events: {e}");
+                        }
+                        debug_assert!(buffer.is_empty(), "drain_events must leave the buffer empty");
                     }
                     break
                 },
-                // the events channel has been closed: nothing left to forward.
-                else => break,
             }
         }
         // Tear down once, however the loop exited.

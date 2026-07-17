@@ -3,7 +3,8 @@
 
 syntax = "proto3";
 
-package quent.collector.v1;
+// See https://google.aip.dev/185 for the `v1alpha` versioning convention.
+package quent.collector.v1alpha;
 
 service Collector {
   // Opens an event stream for a single entity of a single source. Each stream

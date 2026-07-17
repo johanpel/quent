@@ -15,7 +15,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// File extension for ndjson event files.
@@ -37,6 +37,8 @@ pub struct NdjsonExporterOptions {
 pub struct NdjsonExporter {
     /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
     writer: Option<BufWriter<File>>,
+    /// Line buffer reused across [`drain_events`](Exporter::drain_events).
+    batch: String,
 }
 
 impl NdjsonExporter {
@@ -53,6 +55,7 @@ impl NdjsonExporter {
 
         Ok(Self {
             writer: Some(BufWriter::new(file)),
+            batch: String::new(),
         })
     }
 }
@@ -69,6 +72,29 @@ where
             serde_json::to_string(&event).map_err(ExporterError::other)?
         );
         writer.write_all(line.as_bytes()).await?;
+        Ok(())
+    }
+
+    async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
+        let Self { writer, batch } = self;
+        let Some(writer) = writer.as_mut() else {
+            events.clear();
+            return Err(ExporterError::Shutdown);
+        };
+        // Concatenate the whole batch into the reused buffer, then issue a
+        // single write. A record that fails to serialize is logged and skipped
+        // so one bad event does not drop the batch.
+        batch.clear();
+        for event in events.drain(..) {
+            match serde_json::to_string(&event) {
+                Ok(line) => {
+                    batch.push_str(&line);
+                    batch.push('\n');
+                }
+                Err(e) => warn!("unable to serialize event: {e}"),
+            }
+        }
+        writer.write_all(batch.as_bytes()).await?;
         Ok(())
     }
 

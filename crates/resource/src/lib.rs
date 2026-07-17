@@ -57,7 +57,7 @@ pub enum CapacityKind {
 
 pub type Capacities = indexmap::IndexMap<Identifier, Capacity>;
 
-/// The data a `quent.resource.v1` constraint carries.
+/// The data a `quent.resource.v0.1.0` constraint carries.
 ///
 /// A resource is an entity with one or more capacities that other entities can claim.
 ///
@@ -84,7 +84,7 @@ pub enum Resource {
 
 impl Resource {
     /// The constraint name under which the data is carried.
-    pub const NAME: &'static str = "quent.resource.v1";
+    pub const NAME: &'static str = "quent.resource.v0.1.0";
 
     /// Deserialize [`Self`] from `annotations`, if it exists.
     pub fn from_annotations(annotations: &Annotations) -> Option<Self> {

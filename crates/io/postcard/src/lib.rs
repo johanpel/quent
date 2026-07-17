@@ -14,7 +14,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use uuid::Uuid;
 
 /// File extension for Postcard event files.
@@ -35,6 +35,8 @@ pub struct PostcardExporterOptions {
 pub struct PostcardExporter {
     /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
     writer: Option<BufWriter<File>>,
+    /// Framing buffer reused across [`drain_events`](Exporter::drain_events).
+    batch: Vec<u8>,
 }
 
 impl PostcardExporter {
@@ -50,6 +52,7 @@ impl PostcardExporter {
             .await?;
         Ok(Self {
             writer: Some(BufWriter::new(file)),
+            batch: Vec::new(),
         })
     }
 }
@@ -65,6 +68,29 @@ where
         let len = (payload.len() as u32).to_be_bytes();
         writer.write_all(&len).await?;
         writer.write_all(&payload).await?;
+        Ok(())
+    }
+
+    async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
+        let Self { writer, batch } = self;
+        let Some(writer) = writer.as_mut() else {
+            events.clear();
+            return Err(ExporterError::Shutdown);
+        };
+        // Frame the whole batch into the reused buffer, then issue a single
+        // write. A record that fails to serialize is logged and skipped so one
+        // bad event does not drop the batch.
+        batch.clear();
+        for event in events.drain(..) {
+            match postcard::to_allocvec(&event) {
+                Ok(payload) => {
+                    batch.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+                    batch.extend_from_slice(&payload);
+                }
+                Err(e) => warn!("unable to serialize event: {e}"),
+            }
+        }
+        writer.write_all(batch).await?;
         Ok(())
     }
 
