@@ -10,6 +10,7 @@
 use std::path::Path;
 
 use quent_constraints::validate;
+use quent_fsm::{FsmConstraint, FsmError};
 use quent_ref_target::{RefTargetConstraint, RefTargetError};
 use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::Schema;
@@ -66,7 +67,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         return Err(Error::Invalid(sink));
     }
 
-    let report = validate::<(RefTargetConstraint, RefTreeConstraint)>(&schema);
+    let report = validate::<(RefTargetConstraint, RefTreeConstraint, FsmConstraint)>(&schema);
     if let Err(e) = report.base_constraints {
         for record in e.recursive_records {
             sink.error(
@@ -82,12 +83,15 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
-    let (ref_target, ref_tree) = report.results;
+    let (ref_target, ref_tree, fsm) = report.results;
     if let Err(e) = ref_target {
         ref_target_diagnostics(e, &mut sink);
     }
     if let Err(e) = ref_tree {
         ref_tree_diagnostics(e, &mut sink);
+    }
+    if let Err(e) = fsm {
+        fsm_diagnostics(e, &mut sink);
     }
     if sink.has_errors() {
         return Err(Error::Invalid(sink));
@@ -136,6 +140,18 @@ fn ref_tree_diagnostics(error: RefTreeError, sink: &mut Diagnostics) {
             errors
                 .into_iter()
                 .for_each(|error| ref_tree_diagnostics(error, sink));
+        }
+        error => sink.error("", error.to_string(), None),
+    }
+}
+
+/// Report one diagnostic per FSM violation, flattening `Multiple`.
+fn fsm_diagnostics(error: FsmError, sink: &mut Diagnostics) {
+    match error {
+        FsmError::Multiple(errors) => {
+            errors
+                .into_iter()
+                .for_each(|error| fsm_diagnostics(error, sink));
         }
         error => sink.error("", error.to_string(), None),
     }
