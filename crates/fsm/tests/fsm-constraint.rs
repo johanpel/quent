@@ -5,7 +5,7 @@ use quent_constraints::Constraint as _;
 use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
     Annotations, Cardinality, Entity, Event, Schema,
-    builder::{AnnotationsBuilder, BuilderError, EntityBuilder},
+    builder::{AnnotationsBuilder, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
@@ -346,15 +346,14 @@ fn builder_rejects_malformed_states() {
         .unwrap_err();
     assert!(matches!(no_exit, FsmEntityBuilderError::NoExitState));
 
+    // A duplicate that is also marked initial must report the duplicate, not
+    // `MultipleInitialStates`.
     let duplicate = FsmEntityBuilder::new(ident("E"))
         .with_state(state("a", &[], true, true))
-        .with_state(state("a", &[], false, false))
+        .with_state(state("a", &[], true, false))
         .build()
         .unwrap_err();
-    assert!(matches!(
-        duplicate,
-        FsmEntityBuilderError::Build(BuilderError::DuplicateName(_))
-    ));
+    assert!(matches!(duplicate, FsmEntityBuilderError::DuplicateState(_)));
 }
 
 #[test]

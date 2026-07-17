@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 use quent_constraints::Constraint;
 use quent_schema::builder::{AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder};
 use quent_schema::{Annotations, Cardinality, Entity, Field, Identifier};
@@ -42,8 +44,9 @@ pub enum FsmEntityBuilderError {
     MultipleInitialStates(Vec<Identifier>),
     #[error("no state is marked as an exit state")]
     NoExitState,
-    /// A duplicate state name, or a duplicate attribute name within a state,
-    /// reached the schema builder.
+    #[error("duplicate state `{0}`")]
+    DuplicateState(Identifier),
+    /// A duplicate attribute name within a state reached the schema builder.
     #[error(transparent)]
     Build(#[from] BuilderError),
     /// The FSM topology failed to serialize to its constraint payload.
@@ -90,15 +93,25 @@ impl FsmEntityBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`FsmEntityBuilderError`] if there is not exactly one initial
-    /// state, no exit state, a state has a duplicate attribute name, the
-    /// topology fails to serialize, or the topology is invalid.
+    /// Returns [`FsmEntityBuilderError`] if a state name is declared twice,
+    /// there is not exactly one initial state, no exit state, a state has a
+    /// duplicate attribute name, the topology fails to serialize, or the
+    /// topology is invalid.
     pub fn build(self) -> Result<Entity, FsmEntityBuilderError> {
         let Self {
             id,
             mut annotations,
             states,
         } = self;
+
+        // Reject duplicate state names up front, before the structural checks
+        // could misattribute them (e.g. two states both marked initial).
+        let mut seen = HashSet::new();
+        for state in &states {
+            if !seen.insert(&state.name) {
+                return Err(FsmEntityBuilderError::DuplicateState(state.name.clone()));
+            }
+        }
 
         let initials: Vec<Identifier> = states
             .iter()
