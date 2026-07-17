@@ -58,7 +58,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut query = context.query_observer().handle();
     query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
     query.running(10)?;
-    query.done(true)?;
+    query.ready(true)?;
 
     conn.closed()?;
 

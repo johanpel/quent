@@ -51,20 +51,23 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
         .iter()
         .filter_map(|(name, record)| record_of(name, record, sink))
         .collect();
-    let entities: Vec<Entity> = model
+    let mut entities: Vec<Entity> = model
         .entities
         .iter()
-        .filter_map(|(name, entity)| entity_of(name, entity, model.fsms.get(name), sink))
+        .filter_map(|(name, entity)| entity_of(name, entity, sink))
         .collect();
-    for name in model.fsms.keys() {
-        if !model.entities.contains_key(name) {
+    // FSM entities are declared in their own section, not under `entities:`.
+    entities.extend(model.fsms.iter().filter_map(|(name, spec)| {
+        if model.entities.contains_key(name) {
             sink.error(
                 &format!("fsms.{name}"),
-                format!("`fsms` declares `{name}`, but there is no such entity"),
+                format!("`{name}` is declared as both an entity and an FSM"),
                 None,
             );
+            return None;
         }
-    }
+        fsm_entity_of(name, spec, sink)
+    }));
 
     SchemaBuilder::new(name)
         .try_with_records(records)
@@ -104,16 +107,8 @@ fn record_of(name: &str, record: &ast::Record, sink: &mut Diagnostics) -> Option
     )
 }
 
-/// Lower one entity, or `None` (after reporting) if its name is rejected.
-///
-/// An FSM entity's events come from its FSM states (via [`FsmEntityBuilder`],
-/// which derives cardinality); a plain entity's come from its `events:`.
-fn entity_of(
-    name: &str,
-    entity: &ast::Entity,
-    fsm_spec: Option<&ast::FsmSpec>,
-    sink: &mut Diagnostics,
-) -> Option<Entity> {
+/// Lower one plain entity, or `None` (after reporting) if its name is rejected.
+fn entity_of(name: &str, entity: &ast::Entity, sink: &mut Diagnostics) -> Option<Entity> {
     let path = format!("entities.{name}");
     let id = type_decl_ident(name, "entities", sink);
     let anns = annotations(
@@ -123,66 +118,60 @@ fn entity_of(
         &path,
         sink,
     );
-
-    match fsm_spec {
-        Some(spec) => {
-            if !entity.events.is_empty() {
-                sink.error(
-                    &path,
-                    "an FSM entity declares its events as FSM states; remove `events:`",
-                    None,
-                );
-            }
-            fsm_entity(id, spec, anns, &format!("fsms.{name}"), sink)
-        }
-        None => {
-            let events: Vec<_> = entity
-                .events
-                .iter()
-                .filter_map(|(event_name, event)| event_of(event_name, event, &path, sink))
-                .collect();
-            Some(
-                EntityBuilder::new(id?)
-                    .try_with_events(events)
-                    .expect("event names are unique")
-                    .with_annotations(anns)
-                    .build(),
-            )
-        }
-    }
+    let events: Vec<_> = entity
+        .events
+        .iter()
+        .filter_map(|(event_name, event)| event_of(event_name, event, &path, sink))
+        .collect();
+    Some(
+        EntityBuilder::new(id?)
+            .try_with_events(events)
+            .expect("event names are unique")
+            .with_annotations(anns)
+            .build(),
+    )
 }
 
-/// Lower an FSM entity: feed its states into [`FsmEntityBuilder`], which derives
-/// each state event's cardinality, attaches the FSM constraint, and validates
-/// the topology. Invalid FSMs are reported and skipped.
-fn fsm_entity(
-    id: Option<Identifier>,
-    spec: &ast::FsmSpec,
-    annotations: Annotations,
-    path: &str,
-    sink: &mut Diagnostics,
-) -> Option<Entity> {
+/// Lower an FSM entity from its `fsms:` declaration: its states become the
+/// entity's events (cardinality derived from the topology), and
+/// [`FsmEntityBuilder`] validates the topology. Invalid FSMs are reported and
+/// skipped.
+fn fsm_entity_of(name: &str, spec: &ast::FsmSpec, sink: &mut Diagnostics) -> Option<Entity> {
+    let path = format!("fsms.{name}");
+    let id = type_decl_ident(name, "fsms", sink);
+    let anns = annotations(&spec.doc, &spec.constraints, &spec.metadata, &path, sink);
+
     // Lower the states first, before bailing on a rejected entity name, so one
     // run still reports problems inside the states.
     let mut states = Vec::new();
     let mut complete = true;
-    for (name, state) in &spec.states {
-        let Some(state_id) = ident(name, path, sink) else {
+    for (state_name, state) in &spec.states {
+        let Some(state_id) = ident(state_name, &path, sink) else {
             complete = false;
             continue;
         };
-        let attributes = fields_of(&state.attributes, &format!("{path}.states.{name}"), sink);
-        let to = state
-            .to
-            .iter()
-            .filter_map(|target| ident(target, path, sink))
-            .collect();
+        let attributes = fields_of(
+            &state.attributes,
+            &format!("{path}.states.{state_name}"),
+            sink,
+        );
+        // The reserved target `exit` transitions out of the FSM; the rest are
+        // transitions to other states.
+        let mut exit = false;
+        let mut to = Vec::new();
+        for target in &state.to {
+            if target.eq_ignore_ascii_case("exit") {
+                exit = true;
+            } else if let Some(id) = ident(target, &path, sink) {
+                to.push(id);
+            }
+        }
         states.push(StateDecl {
             name: state_id,
             attributes,
             to,
             initial: state.initial,
-            exit: state.exit,
+            exit,
         });
     }
 
@@ -194,20 +183,20 @@ fn fsm_entity(
     }
 
     let built = FsmEntityBuilder::new(id)
-        .with_annotations(annotations)
+        .with_annotations(anns)
         .with_states(states)
         .build();
     match built {
         Ok(entity) => Some(entity),
         Err(error) => {
-            fsm_shape_error(&error, path, sink);
+            fsm_shape_error(&error, &path, sink);
             None
         }
     }
 }
 
-/// Report an FSM structural error, using the YAML `initial: true` / `exit: true`
-/// wording for the flag problems.
+/// Report an FSM structural error in the YAML's own terms (`initial: true`,
+/// transitioning to `exit`).
 fn fsm_shape_error(error: &FsmEntityBuilderError, path: &str, sink: &mut Diagnostics) {
     match error {
         FsmEntityBuilderError::NoInitialState => {
@@ -217,7 +206,7 @@ fn fsm_shape_error(error: &FsmEntityBuilderError, path: &str, sink: &mut Diagnos
             sink.error(path, "more than one state marked `initial: true`", None);
         }
         FsmEntityBuilderError::NoExitState => {
-            sink.error(path, "no state marked `exit: true`", None);
+            sink.error(path, "no state transitions to `exit`", None);
         }
         // Topology violations carry the constraint's errors; report one per
         // violation, flattening `Multiple`.

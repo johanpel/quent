@@ -44,11 +44,9 @@ entities:
           upstream: { ref: Server, data: Route }
       closed: once
 
-  Query:
-    doc: A query on the server, modeled as a finite-state machine.
-
 fsms:
   Query:
+    doc: A query on the server, modeled as a finite-state machine.
     states:
       submitted:
         initial: true
@@ -58,7 +56,7 @@ fsms:
         to: [running]
       running:
         attributes: { rows: u64 }
-        to: [running, done]
-      done:
-        exit: true
+        to: [running, ready]
+      ready:
         attributes: { ok: bool }
+        to: [exit]

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! FSM tests: an `fsms:` overlay declares an entity's events as states, deriving
-//! their cardinality from the topology, and is validated against the entity.
+//! FSM tests: an `fsms:` block declares an entity whose events are its states,
+//! deriving their cardinality from the topology and validating it.
 
 use quent_schema::test_utils::ident;
 use quent_schema::{Cardinality, Schema};
@@ -24,11 +24,9 @@ fn errors_of(src: &str) -> String {
 const QUERY: &str = "\
 quent: alpha
 model: m
-entities:
-  Query:
-    doc: A query.
 fsms:
   Query:
+    doc: A query.
     states:
       submitted:
         initial: true
@@ -38,8 +36,8 @@ fsms:
         attributes: { pct: u8 }
         to: [progress, finished]
       finished:
-        exit: true
         attributes: { ok: bool }
+        to: [exit]
 ";
 
 #[test]
@@ -56,25 +54,7 @@ fn fsm_builds_events_and_derives_cardinality() {
 }
 
 #[test]
-fn fsms_referencing_unknown_entity_is_rejected() {
-    let errors = errors_of(
-        "\
-quent: alpha
-model: m
-fsms:
-  Ghost:
-    states:
-      a: { initial: true, exit: true }
-",
-    );
-    assert!(
-        errors.contains("no such entity") && errors.contains("Ghost"),
-        "{errors}"
-    );
-}
-
-#[test]
-fn fsm_entity_may_not_declare_events() {
+fn entity_declared_as_both_entity_and_fsm_is_rejected() {
     let errors = errors_of(
         "\
 quent: alpha
@@ -86,11 +66,11 @@ entities:
 fsms:
   E:
     states:
-      a: { initial: true, exit: true }
+      a: { initial: true, to: [exit] }
 ",
     );
     assert!(
-        errors.contains("declares its events as FSM states"),
+        errors.contains("both an entity and an FSM") && errors.contains("E"),
         "{errors}"
     );
 }
@@ -101,14 +81,11 @@ fn fsm_needs_one_initial_state() {
         "\
 quent: alpha
 model: m
-entities:
-  E:
-    doc: x
 fsms:
   E:
     states:
-      a: { exit: true }
-      b: { exit: true }
+      a: { to: [exit] }
+      b: { to: [exit] }
 ",
     );
     assert!(
@@ -123,16 +100,16 @@ fn fsm_needs_an_exit_state() {
         "\
 quent: alpha
 model: m
-entities:
-  E:
-    doc: x
 fsms:
   E:
     states:
       a: { initial: true, to: [a] }
 ",
     );
-    assert!(errors.contains("no state marked `exit: true`"), "{errors}");
+    assert!(
+        errors.contains("no state transitions to `exit`"),
+        "{errors}"
+    );
 }
 
 #[test]
@@ -142,14 +119,11 @@ fn unreachable_state_is_rejected() {
         "\
 quent: alpha
 model: m
-entities:
-  E:
-    doc: x
 fsms:
   E:
     states:
-      a: { initial: true, exit: true }
-      b: { exit: true, to: [a] }
+      a: { initial: true, to: [exit] }
+      b: { to: [a, exit] }
 ",
     );
     assert!(errors.contains("unreachable"), "{errors}");
