@@ -128,7 +128,7 @@ http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
-postcard = { version = "1", features = ["alloc"] }
+postcard = { version = "1", default-features = false, features = ["alloc"] }
 prost = "0.14.1"
 pyo3 = "0.29"
 rmp-serde = "1"
