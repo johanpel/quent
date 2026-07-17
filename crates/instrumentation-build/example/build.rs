@@ -25,9 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         record_derives: &["Debug"],
         // To just print the events in this example, we'll be using the callback
         // exporter. This exporter takes a type-erased event, so in order to
-        // downcast it back to a statically-typed event, this features enables
-        // the generation of the "AnyEvent" type (see main.rs). This is
-        // typically left false when using "real" exporters.
+        // simplify downcasting back to a statically-typed event, this features
+        // enables the generation of the "AnyEvent" helper type (see main.rs).
+        // This is typically left false when using "real" exporters.
         any_event: true,
         ..Default::default()
     };
