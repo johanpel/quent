@@ -42,7 +42,8 @@ pub enum FsmEntityBuilderError {
     MultipleInitialStates(Vec<Identifier>),
     #[error("no state is marked as an exit state")]
     NoExitState,
-    /// A duplicate attribute name within a state reached the schema builder.
+    /// A duplicate state name, or a duplicate attribute name within a state,
+    /// reached the schema builder.
     #[error(transparent)]
     Build(#[from] BuilderError),
     /// The FSM topology failed to serialize to its constraint payload.
@@ -72,41 +73,15 @@ impl FsmEntityBuilder {
     }
 
     /// Add a state.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_insert_state(&mut self, state: StateDecl) -> Result<&mut Self, BuilderError> {
-        if self.states.iter().any(|s| s.name == state.name) {
-            return Err(BuilderError::DuplicateName(state.name.to_string()));
-        }
+    pub fn with_state(mut self, state: StateDecl) -> Self {
         self.states.push(state);
-        Ok(self)
+        self
     }
 
-    /// Add a state, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_with_state(mut self, state: StateDecl) -> Result<Self, BuilderError> {
-        self.try_insert_state(state)?;
-        Ok(self)
-    }
-
-    /// Add several states, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors on the first duplicate name.
-    pub fn try_with_states(
-        mut self,
-        states: impl IntoIterator<Item = StateDecl>,
-    ) -> Result<Self, BuilderError> {
-        for state in states {
-            self.try_insert_state(state)?;
-        }
-        Ok(self)
+    /// Add several states.
+    pub fn with_states(mut self, states: impl IntoIterator<Item = StateDecl>) -> Self {
+        self.states.extend(states);
+        self
     }
 
     /// Assemble and validate the entity: derive each state event's cardinality

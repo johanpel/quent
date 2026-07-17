@@ -295,11 +295,10 @@ fn entity_without_fsm_constraint_is_ignored() {
 #[test]
 fn builder_produces_entity_with_state_events() {
     let entity = FsmEntityBuilder::new(ident("E"))
-        .try_with_states([
+        .with_states([
             state("a", &["b"], true, false),
             state("b", &[], false, true),
         ])
-        .unwrap()
         .build()
         .unwrap();
 
@@ -312,11 +311,10 @@ fn builder_produces_entity_with_state_events() {
 fn cardinality_is_derived_from_cycles() {
     // a -> b, b -> b: a sits off any cycle (Once), b self-loops (Multi).
     let entity = FsmEntityBuilder::new(ident("E"))
-        .try_with_states([
+        .with_states([
             state("a", &["b"], true, false),
             state("b", &["b"], false, true),
         ])
-        .unwrap()
         .build()
         .unwrap();
 
@@ -328,15 +326,13 @@ fn cardinality_is_derived_from_cycles() {
 #[test]
 fn builder_rejects_malformed_states() {
     let no_initial = FsmEntityBuilder::new(ident("E"))
-        .try_with_states([state("a", &[], false, true)])
-        .unwrap()
+        .with_states([state("a", &[], false, true)])
         .build()
         .unwrap_err();
     assert!(matches!(no_initial, FsmEntityBuilderError::NoInitialState));
 
     let many_initial = FsmEntityBuilder::new(ident("E"))
-        .try_with_states([state("a", &[], true, false), state("b", &[], true, true)])
-        .unwrap()
+        .with_states([state("a", &[], true, false), state("b", &[], true, true)])
         .build()
         .unwrap_err();
     assert!(matches!(
@@ -345,17 +341,20 @@ fn builder_rejects_malformed_states() {
     ));
 
     let no_exit = FsmEntityBuilder::new(ident("E"))
-        .try_with_states([state("a", &["a"], true, false)])
-        .unwrap()
+        .with_states([state("a", &["a"], true, false)])
         .build()
         .unwrap_err();
     assert!(matches!(no_exit, FsmEntityBuilderError::NoExitState));
 
     let duplicate = FsmEntityBuilder::new(ident("E"))
-        .try_with_state(state("a", &[], true, true))
-        .unwrap()
-        .try_with_state(state("a", &[], false, false));
-    assert!(matches!(duplicate, Err(BuilderError::DuplicateName(_))));
+        .with_state(state("a", &[], true, true))
+        .with_state(state("a", &[], false, false))
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        duplicate,
+        FsmEntityBuilderError::Build(BuilderError::DuplicateName(_))
+    ));
 }
 
 #[test]
