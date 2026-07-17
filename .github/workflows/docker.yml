@@ -1,5 +1,5 @@
-# Verify the Docker image builds successfully.
-name: Docker Build
+# Builds the Docker image.
+name: Docker
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   docker:
-    name: Docker
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

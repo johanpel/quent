@@ -1,4 +1,5 @@
-name: PR Title
+# Checks pull request metadata.
+name: PR
 
 on:
   pull_request:
@@ -9,7 +10,7 @@ permissions:
 
 jobs:
   conventional-commit:
-    name: Conventional Commit
+    name: Title
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1

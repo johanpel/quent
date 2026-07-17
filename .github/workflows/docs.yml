@@ -1,4 +1,5 @@
-name: License Check
+# Checks repository documentation and metadata.
+name: Docs
 
 on:
   push:
@@ -9,6 +10,15 @@ permissions:
   contents: read
 
 jobs:
+  markdown:
+    name: Markdown Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - run: pipx run rumdl==0.1.67 check --diff
+
   license-headers:
     name: License Headers
     runs-on: ubuntu-latest
