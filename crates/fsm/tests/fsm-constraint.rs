@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmError, StateDecl};
+use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
     Annotations, Cardinality, Entity, Event, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder},
+    builder::{AnnotationsBuilder, BuilderError, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
@@ -323,6 +323,39 @@ fn cardinality_is_derived_from_cycles() {
     let cardinality = |name: &str| entity.event(&ident(name)).unwrap().cardinality();
     assert_eq!(cardinality("a"), Cardinality::Once);
     assert_eq!(cardinality("b"), Cardinality::Multi);
+}
+
+#[test]
+fn builder_rejects_malformed_states() {
+    let no_initial = FsmEntityBuilder::new(ident("E"))
+        .try_with_states([state("a", &[], false, true)])
+        .unwrap()
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_initial, FsmEntityBuilderError::NoInitialState));
+
+    let many_initial = FsmEntityBuilder::new(ident("E"))
+        .try_with_states([state("a", &[], true, false), state("b", &[], true, true)])
+        .unwrap()
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        many_initial,
+        FsmEntityBuilderError::MultipleInitialStates(_)
+    ));
+
+    let no_exit = FsmEntityBuilder::new(ident("E"))
+        .try_with_states([state("a", &["a"], true, false)])
+        .unwrap()
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_exit, FsmEntityBuilderError::NoExitState));
+
+    let duplicate = FsmEntityBuilder::new(ident("E"))
+        .try_with_state(state("a", &[], true, true))
+        .unwrap()
+        .try_with_state(state("a", &[], false, false));
+    assert!(matches!(duplicate, Err(BuilderError::DuplicateName(_))));
 }
 
 #[test]
