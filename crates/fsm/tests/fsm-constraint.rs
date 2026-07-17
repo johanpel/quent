@@ -353,7 +353,10 @@ fn builder_rejects_malformed_states() {
         .with_state(state("a", &[], true, false))
         .build()
         .unwrap_err();
-    assert!(matches!(duplicate, FsmEntityBuilderError::DuplicateState(_)));
+    assert!(matches!(
+        duplicate,
+        FsmEntityBuilderError::DuplicateState(_)
+    ));
 }
 
 #[test]
