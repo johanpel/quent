@@ -56,7 +56,7 @@ impl Display for BaseConstraintsError {
         write!(
             f,
             "base constraints failed to validate:\n{}",
-            &[
+            [
                 utils::bullet_list(&self.invalid_references),
                 utils::bullet_list(&self.recursive_records)
             ]
