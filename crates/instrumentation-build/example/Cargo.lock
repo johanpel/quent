@@ -325,13 +325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-attributes"
-version = "0.1.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
 name = "quent-build-info"
 version = "0.1.0"
 dependencies = [
@@ -349,6 +342,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-dynamic-attributes"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "quent-events"
 version = "0.1.0"
 dependencies = [
@@ -360,8 +360,8 @@ dependencies = [
 name = "quent-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-attributes",
  "quent-build-info",
+ "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
  "thiserror",

@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // `extra` is the schema's `dynamic` field: a runtime-keyed bag of typed
     // attributes, so callers attach whatever key/values they have on hand.
-    let mut extra = demo::CustomAttributes::new();
+    let mut extra = demo::DynamicAttributes::new();
     extra.add_string("peer_agent", "curl/8.4");
     extra.add_u64("chunk_index", 3);
     extra.add_bool("compressed", true);

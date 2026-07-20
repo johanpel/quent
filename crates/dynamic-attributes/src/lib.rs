@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Support for custom attributes defined at run-time.
+//! Typed attributes whose keys are defined at runtime.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -9,24 +9,24 @@ use thiserror::Error;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
 
-/// Error type for Value conversions.
+/// Error returned when converting a [`DynamicValue`].
 #[derive(Error, Debug)]
-pub enum ValueError {
+pub enum DynamicValueError {
     #[error("not numeric: {0}")]
     NotNumeric(String),
 }
 
-/// A group of [`Attribute`]s.
+/// A group of [`DynamicAttribute`]s.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[cfg_attr(feature = "ts", derive(TS))]
 #[derive(Clone, Debug, PartialEq)]
-pub struct Struct(pub Vec<Attribute>);
+pub struct DynamicStruct(pub Vec<DynamicAttribute>);
 
-/// A sequence of [`Value`]s.
+/// A sequence of [`DynamicValue`]s.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[cfg_attr(feature = "ts", derive(TS), ts(untagged))]
 #[derive(Clone, Debug, PartialEq)]
-pub enum List {
+pub enum DynamicList {
     U8(Vec<u8>),
     U16(Vec<u16>),
     U32(Vec<u32>),
@@ -38,14 +38,14 @@ pub enum List {
     F32(Vec<f32>),
     F64(Vec<f64>),
     String(Vec<String>),
-    Struct(Vec<Struct>),
+    Struct(Vec<DynamicStruct>),
 }
 
-/// An [`Attribute`] value.
+/// A [`DynamicAttribute`] value.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[cfg_attr(feature = "ts", derive(TS), ts(untagged))]
 #[derive(Clone, Debug, PartialEq)]
-pub enum Value {
+pub enum DynamicValue {
     U8(u8),
     U16(u16),
     U32(u32),
@@ -57,20 +57,20 @@ pub enum Value {
     F32(f32),
     F64(f64),
     String(String),
-    Struct(Struct),
-    List(List),
+    Struct(DynamicStruct),
+    List(DynamicList),
 }
 
 /// A key-value pair.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[cfg_attr(feature = "ts", derive(TS))]
 #[derive(Clone, Debug, PartialEq)]
-pub struct Attribute {
+pub struct DynamicAttribute {
     pub key: String,
-    pub value: Option<Value>,
+    pub value: Option<DynamicValue>,
 }
 
-impl Attribute {
+impl DynamicAttribute {
     /// Create a new attribute with the given key and no value.
     pub fn null(key: impl Into<String>) -> Self {
         Self {
@@ -83,7 +83,7 @@ impl Attribute {
     pub fn u8(key: impl Into<String>, value: u8) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::U8(value)),
+            value: Some(DynamicValue::U8(value)),
         }
     }
 
@@ -91,7 +91,7 @@ impl Attribute {
     pub fn u16(key: impl Into<String>, value: u16) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::U16(value)),
+            value: Some(DynamicValue::U16(value)),
         }
     }
 
@@ -99,7 +99,7 @@ impl Attribute {
     pub fn u32(key: impl Into<String>, value: u32) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::U32(value)),
+            value: Some(DynamicValue::U32(value)),
         }
     }
 
@@ -107,7 +107,7 @@ impl Attribute {
     pub fn u64(key: impl Into<String>, value: u64) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::U64(value)),
+            value: Some(DynamicValue::U64(value)),
         }
     }
 
@@ -115,7 +115,7 @@ impl Attribute {
     pub fn i8(key: impl Into<String>, value: i8) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::I8(value)),
+            value: Some(DynamicValue::I8(value)),
         }
     }
 
@@ -123,7 +123,7 @@ impl Attribute {
     pub fn i16(key: impl Into<String>, value: i16) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::I16(value)),
+            value: Some(DynamicValue::I16(value)),
         }
     }
 
@@ -131,7 +131,7 @@ impl Attribute {
     pub fn i32(key: impl Into<String>, value: i32) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::I32(value)),
+            value: Some(DynamicValue::I32(value)),
         }
     }
 
@@ -139,7 +139,7 @@ impl Attribute {
     pub fn i64(key: impl Into<String>, value: i64) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::I64(value)),
+            value: Some(DynamicValue::I64(value)),
         }
     }
 
@@ -147,7 +147,7 @@ impl Attribute {
     pub fn f32(key: impl Into<String>, value: f32) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::F32(value)),
+            value: Some(DynamicValue::F32(value)),
         }
     }
 
@@ -155,7 +155,7 @@ impl Attribute {
     pub fn f64(key: impl Into<String>, value: f64) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::F64(value)),
+            value: Some(DynamicValue::F64(value)),
         }
     }
 
@@ -163,131 +163,132 @@ impl Attribute {
     pub fn string(key: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::String(value.into())),
+            value: Some(DynamicValue::String(value.into())),
         }
     }
 
-    /// Create an attribute with a Struct value.
-    pub fn structure(key: impl Into<String>, value: Struct) -> Self {
+    /// Create an attribute with a struct value.
+    pub fn structure(key: impl Into<String>, value: DynamicStruct) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::Struct(value)),
+            value: Some(DynamicValue::Struct(value)),
         }
     }
 
-    /// Create an attribute with a List value.
-    pub fn list(key: impl Into<String>, value: List) -> Self {
+    /// Create an attribute with a list value.
+    pub fn list(key: impl Into<String>, value: DynamicList) -> Self {
         Self {
             key: key.into(),
-            value: Some(Value::List(value)),
+            value: Some(DynamicValue::List(value)),
         }
     }
 }
 
-/// A collection of custom key-value attributes.
-///
-/// Used in model definitions for fields that carry arbitrary runtime metadata.
-/// The CXX bridge codegen emits this as a shared struct with typed vectors.
+/// A collection of attributes whose keys are defined at runtime.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
-pub struct CustomAttributes(pub Vec<Attribute>);
+pub struct DynamicAttributes(pub Vec<DynamicAttribute>);
 
-impl CustomAttributes {
+impl DynamicAttributes {
     pub fn new() -> Self {
         Self(Vec::new())
     }
 
-    pub fn add(&mut self, attr: Attribute) {
+    pub fn add(&mut self, attr: DynamicAttribute) {
         self.0.push(attr);
     }
 
     pub fn add_string(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.0.push(Attribute::string(key, value));
+        self.0.push(DynamicAttribute::string(key, value));
     }
 
     pub fn add_u64(&mut self, key: impl Into<String>, value: u64) {
-        self.0.push(Attribute::u64(key, value));
+        self.0.push(DynamicAttribute::u64(key, value));
     }
 
     pub fn add_i64(&mut self, key: impl Into<String>, value: i64) {
-        self.0.push(Attribute::i64(key, value));
+        self.0.push(DynamicAttribute::i64(key, value));
     }
 
     pub fn add_f64(&mut self, key: impl Into<String>, value: f64) {
-        self.0.push(Attribute::f64(key, value));
+        self.0.push(DynamicAttribute::f64(key, value));
     }
 
     pub fn add_bool(&mut self, key: impl Into<String>, value: bool) {
-        self.0.push(Attribute {
+        self.0.push(DynamicAttribute {
             key: key.into(),
-            value: Some(if value { Value::U8(1) } else { Value::U8(0) }),
+            value: Some(if value {
+                DynamicValue::U8(1)
+            } else {
+                DynamicValue::U8(0)
+            }),
         });
     }
 
-    pub fn into_vec(self) -> Vec<Attribute> {
+    pub fn into_vec(self) -> Vec<DynamicAttribute> {
         self.0
     }
 }
 
-impl std::ops::Deref for CustomAttributes {
-    type Target = Vec<Attribute>;
-    fn deref(&self) -> &Vec<Attribute> {
+impl std::ops::Deref for DynamicAttributes {
+    type Target = Vec<DynamicAttribute>;
+    fn deref(&self) -> &Vec<DynamicAttribute> {
         &self.0
     }
 }
 
-impl From<Vec<Attribute>> for CustomAttributes {
-    fn from(v: Vec<Attribute>) -> Self {
+impl From<Vec<DynamicAttribute>> for DynamicAttributes {
+    fn from(v: Vec<DynamicAttribute>) -> Self {
         Self(v)
     }
 }
 
-impl From<CustomAttributes> for Vec<Attribute> {
-    fn from(v: CustomAttributes) -> Self {
+impl From<DynamicAttributes> for Vec<DynamicAttribute> {
+    fn from(v: DynamicAttributes) -> Self {
         v.0
     }
 }
 
-impl TryFrom<Value> for f64 {
-    type Error = ValueError;
+impl TryFrom<DynamicValue> for f64 {
+    type Error = DynamicValueError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: DynamicValue) -> Result<Self, Self::Error> {
         match value {
-            Value::U8(v) => Ok(v as f64),
-            Value::U16(v) => Ok(v as f64),
-            Value::U32(v) => Ok(v as f64),
-            Value::U64(v) => Ok(v as f64),
-            Value::I8(v) => Ok(v as f64),
-            Value::I16(v) => Ok(v as f64),
-            Value::I32(v) => Ok(v as f64),
-            Value::I64(v) => Ok(v as f64),
-            Value::F32(v) => Ok(v as f64),
-            Value::F64(v) => Ok(v),
-            Value::String(_) => Err(ValueError::NotNumeric("String".to_string())),
-            Value::Struct(_) => Err(ValueError::NotNumeric("Struct".to_string())),
-            Value::List(_) => Err(ValueError::NotNumeric("List".to_string())),
+            DynamicValue::U8(v) => Ok(v as f64),
+            DynamicValue::U16(v) => Ok(v as f64),
+            DynamicValue::U32(v) => Ok(v as f64),
+            DynamicValue::U64(v) => Ok(v as f64),
+            DynamicValue::I8(v) => Ok(v as f64),
+            DynamicValue::I16(v) => Ok(v as f64),
+            DynamicValue::I32(v) => Ok(v as f64),
+            DynamicValue::I64(v) => Ok(v as f64),
+            DynamicValue::F32(v) => Ok(v as f64),
+            DynamicValue::F64(v) => Ok(v),
+            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
+            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
+            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
         }
     }
 }
 
-impl TryFrom<&Value> for f64 {
-    type Error = ValueError;
+impl TryFrom<&DynamicValue> for f64 {
+    type Error = DynamicValueError;
 
-    fn try_from(value: &Value) -> Result<Self, Self::Error> {
+    fn try_from(value: &DynamicValue) -> Result<Self, Self::Error> {
         match value {
-            Value::U8(v) => Ok(*v as f64),
-            Value::U16(v) => Ok(*v as f64),
-            Value::U32(v) => Ok(*v as f64),
-            Value::U64(v) => Ok(*v as f64),
-            Value::I8(v) => Ok(*v as f64),
-            Value::I16(v) => Ok(*v as f64),
-            Value::I32(v) => Ok(*v as f64),
-            Value::I64(v) => Ok(*v as f64),
-            Value::F32(v) => Ok(*v as f64),
-            Value::F64(v) => Ok(*v),
-            Value::String(_) => Err(ValueError::NotNumeric("String".to_string())),
-            Value::Struct(_) => Err(ValueError::NotNumeric("Struct".to_string())),
-            Value::List(_) => Err(ValueError::NotNumeric("List".to_string())),
+            DynamicValue::U8(v) => Ok(*v as f64),
+            DynamicValue::U16(v) => Ok(*v as f64),
+            DynamicValue::U32(v) => Ok(*v as f64),
+            DynamicValue::U64(v) => Ok(*v as f64),
+            DynamicValue::I8(v) => Ok(*v as f64),
+            DynamicValue::I16(v) => Ok(*v as f64),
+            DynamicValue::I32(v) => Ok(*v as f64),
+            DynamicValue::I64(v) => Ok(*v as f64),
+            DynamicValue::F32(v) => Ok(*v as f64),
+            DynamicValue::F64(v) => Ok(*v),
+            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
+            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
+            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
         }
     }
 }

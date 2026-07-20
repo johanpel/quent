@@ -55,7 +55,7 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
             let ident = raw_ident(to_case(name, Case::Pascal));
             quote! { #ident }
         }
-        DataType::DynamicRecord => quote! { ::quent_instrumentation::CustomAttributes },
+        DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
         DataType::EntityRef { data, annotations } => {
             let target = ref_target_marker(annotations);
             match data {

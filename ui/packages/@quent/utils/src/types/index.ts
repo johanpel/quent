@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-export type { Attribute } from '../../../../../../examples/simulator/server/ts-bindings/Attribute';
+export type { DynamicAttribute } from '../../../../../../examples/simulator/server/ts-bindings/DynamicAttribute';
 export type { BinnedSpanSec } from '../../../../../../examples/simulator/server/ts-bindings/BinnedSpanSec';
 export type { BulkTimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/BulkTimelineRequest';
 export type { BulkTimelinesResponse } from '../../../../../../examples/simulator/server/ts-bindings/BulkTimelinesResponse';
@@ -19,7 +19,7 @@ export type { FsmTransition } from '../../../../../../examples/simulator/server/
 export type { FsmTransitionDecl } from '../../../../../../examples/simulator/server/ts-bindings/FsmTransitionDecl';
 export type { FsmTypeDecl } from '../../../../../../examples/simulator/server/ts-bindings/FsmTypeDecl';
 export type { FsmUsage } from '../../../../../../examples/simulator/server/ts-bindings/FsmUsage';
-export type { List } from '../../../../../../examples/simulator/server/ts-bindings/List';
+export type { DynamicList } from '../../../../../../examples/simulator/server/ts-bindings/DynamicList';
 export type { Operator } from '../../../../../../examples/simulator/server/ts-bindings/Operator';
 export type { OperatorFilter } from '../../../../../../examples/simulator/server/ts-bindings/OperatorFilter';
 export type { OperatorStatistics } from '../../../../../../examples/simulator/server/ts-bindings/OperatorStatistics';
@@ -48,8 +48,8 @@ export type { ResourceTypeDecl } from '../../../../../../examples/simulator/serv
 export type { SingleTimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/SingleTimelineRequest';
 export type { SingleTimelineResponse } from '../../../../../../examples/simulator/server/ts-bindings/SingleTimelineResponse';
 export type { SpanSec } from '../../../../../../examples/simulator/server/ts-bindings/SpanSec';
-export type { Struct } from '../../../../../../examples/simulator/server/ts-bindings/Struct';
+export type { DynamicStruct } from '../../../../../../examples/simulator/server/ts-bindings/DynamicStruct';
 export type { TimelineConfig } from '../../../../../../examples/simulator/server/ts-bindings/TimelineConfig';
 export type { TimelineRequest } from '../../../../../../examples/simulator/server/ts-bindings/TimelineRequest';
-export type { Value } from '../../../../../../examples/simulator/server/ts-bindings/Value';
+export type { DynamicValue } from '../../../../../../examples/simulator/server/ts-bindings/DynamicValue';
 export type { Worker } from '../../../../../../examples/simulator/server/ts-bindings/Worker';
