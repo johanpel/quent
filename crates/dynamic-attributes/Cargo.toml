@@ -1,5 +1,5 @@
 [package]
-name = "quent-attributes"
+name = "quent-dynamic-attributes"
 version.workspace = true
 edition.workspace =  true
 publish.workspace = true

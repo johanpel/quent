@@ -6,7 +6,7 @@ import {
   formatDuration,
   formatAttributeValue,
   cn,
-  type Attribute,
+  type DynamicAttribute,
 } from '@quent/utils';
 import { nanosToMs } from '../lib/timeline.utils';
 import { DataText } from '../ui/data-text';
@@ -17,9 +17,9 @@ export interface ActiveMark {
   stateName: string;
   color: string;
   /** Attributes recorded by instrumentation on the hovered state. */
-  attributes?: Attribute[];
+  attributes?: DynamicAttribute[];
   /** Attributes computed by the analyzer. */
-  derivedAttributes?: Attribute[];
+  derivedAttributes?: DynamicAttribute[];
   /** Duration of the hovered state span in milliseconds. */
   durationMs?: number;
 }

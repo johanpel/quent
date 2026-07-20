@@ -38,7 +38,7 @@ int main() {
     // Spawn a worker.
     auto worker_obs = quent::worker::create_observer(*ctx);
     auto worker_id = uuid::now_v7();
-    quent::CustomAttributes custom;
+    quent::DynamicAttributes custom;
     custom.string_attrs.push_back({"version", "42.1.2"});
     custom.i64_attrs.push_back({"threads", 256});
     worker_obs->worker_declaration(worker_id,
