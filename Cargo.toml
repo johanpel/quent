@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     # Application-agnostic crates
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",
@@ -76,7 +76,7 @@ exclude = ["crates/instrumentation-build/example"]
 # the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
 default-members = [
     "crates/analyzer",
-    "crates/attributes",
+    "crates/dynamic-attributes",
     "crates/build-info",
     "crates/codegen",
     "crates/collector/server",

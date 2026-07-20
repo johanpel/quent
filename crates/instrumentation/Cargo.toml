@@ -9,7 +9,7 @@ default = []
 serde = [
     "dep:serde",
     "quent-events/serde",
-    "quent-attributes/serde",
+    "quent-dynamic-attributes/serde",
     "uuid/serde",
 ]
 # Exporter backends, forwarded to the matching `quent-io` feature.
@@ -20,7 +20,7 @@ io-postcard = ["quent-io/postcard", "serde"]
 io-collector = ["quent-io/collector", "serde"]
 
 [dependencies]
-quent-attributes = { path = "../attributes" }
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }

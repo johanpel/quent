@@ -4,7 +4,7 @@
 //! Types shared with the UI.
 
 use quent_analyzer::fsm::FsmTypeDecl;
-use quent_attributes::{Attribute, Value};
+use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_query_engine_model as qe;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
@@ -37,7 +37,7 @@ pub struct EngineImplementationAttributes {
     /// The version of this Engine implementation, e.g. "13.3.7"
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
-    pub custom_attributes: Vec<Attribute>,
+    pub custom_attributes: Vec<DynamicAttribute>,
 }
 
 impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationAttributes {
@@ -164,7 +164,7 @@ pub struct Plan {
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
     /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -181,8 +181,8 @@ pub struct Operator {
     /// The name of this type of [`Operator`].
     pub operator_type_name: Option<String>,
 
-    /// The custom attributes of this [`Operator`].
-    pub custom_attributes: HashMap<String, Option<Value>>,
+    /// The dynamic attributes of this [`Operator`].
+    pub custom_attributes: HashMap<String, Option<DynamicValue>>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
@@ -202,7 +202,7 @@ pub struct Operator {
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
     /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<Value>>,
+    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
 }
 
 #[derive(TS, Debug, Serialize)]

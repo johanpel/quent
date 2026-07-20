@@ -35,9 +35,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
     conn.data(1234, None)?;
 
-    // A `dynamic` schema field maps to `CustomAttributes`, which are
-    // dynamically-typed keys-value pairs:
-    let mut extra = demo::CustomAttributes::new();
+    // A `dynamic` schema field maps to `DynamicAttributes`, which are
+    // dynamically-typed key-value pairs:
+    let mut extra = demo::DynamicAttributes::new();
     extra.add_string("peer_agent", "curl/8.4");
     extra.add_u64("chunk_index", 3);
     extra.add_bool("compressed", true);
