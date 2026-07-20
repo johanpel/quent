@@ -3,12 +3,13 @@
 /**
  * Parameters for paginated lists.
  */
-export type PageParams = { 
-/**
- * The maximum size of a page.
- */
-max: number, 
-/**
- * The zero-based index of the requested page.
- */
-page: number, };
+export type PageParams = {
+  /**
+   * The maximum size of a page.
+   */
+  max: number;
+  /**
+   * The zero-based index of the requested page.
+   */
+  page: number;
+};

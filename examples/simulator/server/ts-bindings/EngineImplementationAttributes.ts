@@ -4,16 +4,17 @@ import type { DynamicAttribute } from "./DynamicAttribute";
 /**
  * Attributes describing details about the implementation of this Engine
  */
-export type EngineImplementationAttributes = { 
-/**
- * The name of this Engine implementation, e.g. "SiriusDB", "Velox", "DataFusion", etc.
- */
-name: string | null, 
-/**
- * The version of this Engine implementation, e.g. "13.3.7"
- */
-version: string | null, 
-/**
- * Arbitrary attributes defined at run time.
- */
-custom_attributes: Array<DynamicAttribute>, };
+export type EngineImplementationAttributes = {
+  /**
+   * The name of this Engine implementation, e.g. "SiriusDB", "Velox", "DataFusion", etc.
+   */
+  name: string | null;
+  /**
+   * The version of this Engine implementation, e.g. "13.3.7"
+   */
+  version: string | null;
+  /**
+   * Arbitrary attributes defined at run time.
+   */
+  custom_attributes: Array<DynamicAttribute>;
+};

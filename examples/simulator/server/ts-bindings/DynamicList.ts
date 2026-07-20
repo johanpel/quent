@@ -4,4 +4,16 @@ import type { DynamicStruct } from "./DynamicStruct";
 /**
  * A sequence of [`DynamicValue`]s.
  */
-export type DynamicList = Array<number> | Array<number> | Array<number> | Array<bigint> | Array<number> | Array<number> | Array<number> | Array<bigint> | Array<number> | Array<number> | Array<string> | Array<DynamicStruct>;
+export type DynamicList =
+  | Array<number>
+  | Array<number>
+  | Array<number>
+  | Array<bigint>
+  | Array<number>
+  | Array<number>
+  | Array<number>
+  | Array<bigint>
+  | Array<number>
+  | Array<number>
+  | Array<string>
+  | Array<DynamicStruct>;

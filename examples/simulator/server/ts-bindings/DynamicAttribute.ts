@@ -4,4 +4,4 @@ import type { DynamicValue } from "./DynamicValue";
 /**
  * A key-value pair.
  */
-export type DynamicAttribute = { key: string, value: DynamicValue | null, };
+export type DynamicAttribute = { key: string; value: DynamicValue | null };

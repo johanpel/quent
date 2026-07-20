@@ -5,4 +5,17 @@ import type { DynamicStruct } from "./DynamicStruct";
 /**
  * A [`DynamicAttribute`] value.
  */
-export type DynamicValue = number | number | number | bigint | number | number | number | bigint | number | number | string | DynamicStruct | DynamicList;
+export type DynamicValue =
+  | number
+  | number
+  | number
+  | bigint
+  | number
+  | number
+  | number
+  | bigint
+  | number
+  | number
+  | string
+  | DynamicStruct
+  | DynamicList;

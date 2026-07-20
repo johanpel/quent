@@ -5,25 +5,26 @@ import type { FsmUsage } from "./FsmUsage";
 /**
  * A transition in an FSM.
  */
-export type FsmTransition = { 
-/**
- * The name of the state this transition enters.
- */
-name: string, 
-/**
- * The usages of this state.
- */
-usages: Array<FsmUsage>, 
-/**
- * The timestamp in seconds relative to an epoch.
- */
-timestamp: number, 
-/**
- * Attributes recorded by the application's instrumentation.
- */
-attributes: Array<DynamicAttribute>,
-/**
- * Attributes computed by the application's analyzer (e.g. a per-span
- * rate), rendered separately from the recorded ones.
- */
-derived_attributes: Array<DynamicAttribute>, };
+export type FsmTransition = {
+  /**
+   * The name of the state this transition enters.
+   */
+  name: string;
+  /**
+   * The usages of this state.
+   */
+  usages: Array<FsmUsage>;
+  /**
+   * The timestamp in seconds relative to an epoch.
+   */
+  timestamp: number;
+  /**
+   * Attributes recorded by the application's instrumentation.
+   */
+  attributes: Array<DynamicAttribute>;
+  /**
+   * Attributes computed by the application's analyzer (e.g. a per-span
+   * rate), rendered separately from the recorded ones.
+   */
+  derived_attributes: Array<DynamicAttribute>;
+};

@@ -4,8 +4,10 @@ import type { FiniteStateMachine } from "./FiniteStateMachine";
 /**
  * A ranked, paged list of entities.
  */
-export type EntityListResponse = { items: Array<FiniteStateMachine>, 
-/**
- * The count of entities matching the filter before paging.
- */
-total: number, };
+export type EntityListResponse = {
+  items: Array<FiniteStateMachine>;
+  /**
+   * The count of entities matching the filter before paging.
+   */
+  total: number;
+};
