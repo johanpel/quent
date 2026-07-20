@@ -43,3 +43,20 @@ entities:
         once:
           upstream: { ref: Server, data: Route }
       closed: once
+
+fsms:
+  Query:
+    doc: A query on the server, modeled as a finite-state machine.
+    states:
+      submitted:
+        initial: true
+        attributes:
+          text: string
+          connection: { scope-ref: Connection }
+        to: [running]
+      running:
+        attributes: { rows: u64 }
+        to: [running, ready]
+      ready:
+        attributes: { ok: bool }
+        to: [exit]
