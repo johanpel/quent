@@ -17,18 +17,22 @@ mod builder;
 
 pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 
-/// A Resource is an Entity with certain Capacities that other Entities may
-/// claim through a Usage over some span of time.
+/// A resource is an [`Entity`] with [`Capacity`] values that other entities may
+/// claim through a usage over a span of time.
 ///
-/// Only states of FSM-type entities provide the guarantee that Usages end
-/// (either by transitioning to some next state or the mandatory special exit
-/// state which inherently does not hold attributes), thus only FSM-type
-/// entities can use resources.
+/// Every usage must end. This constraint can currently enforce that only for
+/// finite-state machine (FSM) entities: leaving a state through a transition ends
+/// its usages, and the exit state cannot hold attributes. Usages by other entities
+/// are rejected.
+///
+/// Resource definitions, usages, and bounds are validated together. Usage records
+/// claim capacities through entity references. Bounds records define the bound
+/// values carried by events on the resource entity.
 ///
 /// ## Requirements
 ///
 /// 1. A resource is an entity with at least one [`Capacity`].
-/// 2. The [`Identifier`] of a [`Capacity`] is unique within a resource.
+/// 2. [`Capacity`] identifiers are unique within a resource.
 /// 3. If and only if any of the resource's capacities have a bound, the
 ///    resource entity has at least one event (the "bounds event") which
 ///    declares the bounds of all capacities that are bounded.
@@ -41,97 +45,78 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 #[derive(Default)]
 pub struct ResourceConstraint {
     errors: Vec<ResourceError>,
-    /// Declared resources, each mapping its capacity names to whether they are bounded.
     resources: Map<Identifier, Map<Identifier, bool>>,
-    /// Usage records, by record name.
     usage_records: Map<Identifier, UsageRecord>,
-    /// Bounds records, by record name.
     bounds_records: Map<Identifier, BoundsRecord>,
-    /// Every record reference, for the usage- and bounds-placement checks.
     record_refs: Vec<RecordRef>,
 }
 
-/// A named, quantified dimension of a resource that usages claim.
+/// A resource quantity that can be claimed by a usage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Capacity {
-    /// The unique name of the capacity within the resource.
-    name: Identifier,
-    /// The type of capacity.
     kind: CapacityKind,
-    /// Whether the capacity is bounded. If all capacities of a resource are
-    /// unbounded, then no bounds need to be set, so no bound record type should
-    /// exist, and the FSM transition into "operating" shall not have a bounds
-    /// argument.
     bounded: bool,
 }
 
 impl Capacity {
-    pub fn new(name: Identifier, kind: CapacityKind, bounded: bool) -> Self {
-        Self {
-            name,
-            kind,
-            bounded,
-        }
+    /// Create a new capacity.
+    pub fn new(kind: CapacityKind, bounded: bool) -> Self {
+        Self { kind, bounded }
     }
 
-    pub fn name(&self) -> &Identifier {
-        &self.name
-    }
-
+    /// Return how values are interpreted over a usage span.
     pub fn kind(&self) -> CapacityKind {
         self.kind
     }
 
-    pub fn bounded(&self) -> bool {
+    /// Return whether the resource declares an upper bound for this capacity.
+    pub fn is_bounded(&self) -> bool {
         self.bounded
     }
 }
 
-/// How a capacity relates to the span over which it is held.
+/// Defines how a capacity value is interpreted over a usage span.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CapacityKind {
-    /// A quantity held for the duration of a usage span, e.g. bytes of a
-    /// memory.
+    /// A quantity held throughout the usage span.
     Occupancy,
-    /// A total quantity processed over a usage span, e.g. bytes sent over a
-    /// channel. Dividing it by the span's duration yields the **perceived**
-    /// rate.
+    /// A total quantity processed during the usage span.
+    ///
+    /// Dividing the value by the span duration yields the perceived rate.
     Rate,
 }
 
+// Map keys enforce capacity-name uniqueness (requirement 2).
 type Capacities = indexmap::IndexMap<Identifier, Capacity>;
 
-/// The data a `quent.resource.v0.1.0` constraint carries.
-///
-/// A resource is an entity with one or more capacities that other entities can claim.
-///
-/// This data is placed on several schema elements. Each variant explains the
-/// role of the annotated element.
+/// Payload of the `quent.resource.v0.1.0` constraint.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Resource {
-    /// Placed on a resource entity, declaring it a resource providing
-    /// `capacities`.
+    /// Declares the capacities provided by the annotated entity.
     Definition(Capacities),
-    /// Placed on the record type conveying the bounds of resource `resource`.
-    ///
-    /// This record is used by a resource's own events.
+    /// Declares the annotated record as bounds for `resource`.
     Bounds { resource: Identifier },
-    /// Placed on the record type conveying a usage of resource `resource`.
-    ///
-    /// The usage is perceived as held for the duration of the FSM state of the
-    /// FSM entity claiming it. This record type can only be used on FSM state
-    /// transition events besides exit to ensure the usage is released.
+    /// Declares the annotated record as a usage of `resource`.
     Usage { resource: Identifier },
 }
 
 impl Resource {
-    /// The constraint name under which the data is carried.
+    /// Constraint identifier.
     pub const NAME: &'static str = "quent.resource.v0.1.0";
 
-    /// The role name, for diagnostics.
-    fn kind(&self) -> &'static str {
+    /// Return the declared capacity names and definitions.
+    ///
+    /// Return `None` unless this is [`Self::Definition`].
+    pub fn capacities(&self) -> Option<impl ExactSizeIterator<Item = (&Identifier, &Capacity)>> {
+        match self {
+            Resource::Definition(capacities) => Some(capacities.iter()),
+            _ => None,
+        }
+    }
+
+    fn variant_name(&self) -> &'static str {
         match self {
             Resource::Definition(_) => "definition",
             Resource::Usage { .. } => "usage",
@@ -140,26 +125,21 @@ impl Resource {
     }
 }
 
-/// A usage record's named resource, claimed capacities, and where it was found.
 struct UsageRecord {
     resource: Identifier,
     claims: Vec<Identifier>,
     location: String,
 }
 
-/// A bounds record's named resource, declared bounds, and where it was found.
 struct BoundsRecord {
     resource: Identifier,
     fields: Vec<Identifier>,
     location: String,
 }
 
-/// A reference to a record type from somewhere in the schema.
 struct RecordRef {
     record: Identifier,
-    /// Whether the reference is the data carried by an entity reference.
     on_entity_ref: bool,
-    /// The enclosing entity's name and whether it is an FSM, if any.
     entity: Option<(Identifier, bool)>,
     location: String,
 }
@@ -169,75 +149,76 @@ impl Visitor for ResourceConstraint {
 
     fn visit(&mut self, cursor: &Cursor) {
         match cursor.current() {
-            Element::Entity(entity) => match self.role(cursor, entity.annotations()) {
-                // A definition declares the resource entity itself.
-                Some(Resource::Definition(capacities)) => {
-                    self.check_definition(entity.name(), &capacities);
-                    self.resources.insert(
-                        entity.name().clone(),
-                        capacities
-                            .values()
-                            .map(|capacity| (capacity.name().clone(), capacity.bounded()))
-                            .collect(),
-                    );
-                }
-                // Usage and bounds belong on records, not entities.
-                Some(role @ (Resource::Usage { .. } | Resource::Bounds { .. })) => {
-                    self.errors.push(ResourceError::MisplacedRole {
-                        location: cursor.to_string(),
-                        role: role.kind(),
-                        element: "an entity",
-                    });
-                }
-                None => {}
-            },
-            Element::Record(record) => match self.role(cursor, record.annotations()) {
-                Some(Resource::Usage { resource }) => {
-                    self.usage_records.insert(
-                        record.name().clone(),
-                        UsageRecord {
-                            resource,
-                            claims: record.fields().map(|field| field.name().clone()).collect(),
+            Element::Entity(entity) => {
+                match self.decode_resource_annotation(cursor, entity.annotations()) {
+                    Some(Resource::Definition(capacities)) => {
+                        self.validate_definition(entity.name(), &capacities);
+                        self.resources.insert(
+                            entity.name().clone(),
+                            capacities
+                                .iter()
+                                .map(|(name, capacity)| (name.clone(), capacity.is_bounded()))
+                                .collect(),
+                        );
+                    }
+                    Some(role @ (Resource::Usage { .. } | Resource::Bounds { .. })) => {
+                        self.errors.push(ResourceError::MisplacedRole {
                             location: cursor.to_string(),
-                        },
-                    );
+                            role: role.variant_name(),
+                            element: "an entity",
+                        });
+                    }
+                    None => {}
                 }
-                Some(Resource::Bounds { resource }) => {
-                    self.bounds_records.insert(
-                        record.name().clone(),
-                        BoundsRecord {
-                            resource,
-                            fields: record.fields().map(|field| field.name().clone()).collect(),
+            }
+            Element::Record(record) => {
+                match self.decode_resource_annotation(cursor, record.annotations()) {
+                    Some(Resource::Usage { resource }) => {
+                        self.usage_records.insert(
+                            record.name().clone(),
+                            UsageRecord {
+                                resource,
+                                claims: record.fields().map(|field| field.name().clone()).collect(),
+                                location: cursor.to_string(),
+                            },
+                        );
+                    }
+                    Some(Resource::Bounds { resource }) => {
+                        self.bounds_records.insert(
+                            record.name().clone(),
+                            BoundsRecord {
+                                resource,
+                                fields: record.fields().map(|field| field.name().clone()).collect(),
+                                location: cursor.to_string(),
+                            },
+                        );
+                    }
+                    Some(role @ Resource::Definition(_)) => {
+                        self.errors.push(ResourceError::MisplacedRole {
                             location: cursor.to_string(),
-                        },
-                    );
+                            role: role.variant_name(),
+                            element: "a record",
+                        });
+                    }
+                    None => {}
                 }
-                // A definition belongs on an entity, not a record.
-                Some(role @ Resource::Definition(_)) => {
-                    self.errors.push(ResourceError::MisplacedRole {
-                        location: cursor.to_string(),
-                        role: role.kind(),
-                        element: "a record",
-                    });
-                }
-                None => {}
-            },
+            }
             Element::Annotations(annotations)
                 if !matches!(
                     cursor.previous(),
                     Some(Element::Entity(_) | Element::Record(_))
                 ) =>
             {
-                if let Some(role) = self.role(cursor, annotations) {
+                if let Some(role) = self.decode_resource_annotation(cursor, annotations) {
                     self.errors.push(ResourceError::MisplacedRole {
                         location: cursor.to_string(),
-                        role: role.kind(),
-                        element: annotation_owner(cursor),
+                        role: role.variant_name(),
+                        element: annotation_owner_description(cursor),
                     });
                 }
             }
-            // Collect every record reference; usage records are validated in
-            // `finish` once all roles are known.
+            // Record roles are visited after entity fields, so references are
+            // resolved in `finish`.
             Element::DataType(DataType::Record(record)) => {
                 self.record_refs.push(RecordRef {
                     record: record.clone(),
@@ -293,9 +274,8 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirements 4, 7 and 8: usage and bounds records are referenced
-        // correctly. A usage rides on an entity reference and only an FSM may
-        // use it. A bounds record appears only on its own resource's events.
+        // Requirements 4, 7 and 8: validate references after record roles are
+        // known.
         let mut non_fsm_seen = FxHashSet::default();
         let mut resources_with_bounds_event = FxHashSet::default();
         for RecordRef {
@@ -324,7 +304,6 @@ impl Visitor for ResourceConstraint {
                             });
                         }
                     }
-                    // A usage must ride on an entity's reference; none encloses it here.
                     None => errors.push(ResourceError::MisplacedRole {
                         location: location.clone(),
                         role: "usage",
@@ -368,7 +347,6 @@ impl Visitor for ResourceConstraint {
                 });
                 continue;
             }
-            // A bound is declared only for a bounded capacity.
             for field in fields {
                 if capacities.get(field) != Some(&true) {
                     errors.push(ResourceError::UnboundedCapacity {
@@ -378,7 +356,6 @@ impl Visitor for ResourceConstraint {
                     });
                 }
             }
-            // Every bounded capacity is covered.
             for (capacity, bounded) in capacities {
                 if *bounded && !fields.contains(capacity) {
                     errors.push(ResourceError::UncoveredCapacity {
@@ -410,10 +387,15 @@ impl Visitor for ResourceConstraint {
 }
 
 impl ResourceConstraint {
-    /// The resource role on `annotations`, recording an [`ResourceError::InvalidData`]
-    /// and returning `None` when the role is present but malformed.
-    fn role(&mut self, cursor: &Cursor, annotations: &Annotations) -> Option<Resource> {
-        match parse_role(annotations) {
+    /// Return the [`Resource`] variant attached to `annotations`.
+    ///
+    /// Record [`ResourceError::InvalidData`] and return `None` for malformed data.
+    fn decode_resource_annotation(
+        &mut self,
+        cursor: &Cursor,
+        annotations: &Annotations,
+    ) -> Option<Resource> {
+        match parse_resource_annotation(annotations) {
             None => None,
             Some(Err(message)) => {
                 self.errors.push(ResourceError::InvalidData {
@@ -426,23 +408,12 @@ impl ResourceConstraint {
         }
     }
 
-    /// Check a definition in isolation (requirements 1 and 2).
-    fn check_definition(&mut self, resource: &Identifier, capacities: &Capacities) {
-        // Requirement 1: at least one capacity.
+    /// Validate requirements local to a resource definition.
+    fn validate_definition(&mut self, resource: &Identifier, capacities: &Capacities) {
         if capacities.is_empty() {
             self.errors.push(ResourceError::NoCapacities {
                 resource: resource.clone(),
             });
-        }
-        // Requirement 2: a capacity's name is its key, keeping names unique.
-        for (key, capacity) in capacities {
-            if capacity.name() != key {
-                self.errors.push(ResourceError::MismatchedCapacityName {
-                    resource: resource.clone(),
-                    key: key.clone(),
-                    name: capacity.name().clone(),
-                });
-            }
         }
     }
 }
@@ -451,9 +422,11 @@ impl Constraint for ResourceConstraint {
     const NAME: &'static str = Resource::NAME;
 }
 
-/// Read a resource role from `annotations`. `None` when no resource constraint
-/// is present, `Some(Err(_))` when its data is missing or malformed.
-fn parse_role(annotations: &Annotations) -> Option<Result<Resource, String>> {
+/// Parse the [`Resource`] variant attached to `annotations`.
+///
+/// Return `None` when no resource constraint is attached and an error when its
+/// data is missing or invalid.
+fn parse_resource_annotation(annotations: &Annotations) -> Option<Result<Resource, String>> {
     let constraint = annotations.constraint(Resource::NAME)?;
     Some(match constraint.data() {
         None => Err("constraint data is missing".to_string()),
@@ -462,7 +435,7 @@ fn parse_role(annotations: &Annotations) -> Option<Result<Resource, String>> {
     })
 }
 
-/// The nearest entity enclosing the cursor, if any.
+/// Return the nearest entity enclosing `cursor`.
 fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
     cursor
         .elements()
@@ -474,8 +447,8 @@ fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
         })
 }
 
-/// Describe the element owning the current annotations.
-fn annotation_owner(cursor: &Cursor) -> &'static str {
+/// Return a diagnostic name for the annotated element.
+fn annotation_owner_description(cursor: &Cursor) -> &'static str {
     match cursor.previous() {
         Some(Element::Schema(_)) => "a schema",
         Some(Element::Event(_)) => "an event",
@@ -485,6 +458,7 @@ fn annotation_owner(cursor: &Cursor) -> &'static str {
     }
 }
 
+/// A resource constraint violation.
 #[derive(Debug, Error)]
 pub enum ResourceError {
     #[error("{location}: invalid resource data: {message}")]
@@ -497,12 +471,6 @@ pub enum ResourceError {
     },
     #[error("resource \"{resource}\" declares no capacities")]
     NoCapacities { resource: Identifier },
-    #[error("resource \"{resource}\" capacity keyed \"{key}\" is named \"{name}\"")]
-    MismatchedCapacityName {
-        resource: Identifier,
-        key: Identifier,
-        name: Identifier,
-    },
     #[error("{location}: names undeclared resource \"{resource}\"")]
     UnknownResource {
         location: String,

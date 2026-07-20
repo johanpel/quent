@@ -10,17 +10,14 @@ use quent_schema::{
     test_utils::{field, ident, schema},
 };
 
-// Constraint data is built as JSON directly so a test can build it in an
-// invalid way (see `capacity_name_must_equal_its_key`).
-
-/// A `definition` role over capacities given as `(name, kind, bounded)`.
-fn definition(capacities: &[(&str, &str, bool)]) -> String {
+/// Resource definition data for capacities given as `(name, kind, bounded)`.
+fn definition_data(capacities: &[(&str, &str, bool)]) -> String {
     let capacities: serde_json::Map<String, serde_json::Value> = capacities
         .iter()
         .map(|&(name, kind, bounded)| {
             (
                 name.to_string(),
-                serde_json::json!({ "name": name, "kind": kind, "bounded": bounded }),
+                serde_json::json!({ "kind": kind, "bounded": bounded }),
             )
         })
         .collect();
@@ -51,7 +48,7 @@ fn fsm_annotations() -> Annotations {
 }
 
 /// A record carrying resource `data`, with a `U64` field for each name.
-fn role_record(name: &str, data: String, fields: &[&str]) -> Record {
+fn resource_record(name: &str, data: String, fields: &[&str]) -> Record {
     let mut builder = RecordBuilder::new(ident(name)).with_annotations(resource_annotations(data));
     for &f in fields {
         builder = builder.try_with_field(field(f, DataType::U64)).unwrap();
@@ -60,11 +57,11 @@ fn role_record(name: &str, data: String, fields: &[&str]) -> Record {
 }
 
 fn usage_record(name: &str, resource: &str, claims: &[&str]) -> Record {
-    role_record(name, usage_data(resource), claims)
+    resource_record(name, usage_data(resource), claims)
 }
 
 fn bounds_record(name: &str, resource: &str, fields: &[&str]) -> Record {
-    role_record(name, bounds_data(resource), fields)
+    resource_record(name, bounds_data(resource), fields)
 }
 
 fn event(name: &str, field_name: &str, ty: DataType) -> Event {
@@ -90,7 +87,7 @@ fn resource_entity(name: &str, definition: String, bounds: Option<&str>) -> Enti
 
 /// An entity with one event referencing `record`. It is an FSM iff `fsm`, and
 /// the reference rides on an entity reference iff `on_ref`.
-fn user(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
+fn user_entity(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
     let record = DataType::Record(ident(record));
     let ty = if on_ref {
         DataType::EntityRef {
@@ -109,7 +106,7 @@ fn user(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
     builder.build()
 }
 
-fn validate(schema: &Schema) -> Vec<ResourceError> {
+fn resource_errors(schema: &Schema) -> Vec<ResourceError> {
     match quent_constraints::validate::<(ResourceConstraint,)>(schema)
         .results
         .0
@@ -125,45 +122,24 @@ fn validate(schema: &Schema) -> Vec<ResourceError> {
 fn valid_resource_passes() {
     let memory = resource_entity(
         "Memory",
-        definition(&[("bytes", "occupancy", true)]),
+        definition_data(&[("bytes", "occupancy", true)]),
         Some("MemoryBounds"),
     );
-    let worker = user("Worker", true, "MemoryUsage", true);
+    let worker = user_entity("Worker", true, "MemoryUsage", true);
     let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    assert!(validate(&schema("App", vec![memory, worker], vec![bounds, usage])).is_empty());
+    assert!(resource_errors(&schema("App", vec![memory, worker], vec![bounds, usage])).is_empty());
 }
 
 /// Requirement 1: a resource has at least one capacity.
 #[test]
 fn resource_without_capacity_is_rejected() {
-    let memory = resource_entity("Memory", definition(&[]), None);
-    let errors = validate(&schema("App", vec![memory], vec![]));
+    let memory = resource_entity("Memory", definition_data(&[]), None);
+    let errors = resource_errors(&schema("App", vec![memory], vec![]));
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, ResourceError::NoCapacities { .. }))
-    );
-}
-
-/// Requirement 2: a capacity's identifier is unique within a resource. Two
-/// capacities sharing a name can only be keyed distinctly, so the duplicate
-/// surfaces as a name that is not its key.
-#[test]
-fn duplicate_capacity_names_are_rejected() {
-    let definition = serde_json::json!({
-        "definition": {
-            "bytes": { "name": "bytes", "kind": "occupancy", "bounded": false },
-            "octets": { "name": "bytes", "kind": "occupancy", "bounded": false }
-        }
-    })
-    .to_string();
-    let memory = resource_entity("Memory", definition, None);
-    let errors = validate(&schema("App", vec![memory], vec![]));
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ResourceError::MismatchedCapacityName { .. }))
     );
 }
 
@@ -172,11 +148,15 @@ fn duplicate_capacity_names_are_rejected() {
 #[test]
 fn bounds_must_match_the_bounded_capacities() {
     // Memory is bounded but has no bounds record.
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", true)]), None);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", true)]),
+        None,
+    );
     // Disk's bounds omit the bounded `blocks` and bound the unbounded `watts`.
     let disk = resource_entity(
         "Disk",
-        definition(&[
+        definition_data(&[
             ("blocks", "occupancy", true),
             ("sectors", "occupancy", true),
             ("watts", "rate", false),
@@ -184,7 +164,7 @@ fn bounds_must_match_the_bounded_capacities() {
         None,
     );
     let disk_bounds = bounds_record("DiskBounds", "Disk", &["sectors", "watts"]);
-    let errors = validate(&schema("App", vec![memory, disk], vec![disk_bounds]));
+    let errors = resource_errors(&schema("App", vec![memory, disk], vec![disk_bounds]));
     assert!(
         errors.iter().any(
             |e| matches!(e, ResourceError::MissingBounds { resource } if resource == "Memory")
@@ -200,9 +180,13 @@ fn bounds_must_match_the_bounded_capacities() {
 
 #[test]
 fn bounded_resource_requires_a_bounds_event() {
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", true)]), None);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", true)]),
+        None,
+    );
     let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
-    let errors = validate(&schema("App", vec![memory], vec![bounds]));
+    let errors = resource_errors(&schema("App", vec![memory], vec![bounds]));
     assert!(
         errors.iter().any(
             |e| matches!(e, ResourceError::MissingBounds { resource } if resource == "Memory")
@@ -214,11 +198,11 @@ fn bounded_resource_requires_a_bounds_event() {
 fn unbounded_resource_rejects_bounds() {
     let memory = resource_entity(
         "Memory",
-        definition(&[("bytes", "occupancy", false)]),
+        definition_data(&[("bytes", "occupancy", false)]),
         Some("MemoryBounds"),
     );
     let bounds = bounds_record("MemoryBounds", "Memory", &[]);
-    let errors = validate(&schema("App", vec![memory], vec![bounds]));
+    let errors = resource_errors(&schema("App", vec![memory], vec![bounds]));
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnexpectedBounds { resource, .. } if resource == "Memory")
     ));
@@ -227,10 +211,14 @@ fn unbounded_resource_rejects_bounds() {
 /// Requirement 4: only an FSM entity may use a resource.
 #[test]
 fn non_fsm_user_is_rejected() {
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", false)]), None);
-    let worker = user("Worker", false, "MemoryUsage", true);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", false)]),
+        None,
+    );
+    let worker = user_entity("Worker", false, "MemoryUsage", true);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    let errors = validate(&schema("App", vec![memory, worker], vec![usage]));
+    let errors = resource_errors(&schema("App", vec![memory, worker], vec![usage]));
     assert!(
         errors
             .iter()
@@ -242,7 +230,7 @@ fn non_fsm_user_is_rejected() {
 #[test]
 fn usage_of_undeclared_resource_is_rejected() {
     let usage = usage_record("GhostUsage", "Ghost", &[]);
-    let errors = validate(&schema("App", vec![], vec![usage]));
+    let errors = resource_errors(&schema("App", vec![], vec![usage]));
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Ghost")
     ));
@@ -251,9 +239,13 @@ fn usage_of_undeclared_resource_is_rejected() {
 /// Requirement 6: a usage claims only its resource's capacities.
 #[test]
 fn usage_claiming_undeclared_capacity_is_rejected() {
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", false)]), None);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", false)]),
+        None,
+    );
     let usage = usage_record("MemoryUsage", "Memory", &["watts"]);
-    let errors = validate(&schema("App", vec![memory], vec![usage]));
+    let errors = resource_errors(&schema("App", vec![memory], vec![usage]));
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UndeclaredCapacity { capacity, .. } if capacity == "watts")
     ));
@@ -262,10 +254,14 @@ fn usage_claiming_undeclared_capacity_is_rejected() {
 /// Requirement 7: a usage record rides on an entity reference.
 #[test]
 fn usage_record_off_an_entity_reference_is_rejected() {
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", false)]), None);
-    let worker = user("Worker", true, "MemoryUsage", false);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", false)]),
+        None,
+    );
+    let worker = user_entity("Worker", true, "MemoryUsage", false);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    let errors = validate(&schema("App", vec![memory, worker], vec![usage]));
+    let errors = resource_errors(&schema("App", vec![memory, worker], vec![usage]));
     assert!(
         errors
             .iter()
@@ -278,12 +274,12 @@ fn usage_record_off_an_entity_reference_is_rejected() {
 fn bounds_record_used_by_a_foreign_entity_is_rejected() {
     let memory = resource_entity(
         "Memory",
-        definition(&[("bytes", "occupancy", true)]),
+        definition_data(&[("bytes", "occupancy", true)]),
         Some("MemoryBounds"),
     );
     let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
-    let intruder = user("Intruder", false, "MemoryBounds", false);
-    let errors = validate(&schema("App", vec![memory, intruder], vec![bounds]));
+    let intruder = user_entity("Intruder", false, "MemoryBounds", false);
+    let errors = resource_errors(&schema("App", vec![memory, intruder], vec![bounds]));
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::ForeignBounds { resource, .. } if resource == "Memory")
     ));
@@ -291,7 +287,7 @@ fn bounds_record_used_by_a_foreign_entity_is_rejected() {
 
 fn assert_misplaced(schema: &Schema) {
     assert!(
-        validate(schema)
+        resource_errors(schema)
             .iter()
             .any(|e| matches!(e, ResourceError::MisplacedRole { .. }))
     );
@@ -301,7 +297,11 @@ fn assert_misplaced(schema: &Schema) {
 #[test]
 fn misplaced_role_is_rejected() {
     // A definition on a record.
-    let bad_record = role_record("Memory", definition(&[("bytes", "occupancy", false)]), &[]);
+    let bad_record = resource_record(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", false)]),
+        &[],
+    );
     assert_misplaced(&schema("App", vec![], vec![bad_record]));
 
     // A usage on an entity.
@@ -356,7 +356,11 @@ fn roles_on_other_annotated_elements_are_rejected() {
 /// A usage carried by an entity reference with no enclosing entity is rejected.
 #[test]
 fn usage_without_enclosing_entity_is_rejected() {
-    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", false)]), None);
+    let memory = resource_entity(
+        "Memory",
+        definition_data(&[("bytes", "occupancy", false)]),
+        None,
+    );
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
     // A record, not an entity, carries the usage on an entity-ref field.
     let carrier = DataType::EntityRef {
