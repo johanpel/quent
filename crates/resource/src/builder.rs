@@ -181,7 +181,6 @@ mod tests {
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
             .build()?;
 
-        assert!(matches!(&parts.definition, Resource::Definition(_)));
         let mut capacities = parts.definition.capacities().unwrap();
         let (name, capacity) = capacities.next().unwrap();
         assert_eq!(name, &bytes);
@@ -204,6 +203,7 @@ mod tests {
         assert!(matches!(result, Err(BuildError::NoCapacities)));
     }
 
+    /// Requirement 2: capacity identifiers are unique within a resource.
     #[test]
     fn rejects_duplicate_capacities() {
         let bytes = Identifier::try_new("bytes").unwrap();

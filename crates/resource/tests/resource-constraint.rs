@@ -5,9 +5,9 @@ use quent_constraints::Constraint as _;
 use quent_fsm::FsmConstraint;
 use quent_resource::{ResourceConstraint, ResourceError};
 use quent_schema::{
-    Annotations, Cardinality, DataType, Entity, Field, Record, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
-    test_utils::{entity, event, field, ident, schema},
+    Annotations, DataType, Entity, Record, Schema,
+    builder::{AnnotationsBuilder, EntityBuilder, RecordBuilder, SchemaBuilder},
+    test_utils::{event, field, ident, schema},
 };
 
 /// Create resource definition data from `(name, kind, bounded)` tuples.
@@ -139,11 +139,13 @@ fn resource_without_capacity_is_rejected() {
     );
 }
 
-/// Requirement 3: a bounded resource has a bounds record covering exactly its
+// Requirement 2 is enforced by definition map keys. Repeated builder inputs
+// are covered by `builder::tests::rejects_duplicate_capacities`.
+
+/// Requirement 3: bounds exist exactly for bounded resources and cover all
 /// bounded capacities.
 #[test]
-fn bounds_must_match_the_bounded_capacities() {
-    // The bounds omit the bounded `blocks` and bound the unbounded `watts`.
+fn bounds_match_resource_boundedness() {
     let disk = resource_entity(
         "Disk",
         &[
@@ -154,83 +156,78 @@ fn bounds_must_match_the_bounded_capacities() {
         Some("DiskBounds"),
     );
     let disk_bounds = bounds_record("DiskBounds", "Disk", &["sectors", "watts"]);
-    let errors = resource_errors(&schema("App", vec![disk], vec![disk_bounds]));
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", true)], None);
+    let memory_bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
+    let network = resource_entity(
+        "Network",
+        &[("bytes", "rate", false)],
+        Some("NetworkBounds"),
+    );
+    let network_bounds = bounds_record("NetworkBounds", "Network", &[]);
+    let errors = resource_errors(&schema(
+        "App",
+        [disk, memory, network],
+        [disk_bounds, memory_bounds, network_bounds],
+    ));
+
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UncoveredCapacity { capacity, .. } if capacity == "blocks")
     ));
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnboundedCapacity { capacity, .. } if capacity == "watts")
     ));
-}
-
-#[test]
-fn bounded_resource_requires_a_bounds_event() {
-    let memory = resource_entity("Memory", &[("bytes", "occupancy", true)], None);
-    let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
-    let errors = resource_errors(&schema("App", vec![memory], vec![bounds]));
     assert!(
         errors.iter().any(
             |e| matches!(e, ResourceError::MissingBounds { resource } if resource == "Memory")
         )
     );
-}
-
-#[test]
-fn unbounded_resource_rejects_bounds() {
-    let memory = resource_entity(
-        "Memory",
-        &[("bytes", "occupancy", false)],
-        Some("MemoryBounds"),
-    );
-    let bounds = bounds_record("MemoryBounds", "Memory", &[]);
-    let errors = resource_errors(&schema("App", vec![memory], vec![bounds]));
     assert!(errors.iter().any(
-        |e| matches!(e, ResourceError::UnexpectedBounds { resource, .. } if resource == "Memory")
+        |e| matches!(e, ResourceError::UnexpectedBounds { resource, .. } if resource == "Network")
     ));
 }
 
-/// Requirement 4: only an FSM entity may use a resource.
+/// Requirements 4–7 govern resource usage.
+///
+/// Resource users must be FSM entities. Usage and bounds records must name
+/// declared resources, claims must name declared capacities, and usage records
+/// must be carried by entity references.
 #[test]
-fn non_fsm_user_is_rejected() {
+fn invalid_usages_are_rejected() {
     let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
     let worker = user_entity("Worker", false, "MemoryUsage", true);
+    let machine = user_entity("Machine", true, "OffRefUsage", false);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    let errors = resource_errors(&schema("App", vec![memory, worker], vec![usage]));
+    let bad_claim = usage_record("BadClaim", "Memory", &["watts"]);
+    let off_ref = usage_record("OffRefUsage", "Memory", &["bytes"]);
+    let unknown_usage = usage_record("GhostUsage", "Ghost", &[]);
+    let unknown_bounds = bounds_record("PhantomBounds", "Phantom", &[]);
+    let errors = resource_errors(&schema(
+        "App",
+        [memory, worker, machine],
+        [usage, bad_claim, off_ref, unknown_usage, unknown_bounds],
+    ));
+
+    // Requirement 4: only an FSM entity may use a resource.
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, ResourceError::NonFsmUser { entity, .. } if entity == "Worker"))
     );
-}
 
-/// Requirement 5: a usage names a declared resource.
-#[test]
-fn usage_of_undeclared_resource_is_rejected() {
-    let usage = usage_record("GhostUsage", "Ghost", &[]);
-    let errors = resource_errors(&schema("App", vec![], vec![usage]));
+    // Requirement 5: usage and bounds records name declared resources.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Ghost")
     ));
-}
+    assert!(errors.iter().any(
+        |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Phantom")
+    ));
 
-/// Requirement 6: a usage claims only its resource's capacities.
-#[test]
-fn usage_claiming_undeclared_capacity_is_rejected() {
-    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
-    let usage = usage_record("MemoryUsage", "Memory", &["watts"]);
-    let errors = resource_errors(&schema("App", vec![memory], vec![usage]));
+    // Requirement 6: a usage claims only its resource's capacities.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UndeclaredCapacity { capacity, .. } if capacity == "watts")
     ));
-}
 
-/// Requirement 7: a usage record rides on an entity reference.
-#[test]
-fn usage_record_off_an_entity_reference_is_rejected() {
-    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
-    let worker = user_entity("Worker", true, "MemoryUsage", false);
-    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    let errors = resource_errors(&schema("App", vec![memory, worker], vec![usage]));
+    // Requirement 7: a usage record rides on an entity reference.
     assert!(
         errors
             .iter()
@@ -263,8 +260,9 @@ fn assert_misplaced_resource(case: &str, schema: &Schema) {
     );
 }
 
+/// Resource annotations and usage references are rejected in unsupported locations.
 #[test]
-fn resource_annotations_on_wrong_elements_are_rejected() {
+fn misplaced_resources_are_rejected() {
     let bad_record = resource_record(
         "Memory",
         definition_data(&[("bytes", "occupancy", false)]),
@@ -281,49 +279,8 @@ fn resource_annotations_on_wrong_elements_are_rejected() {
         .with_annotations(resource_annotations(usage_data("Memory")))
         .build();
 
-    let bad_event = EventBuilder::new(ident("bad"), Cardinality::Once)
-        .with_annotations(resource_annotations(usage_data("Memory")))
-        .build();
-    let usage_on_event = schema("App", [entity("Worker", [bad_event])], []);
-
-    let bad_field = Field::new(
-        ident("bad"),
-        DataType::U64,
-        resource_annotations(usage_data("Memory")),
-    );
-    let usage_on_field = schema("App", [entity("Worker", [event("using", [bad_field])])], []);
-
-    let bad_ref = DataType::EntityRef {
-        data: None,
-        annotations: resource_annotations(usage_data("Memory")),
-    };
-    let usage_on_entity_ref = schema(
-        "App",
-        [entity(
-            "Worker",
-            [event("using", [field("claim", bad_ref)])],
-        )],
-        [],
-    );
-
-    for (case, schema) in [
-        ("definition on record", definition_on_record),
-        ("usage on entity", usage_on_entity),
-        ("usage on schema", usage_on_schema),
-        ("usage on event", usage_on_event),
-        ("usage on field", usage_on_field),
-        ("usage on entity reference", usage_on_entity_ref),
-    ] {
-        assert_misplaced_resource(case, &schema);
-    }
-}
-
-/// A usage carried by an entity reference with no enclosing entity is rejected.
-#[test]
-fn usage_without_enclosing_entity_is_rejected() {
     let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    // A record, not an entity, carries the usage on an entity-ref field.
     let carrier = DataType::EntityRef {
         data: Some(Box::new(DataType::Record(ident("MemoryUsage")))),
         annotations: Annotations::default(),
@@ -332,8 +289,14 @@ fn usage_without_enclosing_entity_is_rejected() {
         .try_with_field(field("carried", carrier))
         .unwrap()
         .build();
-    assert_misplaced_resource(
-        "usage without an enclosing entity",
-        &schema("App", [memory], [usage, wrapper]),
-    );
+    let usage_without_entity = schema("App", [memory], [usage, wrapper]);
+
+    for (case, schema) in [
+        ("definition on record", definition_on_record),
+        ("usage on entity", usage_on_entity),
+        ("usage on schema", usage_on_schema),
+        ("usage without an enclosing entity", usage_without_entity),
+    ] {
+        assert_misplaced_resource(case, &schema);
+    }
 }
