@@ -14,6 +14,9 @@
 //! interpreted.
 
 use indexmap::IndexMap;
+use quent_constraints::Constraint;
+use quent_ref_target::RefTargetConstraint;
+use quent_ref_tree::RefTreeConstraint;
 use quent_schema::builder::{
     AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
@@ -202,7 +205,38 @@ fn type_of(expr: &TypeExpr, path: &str, sink: &mut Diagnostics) -> Option<DataTy
         TypeExpr::Record(name) => record_ref(name, path, sink),
         TypeExpr::List(t) => Some(DataType::List(Box::new(type_of(&t.list, path, sink)?))),
         TypeExpr::Option(t) => Some(DataType::Option(Box::new(type_of(&t.option, path, sink)?))),
+        TypeExpr::Ref(f) => entity_ref(&f.r#ref, f.data.as_deref(), false, path, sink),
+        TypeExpr::Scope(f) => entity_ref(&f.scope_ref, f.data.as_deref(), true, path, sink),
     }
+}
+
+/// An entity reference targeting `target`, optionally carrying `data` and
+/// optionally tree-forming.
+///
+/// The target is stored as the ref-target constraint, and a tree-forming
+/// reference also gets the ref-tree marker. Whether `target` names a declared
+/// entity and whether the references form a valid tree is checked by
+/// validation, not here.
+fn entity_ref(
+    target: &str,
+    data: Option<&TypeExpr>,
+    tree: bool,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> Option<DataType> {
+    let data = match data {
+        Some(expr) => Some(Box::new(type_of(expr, path, sink)?)),
+        None => None,
+    };
+    let mut builder = AnnotationsBuilder::new();
+    builder.set_constraint(RefTargetConstraint::NAME, Some(target.to_string()));
+    if tree {
+        builder.set_constraint(RefTreeConstraint::NAME, None);
+    }
+    Some(DataType::EntityRef {
+        data,
+        annotations: builder.build(),
+    })
 }
 
 /// A bare name that is not a [`BuiltinType`], lowered as a record reference.

@@ -14,8 +14,17 @@ records:
     fields:
       tags: { list: string }
       extra: dynamic
+  Route:
+    doc: Details of one routing edge to an upstream server.
+    fields:
+      hops: u8
 
 entities:
+  Server:
+    doc: A server that accepts connections.
+    events:
+      booted: once
+
   Connection:
     doc: A client connection.
     events:
@@ -24,8 +33,13 @@ entities:
         once:
           peer: Endpoint
           session: uuid
+          host: { scope-ref: Server }
       data:
         multi:
           bytes: u64
           meta: { option: Meta }
+      routed:
+        doc: Forwarded to an upstream server.
+        once:
+          upstream: { ref: Server, data: Route }
       closed: once

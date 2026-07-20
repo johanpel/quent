@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_fsm::{Fsm, FsmConstraint, FsmError};
+use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
     Annotations, Cardinality, Entity, Event, Schema,
     builder::{AnnotationsBuilder, EntityBuilder},
@@ -11,6 +11,16 @@ use quent_schema::{
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
     event_with(name, cardinality, vec![])
+}
+
+fn state(name: &str, to: &[&str], initial: bool, exit: bool) -> StateDecl {
+    StateDecl {
+        name: ident(name),
+        attributes: vec![],
+        to: to.iter().map(|s| ident(s)).collect(),
+        initial,
+        exit,
+    }
 }
 
 // Build the constraint's JSON directly so we can build it in an invalid way.
@@ -283,43 +293,70 @@ fn entity_without_fsm_constraint_is_ignored() {
 }
 
 #[test]
-fn builder_produces_valid_fsm_and_exposes_data() {
-    let entity = bare_entity(
-        "E",
-        vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
-    );
-    let fsm = Fsm::builder(&entity, ident("a"), ident("b"))
-        .transition(ident("a"), ident("b"))
+fn builder_produces_entity_with_state_events() {
+    let entity = FsmEntityBuilder::new(ident("E"))
+        .with_states([
+            state("a", &["b"], true, false),
+            state("b", &[], false, true),
+        ])
         .build()
         .unwrap();
 
-    assert_eq!(fsm.initial_state(), &ident("a"));
-    assert_eq!(fsm.transitions().len(), 1);
-    assert_eq!(fsm.transitions()[0].source(), &ident("a"));
-    assert_eq!(fsm.transitions()[0].target(), &ident("b"));
-    assert_eq!(
-        fsm.exit_from_states().collect::<Vec<_>>(),
-        vec![&ident("b")],
-    );
+    let names: Vec<_> = entity.events().map(|e| e.name().to_string()).collect();
+    assert_eq!(names, vec!["a", "b"]);
+    assert!(entity.annotations().has_constraint(FsmConstraint::NAME));
 }
 
 #[test]
-fn builder_rejects_unknown_event() {
-    // b is not an event
-    let entity = bare_entity("E", vec![event("a", Cardinality::Once)]);
-    let err = Fsm::builder(&entity, ident("b"), ident("b"))
+fn cardinality_is_derived_from_cycles() {
+    // a -> b, b -> b: a sits off any cycle (Once), b self-loops (Multi).
+    let entity = FsmEntityBuilder::new(ident("E"))
+        .with_states([
+            state("a", &["b"], true, false),
+            state("b", &["b"], false, true),
+        ])
         .build()
-        .err()
         .unwrap();
-    let errors = match err {
-        FsmError::Multiple(errors) => errors,
-        single => vec![single],
-    };
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, FsmError::UnknownState { state, .. } if state == "b")),
-    );
+
+    let cardinality = |name: &str| entity.event(&ident(name)).unwrap().cardinality();
+    assert_eq!(cardinality("a"), Cardinality::Once);
+    assert_eq!(cardinality("b"), Cardinality::Multi);
+}
+
+#[test]
+fn builder_rejects_malformed_states() {
+    let no_initial = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &[], false, true)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_initial, FsmEntityBuilderError::NoInitialState));
+
+    let many_initial = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &[], true, false), state("b", &[], true, true)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        many_initial,
+        FsmEntityBuilderError::MultipleInitialStates(_)
+    ));
+
+    let no_exit = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &["a"], true, false)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_exit, FsmEntityBuilderError::NoExitState));
+
+    // A duplicate that is also marked initial must report the duplicate, not
+    // `MultipleInitialStates`.
+    let duplicate = FsmEntityBuilder::new(ident("E"))
+        .with_state(state("a", &[], true, true))
+        .with_state(state("a", &[], true, false))
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        duplicate,
+        FsmEntityBuilderError::DuplicateState(_)
+    ));
 }
 
 #[test]

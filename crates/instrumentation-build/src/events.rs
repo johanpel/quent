@@ -125,8 +125,8 @@ mod tests {
                     list: Vec<String>,
                     rec: SomeRecord,
                     dynrec: ::quent_instrumentation::CustomAttributes,
-                    eref: ::quent_instrumentation::EntityRef,
-                    eref_payload: ::quent_instrumentation::EntityRef<u64>
+                    eref: ::quent_instrumentation::EntityRef<AnyEntity>,
+                    eref_payload: ::quent_instrumentation::EntityRef<AnyEntity, u64>
                 }
             }
         };
@@ -237,7 +237,7 @@ mod tests {
                 #[doc = "The `ev` event."]
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
-                    eref_list: ::quent_instrumentation::EntityRef<Vec<String>>
+                    eref_list: ::quent_instrumentation::EntityRef<AnyEntity, Vec<String>>
                 }
             }
         };

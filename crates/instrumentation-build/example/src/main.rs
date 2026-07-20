@@ -12,6 +12,11 @@ mod demo {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context: DemoContext = demo::DemoContext::try_new(Some(debug_printing_exporter()))?;
+
+    // Boot a server; its instance id is the target the connection references.
+    let mut server = context.server_observer().handle();
+    server.booted()?;
+
     let observer: ConnectionObserver = context.connection_observer();
 
     // The handle (may) hold per-instance state that enforces once-cardinality,
@@ -24,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             port: 8080,
         },
         Uuid::nil(),
+        server.as_entity_ref(),
     )?;
     conn.data(1234, None)?;
 
@@ -41,6 +47,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     )?;
 
+    // `ref` field carrying data: the server reference plus details of the edge.
+    conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
+
     conn.closed()?;
 
     // Emitting a once-event a second time fails.
@@ -53,7 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// Return an exporter that debug-prints each emitted event's payload.
 fn debug_printing_exporter() -> ExporterOptions {
     ExporterOptions::Callback(EventCallback::new(|recorded| {
-        if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
+        if let Some(event) = recorded
+            .event
+            .downcast_ref::<Event<demo::ConnectionEvent>>()
+        {
+            println!("[{} @ {}] {:?}", event.id, event.timestamp, event.data);
+        } else if let Some(event) = recorded.event.downcast_ref::<Event<demo::ServerEvent>>() {
             println!("[{} @ {}] {:?}", event.id, event.timestamp, event.data);
         } else {
             unreachable!()
