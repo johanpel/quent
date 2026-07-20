@@ -45,6 +45,7 @@ fn generate_readme_pyo3_bridge() {
         file.content
             .contains("expected dict for dynamic attributes")
     );
+    assert!(file.content.contains("attributes::DynamicAttribute::null"));
     assert!(file.content.contains("value.cast::<PyBool>()"));
     assert!(
         file.content

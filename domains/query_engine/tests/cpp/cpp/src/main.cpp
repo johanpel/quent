@@ -4,7 +4,7 @@
 // The code does not need to make semantic sense; it exercises the full API.
 
 #include "quent-qe-bridge/gen/context.rs.h"
-#include "quent-qe-bridge/gen/custom_attributes.rs.h"
+#include "quent-qe-bridge/gen/dynamic_attributes.rs.h"
 #include "quent-qe-bridge/gen/engine.rs.h"
 #include "quent-qe-bridge/gen/operator.rs.h"
 #include "quent-qe-bridge/gen/plan.rs.h"

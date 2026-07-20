@@ -7,7 +7,7 @@
 
 #include "quent-bridge/gen/cluster.rs.h"
 #include "quent-bridge/gen/context.rs.h"
-#include "quent-bridge/gen/custom_attributes.rs.h"
+#include "quent-bridge/gen/dynamic_attributes.rs.h"
 #include "quent-bridge/gen/file_stats.rs.h"
 #include "quent-bridge/gen/info.rs.h"
 #include "quent-bridge/gen/memory_pool.rs.h"
