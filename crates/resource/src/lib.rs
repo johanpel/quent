@@ -222,6 +222,20 @@ impl Visitor for ResourceConstraint {
                 }
                 None => {}
             },
+            Element::Annotations(annotations)
+                if !matches!(
+                    cursor.previous(),
+                    Some(Element::Entity(_) | Element::Record(_))
+                ) =>
+            {
+                if let Some(role) = self.role(cursor, annotations) {
+                    self.errors.push(ResourceError::MisplacedRole {
+                        location: cursor.to_string(),
+                        role: role.kind(),
+                        element: annotation_owner(cursor),
+                    });
+                }
+            }
             // Collect every record reference; usage records are validated in
             // `finish` once all roles are known.
             Element::DataType(DataType::Record(record)) => {
@@ -283,6 +297,7 @@ impl Visitor for ResourceConstraint {
         // correctly. A usage rides on an entity reference and only an FSM may
         // use it. A bounds record appears only on its own resource's events.
         let mut non_fsm_seen = FxHashSet::default();
+        let mut resources_with_bounds_event = FxHashSet::default();
         for RecordRef {
             record,
             on_entity_ref,
@@ -325,6 +340,8 @@ impl Visitor for ResourceConstraint {
                         location: location.clone(),
                         resource: bounds.resource.clone(),
                     });
+                } else {
+                    resources_with_bounds_event.insert(bounds.resource.clone());
                 }
             }
         }
@@ -344,6 +361,13 @@ impl Visitor for ResourceConstraint {
                 });
                 continue;
             };
+            if !capacities.values().any(|bounded| *bounded) {
+                errors.push(ResourceError::UnexpectedBounds {
+                    location: location.clone(),
+                    resource: resource.clone(),
+                });
+                continue;
+            }
             // A bound is declared only for a bounded capacity.
             for field in fields {
                 if capacities.get(field) != Some(&true) {
@@ -366,13 +390,10 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirement 3: a resource with a bounded capacity has a bounds record.
-        let bounded_resources: FxHashSet<Identifier> = bounds_records
-            .values()
-            .map(|bounds| bounds.resource.clone())
-            .collect();
+        // Requirement 3: a resource with a bounded capacity has a bounds event.
         for (resource, capacities) in &resources {
-            if capacities.values().any(|bounded| *bounded) && !bounded_resources.contains(resource)
+            if capacities.values().any(|bounded| *bounded)
+                && !resources_with_bounds_event.contains(resource)
             {
                 errors.push(ResourceError::MissingBounds {
                     resource: resource.clone(),
@@ -453,6 +474,17 @@ fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
         })
 }
 
+/// Describe the element owning the current annotations.
+fn annotation_owner(cursor: &Cursor) -> &'static str {
+    match cursor.previous() {
+        Some(Element::Schema(_)) => "a schema",
+        Some(Element::Event(_)) => "an event",
+        Some(Element::Field(_)) => "a field",
+        Some(Element::DataType(DataType::EntityRef { .. })) => "an entity reference",
+        _ => "an unsupported element",
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ResourceError {
     #[error("{location}: invalid resource data: {message}")]
@@ -508,7 +540,12 @@ pub enum ResourceError {
         resource: Identifier,
         capacity: Identifier,
     },
-    #[error("resource \"{resource}\" has a bounded capacity but no bounds record")]
+    #[error("{location}: unbounded resource \"{resource}\" declares a bounds record")]
+    UnexpectedBounds {
+        location: String,
+        resource: Identifier,
+    },
+    #[error("resource \"{resource}\" has a bounded capacity but no bounds event")]
     MissingBounds { resource: Identifier },
     #[error("multiple resource violations:\n{}", bullet_list(.0))]
     Multiple(Vec<ResourceError>),

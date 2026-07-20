@@ -5,8 +5,8 @@ use quent_constraints::Constraint as _;
 use quent_fsm::FsmConstraint;
 use quent_resource::{ResourceConstraint, ResourceError};
 use quent_schema::{
-    Annotations, DataType, Entity, Event, Record, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder, RecordBuilder},
+    Annotations, Cardinality, DataType, Entity, Event, Field, Record, Schema,
+    builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
     test_utils::{field, ident, schema},
 };
 
@@ -198,6 +198,32 @@ fn bounds_must_match_the_bounded_capacities() {
     ));
 }
 
+#[test]
+fn bounded_resource_requires_a_bounds_event() {
+    let memory = resource_entity("Memory", definition(&[("bytes", "occupancy", true)]), None);
+    let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
+    let errors = validate(&schema("App", vec![memory], vec![bounds]));
+    assert!(
+        errors.iter().any(
+            |e| matches!(e, ResourceError::MissingBounds { resource } if resource == "Memory")
+        )
+    );
+}
+
+#[test]
+fn unbounded_resource_rejects_bounds() {
+    let memory = resource_entity(
+        "Memory",
+        definition(&[("bytes", "occupancy", false)]),
+        Some("MemoryBounds"),
+    );
+    let bounds = bounds_record("MemoryBounds", "Memory", &[]);
+    let errors = validate(&schema("App", vec![memory], vec![bounds]));
+    assert!(errors.iter().any(
+        |e| matches!(e, ResourceError::UnexpectedBounds { resource, .. } if resource == "Memory")
+    ));
+}
+
 /// Requirement 4: only an FSM entity may use a resource.
 #[test]
 fn non_fsm_user_is_rejected() {
@@ -283,6 +309,48 @@ fn misplaced_role_is_rejected() {
         .with_annotations(resource_annotations(usage_data("Memory")))
         .build();
     assert_misplaced(&schema("App", vec![bad_entity], vec![]));
+}
+
+#[test]
+fn roles_on_other_annotated_elements_are_rejected() {
+    let bad_schema = SchemaBuilder::new(ident("App"))
+        .with_annotations(resource_annotations(usage_data("Memory")))
+        .build();
+    assert_misplaced(&bad_schema);
+
+    let bad_event = EventBuilder::new(ident("bad"), Cardinality::Once)
+        .with_annotations(resource_annotations(usage_data("Memory")))
+        .build();
+    let entity = EntityBuilder::new(ident("Worker"))
+        .try_with_event(bad_event)
+        .unwrap()
+        .build();
+    assert_misplaced(&schema("App", vec![entity], vec![]));
+
+    let bad_field = Field::new(
+        ident("bad"),
+        DataType::U64,
+        resource_annotations(usage_data("Memory")),
+    );
+    let field_event = EventBuilder::new(ident("using"), Cardinality::Once)
+        .try_with_field(bad_field)
+        .unwrap()
+        .build();
+    let entity = EntityBuilder::new(ident("Worker"))
+        .try_with_event(field_event)
+        .unwrap()
+        .build();
+    assert_misplaced(&schema("App", vec![entity], vec![]));
+
+    let bad_ref = DataType::EntityRef {
+        data: None,
+        annotations: resource_annotations(usage_data("Memory")),
+    };
+    let entity = EntityBuilder::new(ident("Worker"))
+        .try_with_event(event("using", "claim", bad_ref))
+        .unwrap()
+        .build();
+    assert_misplaced(&schema("App", vec![entity], vec![]));
 }
 
 /// A usage carried by an entity reference with no enclosing entity is rejected.

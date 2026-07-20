@@ -12,7 +12,8 @@ use crate::{Capacities, Capacity, CapacityKind, Resource};
 
 /// The artifacts a [`ResourceBuilder`] delivers for a resource.
 pub struct ResourceParts {
-    /// The `quent.resource.v1` definition to place on the resource entity.
+    /// The resource constraint definition to place on the resource entity's
+    /// constraints.
     pub definition: Resource,
     /// The record type a usage of the resource is carried as.
     pub usage: Record,
@@ -83,8 +84,15 @@ impl ResourceBuilder {
     }
 
     /// Build the definition and the usage and bounds record types.
+    ///
+    /// # Errors
+    ///
+    /// Errors if no capacity was added or generating the records or constraint data fails.
     pub fn build(self) -> Result<ResourceParts, BuildError> {
         let ResourceBuilder { name, capacities } = self;
+        if capacities.is_empty() {
+            return Err(BuildError::NoCapacities);
+        }
 
         // The usage record carries a claim field for each capacity.
         let usage = role_record(
@@ -146,6 +154,8 @@ fn suffixed(resource: &Identifier, suffix: &str) -> Result<Identifier, BuildErro
 
 #[derive(Debug, Error)]
 pub enum BuildError {
+    #[error("resource must declare at least one capacity")]
+    NoCapacities,
     #[error(transparent)]
     Schema(#[from] BuilderError),
     #[error(transparent)]
@@ -177,5 +187,11 @@ mod tests {
                 .is_some_and(|bounds| bounds.name() == &bounds_name)
         );
         Ok(())
+    }
+
+    #[test]
+    fn rejects_empty_resource() {
+        let result = ResourceBuilder::new(Identifier::try_new("Memory").unwrap()).build();
+        assert!(matches!(result, Err(BuildError::NoCapacities)));
     }
 }
