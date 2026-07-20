@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_instrumentation::{EventCallback, ExporterOptions};
+use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 
-use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Event, Uuid};
+use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Uuid};
 
 #[allow(unused)]
 mod demo {
@@ -11,7 +11,13 @@ mod demo {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let context: DemoContext = demo::DemoContext::try_new(Some(debug_printing_exporter()))?;
+    let output = tempfile::tempdir()?;
+    let exporter = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+        FileSystemFormat::Parquet,
+        output.path().to_path_buf(),
+    ));
+    let context: DemoContext = demo::DemoContext::try_new(Some(exporter))?;
+    let context_id = context.id();
     let observer: ConnectionObserver = context.connection_observer();
 
     // The handle (may) hold per-instance state that enforces once-cardinality,
@@ -23,7 +29,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             host: "localhost".to_owned(),
             port: 8080,
         },
-        Uuid::nil(),
+        demo::EntityRef {
+            target: Uuid::nil(),
+            data: 42,
+        },
+        demo::EntityRef {
+            target: Uuid::nil(),
+            data: (),
+        },
     )?;
     conn.data(1234, None)?;
     conn.data(5678, None)?;
@@ -33,16 +46,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(conn.closed_emitted());
     assert!(conn.closed().is_err());
 
-    Ok(())
-}
+    drop(conn);
+    drop(observer);
+    drop(context);
 
-/// Return an exporter that debug-prints each emitted event's payload.
-fn debug_printing_exporter() -> ExporterOptions {
-    ExporterOptions::Callback(EventCallback::new(|recorded| {
-        if let Ok(event) = recorded.event.downcast::<Event<demo::ConnectionEvent>>() {
-            println!("[{} @ {}] {:?}", event.id, event.timestamp, event.data);
-        } else {
-            unreachable!()
-        }
-    }))
+    let files = std::fs::read_dir(
+        output
+            .path()
+            .join(context_id.to_string())
+            .join("connection"),
+    )?
+    .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(files.len(), 1);
+    assert_eq!(
+        files[0]
+            .path()
+            .extension()
+            .and_then(|extension| extension.to_str()),
+        Some("parquet")
+    );
+
+    Ok(())
 }

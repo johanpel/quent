@@ -21,8 +21,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let schema = demo_schema()?;
 
     let opts = Options {
-        event_derives: &["Debug"],
-        record_derives: &["Debug"],
+        event_derives: &["Debug", "::serde::Serialize"],
+        record_derives: &["Debug", "::serde::Serialize"],
+        parquet: true,
         ..Default::default()
     };
 
@@ -61,7 +62,20 @@ fn demo_schema() -> std::result::Result<Schema, Box<dyn std::error::Error>> {
             EventBuilder::new(ident("opened"), Cardinality::Once)
                 .try_with_fields([
                     field("peer", DataType::Record(ident("Endpoint"))),
-                    field("session", DataType::Uuid),
+                    field(
+                        "session",
+                        DataType::EntityRef {
+                            data: Some(Box::new(DataType::U64)),
+                            annotations: Annotations::default(),
+                        },
+                    ),
+                    field(
+                        "owner",
+                        DataType::EntityRef {
+                            data: None,
+                            annotations: Annotations::default(),
+                        },
+                    ),
                 ])?
                 .build(),
             EventBuilder::new(ident("data"), Cardinality::Multi)

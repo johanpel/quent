@@ -1,6 +1,5 @@
-# Its own workspace, excluded from the repo workspace, so its exporter feature
-# graph stays callback-only (`Serialize`-free) instead of being unified with the
-# repo's filesystem/collector exporters under `--workspace --all-features`.
+# Its own workspace, excluded from the repo workspace, so generated Parquet
+# support is compiled without feature unification from other workspace crates.
 [workspace]
 
 [package]
@@ -10,7 +9,10 @@ edition = "2024"
 publish = false
 
 [dependencies]
-quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
+narrow = { version = "0.15.1", features = ["arrow-rs", "derive", "uuid"] }
+quent-instrumentation = { path = "../../instrumentation", features = ["io-parquet"] }
+serde = { version = "1", features = ["derive"] }
+tempfile = "3"
 
 [build-dependencies]
 quent-constraints = { path = "../../constraints" }

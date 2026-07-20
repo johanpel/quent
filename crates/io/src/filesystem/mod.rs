@@ -13,6 +13,8 @@ pub enum Format {
     Msgpack,
     #[cfg(feature = "postcard")]
     Postcard,
+    #[cfg(feature = "parquet")]
+    Parquet,
 }
 
 impl TryFrom<&str> for Format {
@@ -25,6 +27,8 @@ impl TryFrom<&str> for Format {
             "msgpack" => Self::Msgpack,
             #[cfg(feature = "postcard")]
             "postcard" => Self::Postcard,
+            #[cfg(feature = "parquet")]
+            "parquet" => Self::Parquet,
             _ => return Err(format!("invalid filesystem format '{value}'")),
         })
     }

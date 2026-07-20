@@ -24,6 +24,7 @@
 //!     // Exporters serialize events, so a `Serialize` derive is required.
 //!     event_derives: &["Debug", "::serde::Serialize"],
 //!     record_derives: &["Debug", "::serde::Serialize"],
+//!     parquet: true,
 //!     out_dir: std::env::var("OUT_DIR")?.into(),
 //!     file_name: None, // defaults to `<schema name>.rs`
 //! };
@@ -54,6 +55,7 @@
 mod common;
 mod data_type;
 mod events;
+mod parquet;
 mod records;
 mod runtime;
 
@@ -73,9 +75,6 @@ pub struct Options {
     ///
     /// Must include a `Serialize`-providing derive (e.g. `"::serde::Serialize"`):
     /// the generated context builds exporters, which require it.
-    // TODO(johanpel): derives are kept as simple as possible for now, but
-    // eventually some built-in options for built-in exporters (e.g. serde-based
-    // or Narrow) will surface here as simpler type-safe options.
     pub event_derives: &'static [&'static str],
 
     /// Derives applied to every generated record struct.
@@ -83,6 +82,12 @@ pub struct Options {
     /// Records embedded in events must also be `Serialize`, so include a
     /// `Serialize`-providing derive (e.g. `"::serde::Serialize"`).
     pub record_derives: &'static [&'static str],
+
+    /// Generates Parquet row types for every entity event stream.
+    ///
+    /// The generated crate must enable `quent-instrumentation/io-parquet` and
+    /// depend on `narrow` with its `arrow-rs`, `derive`, and `uuid` features.
+    pub parquet: bool,
 
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
@@ -97,6 +102,7 @@ impl Default for Options {
         Self {
             event_derives: Default::default(),
             record_derives: Default::default(),
+            parquet: false,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -170,8 +176,9 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let reexports = runtime::reexports();
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;
-    let runtime = generate_runtime_types(schema)?;
-    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime })
+    let parquet = parquet::generate(schema, opts);
+    let runtime = generate_runtime_types(schema, opts)?;
+    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #parquet #runtime })
         .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
 }

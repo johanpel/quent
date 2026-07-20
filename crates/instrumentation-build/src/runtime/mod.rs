@@ -10,8 +10,8 @@ use quent_schema::{Entity, Schema};
 use quote::quote;
 use syn::Ident;
 
-use crate::GenerateError;
 use crate::common::{raw_ident, to_case};
+use crate::{GenerateError, Options};
 
 mod context;
 mod handle;
@@ -27,11 +27,14 @@ pub(crate) use handle::MAX_ONCE_EVENTS;
 ///
 /// Returns [`GenerateError::TooManyOnceEvents`] if an entity declares more
 /// once-cardinality events than the per-handle flag word holds.
-pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, GenerateError> {
+pub(crate) fn generate_runtime_types(
+    schema: &Schema,
+    opts: &Options,
+) -> Result<TokenStream, GenerateError> {
     let entities: Vec<TokenStream> = schema
         .entities()
         .map(|entity| {
-            let event_impl = entity_event_impl(entity);
+            let event_impl = entity_event_impl(entity, opts);
             let observer = observer::entity_observer(entity);
             let handle = handle::entity_handle(entity)?;
             Ok::<_, GenerateError>(quote! {
@@ -61,12 +64,33 @@ pub(crate) fn reexports() -> TokenStream {
 }
 
 /// Tie an entity's event enum to its stream name (the entity's snake-case name).
-fn entity_event_impl(entity: &Entity) -> TokenStream {
+fn entity_event_impl(entity: &Entity, opts: &Options) -> TokenStream {
     let event_ty = event_ident(entity);
     let stream_name = to_case(entity.name(), Case::Snake);
+    let parquet_metadata = if opts.parquet {
+        quote! {
+            fn exporter_metadata(
+                name: &str,
+            ) -> Option<&'static (dyn ::std::any::Any + Send + Sync)> {
+                if name != ::quent_instrumentation::parquet::EXPORTER_METADATA {
+                    return None;
+                }
+                static DESCRIPTOR: ::quent_instrumentation::parquet::ParquetDescriptor<#event_ty> =
+                    ::quent_instrumentation::parquet::ParquetDescriptor::new(
+                        <#event_ty as ::quent_instrumentation::parquet::ParquetEvent>::parquet_schema,
+                        <#event_ty as ::quent_instrumentation::parquet::ParquetEvent>::into_record_batch,
+                    );
+                Some(&DESCRIPTOR)
+            }
+        }
+    } else {
+        quote! {}
+    };
     quote! {
         impl ::quent_instrumentation::EntityEvent for #event_ty {
             const NAME: &'static str = #stream_name;
+
+            #parquet_metadata
         }
     }
 }
@@ -110,11 +134,32 @@ mod tests {
             .try_with_entity(connection)
             .unwrap()
             .build();
-        let src = pretty(generate_runtime_types(&s).unwrap());
+        let src = pretty(generate_runtime_types(&s, &Options::default()).unwrap());
         assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
         assert!(src.contains(r#"const NAME: &'static str = "connection""#));
         assert!(src.contains("pub struct ConnectionObserver"));
         assert!(src.contains("pub struct ConnectionHandle"));
         assert!(src.contains("pub struct DemoContext"));
+    }
+
+    #[test]
+    fn parquet_generation_registers_exporter_metadata() {
+        let connection = EntityBuilder::new(ident("Connection"))
+            .try_with_event(EventBuilder::new(ident("closed"), Cardinality::Once).build())
+            .unwrap()
+            .build();
+        let s = SchemaBuilder::new(ident("Demo"))
+            .try_with_entity(connection)
+            .unwrap()
+            .build();
+        let opts = Options {
+            parquet: true,
+            ..Default::default()
+        };
+        let src = pretty(generate_runtime_types(&s, &opts).unwrap());
+
+        assert!(src.contains("fn exporter_metadata"));
+        assert!(src.contains("ParquetDescriptor"));
+        assert!(src.contains("EXPORTER_METADATA"));
     }
 }

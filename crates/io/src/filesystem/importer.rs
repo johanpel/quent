@@ -41,6 +41,8 @@ where
                     path: self.path.clone(),
                 },
             )?) as Box<dyn Importer<T>>),
+            #[cfg(feature = "parquet")]
+            Format::Parquet => Err(quent_io_types::ImporterError::UnsupportedFormat("parquet")),
         }
     }
 }

@@ -3,6 +3,8 @@
 
 //! Reference from one entity instance to another.
 
+#[cfg(feature = "io-parquet")]
+use quent_io::parquet::narrow;
 use uuid::Uuid;
 
 /// Reference from one entity instance to another by id, optionally carrying
@@ -15,5 +17,13 @@ pub struct EntityRef<T = ()> {
     /// Identifier of the referenced entity instance.
     pub target: Uuid,
     /// Payload carried alongside the reference.
+    pub data: T,
+}
+
+#[cfg(feature = "io-parquet")]
+#[doc(hidden)]
+#[derive(narrow::ArrayType, Default)]
+pub struct EntityRefParquet<T> {
+    pub target: Uuid,
     pub data: T,
 }

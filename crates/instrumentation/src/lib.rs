@@ -15,6 +15,9 @@ mod sidecar;
 
 pub use context::Context;
 pub use entity_ref::EntityRef;
+#[cfg(feature = "io-parquet")]
+#[doc(hidden)]
+pub use entity_ref::EntityRefParquet;
 pub use handle::{Handle, HandleError};
 pub use observer::{EventSender, Observer};
 pub use sidecar::write_sidecar;
@@ -26,6 +29,15 @@ pub use quent_attributes::CustomAttributes;
 pub use quent_build_info as build_info;
 pub use quent_events::{EntityEvent, Event};
 pub use quent_io::ExporterOptions;
+#[cfg(feature = "io-parquet")]
+pub use quent_io::parquet;
+#[cfg(any(
+    feature = "io-ndjson",
+    feature = "io-msgpack",
+    feature = "io-postcard",
+    feature = "io-parquet"
+))]
+pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
 pub use uuid::Uuid;
 
 /// A caller-supplied event sink, selected via the `io-callback` feature.

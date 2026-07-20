@@ -16,6 +16,8 @@ pub enum ExporterKind {
     Messagepack,
     #[cfg(feature = "ndjson")]
     Ndjson,
+    #[cfg(feature = "parquet")]
+    Parquet,
     #[cfg(feature = "collector")]
     Collector,
     None,
@@ -77,6 +79,8 @@ impl ExporterArgs {
             ExporterKind::Messagepack => Some(filesystem(crate::filesystem::Format::Msgpack)),
             #[cfg(feature = "ndjson")]
             ExporterKind::Ndjson => Some(filesystem(crate::filesystem::Format::Ndjson)),
+            #[cfg(feature = "parquet")]
+            ExporterKind::Parquet => Some(filesystem(crate::filesystem::Format::Parquet)),
             #[cfg(feature = "collector")]
             ExporterKind::Collector => Some(ExporterOptions::Collector(
                 quent_io_collector::Options::new(self.collector_address),

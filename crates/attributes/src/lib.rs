@@ -192,6 +192,15 @@ impl Attribute {
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
 pub struct CustomAttributes(pub Vec<Attribute>);
 
+#[cfg(feature = "parquet")]
+impl quent_io_parquet::ParquetValue for CustomAttributes {
+    type Value = String;
+
+    fn into_parquet(self) -> Self::Value {
+        serde_json::to_string(&self).expect("serializing custom attributes cannot fail")
+    }
+}
+
 impl CustomAttributes {
     pub fn new() -> Self {
         Self(Vec::new())

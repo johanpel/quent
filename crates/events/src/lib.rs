@@ -12,6 +12,12 @@ use uuid::Uuid;
 pub trait EntityEvent {
     /// The name of the entity.
     const NAME: &'static str;
+
+    /// Returns exporter-specific metadata registered for this event type.
+    #[doc(hidden)]
+    fn exporter_metadata(_name: &str) -> Option<&'static (dyn std::any::Any + Send + Sync)> {
+        None
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]

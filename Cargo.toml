@@ -16,6 +16,7 @@ members = [
     "crates/io/msgpack",
     "crates/io/ndjson",
     "crates/io/postcard",
+    "crates/io/parquet",
     "crates/io/types",
     "crates/instrumentation",
     "crates/model",
@@ -64,9 +65,8 @@ members = [
 ]
 
 # The instrumentation-build example is deliberately its own workspace (see its
-# Cargo.toml). Kept out of this one so `--workspace --all-features` doesn't
-# unify the filesystem/collector exporters (and their `serde` bound) into its
-# callback-only, `Serialize`-free graph.
+# Cargo.toml). It validates generated Parquet support without feature
+# unification from this workspace.
 exclude = ["crates/instrumentation-build/example"]
 
 # default-members excludes any crate that activates `quent-time/__test-clock-override`.
@@ -87,6 +87,7 @@ default-members = [
     "crates/io/msgpack",
     "crates/io/ndjson",
     "crates/io/postcard",
+    "crates/io/parquet",
     "crates/io/types",
     "crates/instrumentation",
     "crates/model",
@@ -123,6 +124,8 @@ async-trait = "0.1.89"
 bitcode = { version = "0.6.9", features = ["serde"] }
 http = "1"
 indexmap = "2"
+narrow = { version = "0.15.1", features = ["arrow-rs", "derive", "uuid"] }
+parquet = { version = "57.0.0", default-features = false, features = ["arrow"] }
 log = {version = "0.4.28", features = ["kv"]}
 petgraph = "0.8.3"
 postcard = { version = "1", features = ["alloc"] }

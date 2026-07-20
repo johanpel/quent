@@ -59,6 +59,10 @@ where
                 )
                 .await?,
             ) as Box<dyn Exporter<T>>),
+            #[cfg(feature = "parquet")]
+            Format::Parquet => Ok(Box::new(quent_io_parquet::ParquetExporter::try_new::<T>(
+                quent_io_parquet::ParquetExporterOptions { dir },
+            )?) as Box<dyn Exporter<T>>),
         }
     }
 }

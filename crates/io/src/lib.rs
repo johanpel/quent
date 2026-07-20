@@ -12,12 +12,15 @@ use uuid::Uuid;
     feature = "ndjson",
     feature = "msgpack",
     feature = "postcard",
+    feature = "parquet",
     feature = "collector",
     feature = "callback"
 )))]
 compile_error!("at least one exporter feature must be enabled");
 
 // Re-exports.
+#[cfg(feature = "parquet")]
+pub use quent_io_parquet as parquet;
 pub use quent_io_types::{
     Exporter, ExporterProvider, ExporterResult, ImporterError, ImporterProvider, ImporterResult,
 };

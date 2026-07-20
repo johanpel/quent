@@ -9,6 +9,7 @@ default = ["ndjson", "msgpack", "postcard", "collector"]
 ndjson = ["dep:quent-io-ndjson", "dep:serde"]
 msgpack = ["dep:quent-io-msgpack", "dep:serde"]
 postcard = ["dep:quent-io-postcard", "dep:serde"]
+parquet = ["dep:quent-io-parquet", "dep:serde"]
 collector = ["dep:quent-io-collector", "dep:http", "dep:serde"]
 clap = ["dep:clap", "dep:http"]
 callback = ["dep:quent-io-callback"]
@@ -24,5 +25,6 @@ quent-io-collector = { path = "collector", optional = true }
 quent-io-msgpack = { path = "msgpack", optional = true }
 quent-io-ndjson = { path = "ndjson", optional = true }
 quent-io-postcard = { path = "postcard", optional = true }
+quent-io-parquet = { path = "parquet", optional = true }
 serde = { workspace = true, optional = true }
 uuid.workspace = true

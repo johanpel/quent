@@ -17,6 +17,7 @@ io-callback = ["quent-io/callback"]
 io-ndjson = ["quent-io/ndjson", "serde"]
 io-msgpack = ["quent-io/msgpack", "serde"]
 io-postcard = ["quent-io/postcard", "serde"]
+io-parquet = ["dep:narrow", "quent-io/parquet", "quent-attributes/parquet", "serde"]
 io-collector = ["quent-io/collector", "serde"]
 
 [dependencies]
@@ -24,6 +25,7 @@ quent-attributes = { path = "../attributes" }
 quent-build-info = { path = "../build-info" }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
+narrow = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "macros"]}

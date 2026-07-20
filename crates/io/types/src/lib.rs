@@ -86,6 +86,8 @@ pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
 pub enum ImporterError {
     #[error("i/o error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("importing {0} is not supported")]
+    UnsupportedFormat(&'static str),
 }
 
 /// Result type for importers.

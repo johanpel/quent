@@ -7,9 +7,12 @@ publish.workspace = true
 [features]
 default = []
 serde = ["dep:serde"]
+parquet = ["serde", "dep:quent-io-parquet", "dep:serde_json"]
 ts = ["serde", "dep:ts-rs"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+quent-io-parquet = { path = "../io/parquet", optional = true }
 thiserror.workspace = true
 ts-rs = {workspace = true, optional = true, features = ["uuid-impl", "serde-json-impl"] }
