@@ -53,8 +53,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
 
     // An FSM entity's events are transitions into its states.
-    // For now, the generated methods are like any other event.
     // Their cardinality is derived from the topology at build time.
+    //
+    // FSMs will get typestate pattern handles in the future, also see
+    // https://github.com/rapidsai/quent/issues/416
     let mut query = context.query_observer().handle();
     query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
     query.running(10)?;

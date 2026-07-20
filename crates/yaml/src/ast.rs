@@ -38,8 +38,6 @@ pub(crate) struct Model {
     pub(crate) records: IndexMap<String, Record>,
     #[serde(default)]
     pub(crate) entities: IndexMap<String, Entity>,
-    /// FSM entities, keyed by name: each declares an entity whose events are
-    /// its states.
     #[serde(default)]
     pub(crate) fsms: IndexMap<String, FsmSpec>,
 }
@@ -65,8 +63,10 @@ pub(crate) struct StateSpec {
     pub(crate) initial: bool,
     #[serde(default)]
     pub(crate) attributes: IndexMap<String, Field>,
-    /// States this transitions to; the reserved name `exit` transitions the FSM
-    /// out of existence.
+    // States the FSM can transition to.
+    //
+    // "exit" is a reserved special name to mark a state as final before
+    // dissapearing from existence through the exit transition.
     #[serde(default)]
     pub(crate) to: Vec<String>,
 }
