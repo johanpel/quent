@@ -22,49 +22,7 @@ pub struct ResourceParts {
     pub bounds: Option<Record>,
 }
 
-/// Builds a resource's usage and bounds record types and its definition, for the
-/// caller to compose the resource entity from and add to a schema.
-///
-/// ```
-/// # use quent_resource::{Capacity, CapacityKind, Resource, ResourceBuilder};
-/// # use quent_schema::{
-/// #     Annotations, Cardinality, DataType, Field, Identifier,
-/// #     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, SchemaBuilder},
-/// # };
-/// // A bounded capacity, so `build` also yields a bounds record.
-/// let parts = ResourceBuilder::new(Identifier::try_new("Memory")?)
-///     .with_capacity(
-///         Identifier::try_new("bytes")?,
-///         Capacity::new(CapacityKind::Occupancy, true),
-///     )
-///     .build()?;
-/// let bounds = parts.bounds.ok_or("expected a bounds record")?;
-///
-/// // Assemble the resource entity: its `operating` event declares the bounds record.
-/// let operating = EventBuilder::new(Identifier::try_new("operating")?, Cardinality::Once)
-///     .try_with_field(Field::new(
-///         Identifier::try_new("bounds")?,
-///         DataType::Record(bounds.name().clone()),
-///         Annotations::default(),
-///     ))?
-///     .build();
-/// let definition = AnnotationsBuilder::new()
-///     .try_with_constraint(Resource::NAME, Some(serde_json::to_string(&parts.definition)?))?
-///     .build();
-/// let entity = EntityBuilder::new(Identifier::try_new("Memory")?)
-///     .try_with_event(operating)?
-///     .with_annotations(definition)
-///     .build();
-///
-/// // Add the entity and its record types to the schema.
-/// let schema = SchemaBuilder::new(Identifier::try_new("App")?)
-///     .try_with_entity(entity)?
-///     .try_with_record(parts.usage)?
-///     .try_with_record(bounds)?
-///     .build();
-/// # let _ = schema;
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
+/// Builds a resource definition and its usage and bounds record types.
 pub struct ResourceBuilder {
     name: Identifier,
     capacities: Capacities,
