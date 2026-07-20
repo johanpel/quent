@@ -18,7 +18,8 @@
 //! a live in-process receiver; the tracing writer counts newlines.
 //!
 //! Knobs: `BENCH_OPS` (ops/cell, default 2,000,000), `BENCH_ATTRS`,
-//! `BENCH_THREADS` (comma lists), `BENCH_REPS`, `BENCH_CSV` (raw CSV path).
+//! `BENCH_THREADS` (comma lists), `BENCH_REPS`, `BENCH_CSV` (raw CSV path),
+//! `BENCH_JSON` (self-describing JSON path).
 
 use std::fs::File;
 use std::net::TcpListener as StdTcpListener;
@@ -831,6 +832,44 @@ fn main() {
         match std::fs::write(&path, csv) {
             Ok(()) => eprintln!("wrote CSV to {path}"),
             Err(e) => eprintln!("failed to write CSV {path}: {e}"),
+        }
+    }
+
+    // Optional self-describing JSON (BENCH_JSON=path) for agentic consumers.
+    if let Ok(path) = std::env::var("BENCH_JSON") {
+        let num = |o: Option<f64>| o.map_or("null".to_string(), |v| v.to_string());
+        let items: Vec<String> = rows
+            .iter()
+            .map(|r| {
+                let family = r.label.split(['-', '/']).next().unwrap_or(&r.label);
+                format!(
+                    "{{\"variant\":\"{}\",\"family\":\"{}\",\"attrs\":{},\"threads\":{},\
+                     \"offered_ops_s\":{},\"throughput_ops_s\":{},\"loss_pct\":{}}}",
+                    r.label,
+                    family,
+                    r.n,
+                    r.threads,
+                    r.offered_recs_s,
+                    num(r.tput_recs_s),
+                    num(r.loss_pct),
+                )
+            })
+            .collect();
+        let meta = format!(
+            "{{\"unit\":\"operations/second (1 op = one log or one span)\",\"ops_per_cell\":{k},\
+             \"metrics\":{{\
+             \"offered_ops_s\":\"raw API-call rate = ops / emit time\",\
+             \"throughput_ops_s\":\"sustained rate. quent: lossless, ops / full time to flush+deliver everything. otel/tracing: goodput = delivered/s, the rest dropped. null = no counted sink (noop)\",\
+             \"loss_pct\":\"percent of offered ops that never reached the sink; 0 for quent (lossless); null = uncounted (noop)\"}},\
+             \"note\":\"offered > throughput means the caller outran the pipeline; for quent (family=quent) the unbounded queue simply drains (0% loss), for otel/tracing the gap is dropped\"}}"
+        );
+        let json = format!(
+            "{{\n  \"meta\": {meta},\n  \"results\": [\n    {}\n  ]\n}}\n",
+            items.join(",\n    ")
+        );
+        match std::fs::write(&path, json) {
+            Ok(()) => eprintln!("wrote JSON to {path}"),
+            Err(e) => eprintln!("failed to write JSON {path}: {e}"),
         }
     }
 

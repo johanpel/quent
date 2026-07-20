@@ -49,6 +49,7 @@ Knobs (env vars):
 | `BENCH_THREADS` | `1,4,8` | producer thread counts to sweep (comma list) |
 | `BENCH_REPS` | `1` | repetitions averaged per cell |
 | `BENCH_CSV` | (unset) | if set, write raw results to this CSV path |
+| `BENCH_JSON` | (unset) | if set, write self-describing JSON (units + metric semantics) to this path |
 
 The table (stdout) reports `offered/s`, `tput/s`, `loss%` per variant, plus a
 PEAK summary across the thread sweep; live progress goes to stderr.
