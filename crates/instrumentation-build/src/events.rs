@@ -124,7 +124,7 @@ mod tests {
                     opt: Option<i32>,
                     list: Vec<String>,
                     rec: SomeRecord,
-                    dynrec: ::quent_instrumentation::CustomAttributes,
+                    dynrec: ::quent_instrumentation::DynamicAttributes,
                     eref: ::quent_instrumentation::EntityRef<AnyEntity>,
                     eref_payload: ::quent_instrumentation::EntityRef<AnyEntity, u64>
                 }

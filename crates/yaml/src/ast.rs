@@ -38,6 +38,37 @@ pub(crate) struct Model {
     pub(crate) records: IndexMap<String, Record>,
     #[serde(default)]
     pub(crate) entities: IndexMap<String, Entity>,
+    #[serde(default)]
+    pub(crate) fsms: IndexMap<String, FsmSpec>,
+}
+
+/// An FSM entity: annotations plus its states.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FsmSpec {
+    #[serde(default)]
+    pub(crate) doc: Option<String>,
+    #[serde(default)]
+    pub(crate) constraints: AnnotationMap,
+    #[serde(default)]
+    pub(crate) metadata: AnnotationMap,
+    pub(crate) states: IndexMap<String, StateSpec>,
+}
+
+/// One state of an FSM.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct StateSpec {
+    #[serde(default)]
+    pub(crate) initial: bool,
+    #[serde(default)]
+    pub(crate) attributes: IndexMap<String, Field>,
+    // States the FSM can transition to.
+    //
+    // "exit" is a reserved special name to mark a state as final before
+    // dissapearing from existence through the exit transition.
+    #[serde(default)]
+    pub(crate) to: Vec<String>,
 }
 
 /// A record: named fields plus annotations.

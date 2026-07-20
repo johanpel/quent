@@ -14,7 +14,7 @@ collector = ["quent-model/collector"]
 [dependencies]
 # quent side
 quent-model = { path = "../crates/model" }
-quent-attributes = { path = "../crates/attributes" }
+quent-dynamic-attributes = { path = "../crates/dynamic-attributes" }
 quent-collector = { path = "../crates/collector/server" }
 quent-collector-proto = { path = "../crates/collector/proto" }
 

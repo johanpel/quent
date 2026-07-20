@@ -22,13 +22,13 @@ use crate::common::{
 };
 use crate::{CxxOptions, GeneratedFile};
 
-/// Recursively check whether any attribute in the list (or nested structs) uses `CustomAttributes`.
-fn attrs_use_custom_attributes(attrs: &[AttributeDef]) -> bool {
+/// Checks whether attributes contain [`ValueType::DynamicAttributes`].
+fn attrs_use_dynamic_attributes(attrs: &[AttributeDef]) -> bool {
     attrs.iter().any(|a| match &a.value_type {
-        ValueType::CustomAttributes => true,
-        ValueType::Struct(_, inner) => attrs_use_custom_attributes(inner),
+        ValueType::DynamicAttributes => true,
+        ValueType::Struct(_, inner) => attrs_use_dynamic_attributes(inner),
         ValueType::List(inner) => match inner.as_ref() {
-            ValueType::Struct(_, inner_attrs) => attrs_use_custom_attributes(inner_attrs),
+            ValueType::Struct(_, inner_attrs) => attrs_use_dynamic_attributes(inner_attrs),
             _ => false,
         },
         _ => false,
@@ -162,7 +162,7 @@ fn value_type_to_cxx(ty: &ValueType, optional: bool) -> Option<String> {
         ValueType::F32 => "f32".to_string(),
         ValueType::F64 => "f64".to_string(),
         ValueType::Ref(_) => "UUID".to_string(),
-        ValueType::CustomAttributes => "CustomAttributes".to_string(),
+        ValueType::DynamicAttributes => "DynamicAttributes".to_string(),
         ValueType::List(inner) => {
             let inner_cxx = value_type_to_cxx(inner, false)?;
             format!("Vec<{inner_cxx}>")
@@ -191,18 +191,18 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     // Generate UUID bridge (shared type used by all bridges)
     files.push(emit_uuid_bridge(model, &model.name, options));
 
-    // Generate custom attributes bridge if any component uses CustomAttributes
-    let uses_custom_attrs = model.entities.iter().any(|e| {
+    // The bridge is only needed by models containing dynamic attributes.
+    let uses_dynamic_attrs = model.entities.iter().any(|e| {
         e.events
             .iter()
-            .any(|ev| attrs_use_custom_attributes(&ev.attributes))
+            .any(|ev| attrs_use_dynamic_attributes(&ev.attributes))
     }) || model.fsms.iter().any(|f| {
         f.states
             .iter()
-            .any(|s| attrs_use_custom_attributes(&s.attributes))
+            .any(|s| attrs_use_dynamic_attributes(&s.attributes))
     });
-    if uses_custom_attrs {
-        files.push(emit_custom_attributes_bridge(&model.name, options));
+    if uses_dynamic_attrs {
+        files.push(emit_dynamic_attributes_bridge(&model.name, options));
     }
 
     // Generate context bridge
@@ -221,12 +221,8 @@ pub fn emit(model: &ModelBuilder, options: &CxxOptions) -> Vec<GeneratedFile> {
     files
 }
 
-/// Generate the CustomAttributes CXX shared type bridge.
-///
-/// Uses CXX shared structs (one per value type) that C++ can construct
-/// natively. A Rust conversion function assembles them into
-/// `quent_attributes::CustomAttributes`.
-fn emit_custom_attributes_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
+/// Generates the CXX bridge for dynamic attributes.
+fn emit_dynamic_attributes_bridge(model_name: &str, options: &CxxOptions) -> GeneratedFile {
     let q = quent_path(model_name, options);
 
     let tokens = quote! {
@@ -255,16 +251,16 @@ fn emit_custom_attributes_bridge(model_name: &str, options: &CxxOptions) -> Gene
             }
 
             #[derive(Debug, Default)]
-            pub struct CustomAttributes {
+            pub struct DynamicAttributes {
                 pub string_attrs: Vec<StringAttr>,
                 pub i64_attrs: Vec<I64Attr>,
                 pub f64_attrs: Vec<F64Attr>,
             }
         }
 
-        impl ffi::CustomAttributes {
-            pub fn into_model(self) -> #q::attributes::CustomAttributes {
-                let mut attrs = #q::attributes::CustomAttributes::new();
+        impl ffi::DynamicAttributes {
+            pub fn into_model(self) -> #q::attributes::DynamicAttributes {
+                let mut attrs = #q::attributes::DynamicAttributes::new();
                 for a in self.string_attrs {
                     attrs.add_string(a.key, a.value);
                 }
@@ -280,7 +276,7 @@ fn emit_custom_attributes_bridge(model_name: &str, options: &CxxOptions) -> Gene
     };
 
     GeneratedFile {
-        name: "custom_attributes.rs".to_string(),
+        name: "dynamic_attributes.rs".to_string(),
         content: pretty_print(tokens),
     }
 }
@@ -596,20 +592,20 @@ fn build_ffi_module_string(
     include_path: &str,
     shared_structs: &str,
     extern_rust_body: &str,
-    uses_custom_attrs: bool,
+    uses_dynamic_attrs: bool,
 ) -> String {
-    let ca_include = include_path.replace("uuid.rs.h", "custom_attributes.rs.h");
+    let ca_include = include_path.replace("uuid.rs.h", "dynamic_attributes.rs.h");
     let context_include = include_path.replace("uuid.rs.h", "context.rs.h");
-    let custom_attrs_types = if uses_custom_attrs {
+    let dynamic_attrs_types = if uses_dynamic_attrs {
         format!(
             r#"
     #[namespace = "quent"]
     unsafe extern "C++" {{
         include!("{ca_include}");
-        type StringAttr = crate::bridge::custom_attributes::ffi::StringAttr;
-        type I64Attr = crate::bridge::custom_attributes::ffi::I64Attr;
-        type F64Attr = crate::bridge::custom_attributes::ffi::F64Attr;
-        type CustomAttributes = crate::bridge::custom_attributes::ffi::CustomAttributes;
+        type StringAttr = crate::bridge::dynamic_attributes::ffi::StringAttr;
+        type I64Attr = crate::bridge::dynamic_attributes::ffi::I64Attr;
+        type F64Attr = crate::bridge::dynamic_attributes::ffi::F64Attr;
+        type DynamicAttributes = crate::bridge::dynamic_attributes::ffi::DynamicAttributes;
     }}
 "#
         )
@@ -643,7 +639,7 @@ pub mod ffi {{
         include!("{include_path}");
         type UUID = crate::bridge::uuid::ffi::UUID;
     }}
-{custom_attrs_types}{context_alias}
+{dynamic_attrs_types}{context_alias}
 {shared_structs}    extern "Rust" {{
 {extern_rust_body}    }}
 }}
@@ -754,7 +750,7 @@ fn emit_field_conversion_tokens(
         ValueType::Ref(_) => quote! {
             #name: #q::Ref::new(#q::uuid::Uuid::from(data.#name)),
         },
-        ValueType::CustomAttributes => quote! {
+        ValueType::DynamicAttributes => quote! {
             #name: data.#name.into_model(),
         },
         ValueType::Struct(type_path, inner_attrs) => {
@@ -951,17 +947,17 @@ fn emit_entity_bridge(
         }
     }
 
-    let entity_uses_custom_attrs = entity
+    let entity_uses_dynamic_attrs = entity
         .events
         .iter()
-        .any(|ev| attrs_use_custom_attributes(&ev.attributes));
+        .any(|ev| attrs_use_dynamic_attributes(&ev.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
         &options.namespace,
         &include_path,
         &shared_structs_str,
         &extern_rust_body,
-        entity_uses_custom_attrs,
+        entity_uses_dynamic_attrs,
     );
 
     // Build impl code via quote! + prettyplease
@@ -1054,7 +1050,7 @@ fn emit_state_flat_args(
                     args.push(quote! { #q::Ref::new(#q::uuid::Uuid::from(data.#field_name)) });
                 }
             }
-            ValueType::CustomAttributes if !attr.optional => {
+            ValueType::DynamicAttributes if !attr.optional => {
                 // Keep FSM state conversion aligned with entity/event payload
                 // conversion before calling the model callback.
                 args.push(quote! { data.#field_name.into_model() });
@@ -1274,17 +1270,17 @@ fn emit_fsm_bridge(
     extern_rust_body.push_str("        fn exit(&mut self);\n");
     extern_rust_body.push_str("        fn uuid(&self) -> UUID;\n");
 
-    let fsm_uses_custom_attrs = fsm
+    let fsm_uses_dynamic_attrs = fsm
         .states
         .iter()
-        .any(|s| attrs_use_custom_attributes(&s.attributes));
+        .any(|s| attrs_use_dynamic_attributes(&s.attributes));
     let ffi_module = build_ffi_module_string(
         &ns,
         &options.namespace,
         &include_path,
         &shared_structs_str,
         &extern_rust_body,
-        fsm_uses_custom_attrs,
+        fsm_uses_dynamic_attrs,
     );
 
     // Build impl code via quote! + prettyplease.

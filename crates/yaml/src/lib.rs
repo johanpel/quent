@@ -10,8 +10,9 @@
 use std::path::Path;
 
 use quent_constraints::validate;
-use quent_ref_target::{RefTargetConstraint, RefTargetError};
-use quent_ref_tree::{RefTreeConstraint, RefTreeError};
+use quent_fsm::FsmConstraint;
+use quent_ref_target::RefTargetConstraint;
+use quent_ref_tree::RefTreeConstraint;
 use quent_schema::Schema;
 use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
@@ -66,7 +67,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         return Err(Error::Invalid(sink));
     }
 
-    let report = validate::<(RefTargetConstraint, RefTreeConstraint)>(&schema);
+    let report = validate::<(RefTargetConstraint, RefTreeConstraint, FsmConstraint)>(&schema);
     if let Err(e) = report.base_constraints {
         for record in e.recursive_records {
             sink.error(
@@ -82,12 +83,15 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
-    let (ref_target, ref_tree) = report.results;
+    let (ref_target, ref_tree, fsm) = report.results;
     if let Err(e) = ref_target {
-        ref_target_diagnostics(e, &mut sink);
+        sink.error("", e.to_string(), None);
     }
     if let Err(e) = ref_tree {
-        ref_tree_diagnostics(e, &mut sink);
+        sink.error("", e.to_string(), None);
+    }
+    if let Err(e) = fsm {
+        sink.error("", e.to_string(), None);
     }
     if sink.has_errors() {
         return Err(Error::Invalid(sink));
@@ -115,28 +119,4 @@ pub fn parse_from_file(path: impl AsRef<Path>) -> Result<Parsed, Error> {
     let path = path.as_ref();
     let src = std::fs::read_to_string(path)?;
     parse_from_str(&src, Some(&path.display().to_string()))
-}
-
-/// Report one diagnostic per ref-target violation, flattening `Multiple`.
-fn ref_target_diagnostics(error: RefTargetError, sink: &mut Diagnostics) {
-    match error {
-        RefTargetError::Multiple(errors) => {
-            errors
-                .into_iter()
-                .for_each(|error| ref_target_diagnostics(error, sink));
-        }
-        error => sink.error("", error.to_string(), None),
-    }
-}
-
-/// Report one diagnostic per ref-tree violation, flattening `Multiple`.
-fn ref_tree_diagnostics(error: RefTreeError, sink: &mut Diagnostics) {
-    match error {
-        RefTreeError::Multiple(errors) => {
-            errors
-                .into_iter()
-                .for_each(|error| ref_tree_diagnostics(error, sink));
-        }
-        error => sink.error("", error.to_string(), None),
-    }
 }

@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use quent_attributes::{Attribute, CustomAttributes};
+use quent_dynamic_attributes::{DynamicAttribute, DynamicAttributes};
 use quent_collector::{CollectorSink, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_model::io::{
@@ -70,12 +70,12 @@ entity! {
 }
 entity! {
     LogEvent {
-        attributes: { attrs: CustomAttributes },
+        attributes: { attrs: DynamicAttributes },
     }
 }
 state! {
     Active {
-        attributes: { attrs: CustomAttributes },
+        attributes: { attrs: DynamicAttributes },
     }
 }
 fsm! {
@@ -99,13 +99,13 @@ fn mk_keys(n: usize) -> Vec<String> {
     (0..n).map(|i| format!("k{i}")).collect()
 }
 
-fn quent_attrs(keys: &[String]) -> CustomAttributes {
+fn quent_attrs(keys: &[String]) -> DynamicAttributes {
     let mut v = Vec::with_capacity(keys.len());
     for (i, k) in keys.iter().enumerate() {
         match i % 3 {
-            0 => v.push(Attribute::string(k.clone(), "val")),
-            1 => v.push(Attribute::i64(k.clone(), i as i64)),
-            _ => v.push(Attribute::f64(k.clone(), i as f64)),
+            0 => v.push(DynamicAttribute::string(k.clone(), "val")),
+            1 => v.push(DynamicAttribute::i64(k.clone(), i as i64)),
+            _ => v.push(DynamicAttribute::f64(k.clone(), i as f64)),
         }
     }
     v.into()

@@ -197,7 +197,7 @@ function unwrapToString(val: unknown): string {
 }
 
 /**
- * Recursively unwrap a `Value` to a plain JS value. The Rust `Value` enum
+ * Recursively unwrap a `DynamicValue` to a plain JS value. The Rust `DynamicValue` enum
  * serializes externally tagged (`{"U64": 5}`) while the generated TS type is
  * untagged — handle both shapes, including lists and structs.
  */
@@ -214,7 +214,7 @@ export function unwrapTaggedValue(val: unknown): StatValue {
     case typeof val === 'object': {
       const obj = val as Record<string, unknown>;
       const keys = Object.keys(obj);
-      // Attribute shape: { key: string, value: Value }
+      // DynamicAttribute shape: { key: string, value: DynamicValue }
       if (keys.length === 2 && 'key' in obj && 'value' in obj) {
         return `${obj.key}: ${unwrapToString(obj.value)}`;
       }

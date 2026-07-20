@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 indexmap = { workspace = true, features = ["serde"] }
 quent-constraints = { path = "../constraints" }
+quent-fsm = { path = "../fsm" }
 quent-ref-target = { path = "../ref-target" }
 quent-ref-tree = { path = "../ref-tree" }
 quent-schema = { path = "../schema" }

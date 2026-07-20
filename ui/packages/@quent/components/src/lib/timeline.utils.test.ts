@@ -359,9 +359,9 @@ describe('findItemById', () => {
 // ---- buildTimelineMarks attributes ------------------------------------------
 
 import { buildTimelineMarks } from './timeline.utils';
-import type { FiniteStateMachine, Value } from '@quent/utils';
+import type { DynamicValue, FiniteStateMachine } from '@quent/utils';
 
-const taggedValue = (v: object) => v as unknown as Value;
+const taggedValue = (v: object) => v as unknown as DynamicValue;
 
 const THREAD_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 
