@@ -52,6 +52,16 @@ fn emit_rerun_if_changed(dir: &Path, path: &str) {
     }
 }
 
+fn emit_rerun_if_changed_or_parent(dir: &Path, path: &str) {
+    let Some(path) = git_path(dir, path) else {
+        return;
+    };
+    let Some(path) = path.ancestors().find(|path| path.exists()) else {
+        return;
+    };
+    println!("cargo:rerun-if-changed={}", path.display());
+}
+
 // Strip userinfo (a possible embedded token/password) from http(s) remote URLs
 // so it is never baked into provenance and leaked via an exported sidecar. ssh
 // and scp-style URLs keep their login user, which is not a secret.
@@ -196,10 +206,8 @@ fn emit_raw(prefix: &str, dir: &Path, git: &RawGit) {
         // so a stale `dirty=false` is possible until the next ref change.
         emit_rerun_if_changed(dir, "HEAD");
         emit_rerun_if_changed(dir, "packed-refs");
-        if let Some(branch) = &git.branch
-            && branch != "HEAD"
-        {
-            emit_rerun_if_changed(dir, &format!("refs/heads/{branch}"));
+        if let Some(branch) = run(dir, &["symbolic-ref", "--short", "--quiet", "HEAD"]) {
+            emit_rerun_if_changed_or_parent(dir, &format!("refs/heads/{branch}"));
         }
     }
 }
