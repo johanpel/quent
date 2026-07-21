@@ -5,20 +5,21 @@ import type { CapacityKind } from "./CapacityKind";
  * A measure declared by the downstream analyzer for a categorical timeline,
  * e.g. an entity count or a number of bytes.
  */
-export type MeasureDecl = { 
-/**
- * Unique name; key into [`CategoricalSeries::values`].
- */
-name: string, 
-/**
- * Human-friendly display name.
- */
-display_name: string, 
-/**
- * Key into the application's quantity specs map for unit formatting.
- */
-quantity: string, 
-/**
- * Display semantics of a bin value (Occupancy = time-weighted level).
- */
-kind: CapacityKind, };
+export type MeasureDecl = {
+  /**
+   * Unique name; key into [`CategoricalSeries::values`].
+   */
+  name: string;
+  /**
+   * Human-friendly display name.
+   */
+  display_name: string;
+  /**
+   * Key into the application's quantity specs map for unit formatting.
+   */
+  quantity: string;
+  /**
+   * Display semantics of a bin value (Occupancy = time-weighted level).
+   */
+  kind: CapacityKind;
+};

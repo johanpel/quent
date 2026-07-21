@@ -3,12 +3,13 @@
 /**
  * One key of the application-defined dimension of a categorical timeline.
  */
-export type DimensionKeyDecl = { 
-/**
- * The key used in [`CategoricalSeries::values`].
- */
-key: string, 
-/**
- * Human-friendly display name.
- */
-display_name: string, };
+export type DimensionKeyDecl = {
+  /**
+   * The key used in [`CategoricalSeries::values`].
+   */
+  key: string;
+  /**
+   * Human-friendly display name.
+   */
+  display_name: string;
+};

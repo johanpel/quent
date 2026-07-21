@@ -6,4 +6,8 @@
  *
  * Absent inner entries mean all-zero bins.
  */
-export type CategoricalSeries = { values: { [key in string]: { [key in string]: { [key in string]: Array<number> } } }, };
+export type CategoricalSeries = {
+  values: {
+    [key in string]: { [key in string]: { [key in string]: Array<number> } };
+  };
+};
