@@ -63,7 +63,9 @@ impl Operator {
             .map(|decl| {
                 decl.custom_attributes
                     .iter()
-                    .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
+                    .map(|DynamicAttribute { key, value }| {
+                        (key.clone().into_owned(), value.clone())
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -72,7 +74,7 @@ impl Operator {
             custom_statistics: s
                 .custom_attributes
                 .iter()
-                .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
+                .map(|DynamicAttribute { key, value }| (key.clone().into_owned(), value.clone()))
                 .collect(),
         });
 

@@ -2363,7 +2363,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tokio-util",
  "tonic",
  "tracing",
  "uuid",
@@ -2393,6 +2392,7 @@ name = "quent-dynamic-attributes"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "smallvec",
  "thiserror",
  "ts-rs",
 ]
@@ -2506,6 +2506,7 @@ dependencies = [
  "async-trait",
  "quent-events",
  "quent-io-types",
+ "rayon",
  "rmp-serde",
  "serde",
  "tokio",
@@ -2520,6 +2521,7 @@ dependencies = [
  "async-trait",
  "quent-events",
  "quent-io-types",
+ "rayon",
  "serde",
  "serde_json",
  "tempfile",
@@ -2536,6 +2538,7 @@ dependencies = [
  "postcard",
  "quent-events",
  "quent-io-types",
+ "rayon",
  "serde",
  "tokio",
  "tracing",
@@ -4299,6 +4302,7 @@ checksum = "bf80a72845275afea99e7f2b434723d3bc7e38470fcd1c7ed39a599c73319a53"
 dependencies = [
  "getrandom 0.4.1",
  "js-sys",
+ "rand 0.10.2",
  "serde_core",
  "wasm-bindgen",
 ]

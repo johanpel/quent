@@ -45,7 +45,7 @@ impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationA
         Self {
             name: value.name.clone(),
             version: value.version.clone(),
-            custom_attributes: value.custom_attributes.0.clone(),
+            custom_attributes: value.custom_attributes.0.to_vec(),
         }
     }
 }

@@ -3,8 +3,11 @@
 
 //! Typed attributes whose keys are defined at runtime.
 
+use std::borrow::Cow;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use thiserror::Error;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
@@ -66,13 +69,13 @@ pub enum DynamicValue {
 #[cfg_attr(feature = "ts", derive(TS))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DynamicAttribute {
-    pub key: String,
+    pub key: Cow<'static, str>,
     pub value: Option<DynamicValue>,
 }
 
 impl DynamicAttribute {
     /// Create a new attribute with the given key and no value.
-    pub fn null(key: impl Into<String>) -> Self {
+    pub fn null(key: impl Into<Cow<'static, str>>) -> Self {
         Self {
             key: key.into(),
             value: None,
@@ -80,7 +83,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a u8 value.
-    pub fn u8(key: impl Into<String>, value: u8) -> Self {
+    pub fn u8(key: impl Into<Cow<'static, str>>, value: u8) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::U8(value)),
@@ -88,7 +91,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a u16 value.
-    pub fn u16(key: impl Into<String>, value: u16) -> Self {
+    pub fn u16(key: impl Into<Cow<'static, str>>, value: u16) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::U16(value)),
@@ -96,7 +99,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a u32 value.
-    pub fn u32(key: impl Into<String>, value: u32) -> Self {
+    pub fn u32(key: impl Into<Cow<'static, str>>, value: u32) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::U32(value)),
@@ -104,7 +107,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a u64 value.
-    pub fn u64(key: impl Into<String>, value: u64) -> Self {
+    pub fn u64(key: impl Into<Cow<'static, str>>, value: u64) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::U64(value)),
@@ -112,7 +115,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an i8 value.
-    pub fn i8(key: impl Into<String>, value: i8) -> Self {
+    pub fn i8(key: impl Into<Cow<'static, str>>, value: i8) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::I8(value)),
@@ -120,7 +123,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an i16 value.
-    pub fn i16(key: impl Into<String>, value: i16) -> Self {
+    pub fn i16(key: impl Into<Cow<'static, str>>, value: i16) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::I16(value)),
@@ -128,7 +131,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an i32 value.
-    pub fn i32(key: impl Into<String>, value: i32) -> Self {
+    pub fn i32(key: impl Into<Cow<'static, str>>, value: i32) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::I32(value)),
@@ -136,7 +139,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an i64 value.
-    pub fn i64(key: impl Into<String>, value: i64) -> Self {
+    pub fn i64(key: impl Into<Cow<'static, str>>, value: i64) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::I64(value)),
@@ -144,7 +147,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an f32 value.
-    pub fn f32(key: impl Into<String>, value: f32) -> Self {
+    pub fn f32(key: impl Into<Cow<'static, str>>, value: f32) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::F32(value)),
@@ -152,7 +155,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with an f64 value.
-    pub fn f64(key: impl Into<String>, value: f64) -> Self {
+    pub fn f64(key: impl Into<Cow<'static, str>>, value: f64) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::F64(value)),
@@ -160,7 +163,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a String value.
-    pub fn string(key: impl Into<String>, value: impl Into<String>) -> Self {
+    pub fn string(key: impl Into<Cow<'static, str>>, value: impl Into<String>) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::String(value.into())),
@@ -168,7 +171,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a struct value.
-    pub fn structure(key: impl Into<String>, value: DynamicStruct) -> Self {
+    pub fn structure(key: impl Into<Cow<'static, str>>, value: DynamicStruct) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::Struct(value)),
@@ -176,7 +179,7 @@ impl DynamicAttribute {
     }
 
     /// Create an attribute with a list value.
-    pub fn list(key: impl Into<String>, value: DynamicList) -> Self {
+    pub fn list(key: impl Into<Cow<'static, str>>, value: DynamicList) -> Self {
         Self {
             key: key.into(),
             value: Some(DynamicValue::List(value)),
@@ -187,34 +190,34 @@ impl DynamicAttribute {
 /// A collection of attributes whose keys are defined at runtime.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize), serde(transparent))]
-pub struct DynamicAttributes(pub Vec<DynamicAttribute>);
+pub struct DynamicAttributes(pub SmallVec<[DynamicAttribute; 4]>);
 
 impl DynamicAttributes {
     pub fn new() -> Self {
-        Self(Vec::new())
+        Self(SmallVec::new())
     }
 
     pub fn add(&mut self, attr: DynamicAttribute) {
         self.0.push(attr);
     }
 
-    pub fn add_string(&mut self, key: impl Into<String>, value: impl Into<String>) {
+    pub fn add_string(&mut self, key: impl Into<Cow<'static, str>>, value: impl Into<String>) {
         self.0.push(DynamicAttribute::string(key, value));
     }
 
-    pub fn add_u64(&mut self, key: impl Into<String>, value: u64) {
+    pub fn add_u64(&mut self, key: impl Into<Cow<'static, str>>, value: u64) {
         self.0.push(DynamicAttribute::u64(key, value));
     }
 
-    pub fn add_i64(&mut self, key: impl Into<String>, value: i64) {
+    pub fn add_i64(&mut self, key: impl Into<Cow<'static, str>>, value: i64) {
         self.0.push(DynamicAttribute::i64(key, value));
     }
 
-    pub fn add_f64(&mut self, key: impl Into<String>, value: f64) {
+    pub fn add_f64(&mut self, key: impl Into<Cow<'static, str>>, value: f64) {
         self.0.push(DynamicAttribute::f64(key, value));
     }
 
-    pub fn add_bool(&mut self, key: impl Into<String>, value: bool) {
+    pub fn add_bool(&mut self, key: impl Into<Cow<'static, str>>, value: bool) {
         self.0.push(DynamicAttribute {
             key: key.into(),
             value: Some(if value {
@@ -226,26 +229,26 @@ impl DynamicAttributes {
     }
 
     pub fn into_vec(self) -> Vec<DynamicAttribute> {
-        self.0
+        self.0.into_vec()
     }
 }
 
 impl std::ops::Deref for DynamicAttributes {
-    type Target = Vec<DynamicAttribute>;
-    fn deref(&self) -> &Vec<DynamicAttribute> {
+    type Target = [DynamicAttribute];
+    fn deref(&self) -> &[DynamicAttribute] {
         &self.0
     }
 }
 
 impl From<Vec<DynamicAttribute>> for DynamicAttributes {
     fn from(v: Vec<DynamicAttribute>) -> Self {
-        Self(v)
+        Self(v.into())
     }
 }
 
 impl From<DynamicAttributes> for Vec<DynamicAttribute> {
     fn from(v: DynamicAttributes) -> Self {
-        v.0
+        v.0.into_vec()
     }
 }
 

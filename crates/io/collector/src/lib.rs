@@ -74,6 +74,19 @@ where
         client.send(event).await.map_err(ExporterError::other)?;
         Ok(())
     }
+
+    async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()>
+    where
+        T: Send + 'async_trait,
+    {
+        let client = self.client.as_ref().ok_or(ExporterError::Shutdown)?;
+        client
+            .send_batch(std::mem::take(events))
+            .await
+            .map_err(ExporterError::other)?;
+        Ok(())
+    }
+
     async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
         let Some(mut client) = self.client.take() else {
             return Ok(());

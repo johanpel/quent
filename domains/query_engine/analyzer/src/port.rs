@@ -42,7 +42,9 @@ impl Port {
                 custom_statistics: s
                     .custom_attributes
                     .iter()
-                    .map(|DynamicAttribute { key, value }| (key.clone(), value.clone()))
+                    .map(|DynamicAttribute { key, value }| {
+                        (key.clone().into_owned(), value.clone())
+                    })
                     .collect(),
             }),
         }

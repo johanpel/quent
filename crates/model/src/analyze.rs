@@ -163,7 +163,7 @@ impl<T: ToAttributeValue> ToAttributeValue for Option<T> {
 
 impl ToAttributeValue for DynamicAttributes {
     fn to_attribute_value(&self) -> Option<DynamicValue> {
-        Some(DynamicValue::Struct(DynamicStruct(self.0.clone())))
+        Some(DynamicValue::Struct(DynamicStruct(self.0.to_vec())))
     }
 }
 

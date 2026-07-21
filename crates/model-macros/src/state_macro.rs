@@ -468,7 +468,7 @@ fn expand_inline_attrs(
             let value_expr = crate::util::attribute_value_expr(&quote! { self.#fname }, &f.ty);
             quote! {
                 quent_model::attributes::DynamicAttribute {
-                    key: #field_name.to_string(),
+                    key: #field_name.into(),
                     value: #value_expr,
                 }
             }

@@ -5,10 +5,17 @@
 //!
 //! File format: sequence of length-prefixed records.
 //! Each record: `[4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]`
-use std::{io::BufReader, marker::PhantomData, path::PathBuf};
+use std::{
+    io::BufReader,
+    marker::PhantomData,
+    num::NonZeroUsize,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use quent_events::{EntityEvent, Event};
 use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -37,6 +44,9 @@ pub struct MsgpackExporter {
     writer: Option<BufWriter<File>>,
     /// Framing buffer reused across [`drain_events`](Exporter::drain_events).
     batch: Vec<u8>,
+    chunks: Vec<Vec<u8>>,
+    parallel: bool,
+    serial_batches: u8,
 }
 
 impl MsgpackExporter {
@@ -53,8 +63,26 @@ impl MsgpackExporter {
         Ok(Self {
             writer: Some(BufWriter::new(file)),
             batch: Vec::new(),
+            chunks: Vec::new(),
+            parallel: false,
+            serial_batches: 0,
         })
     }
+}
+
+fn encode_frame<T: Serialize>(
+    buffer: &mut Vec<u8>,
+    event: &T,
+) -> Result<(), rmp_serde::encode::Error> {
+    let start = buffer.len();
+    buffer.extend_from_slice(&[0; size_of::<u32>()]);
+    if let Err(error) = rmp_serde::encode::write(&mut *buffer, event) {
+        buffer.truncate(start);
+        return Err(error);
+    }
+    let len = (buffer.len() - start - size_of::<u32>()) as u32;
+    buffer[start..start + size_of::<u32>()].copy_from_slice(&len.to_be_bytes());
+    Ok(())
 }
 
 #[async_trait::async_trait]
@@ -62,33 +90,78 @@ impl<T> Exporter<T> for MsgpackExporter
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
+    fn batch_size_hint(&self) -> NonZeroUsize {
+        NonZeroUsize::new(if self.parallel { 1024 } else { 256 }).unwrap()
+    }
+
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
-        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
-        let payload = rmp_serde::to_vec(&event).map_err(ExporterError::other)?;
-        let len = (payload.len() as u32).to_be_bytes();
-        writer.write_all(&len).await?;
-        writer.write_all(&payload).await?;
+        let Self { writer, batch, .. } = self;
+        let writer = writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        batch.clear();
+        encode_frame(batch, &event).map_err(ExporterError::other)?;
+        writer.write_all(batch).await?;
         Ok(())
     }
 
     async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
-        let Self { writer, batch } = self;
+        let Self {
+            writer,
+            batch,
+            chunks,
+            parallel,
+            serial_batches,
+        } = self;
         let Some(writer) = writer.as_mut() else {
             events.clear();
             return Err(ExporterError::Shutdown);
         };
-        // Frame the whole batch into the reused buffer, then issue a single
-        // write. A record that fails to serialize is logged and skipped so one
-        // bad event does not drop the batch.
-        batch.clear();
-        for event in events.drain(..) {
-            match rmp_serde::to_vec(&event) {
-                Ok(payload) => {
-                    batch.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-                    batch.extend_from_slice(&payload);
+        let event_count = events.len();
+        if *parallel && event_count > 1 {
+            let mut worker_events = std::mem::take(events);
+            let mut worker_batch = std::mem::take(batch);
+            let mut worker_chunks = std::mem::take(chunks);
+            let (sender, receiver) = tokio::sync::oneshot::channel();
+            rayon::spawn_fifo(move || {
+                let workers = rayon::current_num_threads().min(event_count);
+                let chunk_len = event_count.div_ceil(workers);
+                let chunk_count = event_count.div_ceil(chunk_len);
+                worker_chunks.resize_with(chunk_count, Vec::new);
+                worker_events
+                    .par_chunks_mut(chunk_len)
+                    .zip(worker_chunks[..chunk_count].par_iter_mut())
+                    .for_each(|(events, buffer)| {
+                        buffer.clear();
+                        for event in events {
+                            if let Err(e) = encode_frame(buffer, event) {
+                                warn!("unable to serialize event: {e}");
+                            }
+                        }
+                    });
+                worker_batch.clear();
+                for chunk in &worker_chunks[..chunk_count] {
+                    worker_batch.extend_from_slice(chunk);
                 }
-                Err(e) => warn!("unable to serialize event: {e}"),
+                worker_events.clear();
+                let _ = sender.send((worker_events, worker_batch, worker_chunks));
+            });
+            let (worker_events, worker_batch, worker_chunks) =
+                receiver.await.map_err(ExporterError::other)?;
+            *events = worker_events;
+            *batch = worker_batch;
+            *chunks = worker_chunks;
+        } else {
+            let started = Instant::now();
+            batch.clear();
+            for event in events.drain(..) {
+                if let Err(e) = encode_frame(batch, &event) {
+                    warn!("unable to serialize event: {e}");
+                }
             }
+            *serial_batches = serial_batches.saturating_add(1);
+            let elapsed = started.elapsed();
+            // Ignore allocation warm-up and require enough work to amortize the handoff.
+            *parallel =
+                *serial_batches >= 2 && event_count >= 128 && elapsed >= Duration::from_micros(250);
         }
         writer.write_all(batch).await?;
         Ok(())

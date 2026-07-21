@@ -8,16 +8,14 @@ use std::time::Duration;
 use quent_events::Event;
 use serde::Serialize;
 use tokio::{
-    select,
     sync::mpsc::{self, Receiver, Sender},
     task::JoinHandle,
 };
 use tokio_stream::wrappers::ReceiverStream;
-use tokio_util::sync::CancellationToken;
 use tonic::{Request, Status, transport::Channel};
 
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
@@ -62,12 +60,9 @@ pub type CollectorResult<T> = std::result::Result<T, CollectorError>;
 #[derive(Debug)]
 pub struct Client<T> {
     _grpc_client: CollectorClient<Channel>,
-    event_sender: Sender<Event<T>>,
-    cancellation_token: CancellationToken,
-    // Taken via `Option::take` in `shutdown(&mut self)` so they can be joined
-    // once; a second call finds `None` and is a no-op.
-    events_sender_handle: Option<JoinHandle<()>>,
+    grpc_sender: Option<Sender<CollectEventRequest>>,
     events_collector_handle: Option<JoinHandle<()>>,
+    _event: std::marker::PhantomData<fn(T)>,
 }
 
 impl<T> Client<T>
@@ -100,102 +95,11 @@ where
         }
         let client = client?;
 
-        debug!("connected, preparing channels and spawning control thread ...");
-        // TODO(johanpel): consider unbounded
-        let (event_sender, mut event_receiver): (Sender<Event<T>>, Receiver<Event<T>>) =
-            mpsc::channel(1024);
+        debug!("connected, preparing channel and spawning control thread ...");
         let (grpc_sender, grpc_receiver): (
             Sender<CollectEventRequest>,
             Receiver<CollectEventRequest>,
         ) = mpsc::channel(1024);
-
-        let cancellation_token = CancellationToken::new();
-        let cloned_token = cancellation_token.clone();
-
-        // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
-        let events_sender_handle = tokio::spawn(async move {
-            // Batch of serialized events.
-            let mut buffer = Vec::new();
-            // Number of bytes currently in the buffer.
-            let mut num_buffer_bytes = 0usize;
-            // Interval by which to export even if the buffer isn't full.
-            let mut ticker = tokio::time::interval(Duration::from_millis(128));
-            // Max bytes in the buffer.
-            // gRPC max default is 4 MiB, reserve 256 KiB for overhead.
-            const MAX_BUFFER_BYTES: usize = (4 * 1024 * 1024) - (256 * 1024);
-
-            /// function to flush the buffer
-            async fn flush_buffer(
-                buffer: &mut Vec<Vec<u8>>,
-                num_buffer_bytes: &mut usize,
-                grpc_sender: &Sender<CollectEventRequest>,
-            ) -> Result<(), ()> {
-                if buffer.is_empty() {
-                    return Ok(());
-                }
-                let request = CollectEventRequest {
-                    event: std::mem::take(buffer),
-                };
-                *num_buffer_bytes = 0;
-                grpc_sender.send(request).await.map_err(|_| ())
-            }
-
-            loop {
-                select! {
-                    Some(event) = event_receiver.recv() => {
-                        let serialized_event = match bitcode::serialize(&event) {
-                            Ok(bytes) => bytes,
-                            Err(e) => {
-                                error!("unable to serialize event: {e}");
-                                continue;
-                            }
-                        };
-                        num_buffer_bytes += serialized_event.len();
-                        buffer.push(serialized_event);
-
-                        if num_buffer_bytes >= MAX_BUFFER_BYTES {
-                            if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
-                                error!("server disconnected");
-                                break;
-                            }
-                            ticker.reset();
-                        }
-                    },
-                    _ = ticker.tick() => {
-                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
-                            error!("server disconnected");
-                            break;
-                        }
-                    },
-                    () = cloned_token.cancelled() => {
-                        event_receiver.close();
-                        // drain events that are buffered
-                        while let Some(event) = event_receiver.recv().await {
-                            match bitcode::serialize(&event) {
-                                Ok(bytes) => buffer.push(bytes),
-                                Err(e) => error!("unable to serialize event: {e}"),
-                            }
-                        }
-
-                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
-                            error!("server disconnected during shutdown");
-                        }
-                        let pending = grpc_sender.max_capacity() - grpc_sender.capacity();
-                        info!(
-                            "client shutting down: {pending} gRPC messages pending, flushing..."
-                        );
-                        // Drop the sender so the gRPC stream receiver sees
-                        // the channel is closed and can complete the stream.
-                        drop(grpc_sender);
-                        break
-                    },
-                    else => {
-                        info!("client shutting down");
-                        break
-                    }
-                }
-            }
-        });
 
         debug!("opening stream ...");
 
@@ -231,18 +135,35 @@ where
 
         Ok(Client {
             _grpc_client: client,
-            event_sender,
-            cancellation_token,
-            events_sender_handle: Some(events_sender_handle),
+            grpc_sender: Some(grpc_sender),
             events_collector_handle: Some(events_collector_handle),
+            _event: std::marker::PhantomData,
         })
     }
 
     /// Send an event to the collector.
     pub async fn send(&self, event: Event<T>) -> CollectorResult<()> {
-        // Convert the event into a gRPC message and stream it to the collector.
-        self.event_sender
-            .send(event)
+        let event =
+            bitcode::serialize(&event).map_err(|e| CollectorError::SendError(e.to_string()))?;
+        self.send_request(CollectEventRequest { event: vec![event] })
+            .await
+    }
+
+    /// Send an ordered event batch to the collector.
+    pub async fn send_batch(&self, events: Vec<Event<T>>) -> CollectorResult<()> {
+        let event = events
+            .iter()
+            .map(bitcode::serialize)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| CollectorError::SendError(e.to_string()))?;
+        self.send_request(CollectEventRequest { event }).await
+    }
+
+    async fn send_request(&self, request: CollectEventRequest) -> CollectorResult<()> {
+        self.grpc_sender
+            .as_ref()
+            .ok_or_else(|| CollectorError::SendError("client has shut down".to_owned()))?
+            .send(request)
             .await
             .map_err(|e| CollectorError::SendError(e.to_string()))
     }
@@ -252,12 +173,12 @@ where
     /// than blocking in `Drop` (which would run on a runtime worker thread).
     /// Idempotent; subsequent calls are no-ops.
     pub async fn shutdown(&mut self) {
-        self.cancellation_token.cancel();
-        if let Some(handle) = self.events_sender_handle.take()
-            && let Err(e) = handle.await
-        {
-            warn!("grpc sender task failed: {e}");
-        }
+        let pending = self
+            .grpc_sender
+            .as_ref()
+            .map_or(0, |sender| sender.max_capacity() - sender.capacity());
+        info!("client shutting down: {pending} gRPC messages pending, flushing...");
+        drop(self.grpc_sender.take());
         if let Some(handle) = self.events_collector_handle.take()
             && let Err(e) = handle.await
         {
@@ -269,9 +190,6 @@ where
 
 impl<T> Drop for Client<T> {
     fn drop(&mut self) {
-        // The forwarder awaits `shutdown` before dropping the exporter, so the
-        // tasks are normally already joined. Cancel as a backstop; any handle
-        // still present is detached (no blocking — `Drop` may run on a worker).
-        self.cancellation_token.cancel();
+        drop(self.grpc_sender.take());
     }
 }

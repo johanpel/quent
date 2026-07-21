@@ -9,6 +9,7 @@ async-trait.workspace = true
 postcard.workspace = true
 quent-events = { path = "../../events", features = ["serde"]}
 quent-io-types = { path = "../types" }
+rayon.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["sync", "fs", "io-util"]}
 tracing.workspace = true

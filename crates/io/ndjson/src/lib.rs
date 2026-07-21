@@ -5,11 +5,14 @@
 use std::{
     io::{BufRead, BufReader},
     marker::PhantomData,
+    num::NonZeroUsize,
     path::PathBuf,
+    time::{Duration, Instant},
 };
 
 use quent_events::{EntityEvent, Event};
 use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -38,7 +41,10 @@ pub struct NdjsonExporter {
     /// `None` once [`shutdown`](Exporter::shutdown) has flushed and released it.
     writer: Option<BufWriter<File>>,
     /// Line buffer reused across [`drain_events`](Exporter::drain_events).
-    batch: String,
+    batch: Vec<u8>,
+    chunks: Vec<Vec<u8>>,
+    parallel: bool,
+    serial_batches: u8,
 }
 
 impl NdjsonExporter {
@@ -55,7 +61,10 @@ impl NdjsonExporter {
 
         Ok(Self {
             writer: Some(BufWriter::new(file)),
-            batch: String::new(),
+            batch: Vec::new(),
+            chunks: Vec::new(),
+            parallel: false,
+            serial_batches: 0,
         })
     }
 }
@@ -65,36 +74,89 @@ impl<T> Exporter<T> for NdjsonExporter
 where
     T: Serialize + Send + EntityEvent + 'static,
 {
+    fn batch_size_hint(&self) -> NonZeroUsize {
+        NonZeroUsize::new(if self.parallel { 1024 } else { 256 }).unwrap()
+    }
+
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
-        let writer = self.writer.as_mut().ok_or(ExporterError::Shutdown)?;
-        let line = format!(
-            "{}\n",
-            serde_json::to_string(&event).map_err(ExporterError::other)?
-        );
-        writer.write_all(line.as_bytes()).await?;
+        let Self { writer, batch, .. } = self;
+        let writer = writer.as_mut().ok_or(ExporterError::Shutdown)?;
+        batch.clear();
+        serde_json::to_writer(&mut *batch, &event).map_err(ExporterError::other)?;
+        batch.push(b'\n');
+        writer.write_all(batch).await?;
         Ok(())
     }
 
     async fn drain_events(&mut self, events: &mut Vec<Event<T>>) -> ExporterResult<()> {
-        let Self { writer, batch } = self;
+        let Self {
+            writer,
+            batch,
+            chunks,
+            parallel,
+            serial_batches,
+        } = self;
         let Some(writer) = writer.as_mut() else {
             events.clear();
             return Err(ExporterError::Shutdown);
         };
-        // Concatenate the whole batch into the reused buffer, then issue a
-        // single write. A record that fails to serialize is logged and skipped
-        // so one bad event does not drop the batch.
-        batch.clear();
-        for event in events.drain(..) {
-            match serde_json::to_string(&event) {
-                Ok(line) => {
-                    batch.push_str(&line);
-                    batch.push('\n');
+        let event_count = events.len();
+        if *parallel && event_count > 1 {
+            let mut worker_events = std::mem::take(events);
+            let mut worker_batch = std::mem::take(batch);
+            let mut worker_chunks = std::mem::take(chunks);
+            let (sender, receiver) = tokio::sync::oneshot::channel();
+            rayon::spawn_fifo(move || {
+                let workers = rayon::current_num_threads().min(event_count);
+                let chunk_len = event_count.div_ceil(workers);
+                let chunk_count = event_count.div_ceil(chunk_len);
+                worker_chunks.resize_with(chunk_count, Vec::new);
+                worker_events
+                    .par_chunks_mut(chunk_len)
+                    .zip(worker_chunks[..chunk_count].par_iter_mut())
+                    .for_each(|(events, buffer)| {
+                        buffer.clear();
+                        for event in events {
+                            let start = buffer.len();
+                            if let Err(e) = serde_json::to_writer(&mut *buffer, event) {
+                                buffer.truncate(start);
+                                warn!("unable to serialize event: {e}");
+                                continue;
+                            }
+                            buffer.push(b'\n');
+                        }
+                    });
+                worker_batch.clear();
+                for chunk in &worker_chunks[..chunk_count] {
+                    worker_batch.extend_from_slice(chunk);
                 }
-                Err(e) => warn!("unable to serialize event: {e}"),
+                worker_events.clear();
+                let _ = sender.send((worker_events, worker_batch, worker_chunks));
+            });
+            let (worker_events, worker_batch, worker_chunks) =
+                receiver.await.map_err(ExporterError::other)?;
+            *events = worker_events;
+            *batch = worker_batch;
+            *chunks = worker_chunks;
+        } else {
+            let started = Instant::now();
+            batch.clear();
+            for event in events.drain(..) {
+                let start = batch.len();
+                if let Err(e) = serde_json::to_writer(&mut *batch, &event) {
+                    batch.truncate(start);
+                    warn!("unable to serialize event: {e}");
+                    continue;
+                }
+                batch.push(b'\n');
             }
+            *serial_batches = serial_batches.saturating_add(1);
+            let elapsed = started.elapsed();
+            // Ignore allocation warm-up and require enough work to amortize the handoff.
+            *parallel =
+                *serial_batches >= 2 && event_count >= 128 && elapsed >= Duration::from_micros(250);
         }
-        writer.write_all(batch.as_bytes()).await?;
+        writer.write_all(batch).await?;
         Ok(())
     }
 

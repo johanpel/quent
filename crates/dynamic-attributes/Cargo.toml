@@ -11,5 +11,6 @@ ts = ["serde", "dep:ts-rs"]
 
 [dependencies]
 serde = { workspace = true, optional = true }
+smallvec.workspace = true
 thiserror.workspace = true
 ts-rs = {workspace = true, optional = true, features = ["uuid-impl", "serde-json-impl"] }

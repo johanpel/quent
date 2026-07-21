@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Plot quent-bench results as one figure.
+"""Plot quent-bench throughput and latency results.
 
-    BENCH_CSV=bench.csv cargo run -p quent-bench --release
-    uv run --with matplotlib bench/plot.py bench.csv        # -> plots/bench.png
+    BENCH_CSV=bench.csv pixi run cargo run -p quent-bench --release
+    pixi run uv run --with matplotlib bench/plot.py bench.csv
 
 For each (attributes, threads) cell there are two aligned panels sharing the same
 row order (ranked by achieved throughput): the LEFT panel is real throughput
 (confirmed flushed/delivered), the RIGHT is the offered API-call rate. Rates are
 operations/second (1 op = one log or one span).
+
+Latency output is written beside the throughput figure with `-latency` appended
+to the filename.
 """
 import csv
 import os
@@ -40,6 +43,10 @@ def fnum(s):
     return float(s) if s else 0.0
 
 
+def optional_num(s):
+    return float(s) if s else None
+
+
 def loss_frac(r):
     # Fraction of offered ops that never reached the sink. noop (no counted
     # sink, no delivery) counts as fully discarded.
@@ -58,6 +65,16 @@ def si(v):
     return f"{v:.0f}"
 
 
+def duration_ns(v):
+    if v >= 1e9:
+        return f"{v / 1e9:.2f}s"
+    if v >= 1e6:
+        return f"{v / 1e6:.2f}ms"
+    if v >= 1e3:
+        return f"{v / 1e3:.1f}us"
+    return f"{v:.0f}ns"
+
+
 def panel(ax, order, values, labels, colors, title, losses=None):
     ys = list(range(len(order)))
     bars = ax.barh(ys, values, height=0.92, color=colors)
@@ -72,6 +89,69 @@ def panel(ax, order, values, labels, colors, title, losses=None):
     ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: si(x)))
     ax.tick_params(axis="x", labelsize=7)
     ax.margins(x=0.20)  # headroom for the data labels
+
+
+def latency_panel(ax, order, values, colors, title, show_labels=True):
+    ys = list(range(len(order)))
+    points = [(y, max(value, 1.0), colors[y])
+              for y, value in enumerate(values) if value is not None]
+    if points:
+        point_y, point_x, point_colors = zip(*points)
+        ax.scatter(point_x, point_y, c=point_colors, s=18, zorder=3)
+        for y, value, _ in points:
+            ax.annotate(duration_ns(value), (value, y), xytext=(4, 0),
+                        textcoords="offset points", va="center", fontsize=6)
+    ax.set_xscale("log")
+    ax.set_yticks(ys)
+    ax.set_yticklabels(order if show_labels else [], fontsize=8)
+    ax.set_title(title, fontsize=9)
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: duration_ns(x)))
+    ax.tick_params(axis="x", labelsize=7)
+    ax.grid(axis="x", which="both", alpha=0.2)
+    ax.margins(x=0.25)
+
+
+def plot_latency(rows, attrs, threads, n_variants, out):
+    nrows, ncols = len(attrs), 2 * len(threads)
+    fig, axes = plt.subplots(
+        nrows, ncols,
+        figsize=(3.0 * ncols, 0.17 * n_variants * nrows + 1.2 * nrows),
+        squeeze=False, layout="constrained",
+    )
+    for i, a in enumerate(attrs):
+        for j, t in enumerate(threads):
+            cell = {
+                r["variant"]: (
+                    optional_num(r["call_p99_ns"]),
+                    None if not r["drain_ms"] else float(r["drain_ms"]) * 1e6,
+                )
+                for r in rows
+                if int(r["attrs"]) == a and int(r["threads"]) == t
+            }
+            order = sorted(cell, key=lambda v: cell[v][0] or 0.0)
+            colors = [FAMILY[family(v)] for v in order]
+            latency_panel(
+                axes[i][2 * j], order, [cell[v][0] for v in order], colors,
+                f"{a} attrs · {t} thr — caller p99",
+            )
+            latency_panel(
+                axes[i][2 * j + 1], order, [cell[v][1] for v in order], colors,
+                "pipeline drain", show_labels=False,
+            )
+
+    fig.legend(
+        handles=[plt.Rectangle((0, 0), 1, 1, color=c) for c in FAMILY.values()],
+        labels=["quent", "OpenTelemetry", "tracing"],
+        loc="outside lower center", ncol=3,
+    )
+    fig.suptitle(
+        "Latency under saturated caller load\n"
+        "caller p99 = sampled API operation    ·    "
+        "drain = emission end to drained/stalled sink    ·    noop drain omitted",
+        fontsize=9,
+    )
+    fig.savefig(out, dpi=130)
+    print("wrote", out)
 
 
 def main():
@@ -127,6 +207,11 @@ def main():
     )
     fig.savefig(out, dpi=130)
     print("wrote", out)
+
+    if "call_p99_ns" in rows[0]:
+        stem, extension = os.path.splitext(out)
+        latency_out = f"{stem}-latency{extension or '.png'}"
+        plot_latency(rows, attrs, threads, n_variants, latency_out)
 
 
 if __name__ == "__main__":

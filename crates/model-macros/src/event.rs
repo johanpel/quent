@@ -95,7 +95,7 @@ pub fn expand_derive(input: DeriveInput) -> syn::Result<TokenStream> {
             let value_expr = crate::util::attribute_value_expr(&quote! { self.#fname }, &field.ty);
             quote! {
                 quent_model::attributes::DynamicAttribute {
-                    key: #field_name.to_string(),
+                    key: #field_name.into(),
                     value: #value_expr,
                 }
             }
