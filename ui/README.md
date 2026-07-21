@@ -22,35 +22,31 @@ A front end for query profiling instrumentation
 
 ### Prerequisites
 
+- **Rust** stable, version 1.93 or newer
+- **protoc** (Protocol Buffers compiler)
 - **Node.js 24.11.0** (enforced via `.nvmrc`, `.node-version`, and Volta)
   - Using nvm: `nvm use` or `nvm install`
   - Using volta: Automatically switches to correct version
   - Using asdf/nodenv: Uses `.node-version` file
 - **pnpm 11.6.0** (pinned via `packageManager` and Volta; `>=11.6.0` required)
   - Install with `npm install -g pnpm@11.6.0` or see
-  [pnpm installation](https://pnpm.io/installation)
+    [pnpm installation](https://pnpm.io/installation)
+
+Alternatively, run `pixi shell` from the repository root to provide the full
+toolchain.
 
 ### Installation
 
 1. Clone the repository (or navigate to the project directory)
 
-2. Generate the TypeScript bindings from the repository root:
-
-```bash
-cargo build -p quent-simulator-server
-```
-
-Run this command again after changing Rust types exposed to the UI.
-The `dev`, `start`, `typecheck`, and `build` scripts also run it automatically.
-
-3. Install the UI dependencies:
+2. Install the UI dependencies:
 
 ```bash
 cd ui
 pnpm install
 ```
 
-4. (Optional) Configure environment variables:
+3. (Optional) Configure environment variables:
 
 Create a `.env` file in the root directory and add your API endpoint:
 
@@ -65,6 +61,9 @@ Start the development server:
 ```bash
 pnpm dev
 ```
+
+This generates the TypeScript bindings before starting Vite. Run
+`pnpm bindings` after changing Rust types while the dev server remains open.
 
 The app will be available at `http://localhost:5173`
 

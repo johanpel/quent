@@ -101,7 +101,7 @@ jobs:
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
-      - run: pixi run pnpm --dir ui typecheck:app
+      - run: pixi run pnpm --dir ui ci:typecheck
 
   test:
     name: Test
@@ -237,7 +237,7 @@ jobs:
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
-      - run: pixi run pnpm --dir ui build:all
+      - run: pixi run pnpm --dir ui ci:build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ui-dist

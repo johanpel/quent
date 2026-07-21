@@ -124,15 +124,14 @@ by sending simulated query engine events to the collector.
 Then start the Vite dev server:
 
 ```bash
-cargo build -p quent-simulator-server
 cd ui
 pnpm install
 pnpm dev
 ```
 
-The Cargo build generates the TypeScript bindings consumed by the UI. Run it
-again after changing Rust types exposed to the UI. The `pnpm dev`, `start`,
-`typecheck`, and `build` scripts also regenerate them automatically.
+`pnpm dev` generates the TypeScript bindings consumed by the UI before starting
+Vite. Run `pnpm bindings` after changing Rust types while the dev server remains
+open. The `start`, `typecheck`, and `build` scripts also ensure bindings exist.
 
 The dev server starts on <http://localhost:5173> by default.
 

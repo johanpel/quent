@@ -12,7 +12,10 @@
     "**/*.css"
   ],
   "scripts": {
+    "prebuild": "pnpm --workspace-root bindings",
     "build": "tsdown",
+    "build:ci": "tsdown",
+    "pretypecheck": "pnpm --workspace-root bindings",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
