@@ -19,7 +19,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [build-dependencies]
-ts-rs = {workspace = true, features = ["uuid-impl", "serde-json-impl"] }
+ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }
 quent-ui = { path = "../../../crates/ui" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-ui = { path = "../ui" }

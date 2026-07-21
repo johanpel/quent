@@ -3,12 +3,13 @@
 /**
  * A time window, resolved against an epoch supplied at conversion.
  */
-export type TimeWindow = { 
-/**
- * The start time of the window in seconds.
- */
-start: number, 
-/**
- * The end time of the window in seconds.
- */
-end: number, };
+export type TimeWindow = {
+  /**
+   * The start time of the window in seconds.
+   */
+  start: number;
+  /**
+   * The end time of the window in seconds.
+   */
+  end: number;
+};

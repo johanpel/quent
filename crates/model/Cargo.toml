@@ -10,7 +10,7 @@ serde = [
     "dep:serde",
     "quent-model-macros/serde",
     "quent-events/serde",
-    "quent-attributes/serde",
+    "quent-dynamic-attributes/serde",
     "uuid/serde",
 ]
 collector = ["dep:quent-collector-client"]
@@ -19,7 +19,7 @@ collector = ["dep:quent-collector-client"]
 quent-collector-client = { path = "../collector/client", optional = true }
 uuid = { workspace = true, features = ["v7"] }
 serde = { workspace = true, optional = true }
-quent-attributes = { path = "../attributes" }
+quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }

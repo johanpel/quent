@@ -14,7 +14,7 @@ mod observer;
 mod sidecar;
 
 pub use context::Context;
-pub use entity_ref::EntityRef;
+pub use entity_ref::{AnyEntity, EntityRef};
 pub use handle::{Handle, HandleError};
 pub use observer::{EventSender, Observer};
 pub use sidecar::write_sidecar;
@@ -22,8 +22,8 @@ pub use sidecar::write_sidecar;
 // Re-export everything the generated instrumentation code references, so a
 // consumer needs only the `quent-instrumentation` dependency, selecting an
 // exporter backend through its `io-*` features.
-pub use quent_attributes::CustomAttributes;
 pub use quent_build_info as build_info;
+pub use quent_dynamic_attributes::DynamicAttributes;
 pub use quent_events::{EntityEvent, Event};
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;

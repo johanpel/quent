@@ -86,7 +86,7 @@ impl Visitor for RefTargetConstraint {
 }
 
 impl Constraint for RefTargetConstraint {
-    const NAME: &'static str = "quent.ref-target.v1";
+    const NAME: &'static str = "quent.ref-target.v0.1.0";
 }
 
 #[derive(Debug, Error)]

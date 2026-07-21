@@ -3,4 +3,6 @@
 /**
  * Restricts returned entities to appear in a certain scope.
  */
-export type EntityScope = { "Resource": { resource_id: string, } } | { "ResourceGroup": { resource_group_id: string, resource_type_name: string, } };
+export type EntityScope = { "Resource": { resource_id: string } } | {
+  "ResourceGroup": { resource_group_id: string; resource_type_name: string };
+};

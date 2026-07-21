@@ -4,11 +4,11 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { TooltipContent, type ActiveMark } from './TimelineTooltip';
-import type { Value } from '@quent/utils';
+import type { DynamicValue } from '@quent/utils';
 
-// The Rust `Value` enum serializes externally tagged — this is the shape the
+// The Rust `DynamicValue` enum serializes externally tagged. This is the shape the
 // server actually sends, even though the generated TS type is untagged.
-const tagged = (v: object) => v as unknown as Value;
+const tagged = (v: object) => v as unknown as DynamicValue;
 
 describe('TooltipContent active marks', () => {
   const series = [{ color: '#8884d8', name: 'computing', value: 1 }];

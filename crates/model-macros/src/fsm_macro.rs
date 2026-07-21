@@ -439,7 +439,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
 
-            fn attributes(&self) -> Vec<quent_model::attributes::Attribute> {
+            fn attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
                 match self {
                     #(#attributes_arms,)*
                     #transition_enum::Exit => vec![],
