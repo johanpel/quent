@@ -72,19 +72,19 @@ impl ResourceBuilder {
 
     /// Build the definition and the usage and bounds record types.
     ///
+    /// With no capacities the result is a unit resource: an empty usage record
+    /// and no bounds.
+    ///
     /// # Errors
     ///
-    /// Errors if no capacity was added, a name is repeated, or generating the
-    /// records or constraint data fails.
+    /// Errors if a name is repeated, or generating the records or constraint
+    /// data fails.
     pub fn build(self) -> Result<ResourceParts, BuildError> {
         let ResourceBuilder {
             name,
             capacities,
             mut errors,
         } = self;
-        if capacities.is_empty() {
-            errors.push(BuildError::NoCapacities);
-        }
         match errors.len() {
             0 => {}
             1 => return Err(errors.pop().unwrap()),
@@ -152,8 +152,6 @@ fn suffixed_identifier(resource: &Identifier, suffix: &str) -> Result<Identifier
 
 #[derive(Debug, Error)]
 pub enum BuildError {
-    #[error("resource must declare at least one capacity")]
-    NoCapacities,
     #[error("duplicate capacity \"{0}\"")]
     DuplicateCapacity(Identifier),
     #[error("multiple resource builder errors: {0:?}")]
@@ -197,13 +195,19 @@ mod tests {
         Ok(())
     }
 
+    /// A resource with no capacities is a unit resource: a fieldless usage
+    /// record and no bounds.
     #[test]
-    fn rejects_empty_resource() {
-        let result = ResourceBuilder::new(Identifier::try_new("Memory").unwrap()).build();
-        assert!(matches!(result, Err(BuildError::NoCapacities)));
+    fn builds_unit_resource() -> Result<(), BuildError> {
+        let parts = ResourceBuilder::new(Identifier::try_new("Thread")?).build()?;
+        assert!(parts.definition.capacities().unwrap().next().is_none());
+        assert_eq!(parts.usage.name(), &Identifier::try_new("ThreadUsage")?);
+        assert_eq!(parts.usage.fields().count(), 0);
+        assert!(parts.bounds.is_none());
+        Ok(())
     }
 
-    /// Requirement 2: capacity identifiers are unique within a resource.
+    /// Requirement 1: capacity identifiers are unique within a resource.
     #[test]
     fn rejects_duplicate_capacities() {
         let bytes = Identifier::try_new("bytes").unwrap();
