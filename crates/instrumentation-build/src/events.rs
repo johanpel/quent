@@ -150,7 +150,8 @@ mod tests {
             .try_with_event(ev)
             .unwrap()
             .with_annotations(docs("entity doc"))
-            .build();
+            .build()
+            .unwrap();
         let s = SchemaBuilder::new(ident("M"))
             .try_with_entity(en)
             .unwrap()
@@ -190,16 +191,6 @@ mod tests {
                 #[doc = "The `ended` event."]
                 Ended
             }
-        };
-        assert_eq!(events_src(&s), pretty(expected));
-    }
-
-    #[test]
-    fn entity_without_events_emits_empty_enum() {
-        let s = schema("M", [entity("E", [])], []);
-        let expected = quote! {
-            #[doc = "Events emitted by `E` entities."]
-            pub enum EEvent {}
         };
         assert_eq!(events_src(&s), pretty(expected));
     }

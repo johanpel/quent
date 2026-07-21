@@ -36,6 +36,10 @@ pub fn entity(name: &str, events: impl IntoIterator<Item = Event>) -> Entity {
         .try_with_events(events)
         .unwrap()
         .build()
+        .unwrap()
+}
+pub fn eventless_entity(name: &str) -> Entity {
+    Entity::from_parts(ident(name), Default::default(), Annotations::default())
 }
 pub fn record(name: &str, fields: impl IntoIterator<Item = Field>) -> Record {
     RecordBuilder::new(ident(name))

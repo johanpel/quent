@@ -127,7 +127,8 @@ mod tests {
                     .build(),
             )
             .unwrap()
-            .build();
+            .build()
+            .unwrap();
         let s = SchemaBuilder::new(ident("Demo"))
             .try_with_entity(connection)
             .unwrap()

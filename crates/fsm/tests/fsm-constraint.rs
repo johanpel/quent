@@ -52,6 +52,7 @@ fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
         .unwrap()
         .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
+        .unwrap()
 }
 
 fn schema_with(entity: Entity) -> Schema {
@@ -98,7 +99,8 @@ fn missing_data_is_rejected() {
         .try_with_event(event("a", Cardinality::Once))
         .unwrap()
         .with_annotations(fsm_annotations(None))
-        .build();
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
@@ -113,7 +115,8 @@ fn invalid_json_is_rejected() {
         .try_with_event(event("a", Cardinality::Once))
         .unwrap()
         .with_annotations(fsm_annotations(Some("{ trash".to_string())))
-        .build();
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
