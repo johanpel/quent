@@ -31,17 +31,22 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 ///
 /// ## Requirements
 ///
-/// 1. A resource is an entity with at least one [`Capacity`].
-/// 2. [`Capacity`] identifiers are unique within a resource.
-/// 3. If and only if any of the resource's capacities have a bound, the
+/// 1. [`Capacity`] identifiers are unique within a resource.
+/// 2. If and only if any of the resource's capacities have a bound, the
 ///    resource entity has at least one event (the "bounds event") which
 ///    declares the bounds of all capacities that are bounded.
-/// 4. An entity can use some quantity of a resource's capacities if and
+/// 3. An entity can use some quantity of a resource's capacities if and
 ///    only if it is an FSM.
-/// 5. The resource named by a usage or bounds is a declared resource.
-/// 6. A usage claims only capacities declared by its resource.
-/// 7. A usage record is used only as the data carried by an entity reference.
-/// 8. A bounds record is used only by events of the resource it names.
+/// 4. The resource named by a usage or bounds is a declared resource.
+/// 5. A usage claims only capacities declared by its resource.
+/// 6. A usage record is used only as the data carried by an entity reference.
+/// 7. A bounds record is used only by events of the resource it names.
+///
+/// ## Unit resources
+///
+/// A resource without capacities is a unit resource. It has an implicit,
+/// dimensionless capacity with a fixed bound of one, which each usage claims in
+/// full.
 #[derive(Default)]
 pub struct ResourceConstraint {
     errors: Vec<ResourceError>,
@@ -87,7 +92,7 @@ pub enum CapacityKind {
     Rate,
 }
 
-// Map keys enforce capacity-name uniqueness (requirement 2).
+// Map keys enforce capacity-name uniqueness (requirement 1).
 type Capacities = indexmap::IndexMap<Identifier, Capacity>;
 
 /// Payload of the `quent.resource.v0.1.0` constraint.
@@ -152,7 +157,6 @@ impl Visitor for ResourceConstraint {
             Element::Entity(entity) => {
                 match self.decode_resource_annotation(cursor, entity.annotations()) {
                     Some(Resource::Definition(capacities)) => {
-                        self.validate_definition(entity.name(), &capacities);
                         self.resources.insert(
                             entity.name().clone(),
                             capacities
@@ -248,7 +252,7 @@ impl Visitor for ResourceConstraint {
             record_refs,
         } = self;
 
-        // Requirements 5 and 6: a usage names a declared resource and claims
+        // Requirements 4 and 5: a usage names a declared resource and claims
         // only that resource's capacities.
         for UsageRecord {
             resource,
@@ -274,7 +278,7 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirements 4, 7 and 8: validate references after record roles are
+        // Requirements 3, 6 and 7: validate references after record roles are
         // known.
         let mut non_fsm_seen = FxHashSet::default();
         let mut resources_with_bounds_event = FxHashSet::default();
@@ -286,14 +290,14 @@ impl Visitor for ResourceConstraint {
         } in &record_refs
         {
             if let Some(usage) = usage_records.get(record) {
-                // Requirement 7: a usage is carried by an entity reference.
+                // Requirement 6: a usage is carried by an entity reference.
                 if !on_entity_ref {
                     errors.push(ResourceError::UsageNotOnReference {
                         location: location.clone(),
                     });
                     continue;
                 }
-                // Requirement 4: only an FSM entity may use a resource.
+                // Requirement 3: only an FSM entity may use a resource.
                 match entity {
                     Some((entity, is_fsm)) => {
                         if !is_fsm && non_fsm_seen.insert((entity.clone(), usage.resource.clone()))
@@ -311,7 +315,7 @@ impl Visitor for ResourceConstraint {
                     }),
                 }
             } else if let Some(bounds) = bounds_records.get(record) {
-                // Requirement 8: a bounds record belongs to its resource, so the
+                // Requirement 7: a bounds record belongs to its resource, so the
                 // entity referencing it must be that resource.
                 let on_resource = matches!(entity, Some((entity, _)) if entity == &bounds.resource);
                 if !on_resource {
@@ -325,7 +329,7 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirement 3: a bounds record covers exactly its resource's bounded
+        // Requirement 2: a bounds record covers exactly its resource's bounded
         // capacities.
         for BoundsRecord {
             resource,
@@ -367,7 +371,7 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirement 3: a resource with a bounded capacity has a bounds event.
+        // Requirement 2: a resource with a bounded capacity has a bounds event.
         for (resource, capacities) in &resources {
             if capacities.values().any(|bounded| *bounded)
                 && !resources_with_bounds_event.contains(resource)
@@ -405,15 +409,6 @@ impl ResourceConstraint {
                 None
             }
             Some(Ok(resource)) => Some(resource),
-        }
-    }
-
-    /// Validate requirements local to a resource definition.
-    fn validate_definition(&mut self, resource: &Identifier, capacities: &Capacities) {
-        if capacities.is_empty() {
-            self.errors.push(ResourceError::NoCapacities {
-                resource: resource.clone(),
-            });
         }
     }
 }
@@ -469,8 +464,6 @@ pub enum ResourceError {
         role: &'static str,
         element: &'static str,
     },
-    #[error("resource \"{resource}\" declares no capacities")]
-    NoCapacities { resource: Identifier },
     #[error("{location}: names undeclared resource \"{resource}\"")]
     UnknownResource {
         location: String,

@@ -3,3 +3,11 @@
 
 # UI
 /ui/ @johallar @cmatzenbach
+
+# UI dependencies
+/ui/**/package.json @johallar @cmatzenbach @johanpel @mbrobbel
+/ui/**/pnpm-lock.yaml @johallar @cmatzenbach @johanpel @mbrobbel
+/ui/**/pnpm-workspace.yaml @johallar @cmatzenbach @johanpel @mbrobbel
+
+# GitHub configuration
+/.github/ @johanpel @dhruv9vats @mbrobbel @johallar @cmatzenbach

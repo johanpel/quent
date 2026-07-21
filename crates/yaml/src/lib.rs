@@ -69,6 +69,13 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
 
     let report = validate::<(RefTargetConstraint, RefTreeConstraint, FsmConstraint)>(&schema);
     if let Err(e) = report.base_constraints {
+        for entity in e.entities_without_events {
+            sink.error(
+                &format!("entities.{entity}"),
+                format!("entity `{entity}` declares no events"),
+                Some("entities must declare at least one event".to_string()),
+            );
+        }
         for record in e.recursive_records {
             sink.error(
                 &format!("records.{record}"),

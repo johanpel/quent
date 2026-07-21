@@ -161,7 +161,7 @@ impl FsmEntityBuilder {
         }
 
         annotations.set_constraint(FsmConstraint::NAME, Some(fsm.constraint_data()?));
-        let entity = entity.with_annotations(annotations.build()).build();
+        let entity = entity.with_annotations(annotations.build()).build()?;
 
         // Validate the full topology now, the same checks the constraint runs
         // during schema validation, so a built entity is always valid.

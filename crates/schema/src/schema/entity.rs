@@ -45,7 +45,7 @@ impl Entity {
     }
 
     /// The declared events, in declaration order.
-    pub fn events(&self) -> impl Iterator<Item = &Event> + '_ {
+    pub fn events(&self) -> impl ExactSizeIterator<Item = &Event> + '_ {
         self.events.values()
     }
 }

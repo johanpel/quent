@@ -68,15 +68,11 @@ fn bounds_record(name: &str, resource: &str, fields: &[&str]) -> Record {
 fn resource_entity(name: &str, capacities: &[(&str, &str, bool)], bounds: Option<&str>) -> Entity {
     let mut builder = EntityBuilder::new(ident(name))
         .with_annotations(resource_annotations(definition_data(capacities)));
-    if let Some(bounds) = bounds {
-        builder = builder
-            .try_with_event(event(
-                "operating",
-                [field("bounds", DataType::Record(ident(bounds)))],
-            ))
-            .unwrap();
-    }
-    builder.build()
+    let fields = bounds
+        .map(|bounds| field("bounds", DataType::Record(ident(bounds))))
+        .into_iter();
+    builder = builder.try_with_event(event("operating", fields)).unwrap();
+    builder.build().unwrap()
 }
 
 /// Create an entity with one event referencing `record`.
@@ -99,7 +95,7 @@ fn user_entity(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
     if fsm {
         builder = builder.with_annotations(fsm_annotations());
     }
-    builder.build()
+    builder.build().unwrap()
 }
 
 fn resource_errors(schema: &Schema) -> Vec<ResourceError> {
@@ -127,22 +123,17 @@ fn valid_resource_passes() {
     assert!(resource_errors(&schema("App", vec![memory, worker], vec![bounds, usage])).is_empty());
 }
 
-/// Requirement 1: a resource has at least one capacity.
+/// A resource with no capacities is accepted as a unit resource.
 #[test]
-fn resource_without_capacity_is_rejected() {
-    let memory = resource_entity("Memory", &[], None);
-    let errors = resource_errors(&schema("App", vec![memory], vec![]));
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ResourceError::NoCapacities { .. }))
-    );
+fn unit_resource_is_accepted() {
+    let thread = resource_entity("Thread", &[], None);
+    assert!(resource_errors(&schema("App", vec![thread], vec![])).is_empty());
 }
 
-// Requirement 2 is enforced by definition map keys. Repeated builder inputs
+// Requirement 1 is enforced by definition map keys. Repeated builder inputs
 // are covered by `builder::tests::rejects_duplicate_capacities`.
 
-/// Requirement 3: bounds exist exactly for bounded resources and cover all
+/// Requirement 2: bounds exist exactly for bounded resources and cover all
 /// bounded capacities.
 #[test]
 fn bounds_match_resource_boundedness() {
@@ -186,7 +177,7 @@ fn bounds_match_resource_boundedness() {
     ));
 }
 
-/// Requirements 4–7 govern resource usage.
+/// Requirements 3–6 govern resource usage.
 ///
 /// Resource users must be FSM entities. Usage and bounds records must name
 /// declared resources, claims must name declared capacities, and usage records
@@ -207,14 +198,14 @@ fn invalid_usages_are_rejected() {
         [usage, bad_claim, off_ref, unknown_usage, unknown_bounds],
     ));
 
-    // Requirement 4: only an FSM entity may use a resource.
+    // Requirement 3: only an FSM entity may use a resource.
     assert!(
         errors
             .iter()
             .any(|e| matches!(e, ResourceError::NonFsmUser { entity, .. } if entity == "Worker"))
     );
 
-    // Requirement 5: usage and bounds records name declared resources.
+    // Requirement 4: usage and bounds records name declared resources.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Ghost")
     ));
@@ -222,12 +213,12 @@ fn invalid_usages_are_rejected() {
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Phantom")
     ));
 
-    // Requirement 6: a usage claims only its resource's capacities.
+    // Requirement 5: a usage claims only its resource's capacities.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UndeclaredCapacity { capacity, .. } if capacity == "watts")
     ));
 
-    // Requirement 7: a usage record rides on an entity reference.
+    // Requirement 6: a usage record rides on an entity reference.
     assert!(
         errors
             .iter()
@@ -235,7 +226,7 @@ fn invalid_usages_are_rejected() {
     );
 }
 
-/// Requirement 8: a bounds record appears only on its own resource's events.
+/// Requirement 7: a bounds record appears only on its own resource's events.
 #[test]
 fn bounds_record_used_by_a_foreign_entity_is_rejected() {
     let memory = resource_entity(
@@ -271,8 +262,11 @@ fn misplaced_resources_are_rejected() {
     let definition_on_record = schema("App", [], [bad_record]);
 
     let bad_entity = EntityBuilder::new(ident("Worker"))
+        .try_with_event(event("using", []))
+        .unwrap()
         .with_annotations(resource_annotations(usage_data("Memory")))
-        .build();
+        .build()
+        .unwrap();
     let usage_on_entity = schema("App", [bad_entity], []);
 
     let usage_on_schema = SchemaBuilder::new(ident("App"))

@@ -9,28 +9,29 @@ import type { MeasureDecl } from "./MeasureDecl";
  * Dimension keys are expected to be a small enumerable set; unbounded key
  * cardinality is a downstream misuse.
  */
-export type CategoricalDecl = { 
-/**
- * The FSM type whose states are broken down. References an entry in the
- * application's FSM type declarations (e.g. `QueryBundle` fsm_types) for
- * the state graph, names, and ordering.
- */
-entity_type_name: string, 
-/**
- * Display name of the dimension, e.g. an application may use a dimension
- * describing where an entity's data resides.
- */
-dimension_name: string, 
-/**
- * The dimension keys in stable stacking/legend order.
- */
-dimension_keys: Array<DimensionKeyDecl>, 
-/**
- * The measures present in this response.
- */
-measures: Array<MeasureDecl>, 
-/**
- * The measure the UI should select by default; must name an entry in
- * `measures`. `None` means the first declared measure.
- */
-default_measure: string | null, };
+export type CategoricalDecl = {
+  /**
+   * The FSM type whose states are broken down. References an entry in the
+   * application's FSM type declarations (e.g. `QueryBundle` fsm_types) for
+   * the state graph, names, and ordering.
+   */
+  entity_type_name: string;
+  /**
+   * Display name of the dimension, e.g. an application may use a dimension
+   * describing where an entity's data resides.
+   */
+  dimension_name: string;
+  /**
+   * The dimension keys in stable stacking/legend order.
+   */
+  dimension_keys: Array<DimensionKeyDecl>;
+  /**
+   * The measures present in this response.
+   */
+  measures: Array<MeasureDecl>;
+  /**
+   * The measure the UI should select by default; must name an entry in
+   * `measures`. `None` means the first declared measure.
+   */
+  default_measure: string | null;
+};

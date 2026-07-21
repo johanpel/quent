@@ -46,7 +46,7 @@ fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, Generat
         })
         .collect();
     if fields.is_empty() {
-        Ok(quote! { #docs #derives pub struct #ident {} })
+        Ok(quote! { #docs #derives pub struct #ident; })
     } else {
         Ok(quote! {
             #docs
@@ -93,7 +93,7 @@ mod tests {
                 pub list: Vec<String>
             }
             #[doc = "The `Empty` record."]
-            pub struct Empty {}
+            pub struct Empty;
         };
         assert_eq!(
             pretty(generate_record_types(&s, &Options::default()).unwrap()),

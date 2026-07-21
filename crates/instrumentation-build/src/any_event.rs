@@ -73,6 +73,7 @@ mod tests {
             .try_with_event(EventBuilder::new(ident(event), Cardinality::Once).build())
             .unwrap()
             .build()
+            .unwrap()
     }
 
     #[test]

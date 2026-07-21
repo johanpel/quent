@@ -4,16 +4,17 @@ import type { TimelineConfig } from "./TimelineConfig";
 /**
  * Request for a categorical timeline.
  */
-export type CategoricalTimelineRequest<GlobalParams> = { 
-/**
- * Names of the measures to compute. Empty means all declared measures.
- */
-measures: Array<string>, 
-/**
- * The configuration of the window and number of bins.
- */
-config: TimelineConfig, 
-/**
- * Global application-specific parameters, e.g. filters.
- */
-app_params: GlobalParams, };
+export type CategoricalTimelineRequest<GlobalParams> = {
+  /**
+   * Names of the measures to compute. Empty means all declared measures.
+   */
+  measures: Array<string>;
+  /**
+   * The configuration of the window and number of bins.
+   */
+  config: TimelineConfig;
+  /**
+   * Global application-specific parameters, e.g. filters.
+   */
+  app_params: GlobalParams;
+};

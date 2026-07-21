@@ -19,7 +19,7 @@ use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_schema::builder::{
-    AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
+    AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
 use quent_schema::{Annotations, DataType, Entity, Field, Identifier, Record, Schema};
 use serde::Deserialize;
@@ -123,13 +123,26 @@ fn entity_of(name: &str, entity: &ast::Entity, sink: &mut Diagnostics) -> Option
         .iter()
         .filter_map(|(event_name, event)| event_of(event_name, event, &path, sink))
         .collect();
-    Some(
-        EntityBuilder::new(id?)
-            .try_with_events(events)
-            .expect("event names are unique")
-            .with_annotations(anns)
-            .build(),
-    )
+    match EntityBuilder::new(id?)
+        .try_with_events(events)
+        .expect("event names are unique")
+        .with_annotations(anns)
+        .build()
+    {
+        Ok(entity) => Some(entity),
+        Err(BuilderError::NoEvents) => {
+            sink.error(
+                &path,
+                format!("entity `{name}` declares no events"),
+                Some("entities must declare at least one event".to_string()),
+            );
+            None
+        }
+        Err(error) => {
+            sink.error(&path, error.to_string(), None);
+            None
+        }
+    }
 }
 
 /// Lower an FSM entity from its `fsms:` declaration: its states become the

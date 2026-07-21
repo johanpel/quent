@@ -31,6 +31,9 @@ pub enum BuilderError {
     /// A name was empty.
     #[error("name must not be empty")]
     EmptyName,
+    /// No events were added to an entity.
+    #[error("entity must declare at least one event")]
+    NoEvents,
 }
 
 pub(crate) fn insert_unique<K, V>(map: &mut Map<K, V>, key: K, value: V) -> Result<(), BuilderError>

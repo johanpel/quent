@@ -133,6 +133,18 @@ records:
 }
 
 #[test]
+fn entity_without_events() {
+    expect_error(
+        "\
+entities:
+  E:
+    events: {}
+",
+        &["entity `E` declares no events"],
+    );
+}
+
+#[test]
 fn invalid_sibling_names_do_not_panic() {
     // Two records with invalid names must both surface as diagnostics rather
     // than reaching the builder as a shared placeholder and panicking.

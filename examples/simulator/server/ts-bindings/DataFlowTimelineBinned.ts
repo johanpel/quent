@@ -9,19 +9,20 @@ import type { CategoricalSeries } from "./CategoricalSeries";
  * `AnalyzerError::Unsupported` instead (HTTP 501), which the UI treats as
  * "hide the view".
  */
-export type DataFlowTimelineBinned = { 
-/**
- * The configuration of the binned timeline.
- *
- * This may slightly differ from the requested configuration to ensure
- * bounds are not exceeded and bin sizes are equal.
- */
-config: BinnedSpanSec, 
-/**
- * Presentation metadata declared by the analyzer.
- */
-decl: CategoricalDecl, 
-/**
- * Categorical series keyed by operator id.
- */
-operators: { [key in string]: CategoricalSeries }, };
+export type DataFlowTimelineBinned = {
+  /**
+   * The configuration of the binned timeline.
+   *
+   * This may slightly differ from the requested configuration to ensure
+   * bounds are not exceeded and bin sizes are equal.
+   */
+  config: BinnedSpanSec;
+  /**
+   * Presentation metadata declared by the analyzer.
+   */
+  decl: CategoricalDecl;
+  /**
+   * Categorical series keyed by operator id.
+   */
+  operators: { [key in string]: CategoricalSeries };
+};

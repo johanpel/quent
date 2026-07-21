@@ -102,7 +102,29 @@ impl EntityBuilder {
     }
 
     /// Finish building the entity.
-    pub fn build(self) -> Entity {
-        Entity::from_parts(self.name, self.events, self.annotations.build())
+    ///
+    /// # Errors
+    ///
+    /// Errors if the entity declares no events.
+    pub fn build(self) -> Result<Entity, BuilderError> {
+        if self.events.is_empty() {
+            return Err(BuilderError::NoEvents);
+        }
+        Ok(Entity::from_parts(
+            self.name,
+            self.events,
+            self.annotations.build(),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_entity_without_events() {
+        let error = EntityBuilder::try_new("E").unwrap().build().unwrap_err();
+        assert_eq!(error, BuilderError::NoEvents);
     }
 }

@@ -34,7 +34,7 @@ fn validate(schema: &Schema) -> Vec<RefTargetError> {
 
 #[test]
 fn ref_to_existing_entity_passes() {
-    let worker = entity("Worker", vec![]);
+    let worker = entity("Worker", vec![event("created", vec![])]);
     let task = entity(
         "Task",
         vec![event(
