@@ -26,21 +26,31 @@ A front end for query profiling instrumentation
   - Using nvm: `nvm use` or `nvm install`
   - Using volta: Automatically switches to correct version
   - Using asdf/nodenv: Uses `.node-version` file
-- **pnpm 11.5.3** (pinned via `packageManager` and Volta; `>=11.5.3` required)
-  - Install with `npm install -g pnpm@11.5.3` or see
+- **pnpm 11.6.0** (pinned via `packageManager` and Volta; `>=11.6.0` required)
+  - Install with `npm install -g pnpm@11.6.0` or see
   [pnpm installation](https://pnpm.io/installation)
 
 ### Installation
 
 1. Clone the repository (or navigate to the project directory)
 
-2. Install dependencies:
+2. Generate the TypeScript bindings from the repository root:
 
 ```bash
+cargo build -p quent-simulator-server
+```
+
+Run this command again after changing Rust types exposed to the UI.
+The `dev`, `start`, `typecheck`, and `build` scripts also run it automatically.
+
+3. Install the UI dependencies:
+
+```bash
+cd ui
 pnpm install
 ```
 
-1. (Optional) Configure environment variables:
+4. (Optional) Configure environment variables:
 
 Create a `.env` file in the root directory and add your API endpoint:
 
@@ -158,7 +168,8 @@ pnpm dlx shadcn@latest add dropdown-menu
 
 - `pnpm dev` - Start development server
 - `pnpm start` - Start development server
-- `pnpm build` - Build for production
+- `pnpm bindings` - Generate TypeScript bindings from Rust types
+- `pnpm build` - Build the `@quent` packages and application for production
 - `pnpm preview` - Preview production build
 - `pnpm lint` - Run ESLint
 - `pnpm lint:fix` - Fix ESLint errors and format code

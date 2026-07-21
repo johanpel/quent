@@ -15,6 +15,8 @@ use ts_rs::{Config, TS};
 const TS_OUT_DIR: &str = "./ts-bindings/";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("cargo:rerun-if-changed=build.rs");
+
     // Export TypeScript bindings to ts-bindings directory
     let cfg = Config::new().with_out_dir(TS_OUT_DIR);
 
