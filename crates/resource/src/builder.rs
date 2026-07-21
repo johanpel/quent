@@ -4,7 +4,6 @@
 use quent_schema::{
     Annotations, DataType, Field, Identifier, Record,
     builder::{AnnotationsBuilder, BuilderError, RecordBuilder},
-    schema::identifier::IdentifierError,
 };
 use thiserror::Error;
 
@@ -25,15 +24,32 @@ pub struct ResourceParts {
 /// Builds a resource definition and its usage and bounds record types.
 pub struct ResourceBuilder {
     name: Identifier,
+    usage_record_name: Identifier,
+    bounds_record_name: Identifier,
     capacities: Capacities,
     errors: Vec<BuildError>,
 }
 
 impl ResourceBuilder {
-    /// Start a resource named `name`.
+    /// Start a resource using `{name}Usage` and `{name}Bounds` record names.
     pub fn new(name: Identifier) -> Self {
+        let usage_record_name = suffixed_identifier(&name, "Usage");
+        let bounds_record_name = suffixed_identifier(&name, "Bounds");
+        Self::with_record_names(name, usage_record_name, bounds_record_name)
+    }
+
+    /// Start a resource with explicit generated record names.
+    ///
+    /// `bounds_record_name` is used only when a capacity is bounded.
+    pub fn with_record_names(
+        name: Identifier,
+        usage_record_name: Identifier,
+        bounds_record_name: Identifier,
+    ) -> Self {
         Self {
             name,
+            usage_record_name,
+            bounds_record_name,
             capacities: Capacities::default(),
             errors: Vec::new(),
         }
@@ -70,21 +86,27 @@ impl ResourceBuilder {
         self
     }
 
-    /// Build the definition and the usage and bounds record types.
+    /// Build the definition and its usage and bounds record types.
     ///
     /// With no capacities the result is a unit resource: an empty usage record
     /// and no bounds.
     ///
     /// # Errors
     ///
-    /// Errors if a name is repeated, or generating the records or constraint
-    /// data fails.
+    /// Errors if a capacity name is repeated, the supplied names are equal when
+    /// bounds are generated, or generation fails.
     pub fn build(self) -> Result<ResourceParts, BuildError> {
         let ResourceBuilder {
             name,
+            usage_record_name,
+            bounds_record_name,
             capacities,
             mut errors,
         } = self;
+        let has_bounds = capacities.values().any(Capacity::is_bounded);
+        if has_bounds && usage_record_name == bounds_record_name {
+            errors.push(BuildError::DuplicateRecordName(usage_record_name.clone()));
+        }
         match errors.len() {
             0 => {}
             1 => return Err(errors.pop().unwrap()),
@@ -93,7 +115,7 @@ impl ResourceBuilder {
 
         // The usage record carries a claim field for each capacity.
         let usage = build_resource_record(
-            suffixed_identifier(&name, "Usage")?,
+            usage_record_name,
             Resource::Usage {
                 resource: name.clone(),
             },
@@ -101,9 +123,9 @@ impl ResourceBuilder {
         )?;
 
         // The bounds record carries a field for each bounded capacity, if any.
-        let bounds = if capacities.values().any(Capacity::is_bounded) {
+        let bounds = if has_bounds {
             Some(build_resource_record(
-                suffixed_identifier(&name, "Bounds")?,
+                bounds_record_name,
                 Resource::Bounds {
                     resource: name.clone(),
                 },
@@ -133,7 +155,7 @@ fn build_resource_record<'a>(
     fields: impl Iterator<Item = &'a Identifier>,
 ) -> Result<Record, BuildError> {
     let annotations = AnnotationsBuilder::new()
-        .try_with_constraint(Resource::NAME, Some(serde_json::to_string(&resource)?))?
+        .try_with_constraint(Resource::NAME, Some(resource.constraint_data()?))?
         .build();
     let mut builder = RecordBuilder::new(name).with_annotations(annotations);
     for field in fields {
@@ -146,20 +168,21 @@ fn build_resource_record<'a>(
     Ok(builder.build())
 }
 
-fn suffixed_identifier(resource: &Identifier, suffix: &str) -> Result<Identifier, BuildError> {
-    Ok(Identifier::try_new(format!("{resource}{suffix}"))?)
+fn suffixed_identifier(resource: &Identifier, suffix: &str) -> Identifier {
+    Identifier::try_new(format!("{resource}{suffix}"))
+        .expect("suffixing a valid identifier preserves validity")
 }
 
 #[derive(Debug, Error)]
 pub enum BuildError {
     #[error("duplicate capacity \"{0}\"")]
     DuplicateCapacity(Identifier),
+    #[error("usage and bounds records have the same name \"{0}\"")]
+    DuplicateRecordName(Identifier),
     #[error("multiple resource builder errors: {0:?}")]
     Multiple(Vec<BuildError>),
     #[error(transparent)]
     Schema(#[from] BuilderError),
-    #[error(transparent)]
-    Identifier(#[from] IdentifierError),
     #[error("serializing resource data: {0}")]
     Serialize(#[from] serde_json::Error),
 }
@@ -169,15 +192,20 @@ mod tests {
     use super::*;
     use crate::CapacityKind;
 
-    #[test]
-    fn builds_definition_and_records() -> Result<(), BuildError> {
-        let bytes = Identifier::try_new("bytes")?;
-        let usage_name = Identifier::try_new("MemoryUsage")?;
-        let bounds_name = Identifier::try_new("MemoryBounds")?;
+    fn id(name: &str) -> Identifier {
+        Identifier::try_new(name).unwrap()
+    }
 
-        let parts = ResourceBuilder::new(Identifier::try_new("Memory")?)
+    #[test]
+    fn builds_definition_and_records() {
+        let bytes = id("bytes");
+        let usage_name = id("MemoryUsage");
+        let bounds_name = id("MemoryBounds");
+
+        let parts = ResourceBuilder::new(id("Memory"))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
-            .build()?;
+            .build()
+            .unwrap();
 
         let mut capacities = parts.definition.capacities().unwrap();
         let (name, capacity) = capacities.next().unwrap();
@@ -192,27 +220,46 @@ mod tests {
                 .bounds
                 .is_some_and(|bounds| bounds.name() == &bounds_name)
         );
-        Ok(())
     }
 
     /// A resource with no capacities is a unit resource: a fieldless usage
     /// record and no bounds.
     #[test]
-    fn builds_unit_resource() -> Result<(), BuildError> {
-        let parts = ResourceBuilder::new(Identifier::try_new("Thread")?).build()?;
+    fn builds_unit_resource() {
+        let parts = ResourceBuilder::new(id("Thread")).build().unwrap();
         assert!(parts.definition.capacities().unwrap().next().is_none());
-        assert_eq!(parts.usage.name(), &Identifier::try_new("ThreadUsage")?);
+        assert_eq!(parts.usage.name(), &id("ThreadUsage"));
         assert_eq!(parts.usage.fields().count(), 0);
         assert!(parts.bounds.is_none());
-        Ok(())
+    }
+
+    #[test]
+    fn uses_supplied_record_names() {
+        let parts =
+            ResourceBuilder::with_record_names(id("Memory"), id("MemoryClaim"), id("MemoryLimits"))
+                .with_capacity(id("bytes"), Capacity::new(CapacityKind::Occupancy, true))
+                .build()
+                .unwrap();
+
+        assert_eq!(parts.usage.name(), &id("MemoryClaim"));
+        assert_eq!(parts.bounds.unwrap().name(), &id("MemoryLimits"));
+    }
+
+    #[test]
+    fn rejects_duplicate_record_names() {
+        let shared = id("MemoryData");
+        let result = ResourceBuilder::with_record_names(id("Memory"), shared.clone(), shared)
+            .with_capacity(id("bytes"), Capacity::new(CapacityKind::Occupancy, true))
+            .build();
+        assert!(matches!(result, Err(BuildError::DuplicateRecordName(_))));
     }
 
     /// Requirement 1: capacity identifiers are unique within a resource.
     #[test]
     fn rejects_duplicate_capacities() {
-        let bytes = Identifier::try_new("bytes").unwrap();
-        let watts = Identifier::try_new("watts").unwrap();
-        let result = ResourceBuilder::new(Identifier::try_new("Memory").unwrap())
+        let bytes = id("bytes");
+        let watts = id("watts");
+        let result = ResourceBuilder::new(id("Memory"))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Rate, false))
             .with_capacity(watts.clone(), Capacity::new(CapacityKind::Rate, false))

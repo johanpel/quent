@@ -111,6 +111,15 @@ impl Resource {
     /// Constraint identifier.
     pub const NAME: &'static str = "quent.resource.v0.1.0";
 
+    /// Encode this resource as a constraint payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
+    pub fn constraint_data(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
     /// Return the declared capacity names and definitions.
     ///
     /// Return `None` unless this is [`Self::Definition`].
