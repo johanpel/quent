@@ -68,15 +68,11 @@ fn bounds_record(name: &str, resource: &str, fields: &[&str]) -> Record {
 fn resource_entity(name: &str, capacities: &[(&str, &str, bool)], bounds: Option<&str>) -> Entity {
     let mut builder = EntityBuilder::new(ident(name))
         .with_annotations(resource_annotations(definition_data(capacities)));
-    if let Some(bounds) = bounds {
-        builder = builder
-            .try_with_event(event(
-                "operating",
-                [field("bounds", DataType::Record(ident(bounds)))],
-            ))
-            .unwrap();
-    }
-    builder.build()
+    let fields = bounds
+        .map(|bounds| field("bounds", DataType::Record(ident(bounds))))
+        .into_iter();
+    builder = builder.try_with_event(event("operating", fields)).unwrap();
+    builder.build().unwrap()
 }
 
 /// Create an entity with one event referencing `record`.
@@ -99,7 +95,7 @@ fn user_entity(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
     if fsm {
         builder = builder.with_annotations(fsm_annotations());
     }
-    builder.build()
+    builder.build().unwrap()
 }
 
 fn resource_errors(schema: &Schema) -> Vec<ResourceError> {
@@ -271,8 +267,11 @@ fn misplaced_resources_are_rejected() {
     let definition_on_record = schema("App", [], [bad_record]);
 
     let bad_entity = EntityBuilder::new(ident("Worker"))
+        .try_with_event(event("using", []))
+        .unwrap()
         .with_annotations(resource_annotations(usage_data("Memory")))
-        .build();
+        .build()
+        .unwrap();
     let usage_on_entity = schema("App", [bad_entity], []);
 
     let usage_on_schema = SchemaBuilder::new(ident("App"))

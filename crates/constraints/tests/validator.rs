@@ -5,7 +5,7 @@ use quent_constraints::{Constraint, validate};
 use quent_schema::{
     Annotations, Cardinality, DataType, Field, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
-    test_utils::{self, entity, event, field, ident, schema},
+    test_utils::{self, entity, event, eventless_entity, field, ident, record, schema},
     visitor::{Cursor, Visitor},
 };
 
@@ -136,7 +136,8 @@ fn unregistered_constraint_is_reported_once() {
         .try_with_event(event)
         .unwrap()
         .with_annotations(unknown())
-        .build();
+        .build()
+        .unwrap();
     let record_field = Field::new(ident("rf"), DataType::U64, unknown());
     let record = RecordBuilder::new(ident("R"))
         .try_with_field(record_field)
@@ -219,4 +220,19 @@ fn validates_consistency_with_no_constraints() {
 
     let clean = validate::<()>(&empty_schema());
     assert!(clean.base_constraints.is_ok());
+}
+
+#[test]
+fn entity_without_events_fails_base_validation() {
+    let schema = schema("S", vec![eventless_entity("E")], vec![]);
+    let error = validate::<()>(&schema).base_constraints.unwrap_err();
+
+    assert_eq!(error.entities_without_events, vec!["E".to_string()]);
+    assert!(error.to_string().contains("  - E"));
+}
+
+#[test]
+fn empty_record_passes_base_validation() {
+    let schema = schema("S", vec![], vec![record("Empty", vec![])]);
+    assert!(validate::<()>(&schema).base_constraints.is_ok());
 }
