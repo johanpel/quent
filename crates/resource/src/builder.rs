@@ -191,18 +191,15 @@ pub enum BuildError {
 mod tests {
     use super::*;
     use crate::CapacityKind;
-
-    fn id(name: &str) -> Identifier {
-        Identifier::try_new(name).unwrap()
-    }
+    use quent_schema::test_utils::ident;
 
     #[test]
     fn builds_definition_and_records() {
-        let bytes = id("bytes");
-        let usage_name = id("MemoryUsage");
-        let bounds_name = id("MemoryBounds");
+        let bytes = ident("bytes");
+        let usage_name = ident("MemoryUsage");
+        let bounds_name = ident("MemoryBounds");
 
-        let parts = ResourceBuilder::new(id("Memory"))
+        let parts = ResourceBuilder::new(ident("Memory"))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
             .build()
             .unwrap();
@@ -226,30 +223,33 @@ mod tests {
     /// record and no bounds.
     #[test]
     fn builds_unit_resource() {
-        let parts = ResourceBuilder::new(id("Thread")).build().unwrap();
+        let parts = ResourceBuilder::new(ident("Thread")).build().unwrap();
         assert!(parts.definition.capacities().unwrap().next().is_none());
-        assert_eq!(parts.usage.name(), &id("ThreadUsage"));
+        assert_eq!(parts.usage.name(), &ident("ThreadUsage"));
         assert_eq!(parts.usage.fields().count(), 0);
         assert!(parts.bounds.is_none());
     }
 
     #[test]
     fn uses_supplied_record_names() {
-        let parts =
-            ResourceBuilder::with_record_names(id("Memory"), id("MemoryClaim"), id("MemoryLimits"))
-                .with_capacity(id("bytes"), Capacity::new(CapacityKind::Occupancy, true))
-                .build()
-                .unwrap();
+        let parts = ResourceBuilder::with_record_names(
+            ident("Memory"),
+            ident("MemoryClaim"),
+            ident("MemoryLimits"),
+        )
+        .with_capacity(ident("bytes"), Capacity::new(CapacityKind::Occupancy, true))
+        .build()
+        .unwrap();
 
-        assert_eq!(parts.usage.name(), &id("MemoryClaim"));
-        assert_eq!(parts.bounds.unwrap().name(), &id("MemoryLimits"));
+        assert_eq!(parts.usage.name(), &ident("MemoryClaim"));
+        assert_eq!(parts.bounds.unwrap().name(), &ident("MemoryLimits"));
     }
 
     #[test]
     fn rejects_duplicate_record_names() {
-        let shared = id("MemoryData");
-        let result = ResourceBuilder::with_record_names(id("Memory"), shared.clone(), shared)
-            .with_capacity(id("bytes"), Capacity::new(CapacityKind::Occupancy, true))
+        let shared = ident("MemoryData");
+        let result = ResourceBuilder::with_record_names(ident("Memory"), shared.clone(), shared)
+            .with_capacity(ident("bytes"), Capacity::new(CapacityKind::Occupancy, true))
             .build();
         assert!(matches!(result, Err(BuildError::DuplicateRecordName(_))));
     }
@@ -257,9 +257,9 @@ mod tests {
     /// Requirement 1: capacity identifiers are unique within a resource.
     #[test]
     fn rejects_duplicate_capacities() {
-        let bytes = id("bytes");
-        let watts = id("watts");
-        let result = ResourceBuilder::new(id("Memory"))
+        let bytes = ident("bytes");
+        let watts = ident("watts");
+        let result = ResourceBuilder::new(ident("Memory"))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Rate, false))
             .with_capacity(watts.clone(), Capacity::new(CapacityKind::Rate, false))
