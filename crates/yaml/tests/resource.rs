@@ -32,7 +32,7 @@ model: m
 entities:
   Memory:
     resource:
-      bytes: { kind: occupancy, bounded: true }
+      bytes: { kind: occupancy, known-bounds: true }
     events:
       resized:
         multi: true
@@ -124,7 +124,7 @@ model: m
 fsms:
   Pool:
     resource:
-      slots: { kind: occupancy, bounded: true }
+      slots: { kind: occupancy, known-bounds: true }
     states:
       resizing:
         initial: true
@@ -168,6 +168,36 @@ fn uses_carries_the_usage_record_on_a_targeted_reference() {
 }
 
 #[test]
+fn uses_target_must_declare_a_resource() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+records:
+  WorkerUsage:
+    fields: {}
+entities:
+  Worker:
+    events:
+      registered: {}
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        attributes:
+          worker: { uses: Worker }
+        to: [exit]
+",
+    );
+
+    assert!(
+        errors.contains("`Worker` does not declare a resource"),
+        "{errors}"
+    );
+}
+
+#[test]
 fn generated_record_names_can_be_overridden() {
     let schema = schema_of(
         "\
@@ -180,7 +210,7 @@ entities:
   Memory:
     resource:
       capacities:
-        bytes: { kind: occupancy, bounded: true }
+        bytes: { kind: occupancy, known-bounds: true }
       usage-record: MemoryClaim
       bounds-record: MemoryLimits
     events:
@@ -241,7 +271,7 @@ fsms:
 }
 
 #[test]
-fn resource_bounds_without_a_bounded_capacity_is_rejected() {
+fn resource_bounds_without_known_bounds_are_rejected() {
     let errors = errors_of(
         "\
 quent: alpha
@@ -257,7 +287,7 @@ entities:
           limits: { sets-resource-bounds: true }
 ",
     );
-    assert!(errors.contains("bounded capacity"), "{errors}");
+    assert!(errors.contains("bounds are known"), "{errors}");
 }
 
 #[test]
@@ -280,7 +310,7 @@ entities:
 }
 
 #[test]
-fn resource_bounds_field_must_be_true() {
+fn resource_bounds_marker_must_be_true() {
     let errors = errors_of(
         "\
 quent: alpha
@@ -288,7 +318,7 @@ model: m
 entities:
   Memory:
     resource:
-      bytes: { kind: occupancy, bounded: true }
+      bytes: { kind: occupancy, known-bounds: true }
     events:
       resized:
         multi: true

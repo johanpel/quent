@@ -103,52 +103,6 @@ pub(crate) struct Entity {
     pub(crate) resource: Option<ResourceDecl>,
 }
 
-/// A resource declaration.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum ResourceDecl {
-    Unit(bool),
-    Detailed(ResourceSpec),
-    Capacities(IndexMap<String, CapacitySpec>),
-}
-
-/// A resource declaration with generated record name overrides.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ResourceSpec {
-    #[serde(default)]
-    pub(crate) capacities: IndexMap<String, CapacitySpec>,
-    #[serde(default, rename = "usage-record")]
-    pub(crate) usage_record: Option<String>,
-    #[serde(default, rename = "bounds-record")]
-    pub(crate) bounds_record: Option<String>,
-}
-
-impl ResourceDecl {
-    pub(crate) fn usage_record(&self) -> Option<&str> {
-        match self {
-            Self::Detailed(spec) => spec.usage_record.as_deref(),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn bounds_record(&self) -> Option<&str> {
-        match self {
-            Self::Detailed(spec) => spec.bounds_record.as_deref(),
-            _ => None,
-        }
-    }
-}
-
-/// One capacity of a resource.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct CapacitySpec {
-    pub(crate) kind: quent_resource::CapacityKind,
-    #[serde(default)]
-    pub(crate) bounded: bool,
-}
-
 /// An entity event.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -175,13 +129,6 @@ pub(crate) enum Field {
     Bare(TypeExpr),
     /// A type with annotations.
     Full(Box<FieldBody>),
-}
-
-/// Marks an event attribute as carrying the resource's bounds.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "kebab-case")]
-pub(crate) struct ResourceBoundsField {
-    pub(crate) sets_resource_bounds: bool,
 }
 
 /// The mapping form of a field: a type plus annotations.
@@ -273,6 +220,59 @@ pub(crate) struct ScopeForm {
     pub(crate) scope_ref: String,
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
+}
+
+/// A resource declaration.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum ResourceDecl {
+    Unit(bool),
+    Detailed(ResourceSpec),
+    Capacities(IndexMap<String, CapacitySpec>),
+}
+
+/// A resource declaration with generated record name overrides.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ResourceSpec {
+    #[serde(default)]
+    pub(crate) capacities: IndexMap<String, CapacitySpec>,
+    #[serde(default, rename = "usage-record")]
+    pub(crate) usage_record: Option<String>,
+    #[serde(default, rename = "bounds-record")]
+    pub(crate) bounds_record: Option<String>,
+}
+
+impl ResourceDecl {
+    pub(crate) fn usage_record(&self) -> Option<&str> {
+        match self {
+            Self::Detailed(spec) => spec.usage_record.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn bounds_record(&self) -> Option<&str> {
+        match self {
+            Self::Detailed(spec) => spec.bounds_record.as_deref(),
+            _ => None,
+        }
+    }
+}
+
+/// One capacity of a resource.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CapacitySpec {
+    pub(crate) kind: quent_resource::CapacityKind,
+    #[serde(default, rename = "known-bounds")]
+    pub(crate) known_bounds: bool,
+}
+
+/// Marks an event attribute as carrying the resource's bounds.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct ResourceBoundsField {
+    pub(crate) sets_resource_bounds: bool,
 }
 
 /// A resource usage reference.
