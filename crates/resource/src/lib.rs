@@ -32,15 +32,16 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 /// ## Requirements
 ///
 /// 1. [`Capacity`] identifiers are unique within a resource.
-/// 2. If and only if any of the resource's capacities have a bound, the
-///    resource entity has at least one event (the "bounds event") which
-///    declares the bounds of all capacities that are bounded.
+/// 2. If and only if any capacity has a bound, the resource has at least one
+///    event carrying its bounds record. The record declares all bounded
+///    capacities.
 /// 3. An entity can use some quantity of a resource's capacities if and
 ///    only if it is an FSM.
 /// 4. The resource named by a usage or bounds is a declared resource.
 /// 5. A usage claims only capacities declared by its resource.
-/// 6. A usage record is used only as the data carried by an entity reference.
+/// 6. A usage record is used only as data carried by an entity reference.
 /// 7. A bounds record is used only by events of the resource it names.
+/// 8. Usage and bounds records may be optional, but cannot be used in a list.
 ///
 /// ## Unit resources
 ///
@@ -154,6 +155,7 @@ struct BoundsRecord {
 struct RecordRef {
     record: Identifier,
     on_entity_ref: bool,
+    in_list: bool,
     entity: Option<(Identifier, bool)>,
     location: String,
 }
@@ -235,10 +237,13 @@ impl Visitor for ResourceConstraint {
             Element::DataType(DataType::Record(record)) => {
                 self.record_refs.push(RecordRef {
                     record: record.clone(),
-                    on_entity_ref: matches!(
-                        cursor.previous(),
-                        Some(Element::DataType(DataType::EntityRef { .. }))
-                    ),
+                    on_entity_ref: cursor.elements().iter().any(|element| {
+                        matches!(element, Element::DataType(DataType::EntityRef { .. }))
+                    }),
+                    in_list: cursor
+                        .elements()
+                        .iter()
+                        .any(|element| matches!(element, Element::DataType(DataType::List(_)))),
                     entity: enclosing_entity(cursor).map(|entity| {
                         (
                             entity.name().clone(),
@@ -294,11 +299,19 @@ impl Visitor for ResourceConstraint {
         for RecordRef {
             record,
             on_entity_ref,
+            in_list,
             entity,
             location,
         } in &record_refs
         {
             if let Some(usage) = usage_records.get(record) {
+                if *in_list {
+                    errors.push(ResourceError::RecordInList {
+                        location: location.clone(),
+                        role: "usage",
+                    });
+                    continue;
+                }
                 // Requirement 6: a usage is carried by an entity reference.
                 if !on_entity_ref {
                     errors.push(ResourceError::UsageNotOnReference {
@@ -324,6 +337,13 @@ impl Visitor for ResourceConstraint {
                     }),
                 }
             } else if let Some(bounds) = bounds_records.get(record) {
+                if *in_list {
+                    errors.push(ResourceError::RecordInList {
+                        location: location.clone(),
+                        role: "bounds",
+                    });
+                    continue;
+                }
                 // Requirement 7: a bounds record belongs to its resource, so the
                 // entity referencing it must be that resource.
                 let on_resource = matches!(entity, Some((entity, _)) if entity == &bounds.resource);
@@ -495,6 +515,11 @@ pub enum ResourceError {
     ForeignBounds {
         location: String,
         resource: Identifier,
+    },
+    #[error("{location}: a {role} record cannot be used in a list")]
+    RecordInList {
+        location: String,
+        role: &'static str,
     },
     #[error(
         "{location}: bounds declare \"{capacity}\", which resource \"{resource}\" does not bound"
