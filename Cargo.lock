@@ -3153,6 +3153,7 @@ dependencies = [
  "quent-fsm",
  "quent-ref-target",
  "quent-ref-tree",
+ "quent-resource",
  "quent-schema",
  "serde",
  "serde-saphyr",

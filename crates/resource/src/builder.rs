@@ -33,9 +33,19 @@ pub struct ResourceBuilder {
 impl ResourceBuilder {
     /// Start a resource using `{name}Usage` and `{name}Bounds` record names.
     pub fn new(name: Identifier) -> Self {
-        let usage_record_name = suffixed_identifier(&name, "Usage");
-        let bounds_record_name = suffixed_identifier(&name, "Bounds");
+        let usage_record_name = Self::default_usage_record_name(&name);
+        let bounds_record_name = Self::default_bounds_record_name(&name);
         Self::with_record_names(name, usage_record_name, bounds_record_name)
+    }
+
+    /// Return the default usage record name for `resource`.
+    pub fn default_usage_record_name(resource: &Identifier) -> Identifier {
+        suffixed_identifier(resource, "Usage")
+    }
+
+    /// Return the default bounds record name for `resource`.
+    pub fn default_bounds_record_name(resource: &Identifier) -> Identifier {
+        suffixed_identifier(resource, "Bounds")
     }
 
     /// Start a resource with explicit generated record names.
@@ -113,7 +123,8 @@ impl ResourceBuilder {
             _ => return Err(BuildError::Multiple(errors)),
         }
 
-        // The usage record carries a claim field for each capacity.
+        // Usages include every capacity. Bounds omit unbounded capacities
+        // because those have no bound value to carry.
         let usage = build_resource_record(
             usage_record_name,
             Resource::Usage {
@@ -122,7 +133,6 @@ impl ResourceBuilder {
             capacities.keys(),
         )?;
 
-        // The bounds record carries a field for each bounded capacity, if any.
         let bounds = if has_bounds {
             Some(build_resource_record(
                 bounds_record_name,

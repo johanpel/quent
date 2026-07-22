@@ -13,6 +13,7 @@ use quent_constraints::validate;
 use quent_fsm::FsmConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
+use quent_resource::ResourceConstraint;
 use quent_schema::Schema;
 use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
@@ -67,7 +68,12 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         return Err(Error::Invalid(sink));
     }
 
-    let report = validate::<(RefTargetConstraint, RefTreeConstraint, FsmConstraint)>(&schema);
+    let report = validate::<(
+        RefTargetConstraint,
+        RefTreeConstraint,
+        FsmConstraint,
+        ResourceConstraint,
+    )>(&schema);
     if let Err(e) = report.base_constraints {
         for entity in e.entities_without_events {
             sink.error(
@@ -90,7 +96,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             sink.error("", format!("unresolved reference: {reference}"), None);
         }
     }
-    let (ref_target, ref_tree, fsm) = report.results;
+    let (ref_target, ref_tree, fsm, resource) = report.results;
     if let Err(e) = ref_target {
         sink.error("", e.to_string(), None);
     }
@@ -98,6 +104,9 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         sink.error("", e.to_string(), None);
     }
     if let Err(e) = fsm {
+        sink.error("", e.to_string(), None);
+    }
+    if let Err(e) = resource {
         sink.error("", e.to_string(), None);
     }
     if sink.has_errors() {

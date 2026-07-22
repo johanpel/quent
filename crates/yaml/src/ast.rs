@@ -53,6 +53,8 @@ pub(crate) struct FsmSpec {
     #[serde(default)]
     pub(crate) metadata: AnnotationMap,
     pub(crate) states: IndexMap<String, StateSpec>,
+    #[serde(default)]
+    pub(crate) resource: Option<ResourceDecl>,
 }
 
 /// One state of an FSM.
@@ -97,6 +99,54 @@ pub(crate) struct Entity {
     pub(crate) metadata: AnnotationMap,
     #[serde(default)]
     pub(crate) events: IndexMap<String, Event>,
+    #[serde(default)]
+    pub(crate) resource: Option<ResourceDecl>,
+}
+
+/// A resource declaration.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum ResourceDecl {
+    Unit(bool),
+    Detailed(ResourceSpec),
+    Capacities(IndexMap<String, CapacitySpec>),
+}
+
+/// A resource declaration with generated record name overrides.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ResourceSpec {
+    #[serde(default)]
+    pub(crate) capacities: IndexMap<String, CapacitySpec>,
+    #[serde(default, rename = "usage-record")]
+    pub(crate) usage_record: Option<String>,
+    #[serde(default, rename = "bounds-record")]
+    pub(crate) bounds_record: Option<String>,
+}
+
+impl ResourceDecl {
+    pub(crate) fn usage_record(&self) -> Option<&str> {
+        match self {
+            Self::Detailed(spec) => spec.usage_record.as_deref(),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn bounds_record(&self) -> Option<&str> {
+        match self {
+            Self::Detailed(spec) => spec.bounds_record.as_deref(),
+            _ => None,
+        }
+    }
+}
+
+/// One capacity of a resource.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CapacitySpec {
+    pub(crate) kind: quent_resource::CapacityKind,
+    #[serde(default)]
+    pub(crate) bounded: bool,
 }
 
 /// An entity event.
@@ -115,12 +165,23 @@ pub(crate) struct Event {
     pub(crate) attributes: IndexMap<String, Field>,
 }
 
-/// A field: either just its type, or a mapping that adds annotations to it.
+/// A field declaration.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum Field {
+    /// An attribute carrying a resource's bounds.
+    ResourceBounds(ResourceBoundsField),
+    /// A type without annotations.
     Bare(TypeExpr),
+    /// A type with annotations.
     Full(Box<FieldBody>),
+}
+
+/// Marks an event attribute as carrying the resource's bounds.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub(crate) struct ResourceBoundsField {
+    pub(crate) sets_resource_bounds: bool,
 }
 
 /// The mapping form of a field: a type plus annotations.
@@ -137,22 +198,23 @@ pub(crate) struct FieldBody {
 }
 
 /// A field's type.
-///
-/// A bare name is a built-in type (including `ref`, a plain entity reference)
-/// or the name of a record. The list and option forms wrap another type. A
-/// `ref` or `scope-ref` form names the entity a reference points at and may
-/// carry a `data` type; a `scope-ref` additionally marks the reference as
-/// tree-forming. Nested types are written as nested YAML, not packed into one
-/// string.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum TypeExpr {
+    /// A built-in type name, including `ref` for an untargeted entity reference.
     Builtin(BuiltinType),
+    /// The name of a record.
     Record(String),
+    /// A list of another type.
     List(ListType),
+    /// An optional value of another type.
     Option(OptionType),
+    /// A targeted entity reference with optional data.
     Ref(RefForm),
+    /// A tree-forming entity reference with optional data.
     Scope(ScopeForm),
+    /// A reference claiming capacity from a resource.
+    Uses(UsesForm),
 }
 
 /// The bare names that stand for a built-in type. Each is written lowercase in
@@ -211,4 +273,11 @@ pub(crate) struct ScopeForm {
     pub(crate) scope_ref: String,
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
+}
+
+/// A resource usage reference.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct UsesForm {
+    pub(crate) uses: String,
 }
