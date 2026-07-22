@@ -21,7 +21,7 @@ use quent_ref_tree::RefTreeConstraint;
 use quent_schema::builder::{
     AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
-use quent_schema::{Annotations, DataType, Entity, Field, Identifier, Record, Schema};
+use quent_schema::{Annotations, Cardinality, DataType, Entity, Field, Identifier, Record, Schema};
 use serde::Deserialize;
 
 use crate::ast::{self, AnnotationMap, Model, TypeExpr};
@@ -250,43 +250,20 @@ fn event_of(
     let events_path = format!("{entity_path}.events");
     let path = format!("{events_path}.{name}");
     let id = ident(name, &events_path, sink);
-    match event {
-        ast::Event::OneLiner(card) => Some(EventBuilder::new(id?, (*card).into()).build()),
-        ast::Event::Body(body) => {
-            let (card, payload_key, payload) = match (&body.once, &body.multi) {
-                (Some(_), Some(_)) => {
-                    sink.error(
-                        &path,
-                        "event declares both `once` and `multi`",
-                        Some("keep exactly one".to_string()),
-                    );
-                    (ast::Cardinality::Once, "once", &body.once)
-                }
-                (Some(_), None) => (ast::Cardinality::Once, "once", &body.once),
-                (None, Some(_)) => (ast::Cardinality::Multi, "multi", &body.multi),
-                (None, None) => {
-                    sink.error(
-                        &path,
-                        "event must declare a cardinality",
-                        Some("add `once:` or `multi:`, or write `name: once`".to_string()),
-                    );
-                    (ast::Cardinality::Once, "once", &body.once)
-                }
-            };
-            let fields = match payload.as_ref().and_then(|p| p.as_ref()) {
-                Some(map) => fields_of(map, &format!("{path}.{payload_key}"), sink),
-                None => Vec::new(),
-            };
-            let anns = annotations(&body.doc, &body.constraints, &body.metadata, &path, sink);
-            Some(
-                EventBuilder::new(id?, card.into())
-                    .try_with_fields(fields)
-                    .expect("field names are unique")
-                    .with_annotations(anns)
-                    .build(),
-            )
-        }
-    }
+    let fields = fields_of(&event.attributes, &format!("{path}.attributes"), sink);
+    let anns = annotations(&event.doc, &event.constraints, &event.metadata, &path, sink);
+    let cardinality = if event.multi {
+        Cardinality::Multi
+    } else {
+        Cardinality::Once
+    };
+    Some(
+        EventBuilder::new(id?, cardinality)
+            .try_with_fields(fields)
+            .expect("field names are unique")
+            .with_annotations(anns)
+            .build(),
+    )
 }
 
 fn fields_of(

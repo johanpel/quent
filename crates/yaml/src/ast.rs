@@ -99,27 +99,10 @@ pub(crate) struct Entity {
     pub(crate) events: IndexMap<String, Event>,
 }
 
-/// An event: either the short form giving just a cardinality (`started: once`),
-/// or a mapping that adds a payload and annotations.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum Event {
-    OneLiner(Cardinality),
-    Body(Box<EventBody>),
-}
-
-/// Whether an event fires once per entity instance or repeatedly.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub(crate) enum Cardinality {
-    Once,
-    Multi,
-}
-
-/// The mapping form of an event: annotations plus a once or multi payload.
+/// An entity event.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct EventBody {
+pub(crate) struct Event {
     #[serde(default)]
     pub(crate) doc: Option<String>,
     #[serde(default)]
@@ -127,13 +110,10 @@ pub(crate) struct EventBody {
     #[serde(default)]
     pub(crate) metadata: AnnotationMap,
     #[serde(default)]
-    pub(crate) once: Option<Payload>,
+    pub(crate) multi: bool,
     #[serde(default)]
-    pub(crate) multi: Option<Payload>,
+    pub(crate) attributes: IndexMap<String, Field>,
 }
-
-/// The fields an event carries, or nothing when it has no payload.
-pub(crate) type Payload = Option<IndexMap<String, Field>>;
 
 /// A field: either just its type, or a mapping that adds annotations to it.
 #[derive(Debug, Deserialize)]
@@ -231,13 +211,4 @@ pub(crate) struct ScopeForm {
     pub(crate) scope_ref: String,
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
-}
-
-impl From<Cardinality> for quent_schema::Cardinality {
-    fn from(c: Cardinality) -> Self {
-        match c {
-            Cardinality::Once => quent_schema::Cardinality::Once,
-            Cardinality::Multi => quent_schema::Cardinality::Multi,
-        }
-    }
 }
