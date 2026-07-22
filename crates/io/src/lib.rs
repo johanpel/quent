@@ -10,6 +10,8 @@ use uuid::Uuid;
 // Error out compilation if no exporter is selected at all.
 #[cfg(not(any(
     feature = "ndjson",
+    feature = "bitcode",
+    feature = "raw",
     feature = "msgpack",
     feature = "postcard",
     feature = "collector",

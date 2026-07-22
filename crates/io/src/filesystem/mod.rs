@@ -7,6 +7,10 @@ pub mod importer;
 /// Serialization format for the filesystem exporter and importer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
+    #[cfg(feature = "bitcode")]
+    Bitcode,
+    #[cfg(feature = "raw")]
+    Raw,
     #[cfg(feature = "ndjson")]
     Ndjson,
     #[cfg(feature = "msgpack")]
@@ -19,6 +23,10 @@ impl TryFrom<&str> for Format {
     type Error = String;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Ok(match value.to_ascii_lowercase().as_str() {
+            #[cfg(feature = "bitcode")]
+            "bitcode" => Self::Bitcode,
+            #[cfg(feature = "raw")]
+            "raw" => Self::Raw,
             #[cfg(feature = "ndjson")]
             "ndjson" => Self::Ndjson,
             #[cfg(feature = "msgpack")]

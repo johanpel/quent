@@ -1,0 +1,4004 @@
+{
+  "baseline_drift": {
+    "tput_ops_s": 0.9882986930087336,
+    "offered_ops_s": 1.0525876427235086,
+    "call_p99_ns": 0.9542356059264747,
+    "drain_ms": 1.0291409736931787
+  },
+  "external": {
+    "candidate-02": {
+      "summary": {
+        "tput_ops_s": 0.8440240958005537,
+        "offered_ops_s": 0.30231444960721593,
+        "call_p99_ns": 7.628798149914273,
+        "drain_ms": 0.12196194718082994
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9408492097370889,
+            "offered_ops_s": 0.8882550599574546,
+            "call_p99_ns": 1.454775492624098,
+            "drain_ms": 0.28580894138406315
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8658389172297756,
+            "offered_ops_s": 0.8013832071003656,
+            "call_p99_ns": 1.0167295831012646,
+            "drain_ms": 0.12550633078890605
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7996645447849042,
+            "offered_ops_s": 0.7813021209968198,
+            "call_p99_ns": 1.1492776886035314,
+            "drain_ms": 0.5738650707580744
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9405232407725158,
+            "offered_ops_s": 0.8811752451616442,
+            "call_p99_ns": 1.2110921778643298,
+            "drain_ms": 0.15390497911904022
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9230902810347703,
+            "offered_ops_s": 0.13818208209063834,
+            "call_p99_ns": 57.012782204515275,
+            "drain_ms": 0.1250068011296907
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9682208908234915,
+            "offered_ops_s": 0.16003123595705387,
+            "call_p99_ns": 20.22257245425094,
+            "drain_ms": 0.04738191718005958
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9211949742379978,
+            "offered_ops_s": 0.1810973371278517,
+            "call_p99_ns": 39.01387734220119,
+            "drain_ms": 0.11597788284244402
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8951066479755804,
+            "offered_ops_s": 0.16589307380655896,
+            "call_p99_ns": 18.76610663388426,
+            "drain_ms": 0.048667951251142615
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7114529881925673,
+            "offered_ops_s": 0.5407797380263497,
+            "call_p99_ns": 1.221149745419731,
+            "drain_ms": 0.16077100337615788
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.6975977175160905,
+            "offered_ops_s": 0.5251049974324823,
+            "call_p99_ns": 1.1520446747787383,
+            "drain_ms": 0.08478358221895108
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7344487745270758,
+            "offered_ops_s": 0.6024626613919399,
+            "call_p99_ns": 0.9740572577291002,
+            "drain_ms": 0.20250665672630616
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9237194777505722,
+            "offered_ops_s": 0.8606568100985889,
+            "call_p99_ns": 7.181275391877889,
+            "drain_ms": 0.18425434717325506
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8146480717788888,
+            "offered_ops_s": 0.0937297526815521,
+            "call_p99_ns": 85.01346126119041,
+            "drain_ms": 0.10971862937016841
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8252230616303521,
+            "offered_ops_s": 0.09782762975656314,
+            "call_p99_ns": 50.05131669819536,
+            "drain_ms": 0.055199074963482066
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7973544687667935,
+            "offered_ops_s": 0.09358084286212533,
+            "call_p99_ns": 88.43910436364453,
+            "drain_ms": 0.11997497411767422
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8138649828150334,
+            "offered_ops_s": 0.11834060780353234,
+            "call_p99_ns": 20.451284548885912,
+            "drain_ms": 0.06122683409722644
+          }
+        ]
+      ]
+    },
+    "candidate-04": {
+      "summary": {
+        "tput_ops_s": 0.902534166810007,
+        "offered_ops_s": 0.810359813513922,
+        "call_p99_ns": 1.566890182854595,
+        "drain_ms": 0.9954106393185794
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0189752516577717,
+            "offered_ops_s": 1.005753981965513,
+            "call_p99_ns": 1.7292990201356735,
+            "drain_ms": 0.8347204615095084
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0009615952498536,
+            "offered_ops_s": 0.994780803470523,
+            "call_p99_ns": 1.019617550591002,
+            "drain_ms": 0.9513537058104097
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9132563908092455,
+            "offered_ops_s": 0.906726554920231,
+            "call_p99_ns": 1.1386436597110754,
+            "drain_ms": 0.9062296006877456
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9262454970431381,
+            "offered_ops_s": 0.9065588955118743,
+            "call_p99_ns": 0.8265579357351509,
+            "drain_ms": 0.787725400052574
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8480185991063367,
+            "offered_ops_s": 0.7078242846789395,
+            "call_p99_ns": 1.6110557768924303,
+            "drain_ms": 1.1463705877832642
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9082634409741658,
+            "offered_ops_s": 0.6135889119127822,
+            "call_p99_ns": 1.0123456790123457,
+            "drain_ms": 1.0032443197221212
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7489720144210988,
+            "offered_ops_s": 0.5370457890591898,
+            "call_p99_ns": 2.1377502078403787,
+            "drain_ms": 1.1394882634729884
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8578990015477976,
+            "offered_ops_s": 0.591694080254656,
+            "call_p99_ns": 1.8905431862678141,
+            "drain_ms": 1.0629002080677203
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8800683382766464,
+            "offered_ops_s": 0.8149054131070708,
+            "call_p99_ns": 0.8565037643065407,
+            "drain_ms": 0.8947667955822359
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8304138479937878,
+            "offered_ops_s": 0.7730628674462443,
+            "call_p99_ns": 1.0604284080488784,
+            "drain_ms": 0.9489240285042039
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8518590088661612,
+            "offered_ops_s": 0.8006901971457042,
+            "call_p99_ns": 0.7230001386385693,
+            "drain_ms": 0.8744495049936765
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9872721183927649,
+            "offered_ops_s": 1.0079350576629016,
+            "call_p99_ns": 0.8323930457094922,
+            "drain_ms": 1.2519088217917365
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9466471861402548,
+            "offered_ops_s": 0.9837278820679405,
+            "call_p99_ns": 1.3428754931645106,
+            "drain_ms": 1.0583625976922306
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9719374435115813,
+            "offered_ops_s": 0.9098577290942261,
+            "call_p99_ns": 1.8119688916914392,
+            "drain_ms": 1.0174887476788752
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8453981479060404,
+            "offered_ops_s": 0.7212815784374783,
+            "call_p99_ns": 9.478518651604645,
+            "drain_ms": 1.1176244501433967
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9495028163168108,
+            "offered_ops_s": 0.9282627601181827,
+            "call_p99_ns": 9.573286253500548,
+            "drain_ms": 1.0517135313430426
+          }
+        ]
+      ]
+    },
+    "candidate-05": {
+      "summary": {
+        "tput_ops_s": 0.8703641728480507,
+        "offered_ops_s": 0.9212903247285206,
+        "call_p99_ns": 1.2818258308832995,
+        "drain_ms": 1.042705350959285
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/grpc",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.5585978725578081,
+            "offered_ops_s": 0.9600462889034796,
+            "call_p99_ns": 1.605387281923055,
+            "drain_ms": 1.5547178314661525
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/grpc",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.069777319484693,
+            "offered_ops_s": 0.9360839497615665,
+            "call_p99_ns": 0.8555743534854815,
+            "drain_ms": 1.1512493677077085
+          }
+        ],
+        [
+          [
+            "quent-static-log/grpc",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.2260943308665722,
+            "offered_ops_s": 0.9414908642199002,
+            "call_p99_ns": 0.6431258613625358,
+            "drain_ms": 0.9053975036483177
+          }
+        ],
+        [
+          [
+            "quent-static-span/grpc",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.8303937887426378,
+            "offered_ops_s": 0.9088716455285474,
+            "call_p99_ns": 1.3821692220329358,
+            "drain_ms": 0.3443498147180706
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/grpc",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8220405200932362,
+            "offered_ops_s": 0.9209176546097303,
+            "call_p99_ns": 1.0567238831419803,
+            "drain_ms": 1.0591693661433994
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/grpc",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.6629007784596272,
+            "offered_ops_s": 0.8937929215826045,
+            "call_p99_ns": 1.9994950223632952,
+            "drain_ms": 0.6237756660227096
+          }
+        ],
+        [
+          [
+            "quent-static-log/grpc",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.365005148808296,
+            "offered_ops_s": 0.6146652136458651,
+            "call_p99_ns": 11.959399916072178,
+            "drain_ms": 0.6434769422166157
+          }
+        ],
+        [
+          [
+            "quent-static-span/grpc",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 2.1248884470003913,
+            "offered_ops_s": 0.996978655068246,
+            "call_p99_ns": 1.221345448748605,
+            "drain_ms": 0.43173914549981757
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/grpc",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.5917067379853753,
+            "offered_ops_s": 1.0277447862466886,
+            "call_p99_ns": 0.8187499330053274,
+            "drain_ms": 1.5914663739136399
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/grpc",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.5159931652737516,
+            "offered_ops_s": 0.9069528379494111,
+            "call_p99_ns": 0.8308497628079796,
+            "drain_ms": 1.5751187449023976
+          }
+        ],
+        [
+          [
+            "quent-static-log/grpc",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.6946776699559664,
+            "offered_ops_s": 1.0096456411421766,
+            "call_p99_ns": 1.0536008870378883,
+            "drain_ms": 1.2688625068782275
+          }
+        ],
+        [
+          [
+            "quent-static-span/grpc",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7262953167601257,
+            "offered_ops_s": 0.9424159508679945,
+            "call_p99_ns": 1.4728815041539134,
+            "drain_ms": 1.3435772237363826
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/grpc",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9530888667290589,
+            "offered_ops_s": 1.0285181633392373,
+            "call_p99_ns": 1.7338762509318455,
+            "drain_ms": 1.0449869390286186
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/grpc",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.47801869224167115,
+            "offered_ops_s": 1.0211446002545466,
+            "call_p99_ns": 0.41269058212483944,
+            "drain_ms": 1.6711155530472324
+          }
+        ],
+        [
+          [
+            "quent-static-log/grpc",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.6793875530281277,
+            "offered_ops_s": 0.7426979253380332,
+            "call_p99_ns": 2.456906186312537,
+            "drain_ms": 1.3950162496577458
+          }
+        ],
+        [
+          [
+            "quent-static-span/grpc",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.42774221545998903,
+            "offered_ops_s": 1.00379103227115,
+            "call_p99_ns": 0.7596102850183661,
+            "drain_ms": 1.8310182535859563
+          }
+        ]
+      ]
+    },
+    "candidate-06": {
+      "summary": {
+        "tput_ops_s": 0.8978949714895001,
+        "offered_ops_s": 0.8253083372870283,
+        "call_p99_ns": 1.753865210808608,
+        "drain_ms": 1.0323931494999088
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0652352193057724,
+            "offered_ops_s": 1.0643978614062233,
+            "call_p99_ns": 1.5678367610638526,
+            "drain_ms": 0.9369573019878493
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9226731518443626,
+            "offered_ops_s": 0.9184088387235702,
+            "call_p99_ns": 1.465230934257483,
+            "drain_ms": 1.0351286586996824
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8127684652131127,
+            "offered_ops_s": 0.8068881224138547,
+            "call_p99_ns": 1.1316713483146068,
+            "drain_ms": 0.9923411786946752
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9856227236206035,
+            "offered_ops_s": 0.971605883166188,
+            "call_p99_ns": 0.9614167478091529,
+            "drain_ms": 0.832089506727354
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9239877554977747,
+            "offered_ops_s": 0.9130651404960047,
+            "call_p99_ns": 1.5107901726427624,
+            "drain_ms": 1.0876896927624855
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9573206598979117,
+            "offered_ops_s": 0.8211566716234845,
+            "call_p99_ns": 1.5153664302600474,
+            "drain_ms": 1.0091378603783063
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7568344402756625,
+            "offered_ops_s": 0.5800004438137878,
+            "call_p99_ns": 7.533798043102897,
+            "drain_ms": 1.1429926324331554
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8904447725608738,
+            "offered_ops_s": 0.5939395656991979,
+            "call_p99_ns": 1.4757546783226336,
+            "drain_ms": 1.0099213812957417
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8681821410716783,
+            "offered_ops_s": 0.7971309460019913,
+            "call_p99_ns": 1.0759737151312068,
+            "drain_ms": 0.8770448374958103
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8097702813720068,
+            "offered_ops_s": 0.7607052767231451,
+            "call_p99_ns": 1.2175319657520838,
+            "drain_ms": 1.008366302932227
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7956806791851403,
+            "offered_ops_s": 0.7440813596491407,
+            "call_p99_ns": 0.9406280327187023,
+            "drain_ms": 0.9260323661989557
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9692570559627133,
+            "offered_ops_s": 1.0119157976999424,
+            "call_p99_ns": 0.791864730167607,
+            "drain_ms": 1.5274351604305854
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9520453276955542,
+            "offered_ops_s": 0.9238916780325113,
+            "call_p99_ns": 1.3272777319020093,
+            "drain_ms": 1.0457270671423016
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9582401367712696,
+            "offered_ops_s": 0.9336333061937903,
+            "call_p99_ns": 1.4414016755247274,
+            "drain_ms": 1.038289167020792
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8315352861644588,
+            "offered_ops_s": 0.7241321434422829,
+            "call_p99_ns": 6.66135153951535,
+            "drain_ms": 1.1392588700763375
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9245768626263131,
+            "offered_ops_s": 0.8207137777251131,
+            "call_p99_ns": 10.131888469499573,
+            "drain_ms": 1.0607229411922503
+          }
+        ]
+      ]
+    },
+    "candidate-07": {
+      "summary": {
+        "tput_ops_s": null,
+        "offered_ops_s": 1.0597369667364966,
+        "call_p99_ns": 0.8386935226750144,
+        "drain_ms": null
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.0433399873071876,
+            "call_p99_ns": 0.37552998182919445,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.001672555190354,
+            "call_p99_ns": 0.9593429158110883,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-log/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.990077816038707,
+            "call_p99_ns": 0.9906914893617021,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-span/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.9911194067357496,
+            "call_p99_ns": 1.1702571230020848,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.8719727085972859,
+            "call_p99_ns": 1.1625194401244168,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.929399346799718,
+            "call_p99_ns": 1.374113475177305,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-log/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.2257673128550108,
+            "call_p99_ns": 0.3613021549747822,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-span/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.97428847138783,
+            "call_p99_ns": 1.0083832335329341,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.0198574056659557,
+            "call_p99_ns": 1.2301568719269491,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.0141862640380177,
+            "call_p99_ns": 0.9794416446684265,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-log/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.9917637174506345,
+            "call_p99_ns": 0.8765878343488588,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-span/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.9913610285345226,
+            "call_p99_ns": 0.9930083899320815,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.2980961148954044,
+            "call_p99_ns": 0.6144951667360437,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.2400737914449687,
+            "call_p99_ns": 0.6360462979974278,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-log/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.251761051565783,
+            "call_p99_ns": 0.7337267983919254,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-static-span/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.244080558263159,
+            "call_p99_ns": 0.8197216699801193,
+            "drain_ms": null
+          }
+        ]
+      ]
+    },
+    "candidate-08-postcard": {
+      "summary": {
+        "tput_ops_s": 1.0265817811842017,
+        "offered_ops_s": 0.8393466457786362,
+        "call_p99_ns": 2.021248472177128,
+        "drain_ms": 0.8638724106582468
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0480659152016634,
+            "offered_ops_s": 1.0225542252450086,
+            "call_p99_ns": 1.383439216108539,
+            "drain_ms": 0.6654948847029443
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1511628299909715,
+            "offered_ops_s": 1.1322184803144817,
+            "call_p99_ns": 0.8736514223239887,
+            "drain_ms": 0.7267035493829045
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7949423276640547,
+            "offered_ops_s": 0.4324731265134104,
+            "call_p99_ns": 25.550298804780876,
+            "drain_ms": 1.0458620583192961
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9205726844545208,
+            "offered_ops_s": 0.5652160698525074,
+            "call_p99_ns": 1.952193328079853,
+            "drain_ms": 0.9586857930155127
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1602650358224298,
+            "offered_ops_s": 1.1649841045933793,
+            "call_p99_ns": 0.6594194699508247,
+            "drain_ms": 0.860884439859628
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1833825293266764,
+            "offered_ops_s": 1.176130031175158,
+            "call_p99_ns": 0.8560536591899606,
+            "drain_ms": 0.8295390172251454
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9400329339192977,
+            "offered_ops_s": 0.6829423659317808,
+            "call_p99_ns": 4.144390704258582,
+            "drain_ms": 0.9922295740907064
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0824402445883368,
+            "offered_ops_s": 0.930210561708046,
+            "call_p99_ns": 1.9752274569858572,
+            "drain_ms": 0.9027142289662954
+          }
+        ]
+      ]
+    },
+    "candidate-08-noop": {
+      "summary": {
+        "tput_ops_s": null,
+        "offered_ops_s": 1.2455107783796497,
+        "call_p99_ns": 0.7506115054694971,
+        "drain_ms": null
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.188538735768406,
+            "call_p99_ns": 0.771350696547547,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.1963253941426097,
+            "call_p99_ns": 0.7080082135523614,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 0.8904369735336983,
+            "call_p99_ns": 1.2620528771384136,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.0126839381600798,
+            "call_p99_ns": 1.2278368794326242,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.3213189915271781,
+            "call_p99_ns": 0.7236400530710997,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.3193800435286394,
+            "call_p99_ns": 0.8388128949684025,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.4956163508333273,
+            "call_p99_ns": 0.44910041163683456,
+            "drain_ms": null
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/noop",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": null,
+            "offered_ops_s": 1.7323768052092583,
+            "call_p99_ns": 0.43679955906669116,
+            "drain_ms": null
+          }
+        ]
+      ]
+    },
+    "candidate-09": {
+      "summary": {
+        "tput_ops_s": 1.164450160290785,
+        "offered_ops_s": 1.0188062537896316,
+        "call_p99_ns": 0.7951280773411459,
+        "drain_ms": 1.0083976581845493
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3662558827245441,
+            "offered_ops_s": 1.4706463765123299,
+            "call_p99_ns": 0.6690302398331596,
+            "drain_ms": 1.2166483765168008
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.4284578550754807,
+            "offered_ops_s": 1.6240148679389828,
+            "call_p99_ns": 0.40266497705585313,
+            "drain_ms": 1.2772193375982392
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.269050788054162,
+            "offered_ops_s": 1.3767505600201835,
+            "call_p99_ns": 1.0822116937654787,
+            "drain_ms": 1.5602249302446214
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3808218996097688,
+            "offered_ops_s": 1.445678595926621,
+            "call_p99_ns": 0.6453711452527199,
+            "drain_ms": 1.0324939147472003
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.4359116289986182,
+            "offered_ops_s": 1.6374783798893093,
+            "call_p99_ns": 0.4628184911610922,
+            "drain_ms": 1.2934689782756077
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.2339635239115558,
+            "offered_ops_s": 1.3371125937520298,
+            "call_p99_ns": 1.1320832559770613,
+            "drain_ms": 1.5146795822221164
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.2356949651774913,
+            "offered_ops_s": 1.2858607955497259,
+            "call_p99_ns": 0.5890028356395113,
+            "drain_ms": 1.213569398303111
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3347704299932797,
+            "offered_ops_s": 1.4405006981051016,
+            "call_p99_ns": 0.4319630915971178,
+            "drain_ms": 1.3004936184200697
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3147401232793423,
+            "offered_ops_s": 1.4288919950963137,
+            "call_p99_ns": 0.5107343499197432,
+            "drain_ms": 2.1271267209196396
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3319323106913548,
+            "offered_ops_s": 1.3637161240445492,
+            "call_p99_ns": 0.6572594617487391,
+            "drain_ms": 0.9648852416279791
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.365874068917009,
+            "offered_ops_s": 1.5111460489315545,
+            "call_p99_ns": 0.6553970848353223,
+            "drain_ms": 1.3852411163251996
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3070563461021354,
+            "offered_ops_s": 1.357798899439549,
+            "call_p99_ns": 0.5933950016228497,
+            "drain_ms": 1.1493441496029255
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1740087341100702,
+            "offered_ops_s": 0.8368297493114595,
+            "call_p99_ns": 0.9344663161755716,
+            "drain_ms": 0.7950127287170026
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.025693975407065,
+            "offered_ops_s": 0.6902747480674382,
+            "call_p99_ns": 1.0886218550506948,
+            "drain_ms": 0.9130358676212221
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1247902289509029,
+            "offered_ops_s": 0.6992464087134129,
+            "call_p99_ns": 1.3984063745019921,
+            "drain_ms": 0.8036675260168203
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1652790997505884,
+            "offered_ops_s": 0.8185753985419474,
+            "call_p99_ns": 1.0293061224489797,
+            "drain_ms": 0.7928723432229371
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0931125849996883,
+            "offered_ops_s": 0.9470827729629732,
+            "call_p99_ns": 0.09108530582351984,
+            "drain_ms": 0.8833339292211148
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1142157528586152,
+            "offered_ops_s": 0.7707810182124858,
+            "call_p99_ns": 0.8785570440416776,
+            "drain_ms": 0.8314578268978676
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1488899270722701,
+            "offered_ops_s": 0.7566448571396942,
+            "call_p99_ns": 1.4569789674952198,
+            "drain_ms": 0.788667369040036
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0987392960061197,
+            "offered_ops_s": 0.6530004980617926,
+            "call_p99_ns": 2.3529166231868937,
+            "drain_ms": 0.8201100905254971
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1066438852591787,
+            "offered_ops_s": 0.8176396244703005,
+            "call_p99_ns": 1.2650764213084351,
+            "drain_ms": 0.8350447362039723
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.2327372277868949,
+            "offered_ops_s": 0.902670761695747,
+            "call_p99_ns": 0.7822169330159809,
+            "drain_ms": 0.7579987558349789
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.947221665501354,
+            "offered_ops_s": 0.8447858354481723,
+            "call_p99_ns": 0.5957446808510638,
+            "drain_ms": 1.0297616217289043
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0455693699172655,
+            "offered_ops_s": 0.8129952851896284,
+            "call_p99_ns": 0.8381368665482858,
+            "drain_ms": 0.9215724255665003
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1201966796678318,
+            "offered_ops_s": 1.09440213202613,
+            "call_p99_ns": 0.6121833116498202,
+            "drain_ms": 0.8505594597298913
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1492888132518206,
+            "offered_ops_s": 1.383917570682735,
+            "call_p99_ns": 0.43148899081891173,
+            "drain_ms": 1.1030906884239942
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.173159674308878,
+            "offered_ops_s": 1.3141547433676246,
+            "call_p99_ns": 0.6700726750511337,
+            "drain_ms": 1.1138480229920993
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.111228346151498,
+            "offered_ops_s": 1.073456895583022,
+            "call_p99_ns": 0.9238312145430453,
+            "drain_ms": 0.8192089308303295
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.158470935402142,
+            "offered_ops_s": 1.4648164968215376,
+            "call_p99_ns": 0.539436378046688,
+            "drain_ms": 1.197666619174712
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1573646692060782,
+            "offered_ops_s": 1.2694487460771617,
+            "call_p99_ns": 0.8283379869561186,
+            "drain_ms": 1.0846627734571628
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.2422577966680506,
+            "offered_ops_s": 1.3130559475971595,
+            "call_p99_ns": 0.6503117108585859,
+            "drain_ms": 0.9895150641625906
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1882985232625614,
+            "offered_ops_s": 1.263137876250704,
+            "call_p99_ns": 0.5412776205162871,
+            "drain_ms": 0.9620599476464852
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1072748358302182,
+            "offered_ops_s": 1.1169795864414047,
+            "call_p99_ns": 0.7376784971579093,
+            "drain_ms": 0.9326806861697559
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3447999456975193,
+            "offered_ops_s": 1.4209619239149116,
+            "call_p99_ns": 0.638514151834637,
+            "drain_ms": 1.0830947213776547
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1370900881347688,
+            "offered_ops_s": 1.294630976279483,
+            "call_p99_ns": 0.7886799370893196,
+            "drain_ms": 1.0511270762629663
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.3377412372928943,
+            "offered_ops_s": 1.4365629392952874,
+            "call_p99_ns": 0.4956988009276774,
+            "drain_ms": 1.3363717976762315
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1344415287184377,
+            "offered_ops_s": 0.7081688472880673,
+            "call_p99_ns": 0.31541904739873694,
+            "drain_ms": 0.8281413359794056
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0534809409502714,
+            "offered_ops_s": 0.9767010317740454,
+            "call_p99_ns": 0.28669081680686026,
+            "drain_ms": 0.9418948937369068
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1694531010982032,
+            "offered_ops_s": 0.7099429227712174,
+            "call_p99_ns": 1.3413812538502876,
+            "drain_ms": 0.7915847823817813
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.2378482278484944,
+            "offered_ops_s": 0.7209058304301306,
+            "call_p99_ns": 2.7701177591985506,
+            "drain_ms": 0.7461746480148367
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.114113066811357,
+            "offered_ops_s": 1.1112133668467674,
+            "call_p99_ns": 1.4625059386299264,
+            "drain_ms": 0.8971094774498344
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.142093719648248,
+            "offered_ops_s": 0.7103571581834716,
+            "call_p99_ns": 6.831937062727081,
+            "drain_ms": 0.805986213254418
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.996232629411161,
+            "offered_ops_s": 0.6296690648473992,
+            "call_p99_ns": 1.5301862656391376,
+            "drain_ms": 0.9707826559595412
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9477930648747651,
+            "offered_ops_s": 0.6803990685559096,
+            "call_p99_ns": 0.9809301130862604,
+            "drain_ms": 1.0241379512805662
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8558937432533198,
+            "offered_ops_s": 0.5911466873672973,
+            "call_p99_ns": 1.5353830260291508,
+            "drain_ms": 1.1481065944292992
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0772163941213015,
+            "offered_ops_s": 0.7153543007475913,
+            "call_p99_ns": 1.3036950941934233,
+            "drain_ms": 0.858292211745927
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 1.105338711480522,
+            "offered_ops_s": 0.7826772376567235,
+            "call_p99_ns": 0.19644793210250483,
+            "drain_ms": 0.8769927654864211
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.913886897190906,
+            "offered_ops_s": 0.6810170526506789,
+            "call_p99_ns": 2.727042493607695,
+            "drain_ms": 1.0407004454156368
+          }
+        ]
+      ]
+    },
+    "candidate-11": {
+      "summary": {
+        "tput_ops_s": 0.9332181058010078,
+        "offered_ops_s": 1.0562108712220761,
+        "call_p99_ns": 0.9457857034494973,
+        "drain_ms": 1.3812296097829548
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.117017778015183,
+            "offered_ops_s": 1.2344753669648363,
+            "call_p99_ns": 0.8136600625651721,
+            "drain_ms": 1.7048996743817753
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1859914143298176,
+            "offered_ops_s": 1.3195660090393622,
+            "call_p99_ns": 1.0268609719102202,
+            "drain_ms": 1.4258623161993305
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1737412330240304,
+            "offered_ops_s": 1.3152379899638245,
+            "call_p99_ns": 1.027242381824055,
+            "drain_ms": 1.99369413472614
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.167245907704021,
+            "offered_ops_s": 1.3889645562100514,
+            "call_p99_ns": 0.9055280984036254,
+            "drain_ms": 2.095367160235037
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1277776631845708,
+            "offered_ops_s": 1.242467765030581,
+            "call_p99_ns": 0.9482114698315213,
+            "drain_ms": 1.4519206293073006
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.03303602176243,
+            "offered_ops_s": 1.1058443125659432,
+            "call_p99_ns": 1.058563855024032,
+            "drain_ms": 1.6940017670059475
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1522997085526985,
+            "offered_ops_s": 1.2755166955270918,
+            "call_p99_ns": 1.2516043749866745,
+            "drain_ms": 1.945136890162576
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0731549048984295,
+            "offered_ops_s": 1.1872588607771366,
+            "call_p99_ns": 1.1035716137058733,
+            "drain_ms": 1.7925952426904146
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1171482522618812,
+            "offered_ops_s": 1.2411138855886774,
+            "call_p99_ns": 1.299959871589085,
+            "drain_ms": 2.883234230686987
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.142414293700278,
+            "offered_ops_s": 1.3721821193740489,
+            "call_p99_ns": 0.8644746467485466,
+            "drain_ms": 2.427419356337402
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0755110114958355,
+            "offered_ops_s": 1.1954564471189797,
+            "call_p99_ns": 1.1806640843651344,
+            "drain_ms": 1.7977511479073875
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.060573989309352,
+            "offered_ops_s": 1.2235372269196394,
+            "call_p99_ns": 0.8481418370658877,
+            "drain_ms": 2.55959860305233
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8691368866101787,
+            "offered_ops_s": 1.0988853263867069,
+            "call_p99_ns": 1.2049150262868322,
+            "drain_ms": 1.1954429391873853
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7701086049237452,
+            "offered_ops_s": 0.8063001393452123,
+            "call_p99_ns": 1.1051445737889598,
+            "drain_ms": 1.3095131522456676
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8350552932186838,
+            "offered_ops_s": 0.9749414828701101,
+            "call_p99_ns": 1.1356241699867198,
+            "drain_ms": 1.2364899071126585
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8092350995311726,
+            "offered_ops_s": 1.1485604356704247,
+            "call_p99_ns": 2.1434285714285712,
+            "drain_ms": 1.3664016315963083
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8680778410022072,
+            "offered_ops_s": 0.9883100153064676,
+            "call_p99_ns": 0.04754867572819222,
+            "drain_ms": 1.1799690483492473
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8720517332863317,
+            "offered_ops_s": 0.9626801669774765,
+            "call_p99_ns": 1.861833464670344,
+            "drain_ms": 1.1752722203347539
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8068207363474308,
+            "offered_ops_s": 0.9707557472333799,
+            "call_p99_ns": 1.338432122370937,
+            "drain_ms": 1.2861782152154977
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8450651428958776,
+            "offered_ops_s": 0.7879415085355896,
+            "call_p99_ns": 6.679828863612648,
+            "drain_ms": 1.2322330033624516
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.626717405025999,
+            "offered_ops_s": 0.9983017664981066,
+            "call_p99_ns": 1.53021679350259,
+            "drain_ms": 1.7190120822783748
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.6855319353992593,
+            "offered_ops_s": 0.8255099658666664,
+            "call_p99_ns": 0.9558823529411765,
+            "drain_ms": 1.5521530339782674
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8272292417144171,
+            "offered_ops_s": 0.8694173763325236,
+            "call_p99_ns": 0.2798250454759131,
+            "drain_ms": 1.2130303658712167
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.5574877252316022,
+            "offered_ops_s": 0.8999203597294013,
+            "call_p99_ns": 1.0417520375176432,
+            "drain_ms": 1.968210666133906
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.896554182599339,
+            "offered_ops_s": 0.8546071870932385,
+            "call_p99_ns": 1.054034288177738,
+            "drain_ms": 0.9992440329226422
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0619830657486444,
+            "offered_ops_s": 1.1645548455235,
+            "call_p99_ns": 0.710939750493031,
+            "drain_ms": 1.0704214706956168
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0515384634361673,
+            "offered_ops_s": 1.0922871173016782,
+            "call_p99_ns": 0.9022846947212673,
+            "drain_ms": 1.0425696275729281
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9059847430250378,
+            "offered_ops_s": 0.9502415365065816,
+            "call_p99_ns": 1.0435545985341008,
+            "drain_ms": 1.2373306235193384
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9809401200104264,
+            "offered_ops_s": 1.0903668809592644,
+            "call_p99_ns": 0.9992891401864578,
+            "drain_ms": 1.2124025132705032
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.050613892780699,
+            "offered_ops_s": 1.1166191534462087,
+            "call_p99_ns": 0.979836590869283,
+            "drain_ms": 1.1120903577895027
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9485699043555614,
+            "offered_ops_s": 0.9749943491406686,
+            "call_p99_ns": 0.9882417929292929,
+            "drain_ms": 1.1873346992665765
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0817199280848566,
+            "offered_ops_s": 1.1924329516601155,
+            "call_p99_ns": 0.9592716211077781,
+            "drain_ms": 1.1028651414624508
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8817168647864879,
+            "offered_ops_s": 0.8685149111636312,
+            "call_p99_ns": 1.1039962567586303,
+            "drain_ms": 1.0704981653068966
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0559499720693326,
+            "offered_ops_s": 1.176693408913005,
+            "call_p99_ns": 0.9015606696141782,
+            "drain_ms": 1.7616766990630321
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0552880427446831,
+            "offered_ops_s": 1.160461625581686,
+            "call_p99_ns": 0.8078619052673222,
+            "drain_ms": 1.0983421028533553
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.08029931778256,
+            "offered_ops_s": 1.1703444867888968,
+            "call_p99_ns": 0.849022155698472,
+            "drain_ms": 1.7266977814125715
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8948650032506855,
+            "offered_ops_s": 0.933166875585395,
+            "call_p99_ns": 0.3612158504707488,
+            "drain_ms": 1.1221326042302835
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9399903162619011,
+            "offered_ops_s": 1.0804918091939881,
+            "call_p99_ns": 0.6980209164773541,
+            "drain_ms": 1.0836561025872988
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9528626803616749,
+            "offered_ops_s": 0.9355606330534513,
+            "call_p99_ns": 1.110770319688569,
+            "drain_ms": 1.0504408359389876
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8779683059934925,
+            "offered_ops_s": 0.9110246955470803,
+            "call_p99_ns": 0.17233401703002926,
+            "drain_ms": 1.143260828734435
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9414528315624124,
+            "offered_ops_s": 1.1413698795833367,
+            "call_p99_ns": 0.19273800759419302,
+            "drain_ms": 1.085305295165704
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.831847204168683,
+            "offered_ops_s": 1.0235651204627376,
+            "call_p99_ns": 1.390295168603429,
+            "drain_ms": 1.2370992648314716
+          }
+        ],
+        [
+          [
+            "quent-static-log/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8519729192914682,
+            "offered_ops_s": 0.9959090188086426,
+            "call_p99_ns": 11.515272534398303,
+            "drain_ms": 1.1927415301312412
+          }
+        ],
+        [
+          [
+            "quent-static-log/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9072021838140711,
+            "offered_ops_s": 0.9195047130701034,
+            "call_p99_ns": 0.8618951334049041,
+            "drain_ms": 1.102424004037526
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8498314377150684,
+            "offered_ops_s": 1.0013845837669533,
+            "call_p99_ns": 1.6235093314168931,
+            "drain_ms": 1.1974501004533518
+          }
+        ],
+        [
+          [
+            "quent-static-span/msgpack",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8049707165398893,
+            "offered_ops_s": 1.0502055136069695,
+            "call_p99_ns": 1.221689508773629,
+            "drain_ms": 1.2878388154710616
+          }
+        ],
+        [
+          [
+            "quent-static-span/ndjson",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8790090995987174,
+            "offered_ops_s": 0.9867989785285244,
+            "call_p99_ns": 0.6361848665877594,
+            "drain_ms": 1.1470905784516339
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7892839017723895,
+            "offered_ops_s": 0.9927973351330205,
+            "call_p99_ns": 0.7170339705345185,
+            "drain_ms": 1.3094770457895153
+          }
+        ]
+      ]
+    },
+    "candidate-13": {
+      "summary": {
+        "tput_ops_s": 0.9074153019406344,
+        "offered_ops_s": 0.8059523928933198,
+        "call_p99_ns": 1.8560321746672612,
+        "drain_ms": 1.0095231497045967
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0105718174059584,
+            "offered_ops_s": 1.0117366503162297,
+            "call_p99_ns": 1.4300635296651234,
+            "drain_ms": 1.0154663852533639
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9649104978483438,
+            "offered_ops_s": 0.9478596414713553,
+            "call_p99_ns": 1.1279575881345794,
+            "drain_ms": 0.8469374142016085
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8292169914622461,
+            "offered_ops_s": 0.8252523168475927,
+            "call_p99_ns": 1.0634530497592296,
+            "drain_ms": 1.0208377483975277
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.036350403138916,
+            "offered_ops_s": 1.0317628437531374,
+            "call_p99_ns": 0.8550389483933788,
+            "drain_ms": 0.9044765036140995
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.902259959009077,
+            "offered_ops_s": 0.6784636025944933,
+            "call_p99_ns": 2.3831341301460824,
+            "drain_ms": 1.0480780474004943
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9172996087483534,
+            "offered_ops_s": 0.690878235012717,
+            "call_p99_ns": 2.0774888363540844,
+            "drain_ms": 1.027225174771742
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7192774680487445,
+            "offered_ops_s": 0.5358201344818863,
+            "call_p99_ns": 11.620131738824583,
+            "drain_ms": 1.1811156379788723
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8702985721947898,
+            "offered_ops_s": 0.6062511244047232,
+            "call_p99_ns": 1.1123252743250012,
+            "drain_ms": 1.0454979128742192
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8783190469086226,
+            "offered_ops_s": 0.8187651697291813,
+            "call_p99_ns": 0.9893903128943818,
+            "drain_ms": 0.920838586496958
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9057495262544307,
+            "offered_ops_s": 0.8598373027718242,
+            "call_p99_ns": 1.7715981330558332,
+            "drain_ms": 0.9272514523499844
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8680811419196338,
+            "offered_ops_s": 0.8223783403681633,
+            "call_p99_ns": 0.8687612643837516,
+            "drain_ms": 0.9113996788118949
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9805013461179032,
+            "offered_ops_s": 0.9905764093397651,
+            "call_p99_ns": 1.0040627004621938,
+            "drain_ms": 1.1388540105418943
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9420965792678405,
+            "offered_ops_s": 0.8367648604336967,
+            "call_p99_ns": 1.547900855910765,
+            "drain_ms": 1.0448447247220798
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9424294915347279,
+            "offered_ops_s": 0.860512891001025,
+            "call_p99_ns": 1.4966819806023481,
+            "drain_ms": 1.0444806106580562
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8716293970702779,
+            "offered_ops_s": 0.745640928003342,
+            "call_p99_ns": 8.707121521773306,
+            "drain_ms": 1.0799576550681287
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9287863715804912,
+            "offered_ops_s": 0.8278403363444181,
+            "call_p99_ns": 6.850846219408255,
+            "drain_ms": 1.0553534784786138
+          }
+        ]
+      ]
+    },
+    "candidate-14": {
+      "summary": {
+        "tput_ops_s": 0.8924900526899037,
+        "offered_ops_s": 0.8000844885092494,
+        "call_p99_ns": 2.1372248238764877,
+        "drain_ms": 1.0554857594026372
+      },
+      "pairs": [
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0753986149777754,
+            "offered_ops_s": 1.0810481985095928,
+            "call_p99_ns": 1.4454075589533757,
+            "drain_ms": 1.0088233288233341
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9517890124295106,
+            "offered_ops_s": 0.9525826102690196,
+            "call_p99_ns": 1.04639313488871,
+            "drain_ms": 1.067809399683014
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9010786183981208,
+            "offered_ops_s": 0.8969596931833946,
+            "call_p99_ns": 1.2414727126805778,
+            "drain_ms": 0.9891198778858002
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9396715042986677,
+            "offered_ops_s": 0.9369592532504952,
+            "call_p99_ns": 1.0288461538461537,
+            "drain_ms": 1.0336001275839661
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8939280857849312,
+            "offered_ops_s": 0.8025084807540991,
+            "call_p99_ns": 1.8645418326693226,
+            "drain_ms": 1.1012930565368981
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9026260954192604,
+            "offered_ops_s": 0.6846242460700785,
+            "call_p99_ns": 1.2046230627790913,
+            "drain_ms": 1.037785336028199
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7510357548734188,
+            "offered_ops_s": 0.522826855023897,
+            "call_p99_ns": 8.687727825030377,
+            "drain_ms": 1.1373653300633413
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8292501894976417,
+            "offered_ops_s": 0.597914476210751,
+            "call_p99_ns": 3.4066384373719436,
+            "drain_ms": 1.1110353650237246
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8787154306689192,
+            "offered_ops_s": 0.8150815763815509,
+            "call_p99_ns": 0.9723834805692154,
+            "drain_ms": 0.9032084065749907
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8313390893515471,
+            "offered_ops_s": 0.7742889509233916,
+            "call_p99_ns": 1.3481974509824124,
+            "drain_ms": 0.9503242238264443
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.7840696344028144,
+            "offered_ops_s": 0.7397987755367575,
+            "call_p99_ns": 0.8556252599473173,
+            "drain_ms": 0.9941368503153014
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9682971805307169,
+            "offered_ops_s": 0.9906338062605042,
+            "call_p99_ns": 0.9250127473395069,
+            "drain_ms": 1.2998333756246632
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.906570803960477,
+            "offered_ops_s": 0.806376398791386,
+            "call_p99_ns": 1.6956994743947675,
+            "drain_ms": 1.086228637917434
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9252894491931223,
+            "offered_ops_s": 0.7663496820451237,
+            "call_p99_ns": 8.674383689157134,
+            "drain_ms": 1.0513178971210169
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8506731079494666,
+            "offered_ops_s": 0.7609481960200702,
+            "call_p99_ns": 10.401104947559908,
+            "drain_ms": 1.1225747112391309
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9401925157195249,
+            "offered_ops_s": 0.8721328353392018,
+            "call_p99_ns": 9.295774990868136,
+            "drain_ms": 1.049120137727304
+          }
+        ]
+      ]
+    }
+  },
+  "internal": {
+    "candidate-01": {
+      "summary": {
+        "tput_ops_s": 4.568146708898991,
+        "offered_ops_s": 2.0596955801888424,
+        "call_p99_ns": 2.4131663975699555,
+        "drain_ms": 0.023471741209271698,
+        "write_bytes_s": 4.568146708898991,
+        "bytes_written": 1.0
+      },
+      "pairs": [
+        [
+          [
+            "quent-static-log/postcard-producer",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 6.08584901585687,
+            "offered_ops_s": 5.801041408924359,
+            "call_p99_ns": 0.1870459112691297,
+            "drain_ms": 0.026180772797776544,
+            "write_bytes_s": 6.08584901585687,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard-producer",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 4.887996192521121,
+            "offered_ops_s": 1.714864101676331,
+            "call_p99_ns": 21.318502912380715,
+            "drain_ms": 0.09590892015446159,
+            "write_bytes_s": 4.887996192521122,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard-producer",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 5.921260524718704,
+            "offered_ops_s": 5.113585449677732,
+            "call_p99_ns": 0.13565700844648776,
+            "drain_ms": 0.005000219763607249,
+            "write_bytes_s": 5.921260524718704,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/postcard-producer",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 2.596053750525989,
+            "offered_ops_s": 0.48655746381702647,
+            "call_p99_ns": 49.90987414280891,
+            "drain_ms": 0.1385155878612554,
+            "write_bytes_s": 2.596053750525989,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard-producer",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 5.480770900079823,
+            "offered_ops_s": 5.189789030727315,
+            "call_p99_ns": 0.16959203980099502,
+            "drain_ms": 0.017731103950877364,
+            "write_bytes_s": 5.480770900079824,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard-producer",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 5.823058234619078,
+            "offered_ops_s": 1.8183128279287588,
+            "call_p99_ns": 22.1386942570886,
+            "drain_ms": 0.043872027057381684,
+            "write_bytes_s": 5.823058234619076,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard-producer",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 4.9901733582728545,
+            "offered_ops_s": 4.491637553714115,
+            "call_p99_ns": 0.09665369649805447,
+            "drain_ms": 0.0031523545917511724,
+            "write_bytes_s": 4.990173358272854,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/postcard-producer",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 2.0850865261493614,
+            "offered_ops_s": 0.37821932140292314,
+            "call_p99_ns": 23.90660302677532,
+            "drain_ms": 0.08251190821071601,
+            "write_bytes_s": 2.0850865261493605,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard-producer",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 5.827506431277513,
+            "offered_ops_s": 5.391081046070297,
+            "call_p99_ns": 0.1594562208173216,
+            "drain_ms": 0.01184794344205562,
+            "write_bytes_s": 5.827506431277512,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard-producer",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 5.699984103712115,
+            "offered_ops_s": 1.6296828064905338,
+            "call_p99_ns": 55.57781799379524,
+            "drain_ms": 0.08004148211474953,
+            "write_bytes_s": 5.699984103712115,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard-producer",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 4.020803462541536,
+            "offered_ops_s": 3.135938622611841,
+            "call_p99_ns": 0.24522136905734357,
+            "drain_ms": 0.0012309761507240465,
+            "write_bytes_s": 4.0208034625415365,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/postcard-producer",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 3.7488617848532195,
+            "offered_ops_s": 0.5901106620256241,
+            "call_p99_ns": 136.04848191285586,
+            "drain_ms": 0.08314618201349873,
+            "write_bytes_s": 3.7488617848532204,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard-producer",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 5.255461049033243,
+            "offered_ops_s": 5.040054609417094,
+            "call_p99_ns": 0.15342855871490232,
+            "drain_ms": 0.09771149121363798,
+            "write_bytes_s": 5.255461049033244,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard-producer",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 6.40732396753315,
+            "offered_ops_s": 1.8083194686400486,
+            "call_p99_ns": 7.974099358236813,
+            "drain_ms": 0.03716548571145381,
+            "write_bytes_s": 6.407323967533152,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard-producer",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 4.230202951446383,
+            "offered_ops_s": 3.346692724537444,
+            "call_p99_ns": 0.14627594627594628,
+            "drain_ms": 0.00141028152173732,
+            "write_bytes_s": 4.230202951446382,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/postcard-producer",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 3.3205568567177877,
+            "offered_ops_s": 0.5331879679531846,
+            "call_p99_ns": 106.7119694447747,
+            "drain_ms": 0.04851535797776758,
+            "write_bytes_s": 3.320556856717787,
+            "bytes_written": 1.0
+          }
+        ]
+      ]
+    },
+    "candidate-03": {
+      "summary": {
+        "tput_ops_s": 1.001970648596953,
+        "offered_ops_s": 1.118371909044634,
+        "call_p99_ns": 0.5857963346183135,
+        "drain_ms": 1.110339236509486,
+        "write_bytes_s": 1.1661161673791924,
+        "bytes_written": 1.1638226818441142
+      },
+      "pairs": [
+        [
+          [
+            "quent-static-log/raw",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9854717241438867,
+            "offered_ops_s": 0.9839796309082169,
+            "call_p99_ns": 1.0599250936329587,
+            "drain_ms": 0.944381833329267,
+            "write_bytes_s": 1.160991522561273,
+            "bytes_written": 1.1781073917365477
+          }
+        ],
+        [
+          [
+            "quent-static-log/raw",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.2017659043574083,
+            "offered_ops_s": 1.5925960083841844,
+            "call_p99_ns": 0.12497152653726727,
+            "drain_ms": 0.9488193506746406,
+            "write_bytes_s": 1.4158092950604195,
+            "bytes_written": 1.1781073917365477
+          }
+        ],
+        [
+          [
+            "quent-static-log/raw",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1316267495577306,
+            "offered_ops_s": 1.309685001978018,
+            "call_p99_ns": 0.6367998178387874,
+            "drain_ms": 1.516716041277285,
+            "write_bytes_s": 1.2458210436116433,
+            "bytes_written": 1.100911624878559
+          }
+        ],
+        [
+          [
+            "quent-static-log/raw",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8838822577744597,
+            "offered_ops_s": 1.2243963465841998,
+            "call_p99_ns": 0.13631188499037672,
+            "drain_ms": 1.2275364942850946,
+            "write_bytes_s": 0.97307625260781,
+            "bytes_written": 1.100911624878559
+          }
+        ],
+        [
+          [
+            "quent-static-span/raw",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0444512489693403,
+            "offered_ops_s": 1.0357461892001554,
+            "call_p99_ns": 0.8248337028824834,
+            "drain_ms": 0.8257102263259702,
+            "write_bytes_s": 1.2327826224511176,
+            "bytes_written": 1.1803160977284695
+          }
+        ],
+        [
+          [
+            "quent-static-span/raw",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.971983353118456,
+            "offered_ops_s": 1.0304817493066551,
+            "call_p99_ns": 0.8695579276812161,
+            "drain_ms": 1.063202067628065,
+            "write_bytes_s": 1.1472482297644475,
+            "bytes_written": 1.1803167472814033
+          }
+        ],
+        [
+          [
+            "quent-static-span/raw",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1850464561151801,
+            "offered_ops_s": 1.4519813111688356,
+            "call_p99_ns": 1.0217094572635683,
+            "drain_ms": 2.2432610088063387,
+            "write_bytes_s": 1.3050651009425411,
+            "bytes_written": 1.1012775863832431
+          }
+        ],
+        [
+          [
+            "quent-static-span/raw",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.6410989293120961,
+            "offered_ops_s": 0.903177632756689,
+            "call_p99_ns": 0.406706379707917,
+            "drain_ms": 1.6346025062096092,
+            "write_bytes_s": 0.7060279517535278,
+            "bytes_written": 1.101277695957317
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/raw",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0059533548132475,
+            "offered_ops_s": 0.9999808201367392,
+            "call_p99_ns": 0.7896771840233449,
+            "drain_ms": 0.9316114480222228,
+            "write_bytes_s": 1.2427209112604227,
+            "bytes_written": 1.2353663371311392
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/raw",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9968325474575106,
+            "offered_ops_s": 1.1266697157650345,
+            "call_p99_ns": 0.646475684958239,
+            "drain_ms": 1.0311902237814734,
+            "write_bytes_s": 1.2314533728856873,
+            "bytes_written": 1.2353663371311392
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/raw",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.014042438228539,
+            "offered_ops_s": 1.0455787997691506,
+            "call_p99_ns": 1.2652461007172404,
+            "drain_ms": 1.0753321148856783,
+            "write_bytes_s": 1.1591878851435697,
+            "bytes_written": 1.1431354758372736
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/raw",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9958876283436016,
+            "offered_ops_s": 1.0284939730940212,
+            "call_p99_ns": 0.9355857894690132,
+            "drain_ms": 1.005349049983495,
+            "write_bytes_s": 1.1384344779070166,
+            "bytes_written": 1.1431354758372736
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/raw",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0987149129965952,
+            "offered_ops_s": 1.0993179875093488,
+            "call_p99_ns": 0.8424217213734685,
+            "drain_ms": 0.9400145084665463,
+            "write_bytes_s": 1.3584708750919468,
+            "bytes_written": 1.2364179816098995
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/raw",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.0532858407912618,
+            "offered_ops_s": 1.2325780809233522,
+            "call_p99_ns": 0.7806686777275013,
+            "drain_ms": 0.988110729293177,
+            "write_bytes_s": 1.3023018792667067,
+            "bytes_written": 1.2364182910579868
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/raw",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.9879569710291032,
+            "offered_ops_s": 0.9818951637845849,
+            "call_p99_ns": 1.016798750675015,
+            "drain_ms": 0.992701851816483,
+            "write_bytes_s": 1.1296427175634687,
+            "bytes_written": 1.1434128719055232
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/raw",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9756073927871984,
+            "offered_ops_s": 1.0563840494506243,
+            "call_p99_ns": 0.13885401956169255,
+            "drain_ms": 1.0377520531824784,
+            "write_bytes_s": 1.115522131873288,
+            "bytes_written": 1.1434129549657972
+          }
+        ]
+      ]
+    },
+    "candidate-10": {
+      "summary": {
+        "tput_ops_s": 1.161352997891188,
+        "offered_ops_s": 1.1830467448778288,
+        "call_p99_ns": 0.5939885133461174,
+        "drain_ms": 0.996770772494806,
+        "write_bytes_s": 1.1613529978911878,
+        "bytes_written": 1.0
+      },
+      "pairs": [
+        [
+          [
+            "quent-static-log/bincode-native",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.5461340015943397,
+            "offered_ops_s": 1.7020891393889883,
+            "call_p99_ns": 0.4901968776749684,
+            "drain_ms": 0.9863708908739411,
+            "write_bytes_s": 1.5461340015943392,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/bincode-native",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1733178866074947,
+            "offered_ops_s": 1.0281726814148855,
+            "call_p99_ns": 0.5546890424481737,
+            "drain_ms": 0.831850628663044,
+            "write_bytes_s": 1.1733178866074947,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/bincode-native",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.0867656308252658,
+            "offered_ops_s": 1.114063585785736,
+            "call_p99_ns": 0.7731950745301361,
+            "drain_ms": 1.0098221478448555,
+            "write_bytes_s": 1.0867656308252656,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-log/bincode-native",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8730737306513461,
+            "offered_ops_s": 0.889138338716068,
+            "call_p99_ns": 0.7000888296691095,
+            "drain_ms": 1.1482501962130194,
+            "write_bytes_s": 0.873073730651346,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/bincode-native",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.472404240581459,
+            "offered_ops_s": 1.7725541944034755,
+            "call_p99_ns": 0.6552159835741925,
+            "drain_ms": 1.0984800697587294,
+            "write_bytes_s": 1.4724042405814592,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/bincode-native",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 1.1107863622403682,
+            "offered_ops_s": 1.1410162077949242,
+            "call_p99_ns": 0.3823928275446395,
+            "drain_ms": 0.9047841966120314,
+            "write_bytes_s": 1.1107863622403686,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/bincode-native",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.1940863087073939,
+            "offered_ops_s": 1.2909942267853483,
+            "call_p99_ns": 0.653199849517201,
+            "drain_ms": 1.0321641705931028,
+            "write_bytes_s": 1.1940863087073939,
+            "bytes_written": 1.0
+          }
+        ],
+        [
+          [
+            "quent-static-span/bincode-native",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9843986435274016,
+            "offered_ops_s": 0.8477580578770386,
+            "call_p99_ns": 0.643312101910828,
+            "drain_ms": 0.9984110445177483,
+            "write_bytes_s": 0.9843986435274015,
+            "bytes_written": 1.0
+          }
+        ]
+      ]
+    },
+    "candidate-12": {
+      "summary": {
+        "tput_ops_s": 0.9325909807814651,
+        "offered_ops_s": 1.145232134441075,
+        "call_p99_ns": 1.0609095092376597,
+        "drain_ms": 1.51368439814534,
+        "write_bytes_s": 0.9107831462053677,
+        "bytes_written": 0.9766176681586404
+      },
+      "pairs": [
+        [
+          [
+            "quent-static-log/bitcode",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.6414652876765874,
+            "offered_ops_s": 1.7729304992776,
+            "call_p99_ns": 0.6379761446710274,
+            "drain_ms": 1.5621742970363706,
+            "write_bytes_s": 1.6042144628467927,
+            "bytes_written": 0.9773063875055307
+          }
+        ],
+        [
+          [
+            "quent-static-log/bitcode",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.8078173789163674,
+            "offered_ops_s": 0.6958194802153019,
+            "call_p99_ns": 8.47177089421391,
+            "drain_ms": 1.0911793173306243,
+            "write_bytes_s": 0.789147789964361,
+            "bytes_written": 0.9769223880087391
+          }
+        ],
+        [
+          [
+            "quent-static-log/bitcode",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8336325274290746,
+            "offered_ops_s": 1.4542709581681914,
+            "call_p99_ns": 0.6746522276581298,
+            "drain_ms": 3.429884715153244,
+            "write_bytes_s": 0.8222754354501071,
+            "bytes_written": 0.9863765198873543
+          }
+        ],
+        [
+          [
+            "quent-static-log/bitcode",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.4129015137959544,
+            "offered_ops_s": 0.8509610449633603,
+            "call_p99_ns": 9.061039262309343,
+            "drain_ms": 2.5411848801053294,
+            "write_bytes_s": 0.4072744748467713,
+            "bytes_written": 0.9863719438949056
+          }
+        ],
+        [
+          [
+            "quent-static-span/bitcode",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.508411718171846,
+            "offered_ops_s": 1.6174943829449877,
+            "call_p99_ns": 0.543017481529331,
+            "drain_ms": 1.2555097835220936,
+            "write_bytes_s": 1.4651526197244076,
+            "bytes_written": 0.9713213933603827
+          }
+        ],
+        [
+          [
+            "quent-static-span/bitcode",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.798968040347241,
+            "offered_ops_s": 0.8284455177052694,
+            "call_p99_ns": 1.1460635359116023,
+            "drain_ms": 1.2656739412078317,
+            "write_bytes_s": 0.7745578730704108,
+            "bytes_written": 0.969446490905691
+          }
+        ],
+        [
+          [
+            "quent-static-span/bitcode",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.4047346432914816,
+            "offered_ops_s": 1.678152944759453,
+            "call_p99_ns": 0.5084798940231128,
+            "drain_ms": 1.7645225920644376,
+            "write_bytes_s": 1.3848444936763593,
+            "bytes_written": 0.9858406223073526
+          }
+        ],
+        [
+          [
+            "quent-static-span/bitcode",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.6128063569885345,
+            "offered_ops_s": 0.98073243918178,
+            "call_p99_ns": 0.8642612836161223,
+            "drain_ms": 1.735289561765091,
+            "write_bytes_s": 0.6041352303050179,
+            "bytes_written": 0.985850146238126
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/bitcode",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.4052175287073536,
+            "offered_ops_s": 1.4871344010404135,
+            "call_p99_ns": 0.7880299251870324,
+            "drain_ms": 1.1621570258825427,
+            "write_bytes_s": 1.3558013894062584,
+            "bytes_written": 0.9648338058322564
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/bitcode",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7684305491418888,
+            "offered_ops_s": 1.0701483262854594,
+            "call_p99_ns": 1.004814057046576,
+            "drain_ms": 1.3906966393729336,
+            "write_bytes_s": 0.7408332640668107,
+            "bytes_written": 0.9640925152228512
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/bitcode",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 0.8943554368473629,
+            "offered_ops_s": 1.2656498531136653,
+            "call_p99_ns": 1.0752767675152872,
+            "drain_ms": 1.944770327337863,
+            "write_bytes_s": 0.8814752270881816,
+            "bytes_written": 0.9855983322668258
+          }
+        ],
+        [
+          [
+            "quent-dynamic-log/bitcode",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.5581401332061426,
+            "offered_ops_s": 0.924215219883582,
+            "call_p99_ns": 1.0069821891462496,
+            "drain_ms": 1.8816016437698617,
+            "write_bytes_s": 0.5501019495549857,
+            "bytes_written": 0.9855982689217648
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/bitcode",
+            8,
+            1
+          ],
+          {
+            "tput_ops_s": 1.4196624032838112,
+            "offered_ops_s": 1.5778238215573057,
+            "call_p99_ns": 0.539411948701908,
+            "drain_ms": 1.6310762959325857,
+            "write_bytes_s": 1.3621346396174303,
+            "bytes_written": 0.9594778451971245
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/bitcode",
+            8,
+            16
+          ],
+          {
+            "tput_ops_s": 0.7869345180094013,
+            "offered_ops_s": 0.7871903517444383,
+            "call_p99_ns": 1.2256410256410257,
+            "drain_ms": 1.281540560875897,
+            "write_bytes_s": 0.7536236319151363,
+            "bytes_written": 0.9576604732788997
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/bitcode",
+            64,
+            1
+          ],
+          {
+            "tput_ops_s": 1.2259183603555635,
+            "offered_ops_s": 1.2192510866704667,
+            "call_p99_ns": 0.6480140653720131,
+            "drain_ms": 0.7985933496887985,
+            "write_bytes_s": 1.2075636794857172,
+            "bytes_written": 0.9850278105378317
+          }
+        ],
+        [
+          [
+            "quent-dynamic-span/bitcode",
+            64,
+            16
+          ],
+          {
+            "tput_ops_s": 0.9365687964027981,
+            "offered_ops_s": 0.922469427170754,
+            "call_p99_ns": 0.775955406338854,
+            "drain_ms": 1.0642834151826452,
+            "write_bytes_s": 0.9225462448921303,
+            "bytes_written": 0.9850277411866805
+          }
+        ]
+      ]
+    }
+  },
+  "validation": {
+    "baseline-end": {
+      "csv_rows": 80,
+      "json_rows": 80,
+      "bad_loss": []
+    },
+    "baseline-start": {
+      "csv_rows": 80,
+      "json_rows": 80,
+      "bad_loss": []
+    },
+    "candidate-01": {
+      "csv_rows": 32,
+      "json_rows": 32,
+      "bad_loss": []
+    },
+    "candidate-02": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-03": {
+      "csv_rows": 32,
+      "json_rows": 32,
+      "bad_loss": []
+    },
+    "candidate-04": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-05": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-06": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-07": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-08": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-09": {
+      "csv_rows": 48,
+      "json_rows": 48,
+      "bad_loss": []
+    },
+    "candidate-10": {
+      "csv_rows": 24,
+      "json_rows": 24,
+      "bad_loss": []
+    },
+    "candidate-11": {
+      "csv_rows": 48,
+      "json_rows": 48,
+      "bad_loss": []
+    },
+    "candidate-12": {
+      "csv_rows": 32,
+      "json_rows": 32,
+      "bad_loss": []
+    },
+    "candidate-13": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    },
+    "candidate-14": {
+      "csv_rows": 16,
+      "json_rows": 16,
+      "bad_loss": []
+    }
+  }
+}

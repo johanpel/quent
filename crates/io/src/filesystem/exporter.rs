@@ -38,6 +38,18 @@ where
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         let dir = self.dir(context_id);
         match self.format {
+            #[cfg(feature = "bitcode")]
+            Format::Bitcode => Ok(Box::new(
+                quent_io_bitcode::BitcodeExporter::<T>::try_new(
+                    quent_io_bitcode::BitcodeExporterOptions { dir },
+                )
+                .await?,
+            ) as Box<dyn Exporter<T>>),
+            #[cfg(feature = "raw")]
+            Format::Raw => Ok(Box::new(
+                quent_io_raw::RawExporter::<T>::try_new(quent_io_raw::RawExporterOptions { dir })
+                    .await?,
+            ) as Box<dyn Exporter<T>>),
             #[cfg(feature = "ndjson")]
             Format::Ndjson => Ok(Box::new(
                 quent_io_ndjson::NdjsonExporter::try_new::<T>(

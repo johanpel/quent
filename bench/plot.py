@@ -75,18 +75,28 @@ def duration_ns(v):
     return f"{v:.0f}ns"
 
 
-def panel(ax, order, values, labels, colors, title, losses=None):
+def byte_rate(v):
+    if v >= 999_950_000:
+        return f"{v / 1e9:.2f}GB/s"
+    if v >= 999_950:
+        return f"{v / 1e6:.1f}MB/s"
+    if v >= 999.95:
+        return f"{v / 1e3:.1f}kB/s"
+    return f"{v:.0f}B/s"
+
+
+def panel(ax, order, values, labels, colors, title, losses=None, formatter=si):
     ys = list(range(len(order)))
     bars = ax.barh(ys, values, height=0.92, color=colors)
     if losses is not None:
         for y, (v, lf) in enumerate(zip(values, losses)):
             if lf > 0:
                 ax.barh(y, v * lf, left=v * (1 - lf), height=0.92, color=LOSS)
-    ax.bar_label(bars, labels=[si(v) for v in values], padding=2, fontsize=7)
+    ax.bar_label(bars, labels=[formatter(v) for v in values], padding=2, fontsize=7)
     ax.set_yticks(ys)
     ax.set_yticklabels(labels, fontsize=8)
     ax.set_title(title, fontsize=9)
-    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: si(x)))
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: formatter(x)))
     ax.tick_params(axis="x", labelsize=7)
     ax.margins(x=0.20)  # headroom for the data labels
 
@@ -154,6 +164,44 @@ def plot_latency(rows, attrs, threads, n_variants, out):
     print("wrote", out)
 
 
+def plot_write_throughput(rows, attrs, threads, out):
+    file_variants = {r["variant"] for r in rows if r.get("write_bytes_s")}
+    if not file_variants:
+        return
+    fig, axes = plt.subplots(
+        len(attrs), len(threads),
+        figsize=(4.0 * len(threads), 0.20 * len(file_variants) * len(attrs) + 1.3 * len(attrs)),
+        squeeze=False, layout="constrained",
+    )
+    for i, a in enumerate(attrs):
+        for j, t in enumerate(threads):
+            cell = {
+                r["variant"]: float(r["write_bytes_s"])
+                for r in rows
+                if int(r["attrs"]) == a and int(r["threads"]) == t
+                and r.get("write_bytes_s")
+            }
+            order = sorted(cell, key=cell.get)
+            colors = [FAMILY[family(v)] for v in order]
+            panel(
+                axes[i][j], order, [cell[v] for v in order], order, colors,
+                f"{a} attrs · {t} thr — logical write throughput",
+                formatter=byte_rate,
+            )
+    fig.legend(
+        handles=[plt.Rectangle((0, 0), 1, 1, color=c) for c in FAMILY.values()],
+        labels=["quent", "OpenTelemetry", "tracing"],
+        loc="outside lower center", ncol=3,
+    )
+    fig.suptitle(
+        "Logical filesystem write throughput\n"
+        "bytes in completed files ÷ full drained delivery time · flushed, not fsynced · page cache may hide device limits",
+        fontsize=9,
+    )
+    fig.savefig(out, dpi=130)
+    print("wrote", out)
+
+
 def main():
     csv_path = sys.argv[1] if len(sys.argv) > 1 else "bench.csv"
     out = sys.argv[2] if len(sys.argv) > 2 else "plots/bench.png"
@@ -202,7 +250,7 @@ def main():
     fig.suptitle(
         "quent vs OpenTelemetry vs tracing — each cell spams a fixed number of ops as fast as possible\n"
         "throughput = ops ÷ full time to deliver everything    ·    offered = ops ÷ emit time\n"
-        "offered > throughput = caller outruns the pipeline: quent's unbounded queue just drains (0% loss); gray = dropped (OTel/tracing)",
+        "offered > throughput = caller outruns the pipeline: quent/tracing remain lossless; gray = dropped (OTel)",
         fontsize=9,
     )
     fig.savefig(out, dpi=130)
@@ -212,6 +260,10 @@ def main():
         stem, extension = os.path.splitext(out)
         latency_out = f"{stem}-latency{extension or '.png'}"
         plot_latency(rows, attrs, threads, n_variants, latency_out)
+    if "write_bytes_s" in rows[0]:
+        stem, extension = os.path.splitext(out)
+        write_out = f"{stem}-write{extension or '.png'}"
+        plot_write_throughput(rows, attrs, threads, write_out)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,10 @@ use crate::ExporterOptions;
 /// Exporter selected on the command line. `None` is the no-op exporter.
 #[derive(::clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExporterKind {
+    #[cfg(feature = "bitcode")]
+    Bitcode,
+    #[cfg(feature = "raw")]
+    Raw,
     #[cfg(feature = "postcard")]
     Postcard,
     #[cfg(feature = "msgpack")]
@@ -71,6 +75,10 @@ impl ExporterArgs {
             ))
         };
         match self.exporter {
+            #[cfg(feature = "bitcode")]
+            ExporterKind::Bitcode => Some(filesystem(crate::filesystem::Format::Bitcode)),
+            #[cfg(feature = "raw")]
+            ExporterKind::Raw => Some(filesystem(crate::filesystem::Format::Raw)),
             #[cfg(feature = "postcard")]
             ExporterKind::Postcard => Some(filesystem(crate::filesystem::Format::Postcard)),
             #[cfg(feature = "msgpack")]

@@ -7,8 +7,12 @@ publish.workspace = true
 [features]
 default = []
 serde = ["dep:serde"]
+bitcode = ["dep:bitcode"]
+bincode = ["dep:bincode", "serde"]
 
 [dependencies]
 quent-time = { path = "../time" }
+bitcode = { workspace = true, optional = true }
+bincode = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["serde"] }
 serde = { workspace = true, optional = true }

@@ -6,7 +6,7 @@
 // internal marker feature.
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(filesystem)");
-    let enabled = ["NDJSON", "MSGPACK", "POSTCARD"]
+    let enabled = ["BITCODE", "RAW", "NDJSON", "MSGPACK", "POSTCARD"]
         .iter()
         .any(|f| std::env::var_os(format!("CARGO_FEATURE_{f}")).is_some());
     if enabled {

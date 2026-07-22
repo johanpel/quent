@@ -9,13 +9,19 @@ publish.workspace = true
 [features]
 default = ["collector"]
 # Route quent events through the in-process collector (gRPC) exporter.
-collector = ["quent-model/collector"]
+collector = ["quent-instrumentation/io-collector", "quent-io/collector"]
 
 [dependencies]
 # quent side
-quent-model = { path = "../crates/model" }
+bitcode.workspace = true
+bincode.workspace = true
 quent-dynamic-attributes = { path = "../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../crates/instrumentation", features = ["io-bitcode", "io-raw", "io-ndjson", "io-msgpack", "io-postcard"] }
+quent-io = { path = "../crates/io", default-features = false, features = ["bitcode", "raw", "ndjson", "msgpack", "postcard"] }
+quent-io-bitcode = { path = "../crates/io/bitcode" }
+quent-io-raw = { path = "../crates/io/raw" }
 quent-collector = { path = "../crates/collector/server" }
+quent-collector-client = { path = "../crates/collector/client" }
 quent-collector-proto = { path = "../crates/collector/proto" }
 
 # tracing side (JSON structured logs/spans to a file, off-thread writer).
@@ -37,3 +43,8 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true
 uuid = { workspace = true, features = ["v7"] }
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../crates/instrumentation-build" }
+quent-yaml = { path = "../crates/yaml" }
+quent-schema = { path = "../crates/schema" }

@@ -15,9 +15,12 @@ pub trait EntityEvent {
 }
 
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "bitcode", derive(bitcode::Decode, bitcode::Encode))]
+#[cfg_attr(feature = "bincode", derive(bincode::Decode, bincode::Encode))]
 #[derive(Debug)]
 pub struct Event<T> {
     /// The ID of the entity producing this event.
+    #[cfg_attr(feature = "bincode", bincode(with_serde))]
     pub id: Uuid,
     /// The timestamp of the event.
     pub timestamp: TimeUnixNanoSec,

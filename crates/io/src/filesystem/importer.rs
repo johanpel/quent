@@ -23,6 +23,18 @@ where
 {
     fn create_importer(&self) -> ImporterResult<Box<dyn Importer<T>>> {
         match self.format {
+            #[cfg(feature = "bitcode")]
+            Format::Bitcode => Ok(Box::new(quent_io_bitcode::BitcodeImporter::try_new(
+                &quent_io_bitcode::BitcodeImporterOptions {
+                    path: self.path.clone(),
+                },
+            )?) as Box<dyn Importer<T>>),
+            #[cfg(feature = "raw")]
+            Format::Raw => Ok(Box::new(quent_io_raw::RawImporter::try_new(
+                &quent_io_raw::RawImporterOptions {
+                    path: self.path.clone(),
+                },
+            )?) as Box<dyn Importer<T>>),
             #[cfg(feature = "ndjson")]
             Format::Ndjson => Ok(Box::new(quent_io_ndjson::NdjsonImporter::try_new(
                 &quent_io_ndjson::NdjsonImporterOptions {

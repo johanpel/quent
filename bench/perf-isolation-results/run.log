@@ -1,0 +1,2036 @@
+
+RUN baseline-start
+commit=e8f09eb1914b0ab7a5a8df25ab311c6b2a20a19c variants=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc,quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop
+time=2026-07-21T22:10:55+02:00 package_temp_mC=36000 dirty_kib=2288 load=0.70 3.38 2.13
+/tmp/quent-perf-isolation/run-sequential.sh: line 71: /usr/bin/time: No such file or directory
+
+RUN baseline-start
+commit=e8f09eb1914b0ab7a5a8df25ab311c6b2a20a19c variants=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc,quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop
+time=2026-07-21T22:11:23+02:00 package_temp_mC=38000 dirty_kib=1540 load=0.65 3.15 2.09
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/noop      attrs=8   thr=1  offered=1.38M     tput=-         write=-          loss=-    p99=761ns    drain=-
+[   2/104] quent-static-span/noop     attrs=8   thr=1  offered=1.16M     tput=-         write=-          loss=-    p99=2.7us    drain=-
+[   3/104] quent-dynamic-log/noop     attrs=8   thr=1  offered=985.8k    tput=-         write=-          loss=-    p99=2.8us    drain=-
+[   4/104] quent-dynamic-span/noop    attrs=8   thr=1  offered=987.9k    tput=-         write=-          loss=-    p99=1.2us    drain=-
+[   5/104] quent-static-log/ndjson    attrs=8   thr=1  offered=187.4k    tput=168.4k    write=291.9MB/s  loss=0%   p99=16.8us   drain=29.55ms
+[   6/104] quent-static-span/ndjson   attrs=8   thr=1  offered=171.1k    tput=154.6k    write=282.3MB/s  loss=0%   p99=23.3us   drain=31.18ms
+[   7/104] quent-dynamic-log/ndjson   attrs=8   thr=1  offered=149.5k    tput=129.7k    write=254.4MB/s  loss=0%   p99=27.1us   drain=51.01ms
+[   8/104] quent-dynamic-span/ndjson  attrs=8   thr=1  offered=146.1k    tput=127.6k    write=262.0MB/s  loss=0%   p99=21.3us   drain=49.58ms
+[   9/104] quent-static-log/msgpack   attrs=8   thr=1  offered=175.2k    tput=164.5k    write=257.9MB/s  loss=0%   p99=22.2us   drain=18.81ms
+[  10/104] quent-static-span/msgpack  attrs=8   thr=1  offered=171.8k    tput=155.0k    write=248.8MB/s  loss=0%   p99=29.5us   drain=30.94ms
+[  11/104] quent-dynamic-log/msgpack  attrs=8   thr=1  offered=142.4k    tput=129.2k    write=215.6MB/s  loss=0%   p99=29.8us   drain=36.05ms
+[  12/104] quent-dynamic-span/msgpack attrs=8   thr=1  offered=138.8k    tput=125.5k    write=214.1MB/s  loss=0%   p99=34.7us   drain=38.29ms
+[  13/104] quent-static-log/postcard  attrs=8   thr=1  offered=176.6k    tput=170.7k    write=263.6MB/s  loss=0%   p99=19.6us   drain=9.69ms
+[  14/104] quent-static-span/postcard attrs=8   thr=1  offered=161.6k    tput=150.5k    write=237.1MB/s  loss=0%   p99=25.2us   drain=22.65ms
+[  15/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=148.3k    tput=136.5k    write=217.0MB/s  loss=0%   p99=21.9us   drain=28.64ms
+[  16/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=148.8k    tput=136.3k    write=220.8MB/s  loss=0%   p99=20.6us   drain=30.67ms
+[  17/104] quent-static-log/grpc      attrs=8   thr=1  offered=302.7k    tput=60.8k     write=-          loss=0%   p99=17.1us   drain=662.71ms
+[  18/104] quent-static-span/grpc     attrs=8   thr=1  offered=316.5k    tput=54.5k     write=-          loss=0%   p99=8.5us    drain=760.73ms
+[  19/104] quent-dynamic-log/grpc     attrs=8   thr=1  offered=270.8k    tput=126.4k    write=-          loss=0%   p99=9.1us    drain=320.25ms
+[  20/104] quent-dynamic-span/grpc    attrs=8   thr=1  offered=282.3k    tput=54.7k     write=-          loss=0%   p99=9.9us    drain=743.59ms
+[  21/104] quent-static-log/noop      attrs=8   thr=16 offered=9.80M     tput=-         write=-          loss=-    p99=4.3us    drain=-
+[  22/104] quent-static-span/noop     attrs=8   thr=16 offered=15.45M    tput=-         write=-          loss=-    p99=1.3us    drain=-
+[  23/104] quent-dynamic-log/noop     attrs=8   thr=16 offered=14.07M    tput=-         write=-          loss=-    p99=1.1us    drain=-
+[  24/104] quent-dynamic-span/noop    attrs=8   thr=16 offered=13.65M    tput=-         write=-          loss=-    p99=1.1us    drain=-
+[  25/104] quent-static-log/ndjson    attrs=8   thr=16 offered=2.91M     tput=569.6k    write=987.8MB/s  loss=0%   p99=33.2us   drain=64.64ms
+[  26/104] quent-static-span/ndjson   attrs=8   thr=16 offered=2.74M     tput=514.0k    write=938.5MB/s  loss=0%   p99=58.7us   drain=79.08ms
+[  27/104] quent-dynamic-log/ndjson   attrs=8   thr=16 offered=4.18M     tput=536.0k    write=1.05GB/s   loss=0%   p99=7.7us    drain=80.93ms
+[  28/104] quent-dynamic-span/ndjson  attrs=8   thr=16 offered=2.27M     tput=409.7k    write=841.5MB/s  loss=0%   p99=767.0us  drain=99.88ms
+[  29/104] quent-static-log/msgpack   attrs=8   thr=16 offered=5.08M     tput=803.7k    write=1.26GB/s   loss=0%   p99=6.6us    drain=51.98ms
+[  30/104] quent-static-span/msgpack  attrs=8   thr=16 offered=3.83M     tput=630.5k    write=1.01GB/s   loss=0%   p99=11.8us   drain=65.89ms
+[  31/104] quent-dynamic-log/msgpack  attrs=8   thr=16 offered=4.11M     tput=606.8k    write=1.01GB/s   loss=0%   p99=7.2us    drain=69.72ms
+[  32/104] quent-dynamic-span/msgpack attrs=8   thr=16 offered=2.73M     tput=457.7k    write=780.8MB/s  loss=0%   p99=13.6us   drain=90.03ms
+[  33/104] quent-static-log/postcard  attrs=8   thr=16 offered=4.53M     tput=810.7k    write=1.25GB/s   loss=0%   p99=10.0us   drain=50.64ms
+[  34/104] quent-static-span/postcard attrs=8   thr=16 offered=3.58M     tput=644.6k    write=1.02GB/s   loss=0%   p99=11.6us   drain=62.64ms
+[  35/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=4.65M     tput=683.0k    write=1.09GB/s   loss=0%   p99=6.9us    drain=62.29ms
+[  36/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=3.83M     tput=579.1k    write=938.2MB/s  loss=0%   p99=10.9us   drain=73.22ms
+[  37/104] quent-static-log/grpc      attrs=8   thr=16 offered=3.80M     tput=92.9k     write=-          loss=0%   p99=11.4us   drain=664.24ms
+[  38/104] quent-static-span/grpc     attrs=8   thr=16 offered=2.65M     tput=70.7k     write=-          loss=0%   p99=12.5us   drain=727.67ms
+[  39/104] quent-dynamic-log/grpc     attrs=8   thr=16 offered=3.33M     tput=95.8k     write=-          loss=0%   p99=10.2us   drain=633.72ms
+[  40/104] quent-dynamic-span/grpc    attrs=8   thr=16 offered=2.42M     tput=67.6k     write=-          loss=0%   p99=14.1us   drain=722.58ms
+[  41/104] quent-static-log/noop      attrs=64  thr=1  offered=235.7k    tput=-         write=-          loss=-    p99=4.7us    drain=-
+[  42/104] quent-static-span/noop     attrs=64  thr=1  offered=239.9k    tput=-         write=-          loss=-    p99=4.7us    drain=-
+[  43/104] quent-dynamic-log/noop     attrs=64  thr=1  offered=163.7k    tput=-         write=-          loss=-    p99=6.2us    drain=-
+[  44/104] quent-dynamic-span/noop    attrs=64  thr=1  offered=160.6k    tput=-         write=-          loss=-    p99=6.3us    drain=-
+[  45/104] quent-static-log/ndjson    attrs=64  thr=1  offered=55.4k     tput=38.0k     write=645.0MB/s  loss=0%   p99=51.9us   drain=410.84ms
+[  46/104] quent-static-span/ndjson   attrs=64  thr=1  offered=68.1k     tput=43.5k     write=741.2MB/s  loss=0%   p99=47.3us   drain=414.90ms
+[  47/104] quent-dynamic-log/ndjson   attrs=64  thr=1  offered=51.1k     tput=31.8k     write=589.6MB/s  loss=0%   p99=44.4us   drain=594.62ms
+[  48/104] quent-dynamic-span/ndjson  attrs=64  thr=1  offered=48.8k     tput=32.7k     write=608.9MB/s  loss=0%   p99=57.8us   drain=502.83ms
+[  49/104] quent-static-log/msgpack   attrs=64  thr=1  offered=60.0k     tput=47.6k     write=768.6MB/s  loss=0%   p99=47.2us   drain=206.57ms
+[  50/104] quent-static-span/msgpack  attrs=64  thr=1  offered=47.0k     tput=42.0k     write=679.6MB/s  loss=0%   p99=52.2us   drain=124.89ms
+[  51/104] quent-dynamic-log/msgpack  attrs=64  thr=1  offered=54.0k     tput=37.3k     write=633.1MB/s  loss=0%   p99=72.3us   drain=414.27ms
+[  52/104] quent-dynamic-span/msgpack attrs=64  thr=1  offered=49.7k     tput=36.2k     write=615.7MB/s  loss=0%   p99=65.5us   drain=375.07ms
+[  53/104] quent-static-log/postcard  attrs=64  thr=1  offered=58.9k     tput=47.6k     write=761.7MB/s  loss=0%   p99=53.6us   drain=198.87ms
+[  54/104] quent-static-span/postcard attrs=64  thr=1  offered=44.2k     tput=40.9k     write=655.8MB/s  loss=0%   p99=60.5us   drain=91.10ms
+[  55/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=46.2k     tput=35.6k     write=583.8MB/s  loss=0%   p99=56.8us   drain=321.98ms
+[  56/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=54.1k     tput=39.8k     write=655.1MB/s  loss=0%   p99=49.9us   drain=331.01ms
+[  57/104] quent-static-log/grpc      attrs=64  thr=1  offered=72.3k     tput=9.7k      write=-          loss=0%   p99=37.5us   drain=6.03s
+[  58/104] quent-static-span/grpc     attrs=64  thr=1  offered=80.4k     tput=6.7k      write=-          loss=0%   p99=28.4us   drain=7.11s
+[  59/104] quent-dynamic-log/grpc     attrs=64  thr=1  offered=58.9k     tput=9.9k      write=-          loss=0%   p99=37.6us   drain=4.95s
+[  60/104] quent-dynamic-span/grpc    attrs=64  thr=1  offered=46.4k     tput=6.8k      write=-          loss=0%   p99=67.5us   drain=6.54s
+[  61/104] quent-static-log/noop      attrs=64  thr=16 offered=2.15M     tput=-         write=-          loss=-    p99=6.8us    drain=-
+[  62/104] quent-static-span/noop     attrs=64  thr=16 offered=2.26M     tput=-         write=-          loss=-    p99=7.4us    drain=-
+[  63/104] quent-dynamic-log/noop     attrs=64  thr=16 offered=1.38M     tput=-         write=-          loss=-    p99=14.4us   drain=-
+[  64/104] quent-dynamic-span/noop    attrs=64  thr=16 offered=1.34M     tput=-         write=-          loss=-    p99=15.1us   drain=-
+[  65/104] quent-static-log/ndjson    attrs=64  thr=16 offered=1.03M     tput=76.4k     write=1.30GB/s   loss=0%   p99=262.0us  drain=595.05ms
+[  66/104] quent-static-span/ndjson   attrs=64  thr=16 offered=1.09M     tput=72.0k     write=1.23GB/s   loss=0%   p99=260.6us  drain=649.05ms
+[  67/104] quent-dynamic-log/ndjson   attrs=64  thr=16 offered=689.1k    tput=61.9k     write=1.15GB/s   loss=0%   p99=185.3us  drain=735.20ms
+[  68/104] quent-dynamic-span/ndjson  attrs=64  thr=16 offered=617.7k    tput=59.2k     write=1.10GB/s   loss=0%   p99=221.9us  drain=764.76ms
+[  69/104] quent-static-log/msgpack   attrs=64  thr=16 offered=1.25M     tput=124.7k    write=2.01GB/s   loss=0%   p99=34.6us   drain=361.19ms
+[  70/104] quent-static-span/msgpack  attrs=64  thr=16 offered=1.14M     tput=152.3k    write=2.46GB/s   loss=0%   p99=36.1us   drain=284.35ms
+[  71/104] quent-dynamic-log/msgpack  attrs=64  thr=16 offered=858.9k    tput=81.9k     write=1.39GB/s   loss=0%   p99=43.8us   drain=552.37ms
+[  72/104] quent-dynamic-span/msgpack attrs=64  thr=16 offered=845.6k    tput=78.1k     write=1.33GB/s   loss=0%   p99=30.9us   drain=580.84ms
+[  73/104] quent-static-log/postcard  attrs=64  thr=16 offered=1.29M     tput=142.2k    write=2.28GB/s   loss=0%   p99=25.4us   drain=313.33ms
+[  74/104] quent-static-span/postcard attrs=64  thr=16 offered=1.20M     tput=168.3k    write=2.70GB/s   loss=0%   p99=44.6us   drain=255.45ms
+[  75/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=888.1k    tput=92.4k     write=1.52GB/s   loss=0%   p99=42.4us   drain=484.98ms
+[  76/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=793.9k    tput=94.6k     write=1.56GB/s   loss=0%   p99=31.9us   drain=465.56ms
+[  77/104] quent-static-log/grpc      attrs=64  thr=16 offered=1.17M     tput=8.3k      write=-          loss=0%   p99=28.2us   drain=6.21s
+[  78/104] quent-static-span/grpc     attrs=64  thr=16 offered=1.13M     tput=11.5k     write=-          loss=0%   p99=69.7us   drain=5.06s
+[  79/104] quent-dynamic-log/grpc     attrs=64  thr=16 offered=708.5k    tput=6.7k      write=-          loss=0%   p99=47.2us   drain=7.50s
+[  80/104] quent-dynamic-span/grpc    attrs=64  thr=16 offered=897.9k    tput=12.6k     write=-          loss=0%   p99=164.3us  drain=5.77s
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/grpc         8    1        270.8k        126.4k            -      0%     3.1us     6.5us     9.1us   320.25ms
+quent-dynamic-log/msgpack      8    1        142.4k        129.2k    215.6MB/s      0%     6.1us    12.3us    29.8us    36.05ms
+quent-dynamic-log/ndjson       8    1        149.5k        129.7k    254.4MB/s      0%     6.0us    17.4us    27.1us    51.01ms
+quent-dynamic-log/noop         8    1        985.8k             -            -       -     945ns     1.0us     2.8us          -
+quent-dynamic-log/postcard     8    1        148.3k        136.5k    217.0MB/s      0%     5.7us    19.0us    21.9us    28.64ms
+quent-dynamic-span/grpc        8    1        282.3k         54.7k            -      0%     3.6us     7.7us     9.9us   743.59ms
+quent-dynamic-span/msgpack     8    1        138.8k        125.5k    214.1MB/s      0%     6.8us    24.8us    34.7us    38.29ms
+quent-dynamic-span/ndjson      8    1        146.1k        127.6k    262.0MB/s      0%     7.1us    12.0us    21.3us    49.58ms
+quent-dynamic-span/noop        8    1        987.9k             -            -       -     984ns     1.1us     1.2us          -
+quent-dynamic-span/postcard     8    1        148.8k        136.3k    220.8MB/s      0%     6.8us    13.8us    20.6us    30.67ms
+quent-static-log/grpc          8    1        302.7k         60.8k            -      0%     2.9us     8.8us    17.1us   662.71ms
+quent-static-log/msgpack       8    1        175.2k        164.5k    257.9MB/s      0%     5.0us    12.8us    22.2us    18.81ms
+quent-static-log/ndjson        8    1        187.4k        168.4k    291.9MB/s      0%     5.2us    10.4us    16.8us    29.55ms
+quent-static-log/noop          8    1         1.38M             -            -       -     724ns     740ns     761ns          -
+quent-static-log/postcard      8    1        176.6k        170.7k    263.6MB/s      0%     5.2us    15.0us    19.6us     9.69ms
+quent-static-span/grpc         8    1        316.5k         54.5k            -      0%     4.0us     7.6us     8.5us   760.73ms
+quent-static-span/msgpack      8    1        171.8k        155.0k    248.8MB/s      0%     5.8us    21.3us    29.5us    30.94ms
+quent-static-span/ndjson       8    1        171.1k        154.6k    282.3MB/s      0%     5.9us    16.5us    23.3us    31.18ms
+quent-static-span/noop         8    1         1.16M             -            -       -     783ns     915ns     2.7us          -
+quent-static-span/postcard     8    1        161.6k        150.5k    237.1MB/s      0%     6.0us    21.4us    25.2us    22.65ms
+quent-dynamic-log/grpc         8   16         3.33M         95.8k            -      0%     2.0us     4.2us    10.2us   633.72ms
+quent-dynamic-log/msgpack      8   16         4.11M        606.8k     1.01GB/s      0%     2.0us     4.4us     7.2us    69.72ms
+quent-dynamic-log/ndjson       8   16         4.18M        536.0k     1.05GB/s      0%     1.9us     3.2us     7.7us    80.93ms
+quent-dynamic-log/noop         8   16        14.07M             -            -       -     932ns     1.0us     1.1us          -
+quent-dynamic-log/postcard     8   16         4.65M        683.0k     1.09GB/s      0%     1.9us     4.4us     6.9us    62.29ms
+quent-dynamic-span/grpc        8   16         2.42M         67.6k            -      0%     2.8us     7.7us    14.1us   722.58ms
+quent-dynamic-span/msgpack     8   16         2.73M        457.7k    780.8MB/s      0%     3.3us     9.3us    13.6us    90.03ms
+quent-dynamic-span/ndjson      8   16         2.27M        409.7k    841.5MB/s      0%     4.7us    10.9us   767.0us    99.88ms
+quent-dynamic-span/noop        8   16        13.65M             -            -       -     970ns     1.1us     1.1us          -
+quent-dynamic-span/postcard     8   16         3.83M        579.1k    938.2MB/s      0%     2.8us     7.9us    10.9us    73.22ms
+quent-static-log/grpc          8   16         3.80M         92.9k            -      0%     1.8us     4.6us    11.4us   664.24ms
+quent-static-log/msgpack       8   16         5.08M        803.7k     1.26GB/s      0%     2.0us     4.2us     6.6us    51.98ms
+quent-static-log/ndjson        8   16         2.91M        569.6k    987.8MB/s      0%     2.3us    10.0us    33.2us    64.64ms
+quent-static-log/noop          8   16         9.80M             -            -       -     756ns     1.7us     4.3us          -
+quent-static-log/postcard      8   16         4.53M        810.7k     1.25GB/s      0%     2.2us     5.7us    10.0us    50.64ms
+quent-static-span/grpc         8   16         2.65M         70.7k            -      0%     2.5us     6.3us    12.5us   727.67ms
+quent-static-span/msgpack      8   16         3.83M        630.5k     1.01GB/s      0%     2.6us     8.5us    11.8us    65.89ms
+quent-static-span/ndjson       8   16         2.74M        514.0k    938.5MB/s      0%     2.9us    12.2us    58.7us    79.08ms
+quent-static-span/noop         8   16        15.45M             -            -       -     778ns     1.2us     1.3us          -
+quent-static-span/postcard     8   16         3.58M        644.6k     1.02GB/s      0%     2.6us     7.1us    11.6us    62.64ms
+quent-dynamic-log/grpc        64    1         58.9k          9.9k            -      0%    16.8us    27.5us    37.6us      4.95s
+quent-dynamic-log/msgpack     64    1         54.0k         37.3k    633.1MB/s      0%    19.4us    45.8us    72.3us   414.27ms
+quent-dynamic-log/ndjson      64    1         51.1k         31.8k    589.6MB/s      0%    18.8us    39.0us    44.4us   594.62ms
+quent-dynamic-log/noop        64    1        163.7k             -            -       -     6.0us     6.2us     6.2us          -
+quent-dynamic-log/postcard    64    1         46.2k         35.6k    583.8MB/s      0%    21.6us    45.9us    56.8us   321.98ms
+quent-dynamic-span/grpc       64    1         46.4k          6.8k            -      0%    21.6us    43.1us    67.5us      6.54s
+quent-dynamic-span/msgpack    64    1         49.7k         36.2k    615.7MB/s      0%    21.0us    41.6us    65.5us   375.07ms
+quent-dynamic-span/ndjson     64    1         48.8k         32.7k    608.9MB/s      0%    20.0us    43.3us    57.8us   502.83ms
+quent-dynamic-span/noop       64    1        160.6k             -            -       -     6.1us     6.2us     6.3us          -
+quent-dynamic-span/postcard    64    1         54.1k         39.8k    655.1MB/s      0%    17.1us    43.4us    49.9us   331.01ms
+quent-static-log/grpc         64    1         72.3k          9.7k            -      0%    13.2us    27.8us    37.5us      6.03s
+quent-static-log/msgpack      64    1         60.0k         47.6k    768.6MB/s      0%    17.6us    37.4us    47.2us   206.57ms
+quent-static-log/ndjson       64    1         55.4k         38.0k    645.0MB/s      0%    16.9us    37.7us    51.9us   410.84ms
+quent-static-log/noop         64    1        235.7k             -            -       -     4.0us     4.2us     4.7us          -
+quent-static-log/postcard     64    1         58.9k         47.6k    761.7MB/s      0%    17.1us    33.4us    53.6us   198.87ms
+quent-static-span/grpc        64    1         80.4k          6.7k            -      0%    13.2us    23.8us    28.4us      7.11s
+quent-static-span/msgpack     64    1         47.0k         42.0k    679.6MB/s      0%    19.6us    40.8us    52.2us   124.89ms
+quent-static-span/ndjson      64    1         68.1k         43.5k    741.2MB/s      0%    14.1us    28.5us    47.3us   414.90ms
+quent-static-span/noop        64    1        239.9k             -            -       -     4.1us     4.1us     4.7us          -
+quent-static-span/postcard    64    1         44.2k         40.9k    655.8MB/s      0%    22.0us    44.9us    60.5us    91.10ms
+quent-dynamic-log/grpc        64   16        708.5k          6.7k            -      0%     9.9us    31.2us    47.2us      7.50s
+quent-dynamic-log/msgpack     64   16        858.9k         81.9k     1.39GB/s      0%    11.4us    30.1us    43.8us   552.37ms
+quent-dynamic-log/ndjson      64   16        689.1k         61.9k     1.15GB/s      0%    12.7us    68.2us   185.3us   735.20ms
+quent-dynamic-log/noop        64   16         1.38M             -            -       -     6.0us     6.7us    14.4us          -
+quent-dynamic-log/postcard    64   16        888.1k         92.4k     1.52GB/s      0%    11.6us    27.8us    42.4us   484.98ms
+quent-dynamic-span/grpc       64   16        897.9k         12.6k            -      0%    12.4us    23.9us   164.3us      5.77s
+quent-dynamic-span/msgpack    64   16        845.6k         78.1k     1.33GB/s      0%    11.6us    24.0us    30.9us   580.84ms
+quent-dynamic-span/ndjson     64   16        617.7k         59.2k     1.10GB/s      0%    14.2us    39.5us   221.9us   764.76ms
+quent-dynamic-span/noop       64   16         1.34M             -            -       -     6.1us     6.4us    15.1us          -
+quent-dynamic-span/postcard    64   16        793.9k         94.6k     1.56GB/s      0%    12.7us    25.1us    31.9us   465.56ms
+quent-static-log/grpc         64   16         1.17M          8.3k            -      0%     9.5us    16.3us    28.2us      6.21s
+quent-static-log/msgpack      64   16         1.25M        124.7k     2.01GB/s      0%    10.2us    23.3us    34.6us   361.19ms
+quent-static-log/ndjson       64   16         1.03M         76.4k     1.30GB/s      0%    10.7us    47.3us   262.0us   595.05ms
+quent-static-log/noop         64   16         2.15M             -            -       -     3.9us     6.6us     6.8us          -
+quent-static-log/postcard     64   16         1.29M        142.2k     2.28GB/s      0%     8.5us    16.6us    25.4us   313.33ms
+quent-static-span/grpc        64   16         1.13M         11.5k            -      0%    10.1us    26.3us    69.7us      5.06s
+quent-static-span/msgpack     64   16         1.14M        152.3k     2.46GB/s      0%     9.6us    17.8us    36.1us   284.35ms
+quent-static-span/ndjson      64   16         1.09M         72.0k     1.23GB/s      0%    11.1us    27.1us   260.6us   649.05ms
+quent-static-span/noop        64   16         2.26M             -            -       -     4.0us     6.6us     7.4us          -
+quent-static-span/postcard    64   16         1.20M        168.3k     2.70GB/s      0%     9.2us    21.0us    44.6us   255.45ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/grpc         8        126.4k      1
+quent-dynamic-log/msgpack      8        606.8k     16
+quent-dynamic-log/ndjson       8        536.0k     16
+quent-dynamic-log/noop         8        14.07M     16
+quent-dynamic-log/postcard     8        683.0k     16
+quent-dynamic-span/grpc        8         67.6k     16
+quent-dynamic-span/msgpack     8        457.7k     16
+quent-dynamic-span/ndjson      8        409.7k     16
+quent-dynamic-span/noop        8        13.65M     16
+quent-dynamic-span/postcard     8        579.1k     16
+quent-static-log/grpc          8         92.9k     16
+quent-static-log/msgpack       8        803.7k     16
+quent-static-log/ndjson        8        569.6k     16
+quent-static-log/noop          8         9.80M     16
+quent-static-log/postcard      8        810.7k     16
+quent-static-span/grpc         8         70.7k     16
+quent-static-span/msgpack      8        630.5k     16
+quent-static-span/ndjson       8        514.0k     16
+quent-static-span/noop         8        15.45M     16
+quent-static-span/postcard     8        644.6k     16
+quent-dynamic-log/grpc        64          9.9k      1
+quent-dynamic-log/msgpack     64         81.9k     16
+quent-dynamic-log/ndjson      64         61.9k     16
+quent-dynamic-log/noop        64         1.38M     16
+quent-dynamic-log/postcard    64         92.4k     16
+quent-dynamic-span/grpc       64         12.6k     16
+quent-dynamic-span/msgpack    64         78.1k     16
+quent-dynamic-span/ndjson     64         59.2k     16
+quent-dynamic-span/noop       64         1.34M     16
+quent-dynamic-span/postcard    64         94.6k     16
+quent-static-log/grpc         64          9.7k      1
+quent-static-log/msgpack      64        124.7k     16
+quent-static-log/ndjson       64         76.4k     16
+quent-static-log/noop         64         2.15M     16
+quent-static-log/postcard     64        142.2k     16
+quent-static-span/grpc        64         11.5k     16
+quent-static-span/msgpack     64        152.3k     16
+quent-static-span/ndjson      64         72.0k     16
+quent-static-span/noop        64         2.26M     16
+quent-static-span/postcard    64        168.3k     16
+wrote CSV to /tmp/quent-perf-isolation/results/baseline-start.csv
+wrote JSON to /tmp/quent-perf-isolation/results/baseline-start.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc,quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop BENCH_CSV=/tmp/quent-perf-isolation/results/baseline-start.csv BENCH_JSON=/tmp/quent-perf-isolation/results/baseline-start.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/base/target/release/quent-bench"
+	User time (seconds): 167.76
+	System time (seconds): 76.99
+	Percent of CPU this job got: 92%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:24.10
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 7752792
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 12853288
+	Voluntary context switches: 14139213
+	Involuntary context switches: 1478
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 130594512
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:15:47+02:00 package_temp_mC=35000 dirty_kib=472 load=0.39 1.71 1.76
+DONE baseline-start
+
+RUN candidate-01
+commit=6843c0f734f439e5d87f91afe1ee2318e17d86a9 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/postcard-producer,quent-dynamic-log/postcard-producer,quent-static-span/postcard-producer,quent-dynamic-span/postcard-producer
+time=2026-07-21T22:15:47+02:00 package_temp_mC=34000 dirty_kib=4 load=0.39 1.71 1.76
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 360 cell-runs...
+[   1/120] quent-static-log/postcard  attrs=8   thr=1  offered=161.9k    tput=153.0k    write=236.3MB/s  loss=0%   p99=19.4us   drain=18.01ms
+[   2/120] quent-static-span/postcard attrs=8   thr=1  offered=166.3k    tput=156.6k    write=246.6MB/s  loss=0%   p99=25.1us   drain=18.58ms
+[   3/120] quent-dynamic-log/postcard attrs=8   thr=1  offered=143.7k    tput=132.2k    write=210.1MB/s  loss=0%   p99=24.2us   drain=30.28ms
+[   4/120] quent-dynamic-span/postcard attrs=8   thr=1  offered=141.0k    tput=130.0k    write=210.6MB/s  loss=0%   p99=22.5us   drain=30.02ms
+[   5/120] quent-static-log/postcard-producer attrs=8   thr=1  offered=939.5k    tput=931.2k    write=1.44GB/s   loss=0%   p99=3.6us    drain=471.4us
+[   6/120] quent-static-span/postcard-producer attrs=8   thr=1  offered=863.0k    tput=858.1k    write=1.35GB/s   loss=0%   p99=4.3us    drain=329.5us
+[   7/120] quent-dynamic-log/postcard-producer attrs=8   thr=1  offered=775.0k    tput=770.6k    write=1.22GB/s   loss=0%   p99=3.9us    drain=358.7us
+[   8/120] quent-dynamic-span/postcard-producer attrs=8   thr=1  offered=710.6k    tput=683.1k    write=1.11GB/s   loss=0%   p99=3.4us    drain=2.93ms
+[   9/120] quent-static-log/postcard  attrs=8   thr=16 offered=2.66M     tput=619.3k    write=956.2MB/s  loss=0%   p99=24.2us   drain=57.80ms
+[  10/120] quent-static-span/postcard attrs=8   thr=16 offered=2.24M     tput=566.2k    write=891.8MB/s  loss=0%   p99=15.3us   drain=65.49ms
+[  11/120] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.36M     tput=601.8k    write=956.3MB/s  loss=0%   p99=7.7us    drain=67.83ms
+[  12/120] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.19M     tput=504.7k    write=817.7MB/s  loss=0%   p99=39.1us   drain=76.11ms
+[  13/120] quent-static-log/postcard-producer attrs=8   thr=16 offered=4.55M     tput=3.03M     write=4.67GB/s   loss=0%   p99=516.1us  drain=5.54ms
+[  14/120] quent-static-span/postcard-producer attrs=8   thr=16 offered=4.07M     tput=3.30M     write=5.19GB/s   loss=0%   p99=338.1us  drain=2.87ms
+[  15/120] quent-dynamic-log/postcard-producer attrs=8   thr=16 offered=5.48M     tput=3.43M     write=5.45GB/s   loss=0%   p99=429.9us  drain=5.43ms
+[  16/120] quent-dynamic-span/postcard-producer attrs=8   thr=16 offered=3.97M     tput=3.23M     write=5.24GB/s   loss=0%   p99=311.9us  drain=2.83ms
+[  17/120] quent-static-log/postcard  attrs=64  thr=1  offered=44.5k     tput=38.3k     write=613.0MB/s  loss=0%   p99=46.8us   drain=182.92ms
+[  18/120] quent-static-span/postcard attrs=64  thr=1  offered=46.1k     tput=41.4k     write=664.3MB/s  loss=0%   p99=64.2us   drain=122.89ms
+[  19/120] quent-dynamic-log/postcard attrs=64  thr=1  offered=44.3k     tput=34.5k     write=566.9MB/s  loss=0%   p99=61.2us   drain=320.05ms
+[  20/120] quent-dynamic-span/postcard attrs=64  thr=1  offered=41.0k     tput=32.4k     write=532.8MB/s  loss=0%   p99=61.4us   drain=321.23ms
+[  21/120] quent-static-log/postcard-producer attrs=64  thr=1  offered=227.6k    tput=226.7k    write=3.63GB/s   loss=0%   p99=6.3us    drain=914.7us
+[  22/120] quent-static-span/postcard-producer attrs=64  thr=1  offered=206.9k    tput=206.6k    write=3.31GB/s   loss=0%   p99=6.2us    drain=387.4us
+[  23/120] quent-dynamic-log/postcard-producer attrs=64  thr=1  offered=139.0k    tput=138.8k    write=2.28GB/s   loss=0%   p99=15.0us   drain=394.0us
+[  24/120] quent-dynamic-span/postcard-producer attrs=64  thr=1  offered=137.2k    tput=137.0k    write=2.25GB/s   loss=0%   p99=9.0us    drain=453.0us
+[  25/120] quent-static-log/postcard  attrs=64  thr=16 offered=926.9k    tput=121.1k    write=1.94GB/s   loss=0%   p99=343.6us  drain=348.03ms
+[  26/120] quent-static-span/postcard attrs=64  thr=16 offered=987.0k    tput=153.0k    write=2.46GB/s   loss=0%   p99=214.8us  drain=275.56ms
+[  27/120] quent-dynamic-log/postcard attrs=64  thr=16 offered=766.3k    tput=87.4k     write=1.43GB/s   loss=0%   p99=90.8us   drain=506.48ms
+[  28/120] quent-dynamic-span/postcard attrs=64  thr=16 offered=665.8k    tput=92.1k     write=1.51GB/s   loss=0%   p99=67.3us   drain=467.10ms
+[  29/120] quent-static-log/postcard-producer attrs=64  thr=16 offered=451.0k    tput=314.3k    write=5.03GB/s   loss=0%   p99=17.15ms  drain=48.21ms
+[  30/120] quent-static-span/postcard-producer attrs=64  thr=16 offered=373.3k    tput=319.1k    write=5.12GB/s   loss=0%   p99=5.13ms   drain=22.74ms
+[  31/120] quent-dynamic-log/postcard-producer attrs=64  thr=16 offered=452.2k    tput=327.5k    write=5.38GB/s   loss=0%   p99=12.36ms  drain=42.11ms
+[  32/120] quent-dynamic-span/postcard-producer attrs=64  thr=16 offered=355.0k    tput=305.8k    write=5.03GB/s   loss=0%   p99=7.18ms   drain=22.66ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        143.7k        132.2k    210.1MB/s      0%     6.4us    16.4us    24.2us    30.28ms
+quent-dynamic-log/postcard-producer     8    1        775.0k        770.6k     1.22GB/s      0%     1.9us     2.3us     3.9us    358.7us
+quent-dynamic-span/postcard     8    1        141.0k        130.0k    210.6MB/s      0%     6.5us    14.6us    22.5us    30.02ms
+quent-dynamic-span/postcard-producer     8    1        710.6k        683.1k     1.11GB/s      0%     2.0us     2.5us     3.4us     2.93ms
+quent-static-log/postcard      8    1        161.9k        153.0k    236.3MB/s      0%     5.3us    14.6us    19.4us    18.01ms
+quent-static-log/postcard-producer     8    1        939.5k        931.2k     1.44GB/s      0%     1.7us     2.0us     3.6us    471.4us
+quent-static-span/postcard     8    1        166.3k        156.6k    246.6MB/s      0%     6.5us    16.7us    25.1us    18.58ms
+quent-static-span/postcard-producer     8    1        863.0k        858.1k     1.35GB/s      0%     1.8us     2.1us     4.3us    329.5us
+quent-dynamic-log/postcard     8   16         3.36M        601.8k    956.3MB/s      0%     3.1us     5.7us     7.7us    67.83ms
+quent-dynamic-log/postcard-producer     8   16         5.48M         3.43M     5.45GB/s      0%    63.9us   233.8us   429.9us     5.43ms
+quent-dynamic-span/postcard     8   16         2.19M        504.7k    817.7MB/s      0%     3.6us    10.3us    39.1us    76.11ms
+quent-dynamic-span/postcard-producer     8   16         3.97M         3.23M     5.24GB/s      0%   115.9us   152.0us   311.9us     2.83ms
+quent-static-log/postcard      8   16         2.66M        619.3k    956.2MB/s      0%     3.3us     9.3us    24.2us    57.80ms
+quent-static-log/postcard-producer     8   16         4.55M         3.03M     4.67GB/s      0%    93.7us   318.1us   516.1us     5.54ms
+quent-static-span/postcard     8   16         2.24M        566.2k    891.8MB/s      0%     3.7us    10.8us    15.3us    65.49ms
+quent-static-span/postcard-producer     8   16         4.07M         3.30M     5.19GB/s      0%   126.0us   163.2us   338.1us     2.87ms
+quent-dynamic-log/postcard    64    1         44.3k         34.5k    566.9MB/s      0%    21.9us    43.8us    61.2us   320.05ms
+quent-dynamic-log/postcard-producer    64    1        139.0k        138.8k     2.28GB/s      0%     7.8us     8.5us    15.0us    394.0us
+quent-dynamic-span/postcard    64    1         41.0k         32.4k    532.8MB/s      0%    25.1us    48.0us    61.4us   321.23ms
+quent-dynamic-span/postcard-producer    64    1        137.2k        137.0k     2.25GB/s      0%     7.9us     8.6us     9.0us    453.0us
+quent-static-log/postcard     64    1         44.5k         38.3k    613.0MB/s      0%    21.4us    38.3us    46.8us   182.92ms
+quent-static-log/postcard-producer    64    1        227.6k        226.7k     3.63GB/s      0%     5.0us     5.2us     6.3us    914.7us
+quent-static-span/postcard    64    1         46.1k         41.4k    664.3MB/s      0%    21.0us    38.0us    64.2us   122.89ms
+quent-static-span/postcard-producer    64    1        206.9k        206.6k     3.31GB/s      0%     5.6us     6.0us     6.2us    387.4us
+quent-dynamic-log/postcard    64   16        766.3k         87.4k     1.43GB/s      0%    12.3us    43.1us    90.8us   506.48ms
+quent-dynamic-log/postcard-producer    64   16        452.2k        327.5k     5.38GB/s      0%    58.2us    7.11ms   12.36ms    42.11ms
+quent-dynamic-span/postcard    64   16        665.8k         92.1k     1.51GB/s      0%    13.6us    36.2us    67.3us   467.10ms
+quent-dynamic-span/postcard-producer    64   16        355.0k        305.8k     5.03GB/s      0%   813.9us    4.23ms    7.18ms    22.66ms
+quent-static-log/postcard     64   16        926.9k        121.1k     1.94GB/s      0%    10.8us    38.1us   343.6us   348.03ms
+quent-static-log/postcard-producer    64   16        451.0k        314.3k     5.03GB/s      0%     9.8us    8.63ms   17.15ms    48.21ms
+quent-static-span/postcard    64   16        987.0k        153.0k     2.46GB/s      0%    10.3us    25.4us   214.8us   275.56ms
+quent-static-span/postcard-producer    64   16        373.3k        319.1k     5.12GB/s      0%   971.7us    2.96ms    5.13ms    22.74ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        601.8k     16
+quent-dynamic-log/postcard-producer     8         3.43M     16
+quent-dynamic-span/postcard     8        504.7k     16
+quent-dynamic-span/postcard-producer     8         3.23M     16
+quent-static-log/postcard      8        619.3k     16
+quent-static-log/postcard-producer     8         3.03M     16
+quent-static-span/postcard     8        566.2k     16
+quent-static-span/postcard-producer     8         3.30M     16
+quent-dynamic-log/postcard    64         87.4k     16
+quent-dynamic-log/postcard-producer    64        327.5k     16
+quent-dynamic-span/postcard    64         92.1k     16
+quent-dynamic-span/postcard-producer    64        305.8k     16
+quent-static-log/postcard     64        121.1k     16
+quent-static-log/postcard-producer    64        314.3k     16
+quent-static-span/postcard    64        153.0k     16
+quent-static-span/postcard-producer    64        319.1k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-01.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-01.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/postcard-producer,quent-dynamic-log/postcard-producer,quent-static-span/postcard-producer,quent-dynamic-span/postcard-producer BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-01.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-01.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-01/target/release/quent-bench"
+	User time (seconds): 41.22
+	System time (seconds): 24.42
+	Percent of CPU this job got: 187%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:34.93
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1861600
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4216186
+	Voluntary context switches: 4587369
+	Involuntary context switches: 445
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 83502000
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:16:22+02:00 package_temp_mC=36000 dirty_kib=436 load=0.78 1.66 1.74
+DONE candidate-01
+
+RUN candidate-02
+commit=8d9f393b0248d20a66d82f15d22c9af9f3190735 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:16:22+02:00 package_temp_mC=36000 dirty_kib=128 load=0.78 1.66 1.74
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/postcard  attrs=8   thr=1  offered=140.6k    tput=137.8k    write=212.8MB/s  loss=0%   p99=22.9us   drain=7.11ms
+[   2/104] quent-static-span/postcard attrs=8   thr=1  offered=149.8k    tput=148.2k    write=233.5MB/s  loss=0%   p99=29.9us   drain=3.52ms
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=130.0k    tput=127.4k    write=202.4MB/s  loss=0%   p99=27.0us   drain=7.83ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=118.0k    tput=117.0k    write=189.5MB/s  loss=0%   p99=24.6us   drain=3.82ms
+[   5/104] quent-static-log/postcard  attrs=8   thr=16 offered=824.0k    tput=751.1k    write=1.16GB/s   loss=0%   p99=305.0us  drain=5.84ms
+[   6/104] quent-static-span/postcard attrs=8   thr=16 offered=604.9k    tput=583.4k    write=918.8MB/s  loss=0%   p99=206.1us  drain=3.03ms
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=722.1k    tput=650.2k    write=1.03GB/s   loss=0%   p99=343.4us  drain=7.66ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=563.7k    tput=542.1k    write=878.2MB/s  loss=0%   p99=231.0us  drain=3.54ms
+[   9/104] quent-static-log/postcard  attrs=64  thr=1  offered=37.9k     tput=36.7k     write=588.3MB/s  loss=0%   p99=56.2us   drain=40.90ms
+[  10/104] quent-static-span/postcard attrs=64  thr=1  offered=38.3k     tput=37.8k     write=606.1MB/s  loss=0%   p99=436.6us  drain=18.23ms
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=27.4k     tput=26.5k     write=435.9MB/s  loss=0%   p99=70.2us   drain=55.62ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=27.5k     tput=27.1k     write=445.4MB/s  loss=0%   p99=55.9us   drain=28.24ms
+[  13/104] quent-static-log/postcard  attrs=64  thr=16 offered=123.0k    tput=112.5k    write=1.80GB/s   loss=0%   p99=1.97ms   drain=37.98ms
+[  14/104] quent-static-span/postcard attrs=64  thr=16 offered=143.1k    tput=136.9k    write=2.20GB/s   loss=0%   p99=839.8us  drain=15.66ms
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=82.1k     tput=75.6k     write=1.24GB/s   loss=0%   p99=3.24ms   drain=52.87ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=82.1k     tput=78.7k     write=1.30GB/s   loss=0%   p99=1.67ms   drain=25.66ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        130.0k        127.4k    202.4MB/s      0%     6.0us    19.9us    27.0us     7.83ms
+quent-dynamic-span/postcard     8    1        118.0k        117.0k    189.5MB/s      0%     7.3us    19.5us    24.6us     3.82ms
+quent-static-log/postcard      8    1        140.6k        137.8k    212.8MB/s      0%     6.4us    18.3us    22.9us     7.11ms
+quent-static-span/postcard     8    1        149.8k        148.2k    233.5MB/s      0%     6.3us    14.3us    29.9us     3.52ms
+quent-dynamic-log/postcard     8   16        722.1k        650.2k     1.03GB/s      0%     1.9us   316.4us   343.4us     7.66ms
+quent-dynamic-span/postcard     8   16        563.7k        542.1k    878.2MB/s      0%     3.0us   199.3us   231.0us     3.54ms
+quent-static-log/postcard      8   16        824.0k        751.1k     1.16GB/s      0%     1.7us   288.0us   305.0us     5.84ms
+quent-static-span/postcard     8   16        604.9k        583.4k    918.8MB/s      0%     2.8us   177.3us   206.1us     3.03ms
+quent-dynamic-log/postcard    64    1         27.4k         26.5k    435.9MB/s      0%    24.9us    48.9us    70.2us    55.62ms
+quent-dynamic-span/postcard    64    1         27.5k         27.1k    445.4MB/s      0%    27.5us    48.3us    55.9us    28.24ms
+quent-static-log/postcard     64    1         37.9k         36.7k    588.3MB/s      0%    21.5us    44.4us    56.2us    40.90ms
+quent-static-span/postcard    64    1         38.3k         37.8k    606.1MB/s      0%    28.8us   401.5us   436.6us    18.23ms
+quent-dynamic-log/postcard    64   16         82.1k         75.6k     1.24GB/s      0%    14.0us    51.6us    3.24ms    52.87ms
+quent-dynamic-span/postcard    64   16         82.1k         78.7k     1.30GB/s      0%    13.1us    1.54ms    1.67ms    25.66ms
+quent-static-log/postcard     64   16        123.0k        112.5k     1.80GB/s      0%     9.4us    28.9us    1.97ms    37.98ms
+quent-static-span/postcard    64   16        143.1k        136.9k     2.20GB/s      0%     9.2us   798.7us   839.8us    15.66ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        650.2k     16
+quent-dynamic-span/postcard     8        542.1k     16
+quent-static-log/postcard      8        751.1k     16
+quent-static-span/postcard     8        583.4k     16
+quent-dynamic-log/postcard    64         75.6k     16
+quent-dynamic-span/postcard    64         78.7k     16
+quent-static-log/postcard     64        112.5k     16
+quent-static-span/postcard    64        136.9k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-02.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-02.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-02.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-02.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-02/target/release/quent-bench"
+	User time (seconds): 38.32
+	System time (seconds): 17.52
+	Percent of CPU this job got: 176%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:31.68
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 303964
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 485980
+	Voluntary context switches: 5669126
+	Involuntary context switches: 219
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41751008
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:16:54+02:00 package_temp_mC=35000 dirty_kib=744 load=1.06 1.65 1.73
+DONE candidate-02
+
+RUN candidate-03
+commit=c4dae85016b123068e4d17f8ebbdb9ec62a24ca8 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/raw,quent-dynamic-log/raw,quent-static-span/raw,quent-dynamic-span/raw
+time=2026-07-21T22:16:54+02:00 package_temp_mC=35000 dirty_kib=4 load=1.06 1.65 1.73
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 360 cell-runs...
+[   1/120] quent-static-log/postcard  attrs=8   thr=1  offered=169.6k    tput=162.9k    write=251.6MB/s  loss=0%   p99=21.9us   drain=12.69ms
+[   2/120] quent-static-span/postcard attrs=8   thr=1  offered=162.8k    tput=153.8k    write=242.2MB/s  loss=0%   p99=29.3us   drain=18.10ms
+[   3/120] quent-dynamic-log/postcard attrs=8   thr=1  offered=158.4k    tput=146.5k    write=232.8MB/s  loss=0%   p99=27.4us   drain=25.56ms
+[   4/120] quent-dynamic-span/postcard attrs=8   thr=1  offered=134.1k    tput=123.1k    write=199.5MB/s  loss=0%   p99=26.4us   drain=32.38ms
+[   5/120] quent-static-log/raw       attrs=8   thr=1  offered=166.8k    tput=160.6k    write=292.1MB/s  loss=0%   p99=23.2us   drain=11.99ms
+[   6/120] quent-static-span/raw      attrs=8   thr=1  offered=168.6k    tput=160.6k    write=298.6MB/s  loss=0%   p99=24.2us   drain=14.95ms
+[   7/120] quent-dynamic-log/raw      attrs=8   thr=1  offered=158.4k    tput=147.4k    write=289.3MB/s  loss=0%   p99=21.6us   drain=23.81ms
+[   8/120] quent-dynamic-span/raw     attrs=8   thr=1  offered=147.4k    tput=135.3k    write=271.0MB/s  loss=0%   p99=22.3us   drain=30.43ms
+[   9/120] quent-static-log/postcard  attrs=8   thr=16 offered=2.42M     tput=609.0k    write=940.3MB/s  loss=0%   p99=83.4us   drain=58.00ms
+[  10/120] quent-static-span/postcard attrs=8   thr=16 offered=2.71M     tput=608.8k    write=958.9MB/s  loss=0%   p99=17.9us   drain=62.55ms
+[  11/120] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.85M     tput=620.4k    write=985.8MB/s  loss=0%   p99=12.8us   drain=67.46ms
+[  12/120] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.33M     tput=505.7k    write=819.2MB/s  loss=0%   p99=15.9us   drain=77.39ms
+[  13/120] quent-static-log/raw       attrs=8   thr=16 offered=3.86M     tput=731.9k    write=1.33GB/s   loss=0%   p99=10.4us   drain=55.03ms
+[  14/120] quent-static-span/raw      attrs=8   thr=16 offered=2.79M     tput=591.7k    write=1.10GB/s   loss=0%   p99=15.6us   drain=66.50ms
+[  15/120] quent-dynamic-log/raw      attrs=8   thr=16 offered=4.33M     tput=618.4k    write=1.21GB/s   loss=0%   p99=8.3us    drain=69.56ms
+[  16/120] quent-dynamic-span/raw     attrs=8   thr=16 offered=2.87M     tput=532.6k    write=1.07GB/s   loss=0%   p99=12.4us   drain=76.47ms
+[  17/120] quent-static-log/postcard  attrs=64  thr=1  offered=54.9k     tput=45.8k     write=733.8MB/s  loss=0%   p99=61.5us   drain=178.04ms
+[  18/120] quent-static-span/postcard attrs=64  thr=1  offered=47.6k     tput=42.9k     write=688.2MB/s  loss=0%   p99=46.2us   drain=115.90ms
+[  19/120] quent-dynamic-log/postcard attrs=64  thr=1  offered=52.5k     tput=38.8k     write=637.8MB/s  loss=0%   p99=52.7us   drain=333.56ms
+[  20/120] quent-dynamic-span/postcard attrs=64  thr=1  offered=55.2k     tput=40.4k     write=663.9MB/s  loss=0%   p99=68.5us   drain=334.04ms
+[  21/120] quent-static-log/raw       attrs=64  thr=1  offered=71.9k     tput=51.9k     write=914.2MB/s  loss=0%   p99=39.2us   drain=270.03ms
+[  22/120] quent-static-span/raw      attrs=64  thr=1  offered=69.2k     tput=50.8k     write=898.2MB/s  loss=0%   p99=47.2us   drain=259.99ms
+[  23/120] quent-dynamic-log/raw      attrs=64  thr=1  offered=54.9k     tput=39.4k     write=739.3MB/s  loss=0%   p99=66.7us   drain=358.69ms
+[  24/120] quent-dynamic-span/raw     attrs=64  thr=1  offered=54.2k     tput=39.9k     write=750.0MB/s  loss=0%   p99=69.7us   drain=331.60ms
+[  25/120] quent-static-log/postcard  attrs=64  thr=16 offered=1.01M     tput=120.8k    write=1.93GB/s   loss=0%   p99=442.7us  drain=348.63ms
+[  26/120] quent-static-span/postcard attrs=64  thr=16 offered=1.16M     tput=164.3k    write=2.64GB/s   loss=0%   p99=114.5us  drain=261.23ms
+[  27/120] quent-dynamic-log/postcard attrs=64  thr=16 offered=799.7k    tput=92.2k     write=1.51GB/s   loss=0%   p99=112.7us  drain=480.46ms
+[  28/120] quent-dynamic-span/postcard attrs=64  thr=16 offered=660.4k    tput=90.4k     write=1.49GB/s   loss=0%   p99=535.3us  drain=477.62ms
+[  29/120] quent-static-log/raw       attrs=64  thr=16 offered=1.23M     tput=106.7k    write=1.88GB/s   loss=0%   p99=60.3us   drain=427.95ms
+[  30/120] quent-static-span/raw      attrs=64  thr=16 offered=1.05M     tput=105.3k    write=1.86GB/s   loss=0%   p99=46.6us   drain=427.01ms
+[  31/120] quent-dynamic-log/raw      attrs=64  thr=16 offered=822.5k    tput=91.8k     write=1.72GB/s   loss=0%   p99=105.4us  drain=483.03ms
+[  32/120] quent-dynamic-span/raw     attrs=64  thr=16 offered=697.6k    tput=88.2k     write=1.66GB/s   loss=0%   p99=74.3us   drain=495.65ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        158.4k        146.5k    232.8MB/s      0%     5.5us    11.5us    27.4us    25.56ms
+quent-dynamic-log/raw          8    1        158.4k        147.4k    289.3MB/s      0%     5.1us    12.3us    21.6us    23.81ms
+quent-dynamic-span/postcard     8    1        134.1k        123.1k    199.5MB/s      0%     7.0us    17.9us    26.4us    32.38ms
+quent-dynamic-span/raw         8    1        147.4k        135.3k    271.0MB/s      0%     6.6us    15.2us    22.3us    30.43ms
+quent-static-log/postcard      8    1        169.6k        162.9k    251.6MB/s      0%     5.4us    13.8us    21.9us    12.69ms
+quent-static-log/raw           8    1        166.8k        160.6k    292.1MB/s      0%     5.2us    18.5us    23.2us    11.99ms
+quent-static-span/postcard     8    1        162.8k        153.8k    242.2MB/s      0%     6.4us    20.8us    29.3us    18.10ms
+quent-static-span/raw          8    1        168.6k        160.6k    298.6MB/s      0%     5.5us    13.6us    24.2us    14.95ms
+quent-dynamic-log/postcard     8   16         3.85M        620.4k    985.8MB/s      0%     2.9us     5.8us    12.8us    67.46ms
+quent-dynamic-log/raw          8   16         4.33M        618.4k     1.21GB/s      0%     2.3us     5.7us     8.3us    69.56ms
+quent-dynamic-span/postcard     8   16         2.33M        505.7k    819.2MB/s      0%     3.8us    11.6us    15.9us    77.39ms
+quent-dynamic-span/raw         8   16         2.87M        532.6k     1.07GB/s      0%     4.2us     9.3us    12.4us    76.47ms
+quent-static-log/postcard      8   16         2.42M        609.0k    940.3MB/s      0%     3.3us     9.1us    83.4us    58.00ms
+quent-static-log/raw           8   16         3.86M        731.9k     1.33GB/s      0%     2.1us     6.9us    10.4us    55.03ms
+quent-static-span/postcard     8   16         2.71M        608.8k    958.9MB/s      0%     4.3us    10.2us    17.9us    62.55ms
+quent-static-span/raw          8   16         2.79M        591.7k     1.10GB/s      0%     3.7us     9.4us    15.6us    66.50ms
+quent-dynamic-log/postcard    64    1         52.5k         38.8k    637.8MB/s      0%    17.8us    43.2us    52.7us   333.56ms
+quent-dynamic-log/raw         64    1         54.9k         39.4k    739.3MB/s      0%    18.3us    41.7us    66.7us   358.69ms
+quent-dynamic-span/postcard    64    1         55.2k         40.4k    663.9MB/s      0%    17.9us    43.5us    68.5us   334.04ms
+quent-dynamic-span/raw        64    1         54.2k         39.9k    750.0MB/s      0%    19.3us    43.1us    69.7us   331.60ms
+quent-static-log/postcard     64    1         54.9k         45.8k    733.8MB/s      0%    19.4us    49.5us    61.5us   178.04ms
+quent-static-log/raw          64    1         71.9k         51.9k    914.2MB/s      0%    11.8us    31.0us    39.2us   270.03ms
+quent-static-span/postcard    64    1         47.6k         42.9k    688.2MB/s      0%    21.0us    38.5us    46.2us   115.90ms
+quent-static-span/raw         64    1         69.2k         50.8k    898.2MB/s      0%    11.3us    31.3us    47.2us   259.99ms
+quent-dynamic-log/postcard    64   16        799.7k         92.2k     1.51GB/s      0%    12.1us    40.2us   112.7us   480.46ms
+quent-dynamic-log/raw         64   16        822.5k         91.8k     1.72GB/s      0%    12.0us    40.4us   105.4us   483.03ms
+quent-dynamic-span/postcard    64   16        660.4k         90.4k     1.49GB/s      0%    13.4us    35.5us   535.3us   477.62ms
+quent-dynamic-span/raw        64   16        697.6k         88.2k     1.66GB/s      0%    12.9us    31.9us    74.3us   495.65ms
+quent-static-log/postcard     64   16         1.01M        120.8k     1.93GB/s      0%    11.3us    87.3us   442.7us   348.63ms
+quent-static-log/raw          64   16         1.23M        106.7k     1.88GB/s      0%     9.6us    20.3us    60.3us   427.95ms
+quent-static-span/postcard    64   16         1.16M        164.3k     2.64GB/s      0%    10.8us    30.9us   114.5us   261.23ms
+quent-static-span/raw         64   16         1.05M        105.3k     1.86GB/s      0%    10.6us    24.2us    46.6us   427.01ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        620.4k     16
+quent-dynamic-log/raw          8        618.4k     16
+quent-dynamic-span/postcard     8        505.7k     16
+quent-dynamic-span/raw         8        532.6k     16
+quent-static-log/postcard      8        609.0k     16
+quent-static-log/raw           8        731.9k     16
+quent-static-span/postcard     8        608.8k     16
+quent-static-span/raw          8        591.7k     16
+quent-dynamic-log/postcard    64         92.2k     16
+quent-dynamic-log/raw         64         91.8k     16
+quent-dynamic-span/postcard    64         90.4k     16
+quent-dynamic-span/raw        64         88.2k     16
+quent-static-log/postcard     64        120.8k     16
+quent-static-log/raw          64        106.7k     16
+quent-static-span/postcard    64        164.3k     16
+quent-static-span/raw         64        105.3k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-03.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-03.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/raw,quent-dynamic-log/raw,quent-static-span/raw,quent-dynamic-span/raw BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-03.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-03.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-03/target/release/quent-bench"
+	User time (seconds): 56.79
+	System time (seconds): 35.58
+	Percent of CPU this job got: 181%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:50.81
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2005140
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 6088124
+	Voluntary context switches: 7494502
+	Involuntary context switches: 474
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 88931256
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:17:45+02:00 package_temp_mC=36000 dirty_kib=164 load=1.26 1.61 1.71
+DONE candidate-03
+
+RUN candidate-04
+commit=c0bdd8ce893aabc9b62fc8a8935559cee3f6a545 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:17:45+02:00 package_temp_mC=36000 dirty_kib=0 load=1.26 1.61 1.71
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/postcard  attrs=8   thr=1  offered=163.1k    tput=157.4k    write=243.0MB/s  loss=0%   p99=22.7us   drain=11.22ms
+[   2/104] quent-static-span/postcard attrs=8   thr=1  offered=154.1k    tput=146.0k    write=229.9MB/s  loss=0%   p99=20.4us   drain=18.02ms
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=147.2k    tput=138.0k    write=219.3MB/s  loss=0%   p99=32.1us   drain=22.86ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=146.5k    tput=135.2k    write=219.1MB/s  loss=0%   p99=24.7us   drain=28.94ms
+[   5/104] quent-static-log/postcard  attrs=8   thr=16 offered=2.44M     tput=610.7k    write=942.9MB/s  loss=0%   p99=16.7us   drain=57.34ms
+[   6/104] quent-static-span/postcard attrs=8   thr=16 offered=2.16M     tput=559.1k    write=880.7MB/s  loss=0%   p99=20.8us   drain=66.07ms
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.70M     tput=597.3k    write=949.1MB/s  loss=0%   p99=9.7us    drain=70.24ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.16M     tput=508.5k    write=823.9MB/s  loss=0%   p99=11.6us   drain=74.92ms
+[   9/104] quent-static-log/postcard  attrs=64  thr=1  offered=50.3k     tput=42.6k     write=682.4MB/s  loss=0%   p99=41.7us   drain=176.62ms
+[  10/104] quent-static-span/postcard attrs=64  thr=1  offered=44.9k     tput=40.4k     write=647.8MB/s  loss=0%   p99=50.6us   drain=123.86ms
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=41.2k     tput=32.8k     write=539.2MB/s  loss=0%   p99=49.2us   drain=309.53ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=40.5k     tput=32.2k     write=530.2MB/s  loss=0%   p99=51.5us   drain=316.12ms
+[  13/104] quent-static-log/postcard  attrs=64  thr=16 offered=948.1k    tput=119.3k    write=1.91GB/s   loss=0%   p99=211.0us  drain=353.77ms
+[  14/104] quent-static-span/postcard attrs=64  thr=16 offered=1.12M     tput=159.7k    write=2.56GB/s   loss=0%   p99=393.1us  drain=268.98ms
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=861.9k    tput=87.8k     write=1.44GB/s   loss=0%   p99=51.2us   drain=509.97ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=763.2k    tput=92.7k     write=1.53GB/s   loss=0%   p99=60.3us   drain=472.90ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        147.2k        138.0k    219.3MB/s      0%     5.8us    19.9us    32.1us    22.86ms
+quent-dynamic-span/postcard     8    1        146.5k        135.2k    219.1MB/s      0%     7.0us    15.7us    24.7us    28.94ms
+quent-static-log/postcard      8    1        163.1k        157.4k    243.0MB/s      0%     5.4us    15.6us    22.7us    11.22ms
+quent-static-span/postcard     8    1        154.1k        146.0k    229.9MB/s      0%     6.1us    12.4us    20.4us    18.02ms
+quent-dynamic-log/postcard     8   16         3.70M        597.3k    949.1MB/s      0%     2.7us     6.8us     9.7us    70.24ms
+quent-dynamic-span/postcard     8   16         2.16M        508.5k    823.9MB/s      0%     3.8us    10.2us    11.6us    74.92ms
+quent-static-log/postcard      8   16         2.44M        610.7k    942.9MB/s      0%     3.3us    10.4us    16.7us    57.34ms
+quent-static-span/postcard     8   16         2.16M        559.1k    880.7MB/s      0%     4.9us    10.6us    20.8us    66.07ms
+quent-dynamic-log/postcard    64    1         41.2k         32.8k    539.2MB/s      0%    23.8us    45.5us    49.2us   309.53ms
+quent-dynamic-span/postcard    64    1         40.5k         32.2k    530.2MB/s      0%    24.4us    42.5us    51.5us   316.12ms
+quent-static-log/postcard     64    1         50.3k         42.6k    682.4MB/s      0%    18.2us    37.8us    41.7us   176.62ms
+quent-static-span/postcard    64    1         44.9k         40.4k    647.8MB/s      0%    22.1us    40.7us    50.6us   123.86ms
+quent-dynamic-log/postcard    64   16        861.9k         87.8k     1.44GB/s      0%    11.9us    38.2us    51.2us   509.97ms
+quent-dynamic-span/postcard    64   16        763.2k         92.7k     1.53GB/s      0%    13.0us    34.3us    60.3us   472.90ms
+quent-static-log/postcard     64   16        948.1k        119.3k     1.91GB/s      0%    12.9us    38.8us   211.0us   353.77ms
+quent-static-span/postcard    64   16         1.12M        159.7k     2.56GB/s      0%    10.3us    23.1us   393.1us   268.98ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        597.3k     16
+quent-dynamic-span/postcard     8        508.5k     16
+quent-static-log/postcard      8        610.7k     16
+quent-static-span/postcard     8        559.1k     16
+quent-dynamic-log/postcard    64         87.8k     16
+quent-dynamic-span/postcard    64         92.7k     16
+quent-static-log/postcard     64        119.3k     16
+quent-static-span/postcard    64        159.7k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-04.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-04.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-04.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-04.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-04/target/release/quent-bench"
+	User time (seconds): 30.86
+	System time (seconds): 20.33
+	Percent of CPU this job got: 183%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:27.89
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1633696
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4038321
+	Voluntary context switches: 4600390
+	Involuntary context switches: 216
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41751008
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:18:13+02:00 package_temp_mC=36000 dirty_kib=340 load=1.29 1.59 1.71
+DONE candidate-04
+
+RUN candidate-05
+commit=77a1f6ecf8d80a36c49b24f5f9d8534ecd07a5d9 variants=quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc
+time=2026-07-21T22:18:13+02:00 package_temp_mC=36000 dirty_kib=4 load=1.29 1.59 1.71
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/grpc      attrs=8   thr=1  offered=298.1k    tput=74.1k     write=-          loss=0%   p99=8.6us    drain=615.99ms
+[   2/104] quent-static-span/grpc     attrs=8   thr=1  offered=294.0k    tput=129.2k    write=-          loss=0%   p99=19.5us   drain=215.40ms
+[   3/104] quent-dynamic-log/grpc     attrs=8   thr=1  offered=269.8k    tput=52.6k     write=-          loss=0%   p99=14.1us   drain=765.75ms
+[   4/104] quent-dynamic-span/grpc    attrs=8   thr=1  offered=265.0k    tput=56.5k     write=-          loss=0%   p99=12.4us   drain=892.91ms
+[   5/104] quent-static-log/grpc      attrs=8   thr=16 offered=2.42M     tput=105.3k    write=-          loss=0%   p99=114.0us  drain=473.54ms
+[   6/104] quent-static-span/grpc     attrs=8   thr=16 offered=2.62M     tput=164.6k    write=-          loss=0%   p99=15.3us   drain=286.13ms
+[   7/104] quent-dynamic-log/grpc     attrs=8   thr=16 offered=2.99M     tput=61.5k     write=-          loss=0%   p99=9.3us    drain=819.89ms
+[   8/104] quent-dynamic-span/grpc    attrs=8   thr=16 offered=2.11M     tput=115.7k    write=-          loss=0%   p99=27.7us   drain=472.77ms
+[   9/104] quent-static-log/grpc      attrs=64  thr=1  offered=72.6k     tput=5.7k      write=-          loss=0%   p99=39.0us   drain=8.22s
+[  10/104] quent-static-span/grpc     attrs=64  thr=1  offered=74.0k     tput=5.0k      write=-          loss=0%   p99=42.1us   drain=9.24s
+[  11/104] quent-dynamic-log/grpc     attrs=64  thr=1  offered=59.1k     tput=5.7k      write=-          loss=0%   p99=38.2us   drain=7.94s
+[  12/104] quent-dynamic-span/grpc    attrs=64  thr=1  offered=40.1k     tput=4.9k      write=-          loss=0%   p99=53.3us   drain=9.05s
+[  13/104] quent-static-log/grpc      attrs=64  thr=16 offered=887.3k    tput=5.4k      write=-          loss=0%   p99=74.7us   drain=9.18s
+[  14/104] quent-static-span/grpc     attrs=64  thr=16 offered=1.11M     tput=5.1k      write=-          loss=0%   p99=38.7us   drain=9.77s
+[  15/104] quent-dynamic-log/grpc     attrs=64  thr=16 offered=846.0k    tput=6.1k      write=-          loss=0%   p99=153.5us  drain=8.17s
+[  16/104] quent-dynamic-span/grpc    attrs=64  thr=16 offered=902.9k    tput=4.7k      write=-          loss=0%   p99=44.3us   drain=10.98s
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/grpc         8    1        269.8k         52.6k            -      0%     3.1us     6.7us    14.1us   765.75ms
+quent-dynamic-span/grpc        8    1        265.0k         56.5k            -      0%     3.6us     8.3us    12.4us   892.91ms
+quent-static-log/grpc          8    1        298.1k         74.1k            -      0%     3.0us     6.3us     8.6us   615.99ms
+quent-static-span/grpc         8    1        294.0k        129.2k            -      0%     3.2us     7.5us    19.5us   215.40ms
+quent-dynamic-log/grpc         8   16         2.99M         61.5k            -      0%     2.3us     5.4us     9.3us   819.89ms
+quent-dynamic-span/grpc        8   16         2.11M        115.7k            -      0%     3.1us     9.9us    27.7us   472.77ms
+quent-static-log/grpc          8   16         2.42M        105.3k            -      0%     2.0us    11.3us   114.0us   473.54ms
+quent-static-span/grpc         8   16         2.62M        164.6k            -      0%     2.8us     7.2us    15.3us   286.13ms
+quent-dynamic-log/grpc        64    1         59.1k          5.7k            -      0%    15.6us    31.6us    38.2us      7.94s
+quent-dynamic-span/grpc       64    1         40.1k          4.9k            -      0%    23.5us    42.0us    53.3us      9.05s
+quent-static-log/grpc         64    1         72.6k          5.7k            -      0%    12.3us    23.1us    39.0us      8.22s
+quent-static-span/grpc        64    1         74.0k          5.0k            -      0%    12.3us    29.7us    42.1us      9.24s
+quent-dynamic-log/grpc        64   16        846.0k          6.1k            -      0%    11.2us    34.6us   153.5us      8.17s
+quent-dynamic-span/grpc       64   16        902.9k          4.7k            -      0%    12.4us    27.7us    44.3us     10.98s
+quent-static-log/grpc         64   16        887.3k          5.4k            -      0%    10.7us    30.8us    74.7us      9.18s
+quent-static-span/grpc        64   16         1.11M          5.1k            -      0%    11.2us    24.0us    38.7us      9.77s
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/grpc         8         61.5k     16
+quent-dynamic-span/grpc        8        115.7k     16
+quent-static-log/grpc          8        105.3k     16
+quent-static-span/grpc         8        164.6k     16
+quent-dynamic-log/grpc        64          6.1k     16
+quent-dynamic-span/grpc       64          4.9k      1
+quent-static-log/grpc         64          5.7k      1
+quent-static-span/grpc        64          5.1k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-05.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-05.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-05.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-05.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-05/target/release/quent-bench"
+	User time (seconds): 66.96
+	System time (seconds): 26.45
+	Percent of CPU this job got: 38%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:05.14
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8165352
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4765022
+	Voluntary context switches: 2758150
+	Involuntary context switches: 565
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:22:18+02:00 package_temp_mC=35000 dirty_kib=236 load=0.39 0.94 1.41
+DONE candidate-05
+
+RUN candidate-06
+commit=3bc852babf9fc1fc2932e25f6de818dfde803c6d variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:22:18+02:00 package_temp_mC=36000 dirty_kib=220 load=0.39 0.94 1.41
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/postcard  attrs=8   thr=1  offered=145.2k    tput=140.1k    write=216.3MB/s  loss=0%   p99=22.6us   drain=12.29ms
+[   2/104] quent-static-span/postcard attrs=8   thr=1  offered=165.2k    tput=155.3k    write=244.7MB/s  loss=0%   p99=23.7us   drain=19.03ms
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=155.8k    tput=144.2k    write=229.2MB/s  loss=0%   p99=29.1us   drain=25.66ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=135.3k    tput=124.7k    write=201.9MB/s  loss=0%   p99=35.5us   drain=31.49ms
+[   5/104] quent-static-log/postcard  attrs=8   thr=16 offered=2.64M     tput=617.1k    write=952.8MB/s  loss=0%   p99=58.9us   drain=57.52ms
+[   6/104] quent-static-span/postcard attrs=8   thr=16 offered=2.17M     tput=580.3k    write=914.1MB/s  loss=0%   p99=16.2us   drain=62.78ms
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=4.77M     tput=650.8k    write=1.03GB/s   loss=0%   p99=9.1us    drain=66.64ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.89M     tput=536.0k    write=868.4MB/s  loss=0%   p99=17.3us   drain=75.36ms
+[   9/104] quent-static-log/postcard  attrs=64  thr=1  offered=46.8k     tput=39.8k     write=637.4MB/s  loss=0%   p99=54.3us   drain=187.04ms
+[  10/104] quent-static-span/postcard attrs=64  thr=1  offered=45.0k     tput=39.6k     write=636.0MB/s  loss=0%   p99=48.1us   drain=151.12ms
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=40.3k     tput=32.4k     write=531.9MB/s  loss=0%   p99=61.8us   drain=303.40ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=39.8k     tput=31.4k     write=517.0MB/s  loss=0%   p99=59.1us   drain=335.92ms
+[  13/104] quent-static-log/postcard  attrs=64  thr=16 offered=951.9k    tput=117.3k    write=1.88GB/s   loss=0%   p99=148.3us  drain=360.62ms
+[  14/104] quent-static-span/postcard attrs=64  thr=16 offered=992.2k    tput=155.5k    write=2.50GB/s   loss=0%   p99=416.1us  drain=271.28ms
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=809.4k    tput=88.3k     write=1.45GB/s   loss=0%   p99=50.6us   drain=503.88ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=783.1k    tput=91.4k     write=1.50GB/s   loss=0%   p99=48.0us   drain=482.57ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        155.8k        144.2k    229.2MB/s      0%     5.7us    14.6us    29.1us    25.66ms
+quent-dynamic-span/postcard     8    1        135.3k        124.7k    201.9MB/s      0%     7.8us    18.5us    35.5us    31.49ms
+quent-static-log/postcard      8    1        145.2k        140.1k    216.3MB/s      0%     6.0us    19.9us    22.6us    12.29ms
+quent-static-span/postcard     8    1        165.2k        155.3k    244.7MB/s      0%     5.8us    16.6us    23.7us    19.03ms
+quent-dynamic-log/postcard     8   16         4.77M        650.8k     1.03GB/s      0%     2.1us     5.6us     9.1us    66.64ms
+quent-dynamic-span/postcard     8   16         2.89M        536.0k    868.4MB/s      0%     3.3us     9.1us    17.3us    75.36ms
+quent-static-log/postcard      8   16         2.64M        617.1k    952.8MB/s      0%     3.8us    11.5us    58.9us    57.52ms
+quent-static-span/postcard     8   16         2.17M        580.3k    914.1MB/s      0%     3.9us    10.0us    16.2us    62.78ms
+quent-dynamic-log/postcard    64    1         40.3k         32.4k    531.9MB/s      0%    23.5us    47.6us    61.8us   303.40ms
+quent-dynamic-span/postcard    64    1         39.8k         31.4k    517.0MB/s      0%    24.8us    42.4us    59.1us   335.92ms
+quent-static-log/postcard     64    1         46.8k         39.8k    637.4MB/s      0%    21.5us    42.7us    54.3us   187.04ms
+quent-static-span/postcard    64    1         45.0k         39.6k    636.0MB/s      0%    21.1us    38.5us    48.1us   151.12ms
+quent-dynamic-log/postcard    64   16        809.4k         88.3k     1.45GB/s      0%    12.3us    32.8us    50.6us   503.88ms
+quent-dynamic-span/postcard    64   16        783.1k         91.4k     1.50GB/s      0%    13.3us    29.2us    48.0us   482.57ms
+quent-static-log/postcard     64   16        951.9k        117.3k     1.88GB/s      0%    12.5us    41.9us   148.3us   360.62ms
+quent-static-span/postcard    64   16        992.2k        155.5k     2.50GB/s      0%    11.4us    26.0us   416.1us   271.28ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        650.8k     16
+quent-dynamic-span/postcard     8        536.0k     16
+quent-static-log/postcard      8        617.1k     16
+quent-static-span/postcard     8        580.3k     16
+quent-dynamic-log/postcard    64         88.3k     16
+quent-dynamic-span/postcard    64         91.4k     16
+quent-static-log/postcard     64        117.3k     16
+quent-static-span/postcard    64        155.5k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-06.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-06.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-06.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-06.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-06/target/release/quent-bench"
+	User time (seconds): 30.49
+	System time (seconds): 20.70
+	Percent of CPU this job got: 179%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:28.49
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1478204
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4148197
+	Voluntary context switches: 4734965
+	Involuntary context switches: 220
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41751008
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:22:46+02:00 package_temp_mC=36000 dirty_kib=16 load=0.83 1.00 1.41
+DONE candidate-06
+
+RUN candidate-07
+commit=73f84df864bdf897e582ffcef4c075d5b367c3a2 variants=quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop
+time=2026-07-21T22:22:46+02:00 package_temp_mC=36000 dirty_kib=20 load=0.83 1.00 1.41
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/noop      attrs=8   thr=1  offered=1.36M     tput=-         write=-          loss=-    p99=745ns    drain=-
+[   2/104] quent-static-span/noop     attrs=8   thr=1  offered=1.19M     tput=-         write=-          loss=-    p99=2.5us    drain=-
+[   3/104] quent-dynamic-log/noop     attrs=8   thr=1  offered=1.02M     tput=-         write=-          loss=-    p99=1.2us    drain=-
+[   4/104] quent-dynamic-span/noop    attrs=8   thr=1  offered=990.9k    tput=-         write=-          loss=-    p99=1.2us    drain=-
+[   5/104] quent-static-log/noop      attrs=8   thr=16 offered=13.62M    tput=-         write=-          loss=-    p99=1.2us    drain=-
+[   6/104] quent-static-span/noop     attrs=8   thr=16 offered=15.18M    tput=-         write=-          loss=-    p99=1.3us    drain=-
+[   7/104] quent-dynamic-log/noop     attrs=8   thr=16 offered=11.72M    tput=-         write=-          loss=-    p99=1.5us    drain=-
+[   8/104] quent-dynamic-span/noop    attrs=8   thr=16 offered=12.56M    tput=-         write=-          loss=-    p99=1.6us    drain=-
+[   9/104] quent-static-log/noop      attrs=64  thr=1  offered=239.0k    tput=-         write=-          loss=-    p99=4.2us    drain=-
+[  10/104] quent-static-span/noop     attrs=64  thr=1  offered=238.4k    tput=-         write=-          loss=-    p99=5.0us    drain=-
+[  11/104] quent-dynamic-log/noop     attrs=64  thr=1  offered=168.1k    tput=-         write=-          loss=-    p99=7.9us    drain=-
+[  12/104] quent-dynamic-span/noop    attrs=64  thr=1  offered=164.0k    tput=-         write=-          loss=-    p99=6.1us    drain=-
+[  13/104] quent-static-log/noop      attrs=64  thr=16 offered=3.42M     tput=-         write=-          loss=-    p99=4.3us    drain=-
+[  14/104] quent-static-span/noop     attrs=64  thr=16 offered=3.66M     tput=-         write=-          loss=-    p99=5.2us    drain=-
+[  15/104] quent-dynamic-log/noop     attrs=64  thr=16 offered=2.51M     tput=-         write=-          loss=-    p99=6.6us    drain=-
+[  16/104] quent-dynamic-span/noop    attrs=64  thr=16 offered=2.35M     tput=-         write=-          loss=-    p99=6.9us    drain=-
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/noop         8    1         1.02M             -            -       -     938ns     1.0us     1.2us          -
+quent-dynamic-span/noop        8    1        990.9k             -            -       -     973ns     1.1us     1.2us          -
+quent-static-log/noop          8    1         1.36M             -            -       -     727ns     741ns     745ns          -
+quent-static-span/noop         8    1         1.19M             -            -       -     774ns     906ns     2.5us          -
+quent-dynamic-log/noop         8   16        11.72M             -            -       -     937ns     1.4us     1.5us          -
+quent-dynamic-span/noop        8   16        12.56M             -            -       -     968ns     1.1us     1.6us          -
+quent-static-log/noop          8   16        13.62M             -            -       -     732ns     1.1us     1.2us          -
+quent-static-span/noop         8   16        15.18M             -            -       -     785ns     1.2us     1.3us          -
+quent-dynamic-log/noop        64    1        168.1k             -            -       -     5.8us     6.0us     7.9us          -
+quent-dynamic-span/noop       64    1        164.0k             -            -       -     6.0us     6.1us     6.1us          -
+quent-static-log/noop         64    1        239.0k             -            -       -     4.1us     4.2us     4.2us          -
+quent-static-span/noop        64    1        238.4k             -            -       -     4.1us     4.2us     5.0us          -
+quent-dynamic-log/noop        64   16         2.51M             -            -       -     6.0us     6.2us     6.6us          -
+quent-dynamic-span/noop       64   16         2.35M             -            -       -     6.1us     6.3us     6.9us          -
+quent-static-log/noop         64   16         3.42M             -            -       -     3.9us     4.2us     4.3us          -
+quent-static-span/noop        64   16         3.66M             -            -       -     4.0us     4.2us     5.2us          -
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/noop         8        11.72M     16
+quent-dynamic-span/noop        8        12.56M     16
+quent-static-log/noop          8        13.62M     16
+quent-static-span/noop         8        15.18M     16
+quent-dynamic-log/noop        64         2.51M     16
+quent-dynamic-span/noop       64         2.35M     16
+quent-static-log/noop         64         3.42M     16
+quent-static-span/noop        64         3.66M     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-07.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-07.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-07.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-07.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-07/target/release/quent-bench"
+	User time (seconds): 7.24
+	System time (seconds): 0.07
+	Percent of CPU this job got: 188%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:03.89
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 44700
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 5989
+	Voluntary context switches: 561
+	Involuntary context switches: 424
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 32
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:22:50+02:00 package_temp_mC=40000 dirty_kib=48 load=0.84 1.00 1.41
+DONE candidate-07
+
+RUN candidate-08
+commit=4ea1675f2a0c8ae10de7cc654d306ebb604f5af3 variants=quent-dynamic-log/noop,quent-dynamic-span/noop,quent-dynamic-log/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:22:50+02:00 package_temp_mC=39000 dirty_kib=4 load=0.84 1.00 1.41
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-dynamic-log/noop     attrs=8   thr=1  offered=1.17M     tput=-         write=-          loss=-    p99=2.5us    drain=-
+[   2/104] quent-dynamic-span/noop    attrs=8   thr=1  offered=1.18M     tput=-         write=-          loss=-    p99=862ns    drain=-
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=149.7k    tput=141.9k    write=225.5MB/s  loss=0%   p99=25.7us   drain=18.23ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=166.8k    tput=155.5k    write=251.9MB/s  loss=0%   p99=21.2us   drain=22.11ms
+[   5/104] quent-dynamic-log/noop     attrs=8   thr=16 offered=11.97M    tput=-         write=-          loss=-    p99=1.6us    drain=-
+[   6/104] quent-dynamic-span/noop    attrs=8   thr=16 offered=13.69M    tput=-         write=-          loss=-    p99=1.4us    drain=-
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=2.26M     tput=559.9k    write=889.7MB/s  loss=0%   p99=153.9us  drain=64.08ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=1.99M     tput=515.4k    write=835.0MB/s  loss=0%   p99=22.3us   drain=71.59ms
+[   9/104] quent-dynamic-log/noop     attrs=64  thr=1  offered=217.8k    tput=-         write=-          loss=-    p99=4.6us    drain=-
+[  10/104] quent-dynamic-span/noop    attrs=64  thr=1  offered=213.4k    tput=-         write=-          loss=-    p99=5.2us    drain=-
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=58.9k     tput=43.3k     write=710.9MB/s  loss=0%   p99=37.9us   drain=297.81ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=61.6k     tput=45.9k     write=755.5MB/s  loss=0%   p99=41.5us   drain=276.35ms
+[  13/104] quent-dynamic-log/noop     attrs=64  thr=16 offered=2.89M     tput=-         write=-          loss=-    p99=4.9us    drain=-
+[  14/104] quent-dynamic-span/noop    attrs=64  thr=16 offered=3.29M     tput=-         write=-          loss=-    p99=4.8us    drain=-
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=598.3k    tput=87.2k     write=1.43GB/s   loss=0%   p99=158.1us  drain=478.10ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=780.2k    tput=103.3k    write=1.70GB/s   loss=0%   p99=65.8us   drain=419.56ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/noop         8    1         1.17M             -            -       -     813ns     915ns     2.5us          -
+quent-dynamic-log/postcard     8    1        149.7k        141.9k    225.5MB/s      0%     5.5us    15.0us    25.7us    18.23ms
+quent-dynamic-span/noop        8    1         1.18M             -            -       -     836ns     854ns     862ns          -
+quent-dynamic-span/postcard     8    1        166.8k        155.5k    251.9MB/s      0%     6.5us    13.6us    21.2us    22.11ms
+quent-dynamic-log/noop         8   16        11.97M             -            -       -     818ns     1.6us     1.6us          -
+quent-dynamic-log/postcard     8   16         2.26M        559.9k    889.7MB/s      0%     3.6us    10.9us   153.9us    64.08ms
+quent-dynamic-span/noop        8   16        13.69M             -            -       -     848ns     1.3us     1.4us          -
+quent-dynamic-span/postcard     8   16         1.99M        515.4k    835.0MB/s      0%     4.6us    10.4us    22.3us    71.59ms
+quent-dynamic-log/noop        64    1        217.8k             -            -       -     4.4us     4.6us     4.6us          -
+quent-dynamic-log/postcard    64    1         58.9k         43.3k    710.9MB/s      0%    16.8us    32.8us    37.9us   297.81ms
+quent-dynamic-span/noop       64    1        213.4k             -            -       -     4.6us     4.6us     5.2us          -
+quent-dynamic-span/postcard    64    1         61.6k         45.9k    755.5MB/s      0%    16.1us    36.1us    41.5us   276.35ms
+quent-dynamic-log/noop        64   16         2.89M             -            -       -     4.4us     4.7us     4.9us          -
+quent-dynamic-log/postcard    64   16        598.3k         87.2k     1.43GB/s      0%    12.9us    52.6us   158.1us   478.10ms
+quent-dynamic-span/noop       64   16         3.29M             -            -       -     4.5us     4.7us     4.8us          -
+quent-dynamic-span/postcard    64   16        780.2k        103.3k     1.70GB/s      0%    12.7us    32.7us    65.8us   419.56ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/noop         8        11.97M     16
+quent-dynamic-log/postcard     8        559.9k     16
+quent-dynamic-span/noop        8        13.69M     16
+quent-dynamic-span/postcard     8        515.4k     16
+quent-dynamic-log/noop        64         2.89M     16
+quent-dynamic-log/postcard    64         87.2k     16
+quent-dynamic-span/noop       64         3.29M     16
+quent-dynamic-span/postcard    64        103.3k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-08.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-08.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-dynamic-log/noop,quent-dynamic-span/noop,quent-dynamic-log/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-08.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-08.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-08/target/release/quent-bench"
+	User time (seconds): 16.71
+	System time (seconds): 10.47
+	Percent of CPU this job got: 185%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:14.66
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1991560
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2185888
+	Voluntary context switches: 1778724
+	Involuntary context switches: 221
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 21138608
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:23:05+02:00 package_temp_mC=35000 dirty_kib=0 load=1.03 1.03 1.41
+DONE candidate-08
+
+RUN candidate-09
+commit=9937621cc2a790f1aaf53d8fc6aa4183ca79f7dd variants=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:23:05+02:00 package_temp_mC=36000 dirty_kib=4 load=1.03 1.03 1.41
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/ndjson    attrs=8   thr=1  offered=251.6k    tput=211.5k    write=366.8MB/s  loss=0%   p99=8.3us    drain=37.22ms
+[   2/104] quent-static-span/ndjson   attrs=8   thr=1  offered=262.5k    tput=214.0k    write=390.7MB/s  loss=0%   p99=14.6us   drain=43.04ms
+[   3/104] quent-dynamic-log/ndjson   attrs=8   thr=1  offered=242.5k    tput=186.0k    write=364.9MB/s  loss=0%   p99=10.5us   drain=62.80ms
+[   4/104] quent-dynamic-span/ndjson  attrs=8   thr=1  offered=242.6k    tput=186.1k    write=382.3MB/s  loss=0%   p99=11.2us   drain=62.41ms
+[   5/104] quent-static-log/msgpack   attrs=8   thr=1  offered=234.3k    tput=208.7k    write=327.3MB/s  loss=0%   p99=13.8us   drain=26.06ms
+[   6/104] quent-static-span/msgpack  attrs=8   thr=1  offered=229.7k    tput=205.3k    write=329.5MB/s  loss=0%   p99=17.1us   drain=25.96ms
+[   7/104] quent-dynamic-log/msgpack  attrs=8   thr=1  offered=212.9k    tput=178.8k    write=298.4MB/s  loss=0%   p99=19.2us   drain=44.39ms
+[   8/104] quent-dynamic-span/msgpack attrs=8   thr=1  offered=204.1k    tput=175.5k    write=299.3MB/s  loss=0%   p99=20.4us   drain=40.64ms
+[   9/104] quent-static-log/postcard  attrs=8   thr=1  offered=257.0k    tput=226.6k    write=349.8MB/s  loss=0%   p99=10.2us   drain=26.35ms
+[  10/104] quent-static-span/postcard attrs=8   thr=1  offered=230.9k    tput=206.0k    write=324.5MB/s  loss=0%   p99=14.6us   drain=26.29ms
+[  11/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=201.5k    tput=171.8k    write=273.1MB/s  loss=0%   p99=20.1us   drain=42.73ms
+[  12/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=196.9k    tput=166.7k    write=270.1MB/s  loss=0%   p99=27.4us   drain=46.08ms
+[  13/104] quent-static-log/ndjson    attrs=8   thr=16 offered=2.49M     tput=640.8k    write=1.11GB/s   loss=0%   p99=56.4us   drain=53.37ms
+[  14/104] quent-static-span/ndjson   attrs=8   thr=16 offered=2.33M     tput=496.8k    write=907.2MB/s  loss=0%   p99=29.1us   drain=79.58ms
+[  15/104] quent-dynamic-log/ndjson   attrs=8   thr=16 offered=3.17M     tput=550.2k    write=1.08GB/s   loss=0%   p99=8.7us    drain=74.87ms
+[  16/104] quent-dynamic-span/ndjson  attrs=8   thr=16 offered=2.21M     tput=454.7k    write=933.9MB/s  loss=0%   p99=38.4us   drain=87.19ms
+[  17/104] quent-static-log/msgpack   attrs=8   thr=16 offered=3.66M     tput=905.9k    write=1.42GB/s   loss=0%   p99=10.7us   drain=41.69ms
+[  18/104] quent-static-span/msgpack  attrs=8   thr=16 offered=3.30M     tput=764.1k    write=1.23GB/s   loss=0%   p99=9.2us    drain=50.36ms
+[  19/104] quent-dynamic-log/msgpack  attrs=8   thr=16 offered=3.53M     tput=711.4k    write=1.19GB/s   loss=0%   p99=7.6us    drain=55.91ms
+[  20/104] quent-dynamic-span/msgpack attrs=8   thr=16 offered=2.34M     tput=546.8k    write=932.9MB/s  loss=0%   p99=12.6us   drain=70.08ms
+[  21/104] quent-static-log/postcard  attrs=8   thr=16 offered=3.72M     tput=902.3k    write=1.39GB/s   loss=0%   p99=9.9us    drain=42.02ms
+[  22/104] quent-static-span/postcard attrs=8   thr=16 offered=2.96M     tput=681.5k    write=1.07GB/s   loss=0%   p99=9.2us    drain=57.28ms
+[  23/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.65M     tput=792.3k    write=1.26GB/s   loss=0%   p99=8.4us    drain=49.24ms
+[  24/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.72M     tput=623.9k    write=1.01GB/s   loss=0%   p99=10.0us   drain=62.09ms
+[  25/104] quent-static-log/ndjson    attrs=64  thr=1  offered=77.8k     tput=48.3k     write=820.1MB/s  loss=0%   p99=25.6us   drain=389.73ms
+[  26/104] quent-static-span/ndjson   attrs=64  thr=1  offered=91.2k     tput=50.7k     write=864.9MB/s  loss=0%   p99=40.9us   drain=431.94ms
+[  27/104] quent-dynamic-log/ndjson   attrs=64  thr=1  offered=75.6k     tput=38.7k     write=716.9MB/s  loss=0%   p99=29.2us   drain=630.04ms
+[  28/104] quent-dynamic-span/ndjson  attrs=64  thr=1  offered=77.7k     tput=39.5k     write=735.0MB/s  loss=0%   p99=33.0us   drain=623.97ms
+[  29/104] quent-static-log/msgpack   attrs=64  thr=1  offered=81.3k     tput=60.4k     write=974.6MB/s  loss=0%   p99=33.0us   drain=212.70ms
+[  30/104] quent-static-span/msgpack  attrs=64  thr=1  offered=66.5k     tput=56.2k     write=909.0MB/s  loss=0%   p99=33.8us   drain=138.67ms
+[  31/104] quent-dynamic-log/msgpack  attrs=64  thr=1  offered=59.8k     tput=41.6k     write=706.0MB/s  loss=0%   p99=39.8us   drain=367.48ms
+[  32/104] quent-dynamic-span/msgpack attrs=64  thr=1  offered=54.3k     tput=40.5k     write=689.4MB/s  loss=0%   p99=55.8us   drain=312.92ms
+[  33/104] quent-static-log/postcard  attrs=64  thr=1  offered=70.2k     tput=55.4k     write=887.0MB/s  loss=0%   p99=42.6us   drain=188.38ms
+[  34/104] quent-static-span/postcard attrs=64  thr=1  offered=63.9k     tput=54.7k     write=877.8MB/s  loss=0%   p99=30.1us   drain=132.22ms
+[  35/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=66.5k     tput=43.8k     write=718.8MB/s  loss=0%   p99=38.5us   drain=385.32ms
+[  36/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=66.5k     tput=44.9k     write=738.9MB/s  loss=0%   p99=40.2us   drain=361.34ms
+[  37/104] quent-static-log/ndjson    attrs=64  thr=16 offered=674.7k    tput=71.5k     write=1.21GB/s   loss=0%   p99=372.3us  drain=614.69ms
+[  38/104] quent-static-span/ndjson   attrs=64  thr=16 offered=797.9k    tput=80.0k     write=1.36GB/s   loss=0%   p99=31.6us   drain=563.14ms
+[  39/104] quent-dynamic-log/ndjson   attrs=64  thr=16 offered=627.4k    tput=64.3k     write=1.19GB/s   loss=0%   p99=42.0us   drain=698.56ms
+[  40/104] quent-dynamic-span/ndjson  attrs=64  thr=16 offered=643.3k    tput=66.0k     write=1.23GB/s   loss=0%   p99=403.3us  drain=679.53ms
+[  41/104] quent-static-log/msgpack   attrs=64  thr=16 offered=803.5k    tput=124.9k    write=2.02GB/s   loss=0%   p99=49.0us   drain=349.49ms
+[  42/104] quent-static-span/msgpack  attrs=64  thr=16 offered=824.9k    tput=165.5k    write=2.68GB/s   loss=0%   p99=40.4us   drain=241.85ms
+[  43/104] quent-dynamic-log/msgpack  attrs=64  thr=16 offered=635.5k    tput=95.0k     write=1.61GB/s   loss=0%   p99=54.5us   drain=447.83ms
+[  44/104] quent-dynamic-span/msgpack attrs=64  thr=16 offered=604.8k    tput=97.2k     write=1.65GB/s   loss=0%   p99=717.8us  drain=430.60ms
+[  45/104] quent-static-log/postcard  attrs=64  thr=16 offered=777.1k    tput=120.7k    write=1.93GB/s   loss=0%   p99=34.2us   drain=363.42ms
+[  46/104] quent-static-span/postcard attrs=64  thr=16 offered=823.3k    tput=153.8k    write=2.47GB/s   loss=0%   p99=112.0us  drain=266.16ms
+[  47/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=622.0k    tput=108.5k    write=1.78GB/s   loss=0%   p99=51.2us   drain=381.42ms
+[  48/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=595.8k    tput=109.0k    write=1.79GB/s   loss=0%   p99=227.5us  drain=374.60ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/msgpack      8    1        212.9k        178.8k    298.4MB/s      0%     4.0us    10.5us    19.2us    44.39ms
+quent-dynamic-log/ndjson       8    1        242.5k        186.0k    364.9MB/s      0%     3.8us     8.9us    10.5us    62.80ms
+quent-dynamic-log/postcard     8    1        201.5k        171.8k    273.1MB/s      0%     4.6us    10.7us    20.1us    42.73ms
+quent-dynamic-span/msgpack     8    1        204.1k        175.5k    299.3MB/s      0%     4.7us    12.4us    20.4us    40.64ms
+quent-dynamic-span/ndjson      8    1        242.6k        186.1k    382.3MB/s      0%     4.4us     7.2us    11.2us    62.41ms
+quent-dynamic-span/postcard     8    1        196.9k        166.7k    270.1MB/s      0%     5.2us    14.2us    27.4us    46.08ms
+quent-static-log/msgpack       8    1        234.3k        208.7k    327.3MB/s      0%     3.7us     7.2us    13.8us    26.06ms
+quent-static-log/ndjson        8    1        251.6k        211.5k    366.8MB/s      0%     3.5us     6.8us     8.3us    37.22ms
+quent-static-log/postcard      8    1        257.0k        226.6k    349.8MB/s      0%     3.7us     7.5us    10.2us    26.35ms
+quent-static-span/msgpack      8    1        229.7k        205.3k    329.5MB/s      0%     3.9us     8.8us    17.1us    25.96ms
+quent-static-span/ndjson       8    1        262.5k        214.0k    390.7MB/s      0%     3.6us     8.6us    14.6us    43.04ms
+quent-static-span/postcard     8    1        230.9k        206.0k    324.5MB/s      0%     4.4us    12.6us    14.6us    26.29ms
+quent-dynamic-log/msgpack      8   16         3.53M        711.4k     1.19GB/s      0%     2.1us     5.5us     7.6us    55.91ms
+quent-dynamic-log/ndjson       8   16         3.17M        550.2k     1.08GB/s      0%     2.2us     5.4us     8.7us    74.87ms
+quent-dynamic-log/postcard     8   16         3.65M        792.3k     1.26GB/s      0%     1.9us     5.3us     8.4us    49.24ms
+quent-dynamic-span/msgpack     8   16         2.34M        546.8k    932.9MB/s      0%     3.8us    10.0us    12.6us    70.08ms
+quent-dynamic-span/ndjson      8   16         2.21M        454.7k    933.9MB/s      0%     3.1us     9.7us    38.4us    87.19ms
+quent-dynamic-span/postcard     8   16         2.72M        623.9k     1.01GB/s      0%     3.2us     8.0us    10.0us    62.09ms
+quent-static-log/msgpack       8   16         3.66M        905.9k     1.42GB/s      0%     2.0us     5.8us    10.7us    41.69ms
+quent-static-log/ndjson        8   16         2.49M        640.8k     1.11GB/s      0%     2.3us    11.2us    56.4us    53.37ms
+quent-static-log/postcard      8   16         3.72M        902.3k     1.39GB/s      0%     2.0us     4.9us     9.9us    42.02ms
+quent-static-span/msgpack      8   16         3.30M        764.1k     1.23GB/s      0%     3.3us     7.2us     9.2us    50.36ms
+quent-static-span/ndjson       8   16         2.33M        496.8k    907.2MB/s      0%     2.6us     8.9us    29.1us    79.58ms
+quent-static-span/postcard     8   16         2.96M        681.5k     1.07GB/s      0%     2.8us     7.9us     9.2us    57.28ms
+quent-dynamic-log/msgpack     64    1         59.8k         41.6k    706.0MB/s      0%    17.1us    28.2us    39.8us   367.48ms
+quent-dynamic-log/ndjson      64    1         75.6k         38.7k    716.9MB/s      0%    11.4us    24.3us    29.2us   630.04ms
+quent-dynamic-log/postcard    64    1         66.5k         43.8k    718.8MB/s      0%    15.5us    30.8us    38.5us   385.32ms
+quent-dynamic-span/msgpack    64    1         54.3k         40.5k    689.4MB/s      0%    18.7us    37.9us    55.8us   312.92ms
+quent-dynamic-span/ndjson     64    1         77.7k         39.5k    735.0MB/s      0%     7.1us    23.3us    33.0us   623.97ms
+quent-dynamic-span/postcard    64    1         66.5k         44.9k    738.9MB/s      0%    17.2us    30.7us    40.2us   361.34ms
+quent-static-log/msgpack      64    1         81.3k         60.4k    974.6MB/s      0%    12.4us    20.4us    33.0us   212.70ms
+quent-static-log/ndjson       64    1         77.8k         48.3k    820.1MB/s      0%    10.8us    21.6us    25.6us   389.73ms
+quent-static-log/postcard     64    1         70.2k         55.4k    887.0MB/s      0%    14.3us    32.8us    42.6us   188.38ms
+quent-static-span/msgpack     64    1         66.5k         56.2k    909.0MB/s      0%    15.3us    28.2us    33.8us   138.67ms
+quent-static-span/ndjson      64    1         91.2k         50.7k    864.9MB/s      0%    10.2us    23.8us    40.9us   431.94ms
+quent-static-span/postcard    64    1         63.9k         54.7k    877.8MB/s      0%    15.5us    24.6us    30.1us   132.22ms
+quent-dynamic-log/msgpack     64   16        635.5k         95.0k     1.61GB/s      0%     9.6us    27.0us    54.5us   447.83ms
+quent-dynamic-log/ndjson      64   16        627.4k         64.3k     1.19GB/s      0%     8.9us    27.7us    42.0us   698.56ms
+quent-dynamic-log/postcard    64   16        622.0k        108.5k     1.78GB/s      0%     9.4us    27.4us    51.2us   381.42ms
+quent-dynamic-span/msgpack    64   16        604.8k         97.2k     1.65GB/s      0%    10.4us    26.2us   717.8us   430.60ms
+quent-dynamic-span/ndjson     64   16        643.3k         66.0k     1.23GB/s      0%     9.4us    23.8us   403.3us   679.53ms
+quent-dynamic-span/postcard    64   16        595.8k        109.0k     1.79GB/s      0%     8.6us    26.0us   227.5us   374.60ms
+quent-static-log/msgpack      64   16        803.5k        124.9k     2.02GB/s      0%     7.3us    16.1us    49.0us   349.49ms
+quent-static-log/ndjson       64   16        674.7k         71.5k     1.21GB/s      0%     9.0us    37.5us   372.3us   614.69ms
+quent-static-log/postcard     64   16        777.1k        120.7k     1.93GB/s      0%     8.4us    15.4us    34.2us   363.42ms
+quent-static-span/msgpack     64   16        824.9k        165.5k     2.68GB/s      0%     8.3us    20.7us    40.4us   241.85ms
+quent-static-span/ndjson      64   16        797.9k         80.0k     1.36GB/s      0%     8.5us    18.7us    31.6us   563.14ms
+quent-static-span/postcard    64   16        823.3k        153.8k     2.47GB/s      0%     8.4us    20.4us   112.0us   266.16ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/msgpack      8        711.4k     16
+quent-dynamic-log/ndjson       8        550.2k     16
+quent-dynamic-log/postcard     8        792.3k     16
+quent-dynamic-span/msgpack     8        546.8k     16
+quent-dynamic-span/ndjson      8        454.7k     16
+quent-dynamic-span/postcard     8        623.9k     16
+quent-static-log/msgpack       8        905.9k     16
+quent-static-log/ndjson        8        640.8k     16
+quent-static-log/postcard      8        902.3k     16
+quent-static-span/msgpack      8        764.1k     16
+quent-static-span/ndjson       8        496.8k     16
+quent-static-span/postcard     8        681.5k     16
+quent-dynamic-log/msgpack     64         95.0k     16
+quent-dynamic-log/ndjson      64         64.3k     16
+quent-dynamic-log/postcard    64        108.5k     16
+quent-dynamic-span/msgpack    64         97.2k     16
+quent-dynamic-span/ndjson     64         66.0k     16
+quent-dynamic-span/postcard    64        109.0k     16
+quent-static-log/msgpack      64        124.9k     16
+quent-static-log/ndjson       64         71.5k     16
+quent-static-log/postcard     64        120.7k     16
+quent-static-span/msgpack     64        165.5k     16
+quent-static-span/ndjson      64         80.0k     16
+quent-static-span/postcard    64        153.8k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-09.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-09.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-09.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-09.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-09/target/release/quent-bench"
+	User time (seconds): 99.76
+	System time (seconds): 36.82
+	Percent of CPU this job got: 191%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:11.38
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2005728
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4640965
+	Voluntary context switches: 6649830
+	Involuntary context switches: 1319
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 130594480
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:24:17+02:00 package_temp_mC=35000 dirty_kib=4 load=2.33 1.34 1.49
+DONE candidate-09
+
+RUN candidate-10
+commit=0c3e7a09389f4df6bd61ff606a8dbd63e5c73a1a variants=quent-static-log/postcard,quent-static-span/postcard,quent-static-log/bincode-serde,quent-static-span/bincode-serde,quent-static-log/bincode-native,quent-static-span/bincode-native
+time=2026-07-21T22:24:17+02:00 package_temp_mC=36000 dirty_kib=4 load=2.33 1.34 1.49
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 360 cell-runs...
+[   1/120] quent-static-log/postcard  attrs=8   thr=1  offered=161.0k    tput=156.6k    write=241.7MB/s  loss=0%   p99=23.7us   drain=9.51ms
+[   2/120] quent-static-span/postcard attrs=8   thr=1  offered=153.9k    tput=146.5k    write=230.8MB/s  loss=0%   p99=28.7us   drain=16.50ms
+[   3/120] quent-static-log/bincode-serde attrs=8   thr=1  offered=174.1k    tput=147.7k    write=268.0MB/s  loss=0%   p99=24.5us   drain=51.38ms
+[   4/120] quent-static-span/bincode-serde attrs=8   thr=1  offered=184.5k    tput=145.5k    write=269.4MB/s  loss=0%   p99=25.3us   drain=72.64ms
+[   5/120] quent-static-log/bincode-native attrs=8   thr=1  offered=296.3k    tput=228.3k    write=414.3MB/s  loss=0%   p99=12.0us   drain=50.68ms
+[   6/120] quent-static-span/bincode-native attrs=8   thr=1  offered=327.1k    tput=214.3k    write=396.6MB/s  loss=0%   p99=16.6us   drain=79.80ms
+[   7/120] quent-static-log/postcard  attrs=8   thr=16 offered=2.33M     tput=631.2k    write=974.6MB/s  loss=0%   p99=52.3us   drain=53.94ms
+[   8/120] quent-static-span/postcard attrs=8   thr=16 offered=2.07M     tput=551.0k    write=867.9MB/s  loss=0%   p99=12.0us   drain=65.95ms
+[   9/120] quent-static-log/bincode-serde attrs=8   thr=16 offered=3.25M     tput=484.2k    write=878.8MB/s  loss=0%   p99=10.1us   drain=87.91ms
+[  10/120] quent-static-span/bincode-serde attrs=8   thr=16 offered=2.46M     tput=365.8k    write=677.1MB/s  loss=0%   p99=26.5us   drain=116.29ms
+[  11/120] quent-static-log/bincode-native attrs=8   thr=16 offered=3.34M     tput=568.1k    write=1.03GB/s   loss=0%   p99=5.6us    drain=73.13ms
+[  12/120] quent-static-span/bincode-native attrs=8   thr=16 offered=2.80M     tput=406.3k    write=752.1MB/s  loss=0%   p99=10.2us   drain=105.21ms
+[  13/120] quent-static-log/postcard  attrs=64  thr=1  offered=46.7k     tput=40.0k     write=641.1MB/s  loss=0%   p99=59.4us   drain=179.54ms
+[  14/120] quent-static-span/postcard attrs=64  thr=1  offered=45.4k     tput=40.8k     write=654.9MB/s  loss=0%   p99=51.7us   drain=123.10ms
+[  15/120] quent-static-log/bincode-serde attrs=64  thr=1  offered=60.9k     tput=48.7k     write=857.8MB/s  loss=0%   p99=38.6us   drain=206.53ms
+[  16/120] quent-static-span/bincode-serde attrs=64  thr=1  offered=59.4k     tput=46.0k     write=812.3MB/s  loss=0%   p99=47.8us   drain=244.86ms
+[  17/120] quent-static-log/bincode-native attrs=64  thr=1  offered=67.9k     tput=52.9k     write=932.2MB/s  loss=0%   p99=29.8us   drain=208.56ms
+[  18/120] quent-static-span/bincode-native attrs=64  thr=1  offered=76.6k     tput=54.9k     write=969.9MB/s  loss=0%   p99=31.3us   drain=252.74ms
+[  19/120] quent-static-log/postcard  attrs=64  thr=16 offered=919.8k    tput=118.0k    write=1.89GB/s   loss=0%   p99=228.8us  drain=352.81ms
+[  20/120] quent-static-span/postcard attrs=64  thr=16 offered=974.5k    tput=151.1k    write=2.42GB/s   loss=0%   p99=83.1us   drain=279.19ms
+[  21/120] quent-static-log/bincode-serde attrs=64  thr=16 offered=1.22M     tput=124.7k    write=2.20GB/s   loss=0%   p99=36.0us   drain=359.75ms
+[  22/120] quent-static-span/bincode-serde attrs=64  thr=16 offered=1.09M     tput=113.8k    write=2.01GB/s   loss=0%   p99=34.2us   drain=393.30ms
+[  23/120] quent-static-log/bincode-native attrs=64  thr=16 offered=1.08M     tput=108.9k    write=1.92GB/s   loss=0%   p99=25.2us   drain=413.08ms
+[  24/120] quent-static-span/bincode-native attrs=64  thr=16 offered=921.2k    tput=112.0k    write=1.98GB/s   loss=0%   p99=22.0us   drain=392.67ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-static-log/bincode-native     8    1        296.3k        228.3k    414.3MB/s      0%     3.1us     7.1us    12.0us    50.68ms
+quent-static-log/bincode-serde     8    1        174.1k        147.7k    268.0MB/s      0%     5.1us    16.9us    24.5us    51.38ms
+quent-static-log/postcard      8    1        161.0k        156.6k    241.7MB/s      0%     5.1us    14.3us    23.7us     9.51ms
+quent-static-span/bincode-native     8    1        327.1k        214.3k    396.6MB/s      0%     3.6us     7.6us    16.6us    79.80ms
+quent-static-span/bincode-serde     8    1        184.5k        145.5k    269.4MB/s      0%     6.2us    12.9us    25.3us    72.64ms
+quent-static-span/postcard     8    1        153.9k        146.5k    230.8MB/s      0%     6.5us    14.8us    28.7us    16.50ms
+quent-static-log/bincode-native     8   16         3.34M        568.1k     1.03GB/s      0%     1.8us     4.8us     5.6us    73.13ms
+quent-static-log/bincode-serde     8   16         3.25M        484.2k    878.8MB/s      0%     2.3us     8.0us    10.1us    87.91ms
+quent-static-log/postcard      8   16         2.33M        631.2k    974.6MB/s      0%     3.5us     8.8us    52.3us    53.94ms
+quent-static-span/bincode-native     8   16         2.80M        406.3k    752.1MB/s      0%     2.8us     7.8us    10.2us   105.21ms
+quent-static-span/bincode-serde     8   16         2.46M        365.8k    677.1MB/s      0%     3.8us    10.5us    26.5us   116.29ms
+quent-static-span/postcard     8   16         2.07M        551.0k    867.9MB/s      0%     4.6us     8.6us    12.0us    65.95ms
+quent-static-log/bincode-native    64    1         67.9k         52.9k    932.2MB/s      0%    12.6us    21.4us    29.8us   208.56ms
+quent-static-log/bincode-serde    64    1         60.9k         48.7k    857.8MB/s      0%    15.1us    31.3us    38.6us   206.53ms
+quent-static-log/postcard     64    1         46.7k         40.0k    641.1MB/s      0%    20.7us    40.0us    59.4us   179.54ms
+quent-static-span/bincode-native    64    1         76.6k         54.9k    969.9MB/s      0%    14.1us    24.7us    31.3us   252.74ms
+quent-static-span/bincode-serde    64    1         59.4k         46.0k    812.3MB/s      0%    15.9us    35.0us    47.8us   244.86ms
+quent-static-span/postcard    64    1         45.4k         40.8k    654.9MB/s      0%    21.5us    45.3us    51.7us   123.10ms
+quent-static-log/bincode-native    64   16         1.08M        108.9k     1.92GB/s      0%     8.2us    16.8us    25.2us   413.08ms
+quent-static-log/bincode-serde    64   16         1.22M        124.7k     2.20GB/s      0%    10.2us    25.0us    36.0us   359.75ms
+quent-static-log/postcard     64   16        919.8k        118.0k     1.89GB/s      0%    11.6us    44.4us   228.8us   352.81ms
+quent-static-span/bincode-native    64   16        921.2k        112.0k     1.98GB/s      0%     8.3us    16.0us    22.0us   392.67ms
+quent-static-span/bincode-serde    64   16         1.09M        113.8k     2.01GB/s      0%    10.4us    20.7us    34.2us   393.30ms
+quent-static-span/postcard    64   16        974.5k        151.1k     2.42GB/s      0%    12.0us    29.7us    83.1us   279.19ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-static-log/bincode-native     8        568.1k     16
+quent-static-log/bincode-serde     8        484.2k     16
+quent-static-log/postcard      8        631.2k     16
+quent-static-span/bincode-native     8        406.3k     16
+quent-static-span/bincode-serde     8        365.8k     16
+quent-static-span/postcard     8        551.0k     16
+quent-static-log/bincode-native    64        108.9k     16
+quent-static-log/bincode-serde    64        124.7k     16
+quent-static-log/postcard     64        118.0k     16
+quent-static-span/bincode-native    64        112.0k     16
+quent-static-span/bincode-serde    64        113.8k     16
+quent-static-span/postcard    64        151.1k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-10.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-10.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-static-span/postcard,quent-static-log/bincode-serde,quent-static-span/bincode-serde,quent-static-log/bincode-native,quent-static-span/bincode-native BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-10.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-10.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-10/target/release/quent-bench"
+	User time (seconds): 39.50
+	System time (seconds): 26.45
+	Percent of CPU this job got: 183%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:35.99
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1751556
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4378935
+	Voluntary context switches: 4796487
+	Involuntary context switches: 561
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 66261880
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:24:53+02:00 package_temp_mC=36000 dirty_kib=260 load=2.08 1.40 1.50
+DONE candidate-10
+
+RUN candidate-11
+commit=6dda934b40199bd8e7a8424dda6bbefcaa6a3f85 variants=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:24:53+02:00 package_temp_mC=36000 dirty_kib=264 load=2.08 1.40 1.50
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/ndjson    attrs=8   thr=1  offered=207.4k    tput=170.1k    write=294.9MB/s  loss=0%   p99=21.3us   drain=51.30ms
+[   2/104] quent-static-span/ndjson   attrs=8   thr=1  offered=207.6k    tput=168.5k    write=307.7MB/s  loss=0%   p99=26.4us   drain=55.86ms
+[   3/104] quent-dynamic-log/ndjson   attrs=8   thr=1  offered=197.0k    tput=154.4k    write=302.9MB/s  loss=0%   p99=26.7us   drain=70.11ms
+[   4/104] quent-dynamic-span/ndjson  attrs=8   thr=1  offered=184.1k    tput=146.2k    write=300.2MB/s  loss=0%   p99=22.9us   drain=70.06ms
+[   5/104] quent-static-log/msgpack   attrs=8   thr=1  offered=232.4k    tput=194.7k    write=305.2MB/s  loss=0%   p99=29.4us   drain=41.78ms
+[   6/104] quent-static-span/msgpack  attrs=8   thr=1  offered=231.2k    tput=176.1k    write=282.6MB/s  loss=0%   p99=22.5us   drain=65.31ms
+[   7/104] quent-dynamic-log/msgpack  attrs=8   thr=1  offered=178.7k    tput=146.2k    write=244.0MB/s  loss=0%   p99=23.4us   drain=62.20ms
+[   8/104] quent-dynamic-span/msgpack attrs=8   thr=1  offered=196.1k    tput=148.3k    write=253.0MB/s  loss=0%   p99=28.7us   drain=82.47ms
+[   9/104] quent-static-log/postcard  attrs=8   thr=1  offered=223.3k    tput=192.5k    write=297.3MB/s  loss=0%   p99=25.9us   drain=35.71ms
+[  10/104] quent-static-span/postcard attrs=8   thr=1  offered=208.0k    tput=167.2k    write=263.3MB/s  loss=0%   p99=20.9us   drain=58.55ms
+[  11/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=192.5k    tput=158.9k    write=252.6MB/s  loss=0%   p99=19.1us   drain=54.61ms
+[  12/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=162.9k    tput=139.6k    write=226.1MB/s  loss=0%   p99=25.7us   drain=51.54ms
+[  13/104] quent-static-log/ndjson    attrs=8   thr=16 offered=3.00M     tput=492.9k    write=854.6MB/s  loss=0%   p99=160.0us  drain=80.19ms
+[  14/104] quent-static-span/ndjson   attrs=8   thr=16 offered=2.40M     tput=433.9k    write=792.3MB/s  loss=0%   p99=13.7us   drain=93.75ms
+[  15/104] quent-dynamic-log/ndjson   attrs=8   thr=16 offered=3.70M     tput=413.1k    write=810.5MB/s  loss=0%   p99=8.8us    drain=107.38ms
+[  16/104] quent-dynamic-span/ndjson  attrs=8   thr=16 offered=2.31M     tput=361.1k    write=741.6MB/s  loss=0%   p99=20.0us   drain=116.47ms
+[  17/104] quent-static-log/msgpack   attrs=8   thr=16 offered=4.70M     tput=636.2k    write=997.5MB/s  loss=0%   p99=9.8us    drain=67.99ms
+[  18/104] quent-static-span/msgpack  attrs=8   thr=16 offered=3.02M     tput=424.9k    write=682.0MB/s  loss=0%   p99=11.2us   drain=103.13ms
+[  19/104] quent-dynamic-log/msgpack  attrs=8   thr=16 offered=4.63M     tput=526.7k    write=879.0MB/s  loss=0%   p99=9.9us    drain=84.08ms
+[  20/104] quent-dynamic-span/msgpack attrs=8   thr=16 offered=3.29M     tput=379.8k    write=647.9MB/s  loss=0%   p99=26.3us   drain=120.78ms
+[  21/104] quent-static-log/postcard  attrs=8   thr=16 offered=4.54M     tput=511.0k    write=789.0MB/s  loss=0%   p99=12.0us   drain=86.50ms
+[  22/104] quent-static-span/postcard attrs=8   thr=16 offered=3.28M     tput=363.3k    write=572.3MB/s  loss=0%   p99=11.4us   drain=122.34ms
+[  23/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=5.09M     tput=588.2k    write=934.6MB/s  loss=0%   p99=6.8us    drain=75.76ms
+[  24/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=3.39M     tput=488.3k    write=791.0MB/s  loss=0%   p99=21.3us   drain=87.77ms
+[  25/104] quent-static-log/ndjson    attrs=64  thr=1  offered=73.4k     tput=44.0k     write=746.6MB/s  loss=0%   p99=45.4us   drain=446.77ms
+[  26/104] quent-static-span/ndjson   attrs=64  thr=1  offered=81.8k     tput=47.1k     write=802.6MB/s  loss=0%   p99=41.9us   drain=451.35ms
+[  27/104] quent-dynamic-log/ndjson   attrs=64  thr=1  offered=63.6k     tput=35.7k     write=662.5MB/s  loss=0%   p99=48.1us   drain=611.38ms
+[  28/104] quent-dynamic-span/ndjson  attrs=64  thr=1  offered=57.8k     tput=33.4k     write=622.4MB/s  loss=0%   p99=61.1us   drain=631.65ms
+[  29/104] quent-static-log/msgpack   attrs=64  thr=1  offered=60.3k     tput=46.1k     write=744.2MB/s  loss=0%   p99=50.1us   drain=255.22ms
+[  30/104] quent-static-span/msgpack  attrs=64  thr=1  offered=55.1k     tput=44.1k     write=713.7MB/s  loss=0%   p99=47.7us   drain=225.55ms
+[  31/104] quent-dynamic-log/msgpack  attrs=64  thr=1  offered=46.7k     tput=33.3k     write=565.0MB/s  loss=0%   p99=68.5us   drain=431.72ms
+[  32/104] quent-dynamic-span/msgpack attrs=64  thr=1  offered=48.0k     tput=33.0k     write=562.1MB/s  loss=0%   p99=63.0us   drain=472.64ms
+[  33/104] quent-static-log/postcard  attrs=64  thr=1  offered=54.6k     tput=44.1k     write=706.3MB/s  loss=0%   p99=63.7us   drain=216.22ms
+[  34/104] quent-static-span/postcard attrs=64  thr=1  offered=52.1k     tput=44.2k     write=708.8MB/s  loss=0%   p99=51.6us   drain=170.83ms
+[  35/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=55.3k     tput=39.2k     write=644.3MB/s  loss=0%   p99=51.8us   drain=360.66ms
+[  36/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=58.5k     tput=40.8k     write=670.8MB/s  loss=0%   p99=47.5us   drain=370.47ms
+[  37/104] quent-static-log/ndjson    attrs=64  thr=16 offered=911.8k    tput=68.4k     write=1.16GB/s   loss=0%   p99=327.2us  drain=661.68ms
+[  38/104] quent-static-span/ndjson   attrs=64  thr=16 offered=1.01M     tput=63.6k     write=1.08GB/s   loss=0%   p99=102.4us  drain=736.58ms
+[  39/104] quent-dynamic-log/ndjson   attrs=64  thr=16 offered=694.1k    tput=57.3k     write=1.06GB/s   loss=0%   p99=102.3us  drain=803.70ms
+[  40/104] quent-dynamic-span/ndjson  attrs=64  thr=16 offered=660.8k    tput=55.8k     write=1.04GB/s   loss=0%   p99=53.1us   drain=822.08ms
+[  41/104] quent-static-log/msgpack   attrs=64  thr=16 offered=1.27M     tput=106.8k    write=1.72GB/s   loss=0%   p99=369.1us  drain=429.40ms
+[  42/104] quent-static-span/msgpack  attrs=64  thr=16 offered=1.21M     tput=123.7k    write=2.00GB/s   loss=0%   p99=37.8us   drain=362.89ms
+[  43/104] quent-dynamic-log/msgpack  attrs=64  thr=16 offered=837.3k    tput=75.0k     write=1.27GB/s   loss=0%   p99=62.5us   drain=606.81ms
+[  44/104] quent-dynamic-span/msgpack attrs=64  thr=16 offered=764.4k    tput=69.0k     write=1.17GB/s   loss=0%   p99=44.7us   drain=659.75ms
+[  45/104] quent-static-log/postcard  attrs=64  thr=16 offered=1.32M     tput=119.9k    write=1.92GB/s   loss=0%   p99=36.1us   drain=379.04ms
+[  46/104] quent-static-span/postcard attrs=64  thr=16 offered=1.20M     tput=132.8k    write=2.13GB/s   loss=0%   p99=29.4us   drain=334.90ms
+[  47/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=819.7k    tput=88.4k     write=1.45GB/s   loss=0%   p99=42.4us   drain=506.15ms
+[  48/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=858.5k    tput=79.4k     write=1.31GB/s   loss=0%   p99=46.3us   drain=574.97ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/msgpack      8    1        178.7k        146.2k    244.0MB/s      0%     5.0us    17.7us    23.4us    62.20ms
+quent-dynamic-log/ndjson       8    1        197.0k        154.4k    302.9MB/s      0%     4.4us    17.0us    26.7us    70.11ms
+quent-dynamic-log/postcard     8    1        192.5k        158.9k    252.6MB/s      0%     5.3us    12.7us    19.1us    54.61ms
+quent-dynamic-span/msgpack     8    1        196.1k        148.3k    253.0MB/s      0%     5.2us    14.6us    28.7us    82.47ms
+quent-dynamic-span/ndjson      8    1        184.1k        146.2k    300.2MB/s      0%     4.9us    13.5us    22.9us    70.06ms
+quent-dynamic-span/postcard     8    1        162.9k        139.6k    226.1MB/s      0%     6.5us    18.8us    25.7us    51.54ms
+quent-static-log/msgpack       8    1        232.4k        194.7k    305.2MB/s      0%     3.4us    16.2us    29.4us    41.78ms
+quent-static-log/ndjson        8    1        207.4k        170.1k    294.9MB/s      0%     4.5us    10.7us    21.3us    51.30ms
+quent-static-log/postcard      8    1        223.3k        192.5k    297.3MB/s      0%     3.7us    13.3us    25.9us    35.71ms
+quent-static-span/msgpack      8    1        231.2k        176.1k    282.6MB/s      0%     2.3us    12.3us    22.5us    65.31ms
+quent-static-span/ndjson       8    1        207.6k        168.5k    307.7MB/s      0%     5.2us    15.5us    26.4us    55.86ms
+quent-static-span/postcard     8    1        208.0k        167.2k    263.3MB/s      0%     3.8us    11.4us    20.9us    58.55ms
+quent-dynamic-log/msgpack      8   16         4.63M        526.7k    879.0MB/s      0%     2.3us     5.7us     9.9us    84.08ms
+quent-dynamic-log/ndjson       8   16         3.70M        413.1k    810.5MB/s      0%     3.3us     6.4us     8.8us   107.38ms
+quent-dynamic-log/postcard     8   16         5.09M        588.2k    934.6MB/s      0%     2.2us     4.0us     6.8us    75.76ms
+quent-dynamic-span/msgpack     8   16         3.29M        379.8k    647.9MB/s      0%     3.4us     8.9us    26.3us   120.78ms
+quent-dynamic-span/ndjson      8   16         2.31M        361.1k    741.6MB/s      0%     5.8us     9.9us    20.0us   116.47ms
+quent-dynamic-span/postcard     8   16         3.39M        488.3k    791.0MB/s      0%     3.2us     9.4us    21.3us    87.77ms
+quent-static-log/msgpack       8   16         4.70M        636.2k    997.5MB/s      0%     2.6us     5.7us     9.8us    67.99ms
+quent-static-log/ndjson        8   16         3.00M        492.9k    854.6MB/s      0%     3.7us    10.7us   160.0us    80.19ms
+quent-static-log/postcard      8   16         4.54M        511.0k    789.0MB/s      0%     1.9us     5.4us    12.0us    86.50ms
+quent-static-span/msgpack      8   16         3.02M        424.9k    682.0MB/s      0%     4.2us     8.6us    11.2us   103.13ms
+quent-static-span/ndjson       8   16         2.40M        433.9k    792.3MB/s      0%     5.3us     9.6us    13.7us    93.75ms
+quent-static-span/postcard     8   16         3.28M        363.3k    572.3MB/s      0%     3.0us     8.2us    11.4us   122.34ms
+quent-dynamic-log/msgpack     64    1         46.7k         33.3k    565.0MB/s      0%    21.5us    51.0us    68.5us   431.72ms
+quent-dynamic-log/ndjson      64    1         63.6k         35.7k    662.5MB/s      0%    14.7us    38.5us    48.1us   611.38ms
+quent-dynamic-log/postcard    64    1         55.3k         39.2k    644.3MB/s      0%    15.3us    38.2us    51.8us   360.66ms
+quent-dynamic-span/msgpack    64    1         48.0k         33.0k    562.1MB/s      0%    20.8us    46.8us    63.0us   472.64ms
+quent-dynamic-span/ndjson     64    1         57.8k         33.4k    622.4MB/s      0%    19.4us    40.0us    61.1us   631.65ms
+quent-dynamic-span/postcard    64    1         58.5k         40.8k    670.8MB/s      0%     6.6us    41.5us    47.5us   370.47ms
+quent-static-log/msgpack      64    1         60.3k         46.1k    744.2MB/s      0%    15.7us    35.0us    50.1us   255.22ms
+quent-static-log/ndjson       64    1         73.4k         44.0k    746.6MB/s      0%    13.7us    31.4us    45.4us   446.77ms
+quent-static-log/postcard     64    1         54.6k         44.1k    706.3MB/s      0%    17.8us    44.4us    63.7us   216.22ms
+quent-static-span/msgpack     64    1         55.1k         44.1k    713.7MB/s      0%    20.1us    33.8us    47.7us   225.55ms
+quent-static-span/ndjson      64    1         81.8k         47.1k    802.6MB/s      0%    12.7us    32.6us    41.9us   451.35ms
+quent-static-span/postcard    64    1         52.1k         44.2k    708.8MB/s      0%    20.3us    42.9us    51.6us   170.83ms
+quent-dynamic-log/msgpack     64   16        837.3k         75.0k     1.27GB/s      0%    12.4us    33.5us    62.5us   606.81ms
+quent-dynamic-log/ndjson      64   16        694.1k         57.3k     1.06GB/s      0%    13.0us    38.8us   102.3us   803.70ms
+quent-dynamic-log/postcard    64   16        819.7k         88.4k     1.45GB/s      0%    11.2us    28.0us    42.4us   506.15ms
+quent-dynamic-span/msgpack    64   16        764.4k         69.0k     1.17GB/s      0%    12.5us    29.7us    44.7us   659.75ms
+quent-dynamic-span/ndjson     64   16        660.8k         55.8k     1.04GB/s      0%    13.6us    33.3us    53.1us   822.08ms
+quent-dynamic-span/postcard    64   16        858.5k         79.4k     1.31GB/s      0%    11.7us    29.8us    46.3us   574.97ms
+quent-static-log/msgpack      64   16         1.27M        106.8k     1.72GB/s      0%    10.0us    30.3us   369.1us   429.40ms
+quent-static-log/ndjson       64   16        911.8k         68.4k     1.16GB/s      0%    11.9us    54.6us   327.2us   661.68ms
+quent-static-log/postcard     64   16         1.32M        119.9k     1.92GB/s      0%     9.1us    20.6us    36.1us   379.04ms
+quent-static-span/msgpack     64   16         1.21M        123.7k     2.00GB/s      0%     9.6us    22.0us    37.8us   362.89ms
+quent-static-span/ndjson      64   16         1.01M         63.6k     1.08GB/s      0%    11.4us    29.2us   102.4us   736.58ms
+quent-static-span/postcard    64   16         1.20M        132.8k     2.13GB/s      0%    10.0us    17.9us    29.4us   334.90ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/msgpack      8        526.7k     16
+quent-dynamic-log/ndjson       8        413.1k     16
+quent-dynamic-log/postcard     8        588.2k     16
+quent-dynamic-span/msgpack     8        379.8k     16
+quent-dynamic-span/ndjson      8        361.1k     16
+quent-dynamic-span/postcard     8        488.3k     16
+quent-static-log/msgpack       8        636.2k     16
+quent-static-log/ndjson        8        492.9k     16
+quent-static-log/postcard      8        511.0k     16
+quent-static-span/msgpack      8        424.9k     16
+quent-static-span/ndjson       8        433.9k     16
+quent-static-span/postcard     8        363.3k     16
+quent-dynamic-log/msgpack     64         75.0k     16
+quent-dynamic-log/ndjson      64         57.3k     16
+quent-dynamic-log/postcard    64         88.4k     16
+quent-dynamic-span/msgpack    64         69.0k     16
+quent-dynamic-span/ndjson     64         55.8k     16
+quent-dynamic-span/postcard    64         79.4k     16
+quent-static-log/msgpack      64        106.8k     16
+quent-static-log/ndjson       64         68.4k     16
+quent-static-log/postcard     64        119.9k     16
+quent-static-span/msgpack     64        123.7k     16
+quent-static-span/ndjson      64         63.6k     16
+quent-static-span/postcard    64        132.8k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-11.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-11.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-11.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-11.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-11/target/release/quent-bench"
+	User time (seconds): 97.06
+	System time (seconds): 47.76
+	Percent of CPU this job got: 170%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:24.74
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2484932
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 7411767
+	Voluntary context switches: 9994693
+	Involuntary context switches: 803
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 130594480
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:26:17+02:00 package_temp_mC=36000 dirty_kib=0 load=1.53 1.41 1.50
+DONE candidate-11
+
+RUN candidate-12
+commit=866703fe2d998bc9bc879f1404f4571682404ccf variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/bitcode,quent-dynamic-log/bitcode,quent-static-span/bitcode,quent-dynamic-span/bitcode
+time=2026-07-21T22:26:17+02:00 package_temp_mC=36000 dirty_kib=4 load=1.53 1.41 1.50
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 360 cell-runs...
+[   1/120] quent-static-log/bitcode   attrs=8   thr=1  offered=290.0k    tput=256.5k    write=387.1MB/s  loss=0%   p99=16.6us   drain=22.23ms
+[   2/120] quent-static-span/bitcode  attrs=8   thr=1  offered=264.4k    tput=229.2k    write=350.7MB/s  loss=0%   p99=13.4us   drain=29.08ms
+[   3/120] quent-dynamic-log/bitcode  attrs=8   thr=1  offered=220.8k    tput=191.8k    write=294.1MB/s  loss=0%   p99=18.0us   drain=34.15ms
+[   4/120] quent-dynamic-span/bitcode attrs=8   thr=1  offered=241.5k    tput=201.4k    write=313.1MB/s  loss=0%   p99=13.8us   drain=41.18ms
+[   5/120] quent-static-log/postcard  attrs=8   thr=1  offered=163.6k    tput=156.3k    write=241.3MB/s  loss=0%   p99=26.0us   drain=14.23ms
+[   6/120] quent-static-span/postcard attrs=8   thr=1  offered=163.5k    tput=152.0k    write=239.3MB/s  loss=0%   p99=24.8us   drain=23.16ms
+[   7/120] quent-dynamic-log/postcard attrs=8   thr=1  offered=148.5k    tput=136.5k    write=216.9MB/s  loss=0%   p99=22.9us   drain=29.39ms
+[   8/120] quent-dynamic-span/postcard attrs=8   thr=1  offered=153.1k    tput=141.9k    write=229.8MB/s  loss=0%   p99=25.6us   drain=25.24ms
+[   9/120] quent-static-log/bitcode   attrs=8   thr=16 offered=2.42M     tput=578.9k    write=873.1MB/s  loss=0%   p99=72.5us   drain=60.07ms
+[  10/120] quent-static-span/bitcode  attrs=8   thr=16 offered=2.23M     tput=484.1k    write=739.2MB/s  loss=0%   p99=16.6us   drain=80.81ms
+[  11/120] quent-dynamic-log/bitcode  attrs=8   thr=16 offered=3.77M     tput=494.9k    write=758.2MB/s  loss=0%   p99=8.3us    drain=87.49ms
+[  12/120] quent-dynamic-span/bitcode attrs=8   thr=16 offered=2.09M     tput=409.6k    write=635.4MB/s  loss=0%   p99=25.8us   drain=98.65ms
+[  13/120] quent-static-log/postcard  attrs=8   thr=16 offered=3.48M     tput=716.6k    write=1.11GB/s   loss=0%   p99=8.6us    drain=55.05ms
+[  14/120] quent-static-span/postcard attrs=8   thr=16 offered=2.69M     tput=605.9k    write=954.3MB/s  loss=0%   p99=14.5us   drain=63.85ms
+[  15/120] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.52M     tput=644.1k    write=1.02GB/s   loss=0%   p99=8.3us    drain=62.91ms
+[  16/120] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.66M     tput=520.5k    write=843.2MB/s  loss=0%   p99=21.1us   drain=76.98ms
+[  17/120] quent-static-log/bitcode   attrs=64  thr=1  offered=86.6k     tput=40.8k     write=643.8MB/s  loss=0%   p99=38.8us   drain=628.20ms
+[  18/120] quent-static-span/bitcode  attrs=64  thr=1  offered=77.8k     tput=58.6k     write=927.4MB/s  loss=0%   p99=29.2us   drain=209.89ms
+[  19/120] quent-dynamic-log/bitcode  attrs=64  thr=1  offered=76.4k     tput=38.6k     write=624.8MB/s  loss=0%   p99=53.8us   drain=640.26ms
+[  20/120] quent-dynamic-span/bitcode attrs=64  thr=1  offered=56.2k     tput=44.1k     write=715.2MB/s  loss=0%   p99=40.5us   drain=243.49ms
+[  21/120] quent-static-log/postcard  attrs=64  thr=1  offered=59.6k     tput=48.9k     write=783.0MB/s  loss=0%   p99=57.4us   drain=183.16ms
+[  22/120] quent-static-span/postcard attrs=64  thr=1  offered=46.3k     tput=41.7k     write=669.7MB/s  loss=0%   p99=57.4us   drain=118.95ms
+[  23/120] quent-dynamic-log/postcard attrs=64  thr=1  offered=60.4k     tput=43.2k     write=708.8MB/s  loss=0%   p99=50.0us   drain=329.22ms
+[  24/120] quent-dynamic-span/postcard attrs=64  thr=1  offered=46.1k     tput=36.0k     write=592.3MB/s  loss=0%   p99=62.6us   drain=304.89ms
+[  25/120] quent-static-log/bitcode   attrs=64  thr=16 offered=1.04M     tput=54.0k     write=852.6MB/s  loss=0%   p99=312.5us  drain=867.84ms
+[  26/120] quent-static-span/bitcode  attrs=64  thr=16 offered=1.12M     tput=99.0k     write=1.57GB/s   loss=0%   p99=25.8us   drain=461.15ms
+[  27/120] quent-dynamic-log/bitcode  attrs=64  thr=16 offered=720.2k    tput=49.5k     write=801.3MB/s  loss=0%   p99=48.2us   drain=939.68ms
+[  28/120] quent-dynamic-span/bitcode attrs=64  thr=16 offered=722.9k    tput=90.0k     write=1.46GB/s   loss=0%   p99=48.3us   drain=486.19ms
+[  29/120] quent-static-log/postcard  attrs=64  thr=16 offered=1.22M     tput=130.7k    write=2.09GB/s   loss=0%   p99=34.5us   drain=341.51ms
+[  30/120] quent-static-span/postcard attrs=64  thr=16 offered=1.14M     tput=161.6k    write=2.59GB/s   loss=0%   p99=29.8us   drain=265.75ms
+[  31/120] quent-dynamic-log/postcard attrs=64  thr=16 offered=779.3k    tput=88.7k     write=1.46GB/s   loss=0%   p99=47.8us   drain=499.40ms
+[  32/120] quent-dynamic-span/postcard attrs=64  thr=16 offered=783.7k    tput=96.1k     write=1.58GB/s   loss=0%   p99=62.3us   drain=456.82ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/bitcode      8    1        220.8k        191.8k    294.1MB/s      0%     4.2us    10.9us    18.0us    34.15ms
+quent-dynamic-log/postcard     8    1        148.5k        136.5k    216.9MB/s      0%     6.0us    18.5us    22.9us    29.39ms
+quent-dynamic-span/bitcode     8    1        241.5k        201.4k    313.1MB/s      0%     4.9us    10.3us    13.8us    41.18ms
+quent-dynamic-span/postcard     8    1        153.1k        141.9k    229.8MB/s      0%     6.0us    19.2us    25.6us    25.24ms
+quent-static-log/bitcode       8    1        290.0k        256.5k    387.1MB/s      0%     2.8us     9.7us    16.6us    22.23ms
+quent-static-log/postcard      8    1        163.6k        156.3k    241.3MB/s      0%     5.5us    17.7us    26.0us    14.23ms
+quent-static-span/bitcode      8    1        264.4k        229.2k    350.7MB/s      0%     4.6us    10.1us    13.4us    29.08ms
+quent-static-span/postcard     8    1        163.5k        152.0k    239.3MB/s      0%     6.3us    19.1us    24.8us    23.16ms
+quent-dynamic-log/bitcode      8   16         3.77M        494.9k    758.2MB/s      0%     2.8us     6.4us     8.3us    87.49ms
+quent-dynamic-log/postcard     8   16         3.52M        644.1k     1.02GB/s      0%     2.2us     5.6us     8.3us    62.91ms
+quent-dynamic-span/bitcode     8   16         2.09M        409.6k    635.4MB/s      0%     4.3us    10.6us    25.8us    98.65ms
+quent-dynamic-span/postcard     8   16         2.66M        520.5k    843.2MB/s      0%     3.7us    12.3us    21.1us    76.98ms
+quent-static-log/bitcode       8   16         2.42M        578.9k    873.1MB/s      0%     3.0us    11.2us    72.5us    60.07ms
+quent-static-log/postcard      8   16         3.48M        716.6k     1.11GB/s      0%     2.7us     6.2us     8.6us    55.05ms
+quent-static-span/bitcode      8   16         2.23M        484.1k    739.2MB/s      0%     3.7us    10.5us    16.6us    80.81ms
+quent-static-span/postcard     8   16         2.69M        605.9k    954.3MB/s      0%     3.4us     8.9us    14.5us    63.85ms
+quent-dynamic-log/bitcode     64    1         76.4k         38.6k    624.8MB/s      0%     6.1us    35.4us    53.8us   640.26ms
+quent-dynamic-log/postcard    64    1         60.4k         43.2k    708.8MB/s      0%     6.4us    39.3us    50.0us   329.22ms
+quent-dynamic-span/bitcode    64    1         56.2k         44.1k    715.2MB/s      0%    20.8us    34.0us    40.5us   243.49ms
+quent-dynamic-span/postcard    64    1         46.1k         36.0k    592.3MB/s      0%    22.3us    43.0us    62.6us   304.89ms
+quent-static-log/bitcode      64    1         86.6k         40.8k    643.8MB/s      0%    10.1us    24.7us    38.8us   628.20ms
+quent-static-log/postcard     64    1         59.6k         48.9k    783.0MB/s      0%    16.6us    38.8us    57.4us   183.16ms
+quent-static-span/bitcode     64    1         77.8k         58.6k    927.4MB/s      0%     5.8us    26.1us    29.2us   209.89ms
+quent-static-span/postcard    64    1         46.3k         41.7k    669.7MB/s      0%    20.5us    43.9us    57.4us   118.95ms
+quent-dynamic-log/bitcode     64   16        720.2k         49.5k    801.3MB/s      0%    11.6us    31.7us    48.2us   939.68ms
+quent-dynamic-log/postcard    64   16        779.3k         88.7k     1.46GB/s      0%    12.2us    31.2us    47.8us   499.40ms
+quent-dynamic-span/bitcode    64   16        722.9k         90.0k     1.46GB/s      0%    12.9us    37.2us    48.3us   486.19ms
+quent-dynamic-span/postcard    64   16        783.7k         96.1k     1.58GB/s      0%    12.4us    31.6us    62.3us   456.82ms
+quent-static-log/bitcode      64   16         1.04M         54.0k    852.6MB/s      0%    10.3us    40.3us   312.5us   867.84ms
+quent-static-log/postcard     64   16         1.22M        130.7k     2.09GB/s      0%     9.6us    20.7us    34.5us   341.51ms
+quent-static-span/bitcode     64   16         1.12M         99.0k     1.57GB/s      0%    10.0us    20.4us    25.8us   461.15ms
+quent-static-span/postcard    64   16         1.14M        161.6k     2.59GB/s      0%    10.2us    24.0us    29.8us   265.75ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/bitcode      8        494.9k     16
+quent-dynamic-log/postcard     8        644.1k     16
+quent-dynamic-span/bitcode     8        409.6k     16
+quent-dynamic-span/postcard     8        520.5k     16
+quent-static-log/bitcode       8        578.9k     16
+quent-static-log/postcard      8        716.6k     16
+quent-static-span/bitcode      8        484.1k     16
+quent-static-span/postcard     8        605.9k     16
+quent-dynamic-log/bitcode     64         49.5k     16
+quent-dynamic-log/postcard    64         88.7k     16
+quent-dynamic-span/bitcode    64         90.0k     16
+quent-dynamic-span/postcard    64         96.1k     16
+quent-static-log/bitcode      64         54.0k     16
+quent-static-log/postcard     64        130.7k     16
+quent-static-span/bitcode     64         99.0k     16
+quent-static-span/postcard    64        161.6k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-12.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-12.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/bitcode,quent-dynamic-log/bitcode,quent-static-span/bitcode,quent-dynamic-span/bitcode BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-12.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-12.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-12/target/release/quent-bench"
+	User time (seconds): 58.32
+	System time (seconds): 36.56
+	Percent of CPU this job got: 180%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:52.45
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2409188
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 8904127
+	Voluntary context switches: 6357513
+	Involuntary context switches: 762
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 82837776
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:27:10+02:00 package_temp_mC=36000 dirty_kib=0 load=2.64 1.70 1.59
+DONE candidate-12
+
+RUN candidate-13
+commit=bc2037024b14208ca9e7c785ddf11a1eb43bc7e4 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:27:10+02:00 package_temp_mC=36000 dirty_kib=4 load=2.64 1.70 1.59
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/postcard  attrs=8   thr=1  offered=148.5k    tput=142.9k    write=220.6MB/s  loss=0%   p99=21.2us   drain=12.64ms
+[   2/104] quent-static-span/postcard attrs=8   thr=1  offered=175.4k    tput=163.3k    write=257.3MB/s  loss=0%   p99=21.1us   drain=20.69ms
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=148.1k    tput=136.8k    write=217.5MB/s  loss=0%   p99=26.6us   drain=27.81ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=139.6k    tput=130.4k    write=211.2MB/s  loss=0%   p99=27.3us   drain=25.77ms
+[   5/104] quent-static-log/postcard  attrs=8   thr=16 offered=2.44M     tput=586.5k    write=905.5MB/s  loss=0%   p99=90.9us   drain=59.44ms
+[   6/104] quent-static-span/postcard attrs=8   thr=16 offered=2.21M     tput=567.2k    write=893.4MB/s  loss=0%   p99=12.2us   drain=64.99ms
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=3.55M     tput=635.5k    write=1.01GB/s   loss=0%   p99=14.4us   drain=64.22ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.43M     tput=513.6k    write=832.0MB/s  loss=0%   p99=23.7us   drain=76.71ms
+[   9/104] quent-static-log/postcard  attrs=64  thr=1  offered=51.7k     tput=43.4k     write=695.4MB/s  loss=0%   p99=50.1us   drain=184.09ms
+[  10/104] quent-static-span/postcard attrs=64  thr=1  offered=44.1k     tput=40.1k     write=643.4MB/s  loss=0%   p99=61.0us   drain=112.68ms
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=41.4k     tput=32.8k     write=538.1MB/s  loss=0%   p99=56.8us   drain=318.55ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=45.0k     tput=35.2k     write=578.3MB/s  loss=0%   p99=86.0us   drain=308.90ms
+[  13/104] quent-static-log/postcard  attrs=64  thr=16 offered=980.1k    tput=123.0k    write=1.97GB/s   loss=0%   p99=193.9us  drain=341.85ms
+[  14/104] quent-static-span/postcard attrs=64  thr=16 offered=1.00M     tput=156.3k    write=2.51GB/s   loss=0%   p99=281.3us  drain=269.91ms
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=733.1k    tput=87.4k     write=1.43GB/s   loss=0%   p99=59.0us   drain=503.46ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=721.8k    tput=89.9k     write=1.48GB/s   loss=0%   p99=49.8us   drain=485.45ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        148.1k        136.8k    217.5MB/s      0%     5.6us    15.6us    26.6us    27.81ms
+quent-dynamic-span/postcard     8    1        139.6k        130.4k    211.2MB/s      0%     6.5us    16.5us    27.3us    25.77ms
+quent-static-log/postcard      8    1        148.5k        142.9k    220.6MB/s      0%     6.3us    15.0us    21.2us    12.64ms
+quent-static-span/postcard     8    1        175.4k        163.3k    257.3MB/s      0%     5.4us    12.9us    21.1us    20.69ms
+quent-dynamic-log/postcard     8   16         3.55M        635.5k     1.01GB/s      0%     2.4us     5.5us    14.4us    64.22ms
+quent-dynamic-span/postcard     8   16         2.43M        513.6k    832.0MB/s      0%     3.7us    12.0us    23.7us    76.71ms
+quent-static-log/postcard      8   16         2.44M        586.5k    905.5MB/s      0%     3.6us    10.4us    90.9us    59.44ms
+quent-static-span/postcard     8   16         2.21M        567.2k    893.4MB/s      0%     4.4us     8.8us    12.2us    64.99ms
+quent-dynamic-log/postcard    64    1         41.4k         32.8k    538.1MB/s      0%    22.7us    40.2us    56.8us   318.55ms
+quent-dynamic-span/postcard    64    1         45.0k         35.2k    578.3MB/s      0%    23.9us    49.8us    86.0us   308.90ms
+quent-static-log/postcard     64    1         51.7k         43.4k    695.4MB/s      0%    19.2us    36.8us    50.1us   184.09ms
+quent-static-span/postcard    64    1         44.1k         40.1k    643.4MB/s      0%    21.3us    44.1us    61.0us   112.68ms
+quent-dynamic-log/postcard    64   16        733.1k         87.4k     1.43GB/s      0%    12.1us    40.3us    59.0us   503.46ms
+quent-dynamic-span/postcard    64   16        721.8k         89.9k     1.48GB/s      0%    12.5us    30.8us    49.8us   485.45ms
+quent-static-log/postcard     64   16        980.1k        123.0k     1.97GB/s      0%    11.2us    41.8us   193.9us   341.85ms
+quent-static-span/postcard    64   16         1.00M        156.3k     2.51GB/s      0%    11.2us    26.0us   281.3us   269.91ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        635.5k     16
+quent-dynamic-span/postcard     8        513.6k     16
+quent-static-log/postcard      8        586.5k     16
+quent-static-span/postcard     8        567.2k     16
+quent-dynamic-log/postcard    64         87.4k     16
+quent-dynamic-span/postcard    64         89.9k     16
+quent-static-log/postcard     64        123.0k     16
+quent-static-span/postcard    64        156.3k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-13.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-13.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-13.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-13.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-13/target/release/quent-bench"
+	User time (seconds): 30.99
+	System time (seconds): 19.51
+	Percent of CPU this job got: 183%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:27.55
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 1797612
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 3596063
+	Voluntary context switches: 4639449
+	Involuntary context switches: 224
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41751008
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:27:38+02:00 package_temp_mC=36000 dirty_kib=116 load=2.27 1.69 1.59
+DONE candidate-13
+
+RUN candidate-14
+commit=b1d367529cf2bbd6785867d33a6b5b48b4a42912 variants=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard
+time=2026-07-21T22:27:38+02:00 package_temp_mC=36000 dirty_kib=4 load=2.27 1.69 1.59
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/postcard  attrs=8   thr=1  offered=161.4k    tput=155.3k    write=239.8MB/s  loss=0%   p99=24.8us   drain=12.25ms
+[   2/104] quent-static-span/postcard attrs=8   thr=1  offered=159.3k    tput=148.1k    write=233.3MB/s  loss=0%   p99=25.4us   drain=23.64ms
+[   3/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=158.2k    tput=145.6k    write=231.4MB/s  loss=0%   p99=26.8us   drain=27.63ms
+[   4/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=140.3k    tput=128.6k    write=208.3MB/s  loss=0%   p99=25.4us   drain=32.49ms
+[   5/104] quent-static-log/postcard  attrs=8   thr=16 offered=2.38M     tput=612.3k    write=945.5MB/s  loss=0%   p99=67.9us   drain=57.23ms
+[   6/104] quent-static-span/postcard attrs=8   thr=16 offered=2.18M     tput=540.5k    write=851.2MB/s  loss=0%   p99=37.4us   drain=69.06ms
+[   7/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=4.19M     tput=629.7k    write=1.00GB/s   loss=0%   p99=11.2us   drain=67.48ms
+[   8/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=2.41M     tput=505.4k    write=818.7MB/s  loss=0%   p99=13.8us   drain=77.50ms
+[   9/104] quent-static-log/postcard  attrs=64  thr=1  offered=46.5k     tput=39.2k     write=628.1MB/s  loss=0%   p99=49.4us   drain=200.80ms
+[  10/104] quent-static-span/postcard attrs=64  thr=1  offered=44.1k     tput=39.6k     write=635.4MB/s  loss=0%   p99=56.2us   drain=128.60ms
+[  11/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=41.2k     tput=32.8k     write=538.4MB/s  loss=0%   p99=55.9us   drain=312.45ms
+[  12/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=40.5k     tput=32.3k     write=530.8MB/s  loss=0%   p99=65.4us   drain=316.58ms
+[  13/104] quent-static-log/postcard  attrs=64  thr=16 offered=1.00M     tput=120.0k    write=1.92GB/s   loss=0%   p99=231.6us  drain=355.34ms
+[  14/104] quent-static-span/postcard attrs=64  thr=16 offered=1.05M     tput=158.2k    write=2.54GB/s   loss=0%   p99=381.7us  drain=268.32ms
+[  15/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=706.5k    tput=84.1k     write=1.38GB/s   loss=0%   p99=64.7us   drain=523.40ms
+[  16/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=642.8k    tput=88.3k     write=1.45GB/s   loss=0%   p99=288.9us  drain=488.63ms
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/postcard     8    1        158.2k        145.6k    231.4MB/s      0%     6.2us    11.8us    26.8us    27.63ms
+quent-dynamic-span/postcard     8    1        140.3k        128.6k    208.3MB/s      0%     6.6us    15.7us    25.4us    32.49ms
+quent-static-log/postcard      8    1        161.4k        155.3k    239.8MB/s      0%     5.7us    18.8us    24.8us    12.25ms
+quent-static-span/postcard     8    1        159.3k        148.1k    233.3MB/s      0%     6.6us    16.9us    25.4us    23.64ms
+quent-dynamic-log/postcard     8   16         4.19M        629.7k     1.00GB/s      0%     3.1us     6.3us    11.2us    67.48ms
+quent-dynamic-span/postcard     8   16         2.41M        505.4k    818.7MB/s      0%     5.1us    11.6us    13.8us    77.50ms
+quent-static-log/postcard      8   16         2.38M        612.3k    945.5MB/s      0%     3.9us    11.5us    67.9us    57.23ms
+quent-static-span/postcard     8   16         2.18M        540.5k    851.2MB/s      0%     4.1us    11.0us    37.4us    69.06ms
+quent-dynamic-log/postcard    64    1         41.2k         32.8k    538.4MB/s      0%    24.2us    40.9us    55.9us   312.45ms
+quent-dynamic-span/postcard    64    1         40.5k         32.3k    530.8MB/s      0%    26.2us    45.7us    65.4us   316.58ms
+quent-static-log/postcard     64    1         46.5k         39.2k    628.1MB/s      0%    20.6us    37.6us    49.4us   200.80ms
+quent-static-span/postcard    64    1         44.1k         39.6k    635.4MB/s      0%    22.7us    45.7us    56.2us   128.60ms
+quent-dynamic-log/postcard    64   16        706.5k         84.1k     1.38GB/s      0%    12.9us    42.8us    64.7us   523.40ms
+quent-dynamic-span/postcard    64   16        642.8k         88.3k     1.45GB/s      0%    13.9us    48.6us   288.9us   488.63ms
+quent-static-log/postcard     64   16         1.00M        120.0k     1.92GB/s      0%    13.3us    47.8us   231.6us   355.34ms
+quent-static-span/postcard    64   16         1.05M        158.2k     2.54GB/s      0%    11.1us    34.3us   381.7us   268.32ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/postcard     8        629.7k     16
+quent-dynamic-span/postcard     8        505.4k     16
+quent-static-log/postcard      8        612.3k     16
+quent-static-span/postcard     8        540.5k     16
+quent-dynamic-log/postcard    64         84.1k     16
+quent-dynamic-span/postcard    64         88.3k     16
+quent-static-log/postcard     64        120.0k     16
+quent-static-span/postcard    64        158.2k     16
+wrote CSV to /tmp/quent-perf-isolation/results/candidate-14.csv
+wrote JSON to /tmp/quent-perf-isolation/results/candidate-14.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard BENCH_CSV=/tmp/quent-perf-isolation/results/candidate-14.csv BENCH_JSON=/tmp/quent-perf-isolation/results/candidate-14.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/candidate-14/target/release/quent-bench"
+	User time (seconds): 30.43
+	System time (seconds): 21.76
+	Percent of CPU this job got: 183%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:28.41
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2226020
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4828347
+	Voluntary context switches: 4568445
+	Involuntary context switches: 303
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 41751008
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:28:06+02:00 package_temp_mC=36000 dirty_kib=48 load=1.87 1.66 1.59
+DONE candidate-14
+
+RUN baseline-end
+commit=e8f09eb1914b0ab7a5a8df25ab311c6b2a20a19c variants=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc,quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop
+time=2026-07-21T22:28:06+02:00 package_temp_mC=36000 dirty_kib=200 load=1.87 1.66 1.59
+max throughput: threads=[1, 16], 3 rep(s), 50000 ops/cell, latency sample 1/1024, 312 cell-runs...
+[   1/104] quent-static-log/noop      attrs=8   thr=1  offered=1.38M     tput=-         write=-          loss=-    p99=743ns    drain=-
+[   2/104] quent-static-span/noop     attrs=8   thr=1  offered=1.23M     tput=-         write=-          loss=-    p99=1.6us    drain=-
+[   3/104] quent-dynamic-log/noop     attrs=8   thr=1  offered=975.6k    tput=-         write=-          loss=-    p99=3.8us    drain=-
+[   4/104] quent-dynamic-span/noop    attrs=8   thr=1  offered=990.6k    tput=-         write=-          loss=-    p99=1.3us    drain=-
+[   5/104] quent-static-log/ndjson    attrs=8   thr=1  offered=162.0k    tput=148.6k    write=257.7MB/s  loss=0%   p99=21.8us   drain=27.70ms
+[   6/104] quent-static-span/ndjson   attrs=8   thr=1  offered=176.3k    tput=158.7k    write=289.8MB/s  loss=0%   p99=21.3us   drain=30.96ms
+[   7/104] quent-dynamic-log/ndjson   attrs=8   thr=1  offered=149.2k    tput=130.7k    write=256.5MB/s  loss=0%   p99=25.0us   drain=47.32ms
+[   8/104] quent-dynamic-span/ndjson  attrs=8   thr=1  offered=150.2k    tput=131.6k    write=270.4MB/s  loss=0%   p99=26.9us   drain=46.93ms
+[   9/104] quent-static-log/msgpack   attrs=8   thr=1  offered=189.2k    tput=173.4k    write=271.8MB/s  loss=0%   p99=24.7us   drain=24.15ms
+[  10/104] quent-static-span/msgpack  attrs=8   thr=1  offered=165.1k    tput=153.2k    write=245.9MB/s  loss=0%   p99=22.5us   drain=22.87ms
+[  11/104] quent-dynamic-log/msgpack  attrs=8   thr=1  offered=147.0k    tput=132.6k    write=221.3MB/s  loss=0%   p99=27.7us   drain=36.91ms
+[  12/104] quent-dynamic-span/msgpack attrs=8   thr=1  offered=143.6k    tput=128.7k    write=219.5MB/s  loss=0%   p99=28.7us   drain=40.43ms
+[  13/104] quent-static-log/postcard  attrs=8   thr=1  offered=183.2k    tput=173.9k    write=268.6MB/s  loss=0%   p99=20.2us   drain=15.09ms
+[  14/104] quent-static-span/postcard attrs=8   thr=1  offered=178.5k    tput=164.7k    write=259.4MB/s  loss=0%   p99=24.1us   drain=23.10ms
+[  15/104] quent-dynamic-log/postcard attrs=8   thr=1  offered=144.4k    tput=134.3k    write=213.4MB/s  loss=0%   p99=15.3us   drain=26.14ms
+[  16/104] quent-dynamic-span/postcard attrs=8   thr=1  offered=145.7k    tput=133.9k    write=216.9MB/s  loss=0%   p99=27.9us   drain=30.18ms
+[  17/104] quent-static-log/grpc      attrs=8   thr=1  offered=330.4k    tput=60.1k     write=-          loss=0%   p99=9.7us    drain=697.99ms
+[  18/104] quent-static-span/grpc     attrs=8   thr=1  offered=330.6k    tput=86.7k     write=-          loss=0%   p99=19.7us   drain=490.30ms
+[  19/104] quent-dynamic-log/grpc     attrs=8   thr=1  offered=291.4k    tput=61.9k     write=-          loss=0%   p99=8.5us    drain=664.81ms
+[  20/104] quent-dynamic-span/grpc    attrs=8   thr=1  offered=283.9k    tput=50.9k     write=-          loss=0%   p99=19.1us   drain=807.61ms
+[  21/104] quent-static-log/noop      attrs=8   thr=16 offered=12.43M    tput=-         write=-          loss=-    p99=2.2us    drain=-
+[  22/104] quent-static-span/noop     attrs=8   thr=16 offered=15.72M    tput=-         write=-          loss=-    p99=1.3us    drain=-
+[  23/104] quent-dynamic-log/noop     attrs=8   thr=16 offered=12.82M    tput=-         write=-          loss=-    p99=1.5us    drain=-
+[  24/104] quent-dynamic-span/noop    attrs=8   thr=16 offered=13.38M    tput=-         write=-          loss=-    p99=1.2us    drain=-
+[  25/104] quent-static-log/ndjson    attrs=8   thr=16 offered=4.71M     tput=596.8k    write=1.03GB/s   loss=0%   p99=14.7us   drain=65.51ms
+[  26/104] quent-static-span/ndjson   attrs=8   thr=16 offered=2.78M     tput=535.0k    write=977.0MB/s  loss=0%   p99=39.2us   drain=75.49ms
+[  27/104] quent-dynamic-log/ndjson   attrs=8   thr=16 offered=4.99M     tput=536.8k    write=1.05GB/s   loss=0%   p99=8.3us    drain=83.07ms
+[  28/104] quent-dynamic-span/ndjson  attrs=8   thr=16 offered=2.41M     tput=422.2k    write=867.1MB/s  loss=0%   p99=75.5us   drain=97.53ms
+[  29/104] quent-static-log/msgpack   attrs=8   thr=16 offered=4.60M     tput=773.3k    write=1.21GB/s   loss=0%   p99=8.0us    drain=53.74ms
+[  30/104] quent-static-span/msgpack  attrs=8   thr=16 offered=3.48M     tput=609.2k    write=977.8MB/s  loss=0%   p99=11.7us   drain=66.99ms
+[  31/104] quent-dynamic-log/msgpack  attrs=8   thr=16 offered=4.32M     tput=605.2k    write=1.01GB/s   loss=0%   p99=9.2us    drain=70.94ms
+[  32/104] quent-dynamic-span/msgpack attrs=8   thr=16 offered=3.00M     tput=480.9k    write=820.4MB/s  loss=0%   p99=10.9us   drain=86.76ms
+[  33/104] quent-static-log/postcard  attrs=8   thr=16 offered=4.57M     tput=820.0k    write=1.27GB/s   loss=0%   p99=5.6us    drain=50.00ms
+[  34/104] quent-static-span/postcard attrs=8   thr=16 offered=3.72M     tput=658.9k    write=1.04GB/s   loss=0%   p99=10.4us   drain=61.68ms
+[  35/104] quent-dynamic-log/postcard attrs=8   thr=16 offered=5.80M     tput=725.8k    write=1.15GB/s   loss=0%   p99=5.2us    drain=60.26ms
+[  36/104] quent-dynamic-span/postcard attrs=8   thr=16 offered=3.21M     tput=540.7k    write=875.9MB/s  loss=0%   p99=12.0us   drain=76.13ms
+[  37/104] quent-static-log/grpc      attrs=8   thr=16 offered=4.07M     tput=61.3k     write=-          loss=0%   p99=7.7us    drain=807.60ms
+[  38/104] quent-static-span/grpc     attrs=8   thr=16 offered=2.60M     tput=84.2k     write=-          loss=0%   p99=12.6us   drain=597.81ms
+[  39/104] quent-dynamic-log/grpc     attrs=8   thr=16 offered=3.18M     tput=53.8k     write=-          loss=0%   p99=7.4us    drain=914.46ms
+[  40/104] quent-dynamic-span/grpc    attrs=8   thr=16 offered=2.29M     tput=71.5k     write=-          loss=0%   p99=13.7us   drain=793.24ms
+[  41/104] quent-static-log/noop      attrs=64  thr=1  offered=246.3k    tput=-         write=-          loss=-    p99=5.0us    drain=-
+[  42/104] quent-static-span/noop     attrs=64  thr=1  offered=241.0k    tput=-         write=-          loss=-    p99=5.4us    drain=-
+[  43/104] quent-dynamic-log/noop     attrs=64  thr=1  offered=165.9k    tput=-         write=-          loss=-    p99=6.6us    drain=-
+[  44/104] quent-dynamic-span/noop    attrs=64  thr=1  offered=162.9k    tput=-         write=-          loss=-    p99=6.2us    drain=-
+[  45/104] quent-static-log/ndjson    attrs=64  thr=1  offered=67.7k     tput=43.3k     write=735.3MB/s  loss=0%   p99=42.8us   drain=399.36ms
+[  46/104] quent-static-span/ndjson   attrs=64  thr=1  offered=72.8k     tput=45.7k     write=779.9MB/s  loss=0%   p99=56.3us   drain=406.97ms
+[  47/104] quent-dynamic-log/ndjson   attrs=64  thr=1  offered=58.1k     tput=35.5k     write=658.0MB/s  loss=0%   p99=91.0us   drain=547.69ms
+[  48/104] quent-dynamic-span/ndjson  attrs=64  thr=1  offered=57.3k     tput=35.4k     write=660.1MB/s  loss=0%   p99=64.6us   drain=539.16ms
+[  49/104] quent-static-log/msgpack   attrs=64  thr=1  offered=63.7k     tput=49.6k     write=800.6MB/s  loss=0%   p99=54.1us   drain=223.34ms
+[  50/104] quent-static-span/msgpack  attrs=64  thr=1  offered=46.6k     tput=41.6k     write=672.3MB/s  loss=0%   p99=53.7us   drain=131.18ms
+[  51/104] quent-dynamic-log/msgpack  attrs=64  thr=1  offered=55.3k     tput=36.9k     write=627.4MB/s  loss=0%   p99=57.6us   drain=449.82ms
+[  52/104] quent-dynamic-span/msgpack attrs=64  thr=1  offered=51.4k     tput=36.7k     write=625.1MB/s  loss=0%   p99=55.2us   drain=388.89ms
+[  53/104] quent-static-log/postcard  attrs=64  thr=1  offered=66.9k     tput=52.5k     write=840.5MB/s  loss=0%   p99=61.8us   drain=205.09ms
+[  54/104] quent-static-span/postcard attrs=64  thr=1  offered=44.9k     tput=40.9k     write=656.5MB/s  loss=0%   p99=61.1us   drain=106.78ms
+[  55/104] quent-dynamic-log/postcard attrs=64  thr=1  offered=55.0k     tput=39.1k     write=641.5MB/s  loss=0%   p99=58.1us   drain=369.89ms
+[  56/104] quent-dynamic-span/postcard attrs=64  thr=1  offered=50.6k     tput=37.8k     write=621.8MB/s  loss=0%   p99=47.1us   drain=335.26ms
+[  57/104] quent-static-log/grpc      attrs=64  thr=1  offered=71.5k     tput=6.6k      write=-          loss=0%   p99=36.4us   drain=6.93s
+[  58/104] quent-static-span/grpc     attrs=64  thr=1  offered=76.6k     tput=7.2k      write=-          loss=0%   p99=28.7us   drain=6.64s
+[  59/104] quent-dynamic-log/grpc     attrs=64  thr=1  offered=56.1k     tput=9.4k      write=-          loss=0%   p99=55.7us   drain=5.03s
+[  60/104] quent-dynamic-span/grpc    attrs=64  thr=1  offered=42.0k     tput=12.0k     write=-          loss=0%   p99=60.9us   drain=4.96s
+[  61/104] quent-static-log/noop      attrs=64  thr=16 offered=3.31M     tput=-         write=-          loss=-    p99=4.9us    drain=-
+[  62/104] quent-static-span/noop     attrs=64  thr=16 offered=3.62M     tput=-         write=-          loss=-    p99=5.2us    drain=-
+[  63/104] quent-dynamic-log/noop     attrs=64  thr=16 offered=2.48M     tput=-         write=-          loss=-    p99=7.2us    drain=-
+[  64/104] quent-dynamic-span/noop    attrs=64  thr=16 offered=2.46M     tput=-         write=-          loss=-    p99=6.7us    drain=-
+[  65/104] quent-static-log/ndjson    attrs=64  thr=16 offered=949.5k    tput=74.4k     write=1.26GB/s   loss=0%   p99=497.2us  drain=605.35ms
+[  66/104] quent-static-span/ndjson   attrs=64  thr=16 offered=948.6k    tput=72.7k     write=1.24GB/s   loss=0%   p99=61.3us   drain=635.21ms
+[  67/104] quent-dynamic-log/ndjson   attrs=64  thr=16 offered=595.6k    tput=60.1k     write=1.11GB/s   loss=0%   p99=107.8us  drain=748.11ms
+[  68/104] quent-dynamic-span/ndjson  attrs=64  thr=16 offered=540.1k    tput=59.4k     write=1.11GB/s   loss=0%   p99=329.6us  drain=750.18ms
+[  69/104] quent-static-log/msgpack   attrs=64  thr=16 offered=1.30M     tput=126.0k    write=2.03GB/s   loss=0%   p99=29.5us   drain=358.83ms
+[  70/104] quent-static-span/msgpack  attrs=64  thr=16 offered=1.16M     tput=155.1k    write=2.51GB/s   loss=0%   p99=25.8us   drain=279.22ms
+[  71/104] quent-dynamic-log/msgpack  attrs=64  thr=16 offered=935.7k    tput=85.7k     write=1.45GB/s   loss=0%   p99=302.1us  drain=529.17ms
+[  72/104] quent-dynamic-span/msgpack attrs=64  thr=16 offered=832.4k    tput=79.0k     write=1.34GB/s   loss=0%   p99=487.3us  drain=573.32ms
+[  73/104] quent-static-log/postcard  attrs=64  thr=16 offered=1.33M     tput=139.9k    write=2.24GB/s   loss=0%   p99=19.1us   drain=319.76ms
+[  74/104] quent-static-span/postcard attrs=64  thr=16 offered=1.22M     tput=168.2k    write=2.70GB/s   loss=0%   p99=37.5us   drain=256.05ms
+[  75/104] quent-dynamic-log/postcard attrs=64  thr=16 offered=864.1k    tput=93.1k     write=1.53GB/s   loss=0%   p99=33.9us   drain=478.72ms
+[  76/104] quent-dynamic-span/postcard attrs=64  thr=16 offered=883.6k    tput=96.2k     write=1.58GB/s   loss=0%   p99=34.7us   drain=463.99ms
+[  77/104] quent-static-log/grpc      attrs=64  thr=16 offered=1.22M     tput=7.6k      write=-          loss=0%   p99=32.7us   drain=6.95s
+[  78/104] quent-static-span/grpc     attrs=64  thr=16 offered=1.08M     tput=12.4k     write=-          loss=0%   p99=32.2us   drain=5.61s
+[  79/104] quent-dynamic-log/grpc     attrs=64  thr=16 offered=936.7k    tput=6.2k      write=-          loss=0%   p99=129.9us  drain=8.14s
+[  80/104] quent-dynamic-span/grpc    attrs=64  thr=16 offered=870.4k    tput=6.9k      write=-          loss=0%   p99=50.6us   drain=7.37s
+
+columns (all rates are operations/second; 1 op = one log or one span):
+  offered/s  raw caller API-call rate (before any flush or drop)
+  tput/s     sustained throughput -- quent/tracing: LOSSLESS, ops / full time
+             to deliver; OTel: GOODPUT, delivered/s (rest dropped)
+  loss%      fraction dropped (0% for lossless paths; '-' = uncounted floor)
+  p50/p95/p99 sampled caller-side operation latency under load
+  drain      time from the end of emission until the pipeline drains
+  write/s    logical file bytes / full lossless delivery time (no fsync)
+
+variant                    attrs  thr     offered/s        tput/s      write/s   loss%       p50       p95       p99      drain
+-------------------------------------------------------------------------------------------------------------------------------
+quent-dynamic-log/grpc         8    1        291.4k         61.9k            -      0%     3.2us     6.0us     8.5us   664.81ms
+quent-dynamic-log/msgpack      8    1        147.0k        132.6k    221.3MB/s      0%     6.1us    16.3us    27.7us    36.91ms
+quent-dynamic-log/ndjson       8    1        149.2k        130.7k    256.5MB/s      0%     6.0us    15.2us    25.0us    47.32ms
+quent-dynamic-log/noop         8    1        975.6k             -            -       -     945ns     1.0us     3.8us          -
+quent-dynamic-log/postcard     8    1        144.4k        134.3k    213.4MB/s      0%     6.4us    11.3us    15.3us    26.14ms
+quent-dynamic-span/grpc        8    1        283.9k         50.9k            -      0%     3.8us     7.8us    19.1us   807.61ms
+quent-dynamic-span/msgpack     8    1        143.6k        128.7k    219.5MB/s      0%     6.6us    24.3us    28.7us    40.43ms
+quent-dynamic-span/ndjson      8    1        150.2k        131.6k    270.4MB/s      0%     6.8us    20.2us    26.9us    46.93ms
+quent-dynamic-span/noop        8    1        990.6k             -            -       -     972ns     1.1us     1.3us          -
+quent-dynamic-span/postcard     8    1        145.7k        133.9k    216.9MB/s      0%     6.6us    19.4us    27.9us    30.18ms
+quent-static-log/grpc          8    1        330.4k         60.1k            -      0%     1.7us     6.5us     9.7us   697.99ms
+quent-static-log/msgpack       8    1        189.2k        173.4k    271.8MB/s      0%     4.5us     9.4us    24.7us    24.15ms
+quent-static-log/ndjson        8    1        162.0k        148.6k    257.7MB/s      0%     5.7us    15.9us    21.8us    27.70ms
+quent-static-log/noop          8    1         1.38M             -            -       -     725ns     737ns     743ns          -
+quent-static-log/postcard      8    1        183.2k        173.9k    268.6MB/s      0%     4.5us     8.8us    20.2us    15.09ms
+quent-static-span/grpc         8    1        330.6k         86.7k            -      0%     3.4us     7.9us    19.7us   490.30ms
+quent-static-span/msgpack      8    1        165.1k        153.2k    245.9MB/s      0%     5.8us    16.5us    22.5us    22.87ms
+quent-static-span/ndjson       8    1        176.3k        158.7k    289.8MB/s      0%     6.1us    12.9us    21.3us    30.96ms
+quent-static-span/noop         8    1         1.23M             -            -       -     770ns     790ns     1.6us          -
+quent-static-span/postcard     8    1        178.5k        164.7k    259.4MB/s      0%     5.8us    19.9us    24.1us    23.10ms
+quent-dynamic-log/grpc         8   16         3.18M         53.8k            -      0%     1.9us     5.0us     7.4us   914.46ms
+quent-dynamic-log/msgpack      8   16         4.32M        605.2k     1.01GB/s      0%     1.9us     4.8us     9.2us    70.94ms
+quent-dynamic-log/ndjson       8   16         4.99M        536.8k     1.05GB/s      0%     1.9us     4.2us     8.3us    83.07ms
+quent-dynamic-log/noop         8   16        12.82M             -            -       -     936ns     1.1us     1.5us          -
+quent-dynamic-log/postcard     8   16         5.80M        725.8k     1.15GB/s      0%     1.8us     3.6us     5.2us    60.26ms
+quent-dynamic-span/grpc        8   16         2.29M         71.5k            -      0%     2.9us     9.8us    13.7us   793.24ms
+quent-dynamic-span/msgpack     8   16         3.00M        480.9k    820.4MB/s      0%     3.3us     8.6us    10.9us    86.76ms
+quent-dynamic-span/ndjson      8   16         2.41M        422.2k    867.1MB/s      0%     4.4us    10.2us    75.5us    97.53ms
+quent-dynamic-span/noop        8   16        13.38M             -            -       -     976ns     1.1us     1.2us          -
+quent-dynamic-span/postcard     8   16         3.21M        540.7k    875.9MB/s      0%     2.9us     7.8us    12.0us    76.13ms
+quent-static-log/grpc          8   16         4.07M         61.3k            -      0%     1.8us     5.4us     7.7us   807.60ms
+quent-static-log/msgpack       8   16         4.60M        773.3k     1.21GB/s      0%     1.9us     4.8us     8.0us    53.74ms
+quent-static-log/ndjson        8   16         4.71M        596.8k     1.03GB/s      0%     1.9us     7.5us    14.7us    65.51ms
+quent-static-log/noop          8   16        12.43M             -            -       -     735ns     1.5us     2.2us          -
+quent-static-log/postcard      8   16         4.57M        820.0k     1.27GB/s      0%     1.8us     4.3us     5.6us    50.00ms
+quent-static-span/grpc         8   16         2.60M         84.2k            -      0%     2.7us     8.1us    12.6us   597.81ms
+quent-static-span/msgpack      8   16         3.48M        609.2k    977.8MB/s      0%     2.8us     5.9us    11.7us    66.99ms
+quent-static-span/ndjson       8   16         2.78M        535.0k    977.0MB/s      0%     2.8us    10.4us    39.2us    75.49ms
+quent-static-span/noop         8   16        15.72M             -            -       -     777ns     940ns     1.3us          -
+quent-static-span/postcard     8   16         3.72M        658.9k     1.04GB/s      0%     2.6us     7.2us    10.4us    61.68ms
+quent-dynamic-log/grpc        64    1         56.1k          9.4k            -      0%    17.9us    34.9us    55.7us      5.03s
+quent-dynamic-log/msgpack     64    1         55.3k         36.9k    627.4MB/s      0%    18.1us    40.0us    57.6us   449.82ms
+quent-dynamic-log/ndjson      64    1         58.1k         35.5k    658.0MB/s      0%    15.8us    39.9us    91.0us   547.69ms
+quent-dynamic-log/noop        64    1        165.9k             -            -       -     5.8us     6.1us     6.6us          -
+quent-dynamic-log/postcard    64    1         55.0k         39.1k    641.5MB/s      0%    17.0us    43.1us    58.1us   369.89ms
+quent-dynamic-span/grpc       64    1         42.0k         12.0k            -      0%    23.8us    52.8us    60.9us      4.96s
+quent-dynamic-span/msgpack    64    1         51.4k         36.7k    625.1MB/s      0%    19.9us    41.9us    55.2us   388.89ms
+quent-dynamic-span/ndjson     64    1         57.3k         35.4k    660.1MB/s      0%    18.3us    41.2us    64.6us   539.16ms
+quent-dynamic-span/noop       64    1        162.9k             -            -       -     5.9us     6.2us     6.2us          -
+quent-dynamic-span/postcard    64    1         50.6k         37.8k    621.8MB/s      0%    18.7us    39.8us    47.1us   335.26ms
+quent-static-log/grpc         64    1         71.5k          6.6k            -      0%    12.7us    27.9us    36.4us      6.93s
+quent-static-log/msgpack      64    1         63.7k         49.6k    800.6MB/s      0%    12.2us    34.8us    54.1us   223.34ms
+quent-static-log/ndjson       64    1         67.7k         43.3k    735.3MB/s      0%    15.9us    30.5us    42.8us   399.36ms
+quent-static-log/noop         64    1        246.3k             -            -       -     4.0us     4.2us     5.0us          -
+quent-static-log/postcard     64    1         66.9k         52.5k    840.5MB/s      0%    16.5us    37.4us    61.8us   205.09ms
+quent-static-span/grpc        64    1         76.6k          7.2k            -      0%    11.1us    22.1us    28.7us      6.64s
+quent-static-span/msgpack     64    1         46.6k         41.6k    672.3MB/s      0%    20.9us    42.3us    53.7us   131.18ms
+quent-static-span/ndjson      64    1         72.8k         45.7k    779.9MB/s      0%    13.0us    36.6us    56.3us   406.97ms
+quent-static-span/noop        64    1        241.0k             -            -       -     4.0us     4.1us     5.4us          -
+quent-static-span/postcard    64    1         44.9k         40.9k    656.5MB/s      0%    21.0us    41.4us    61.1us   106.78ms
+quent-dynamic-log/grpc        64   16        936.7k          6.2k            -      0%    10.9us    38.0us   129.9us      8.14s
+quent-dynamic-log/msgpack     64   16        935.7k         85.7k     1.45GB/s      0%    10.4us    30.4us   302.1us   529.17ms
+quent-dynamic-log/ndjson      64   16        595.6k         60.1k     1.11GB/s      0%    12.5us    43.9us   107.8us   748.11ms
+quent-dynamic-log/noop        64   16         2.48M             -            -       -     6.0us     6.2us     7.2us          -
+quent-dynamic-log/postcard    64   16        864.1k         93.1k     1.53GB/s      0%    10.5us    22.5us    33.9us   478.72ms
+quent-dynamic-span/grpc       64   16        870.4k          6.9k            -      0%    11.1us    30.6us    50.6us      7.37s
+quent-dynamic-span/msgpack    64   16        832.4k         79.0k     1.34GB/s      0%    11.8us    24.6us   487.3us   573.32ms
+quent-dynamic-span/ndjson     64   16        540.1k         59.4k     1.11GB/s      0%    14.2us    94.8us   329.6us   750.18ms
+quent-dynamic-span/noop       64   16         2.46M             -            -       -     6.1us     6.4us     6.7us          -
+quent-dynamic-span/postcard    64   16        883.6k         96.2k     1.58GB/s      0%    11.0us    21.3us    34.7us   463.99ms
+quent-static-log/grpc         64   16         1.22M          7.6k            -      0%    10.1us    23.6us    32.7us      6.95s
+quent-static-log/msgpack      64   16         1.30M        126.0k     2.03GB/s      0%     9.6us    24.0us    29.5us   358.83ms
+quent-static-log/ndjson       64   16        949.5k         74.4k     1.26GB/s      0%    12.3us    76.9us   497.2us   605.35ms
+quent-static-log/noop         64   16         3.31M             -            -       -     3.6us     4.3us     4.9us          -
+quent-static-log/postcard     64   16         1.33M        139.9k     2.24GB/s      0%     8.3us    15.4us    19.1us   319.76ms
+quent-static-span/grpc        64   16         1.08M         12.4k            -      0%    10.2us    23.9us    32.2us      5.61s
+quent-static-span/msgpack     64   16         1.16M        155.1k     2.51GB/s      0%    10.1us    19.8us    25.8us   279.22ms
+quent-static-span/ndjson      64   16        948.6k         72.7k     1.24GB/s      0%    11.3us    28.9us    61.3us   635.21ms
+quent-static-span/noop        64   16         3.62M             -            -       -     3.9us     4.1us     5.2us          -
+quent-static-span/postcard    64   16         1.22M        168.2k     2.70GB/s      0%     9.7us    23.1us    37.5us   256.05ms
+
+PEAK throughput across the thread sweep:
+variant                    attrs        tput/s   @thr
+-----------------------------------------------------
+quent-dynamic-log/grpc         8         61.9k      1
+quent-dynamic-log/msgpack      8        605.2k     16
+quent-dynamic-log/ndjson       8        536.8k     16
+quent-dynamic-log/noop         8        12.82M     16
+quent-dynamic-log/postcard     8        725.8k     16
+quent-dynamic-span/grpc        8         71.5k     16
+quent-dynamic-span/msgpack     8        480.9k     16
+quent-dynamic-span/ndjson      8        422.2k     16
+quent-dynamic-span/noop        8        13.38M     16
+quent-dynamic-span/postcard     8        540.7k     16
+quent-static-log/grpc          8         61.3k     16
+quent-static-log/msgpack       8        773.3k     16
+quent-static-log/ndjson        8        596.8k     16
+quent-static-log/noop          8        12.43M     16
+quent-static-log/postcard      8        820.0k     16
+quent-static-span/grpc         8         86.7k      1
+quent-static-span/msgpack      8        609.2k     16
+quent-static-span/ndjson       8        535.0k     16
+quent-static-span/noop         8        15.72M     16
+quent-static-span/postcard     8        658.9k     16
+quent-dynamic-log/grpc        64          9.4k      1
+quent-dynamic-log/msgpack     64         85.7k     16
+quent-dynamic-log/ndjson      64         60.1k     16
+quent-dynamic-log/noop        64         2.48M     16
+quent-dynamic-log/postcard    64         93.1k     16
+quent-dynamic-span/grpc       64         12.0k      1
+quent-dynamic-span/msgpack    64         79.0k     16
+quent-dynamic-span/ndjson     64         59.4k     16
+quent-dynamic-span/noop       64         2.46M     16
+quent-dynamic-span/postcard    64         96.2k     16
+quent-static-log/grpc         64          7.6k     16
+quent-static-log/msgpack      64        126.0k     16
+quent-static-log/ndjson       64         74.4k     16
+quent-static-log/noop         64         3.31M     16
+quent-static-log/postcard     64        139.9k     16
+quent-static-span/grpc        64         12.4k     16
+quent-static-span/msgpack     64        155.1k     16
+quent-static-span/ndjson      64         72.7k     16
+quent-static-span/noop        64         3.62M     16
+quent-static-span/postcard    64        168.2k     16
+wrote CSV to /tmp/quent-perf-isolation/results/baseline-end.csv
+wrote JSON to /tmp/quent-perf-isolation/results/baseline-end.json
+	Command being timed: "env BENCH_ATTRS=8,64 BENCH_THREADS=1,16 BENCH_OPS=50000 BENCH_REPS=3 BENCH_VARIANTS=quent-static-log/ndjson,quent-dynamic-log/ndjson,quent-static-span/ndjson,quent-dynamic-span/ndjson,quent-static-log/msgpack,quent-dynamic-log/msgpack,quent-static-span/msgpack,quent-dynamic-span/msgpack,quent-static-log/postcard,quent-dynamic-log/postcard,quent-static-span/postcard,quent-dynamic-span/postcard,quent-static-log/grpc,quent-dynamic-log/grpc,quent-static-span/grpc,quent-dynamic-span/grpc,quent-static-log/noop,quent-dynamic-log/noop,quent-static-span/noop,quent-dynamic-span/noop BENCH_CSV=/tmp/quent-perf-isolation/results/baseline-end.csv BENCH_JSON=/tmp/quent-perf-isolation/results/baseline-end.json RAYON_NUM_THREADS=24 pixi run /tmp/quent-perf-isolation/base/target/release/quent-bench"
+	User time (seconds): 164.82
+	System time (seconds): 76.91
+	Percent of CPU this job got: 89%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 4:30.94
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8094392
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 12148875
+	Voluntary context switches: 13569203
+	Involuntary context switches: 1314
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 130594512
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
+time=2026-07-21T22:32:37+02:00 package_temp_mC=35000 dirty_kib=172 load=0.74 1.08 1.36
+DONE baseline-end
+
+ALL RUNS COMPLETE
+time=2026-07-21T22:32:37+02:00 package_temp_mC=35000 dirty_kib=176 load=0.74 1.08 1.36

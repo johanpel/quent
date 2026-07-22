@@ -11,19 +11,23 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use tokio::{
-    sync::mpsc::{UnboundedSender, unbounded_channel},
+    sync::mpsc::{Sender, channel},
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
 use uuid::Uuid;
 
+const DEFAULT_EVENT_CHANNEL_CAPACITY: usize = 4096;
+
 /// Wrapper around an optional channel sender.
 ///
 /// When the inner sender is `None` (i.e. the noop exporter is selected), `send`
 /// is a no-op that avoids any channel or event-forwarding overhead.
 pub struct EventSender<T> {
-    tx: Option<UnboundedSender<Event<T>>>,
+    tx: Option<Sender<Event<T>>>,
+    sink: Option<Arc<dyn Fn(Event<T>) + Send + Sync>>,
+    producer_flush: Option<Arc<dyn Fn() + Send + Sync>>,
     /// Flag shared across clones to prevent potentially massive log spam from
     /// subseQUENT sender errors after the first.
     disable_error_log: Arc<AtomicBool>,
@@ -42,6 +46,8 @@ impl<T> Clone for EventSender<T> {
     fn clone(&self) -> Self {
         Self {
             tx: self.tx.clone(),
+            sink: self.sink.clone(),
+            producer_flush: self.producer_flush.clone(),
             disable_error_log: Arc::clone(&self.disable_error_log),
         }
     }
@@ -52,16 +58,38 @@ impl<T> EventSender<T> {
     pub fn noop() -> Self {
         Self {
             tx: None,
+            sink: None,
+            producer_flush: None,
             disable_error_log: Arc::new(AtomicBool::new(true)),
         }
     }
 
     pub fn send(&self, event: Event<T>) {
-        if let Some(tx) = &self.tx
-            && tx.send(event).is_err()
-            && !self.disable_error_log.swap(true, Ordering::Relaxed)
-        {
+        if let Some(sink) = &self.sink {
+            sink(event);
+            return;
+        }
+        let send_failed = self.tx.as_ref().is_some_and(|tx| {
+            let event = match tx.try_send(event) {
+                Ok(()) => return false,
+                Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => return true,
+                Err(tokio::sync::mpsc::error::TrySendError::Full(event)) => event,
+            };
+            let result = if tokio::runtime::Handle::try_current().is_ok() {
+                tokio::task::block_in_place(|| tx.blocking_send(event))
+            } else {
+                tx.blocking_send(event)
+            };
+            result.is_err()
+        });
+        if send_failed && !self.disable_error_log.swap(true, Ordering::Relaxed) {
             tracing::error!("unable to send event, suppressing further errors");
+        }
+    }
+
+    fn flush_producer(&self) {
+        if let Some(flush) = &self.producer_flush {
+            flush();
         }
     }
 
@@ -94,6 +122,7 @@ pub struct Observer<T> {
     ///
     /// [`Context`]: crate::Context
     runtime: Option<BackendRuntime>,
+    sink_shutdown: std::sync::Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
 
 impl<T> Observer<T> {
@@ -105,6 +134,29 @@ impl<T> Observer<T> {
             cancellation_token: CancellationToken::new(),
             forwarder_handle: None,
             runtime: None,
+            sink_shutdown: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Construct an observer whose event transformation happens synchronously
+    /// on the producer and whose sink is flushed by `shutdown` on drop.
+    #[doc(hidden)]
+    pub fn from_sink(
+        sink: Arc<dyn Fn(Event<T>) + Send + Sync>,
+        producer_flush: Arc<dyn Fn() + Send + Sync>,
+        shutdown: impl FnOnce() + Send + 'static,
+    ) -> Self {
+        Self {
+            events_sender: EventSender {
+                tx: None,
+                sink: Some(sink),
+                producer_flush: Some(producer_flush),
+                disable_error_log: Arc::new(AtomicBool::new(true)),
+            },
+            cancellation_token: CancellationToken::new(),
+            forwarder_handle: None,
+            runtime: None,
+            sink_shutdown: std::sync::Mutex::new(Some(Box::new(shutdown))),
         }
     }
 
@@ -117,10 +169,18 @@ impl<T> Observer<T> {
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
         self.events_sender.emit(id, event);
     }
+
+    pub(crate) fn flush_producer(&self) {
+        self.events_sender.flush_producer();
+    }
 }
 
 impl<T> Drop for Observer<T> {
     fn drop(&mut self) {
+        self.events_sender.flush_producer();
+        if let Some(shutdown) = self.sink_shutdown.get_mut().unwrap().take() {
+            shutdown();
+        }
         self.cancellation_token.cancel();
 
         let (Some(runtime), Some(forwarder_handle)) = (&self.runtime, self.forwarder_handle.take())
@@ -146,9 +206,14 @@ pub(crate) fn spawn_forwarder<T>(
 where
     T: Send + EntityEvent + 'static,
 {
+    let channel_capacity = std::env::var("QUENT_EVENT_CHANNEL_CAPACITY")
+        .ok()
+        .and_then(|value| value.parse::<usize>().ok())
+        .filter(|&capacity| capacity > 0)
+        .unwrap_or(DEFAULT_EVENT_CHANNEL_CAPACITY);
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
-    let (events_sender, mut events_receiver) = unbounded_channel();
+    let (events_sender, mut events_receiver) = channel(channel_capacity);
 
     let forwarder_handle = runtime.handle().spawn(async move {
         // Reused across batches; `drain_events` leaves it empty and it is reserved
@@ -197,11 +262,14 @@ where
     Observer {
         events_sender: EventSender {
             tx: Some(events_sender),
+            sink: None,
+            producer_flush: None,
             disable_error_log: Arc::new(AtomicBool::new(false)),
         },
         cancellation_token,
         forwarder_handle: Some(forwarder_handle),
         runtime: Some(runtime.clone()),
+        sink_shutdown: std::sync::Mutex::new(None),
     }
 }
 

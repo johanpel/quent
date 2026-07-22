@@ -11,6 +11,8 @@ members = [
     "crates/collector/proto",
     "crates/events",
     "crates/io",
+    "crates/io/bitcode",
+    "crates/io/raw",
     "crates/io/callback",
     "crates/io/collector",
     "crates/io/msgpack",
@@ -87,6 +89,8 @@ default-members = [
     "crates/collector/proto",
     "crates/events",
     "crates/io",
+    "crates/io/bitcode",
+    "crates/io/raw",
     "crates/io/callback",
     "crates/io/collector",
     "crates/io/msgpack",
@@ -124,7 +128,8 @@ repository = "https://github.com/rapidsai/quent"
 [workspace.dependencies]
 async-trait = "0.1.89"
 bindgen = "0.72"
-bitcode = { version = "0.6.9", features = ["serde"] }
+bitcode = { version = "0.6.9", features = ["serde", "uuid"] }
+bincode = { version = "2", features = ["serde"] }
 cargo_metadata = "0.23"
 cc = "1.2"
 http = "1"

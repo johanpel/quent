@@ -30,6 +30,7 @@ pub struct DynamicStruct(pub Vec<DynamicAttribute>);
 #[cfg_attr(feature = "ts", derive(TS), ts(untagged))]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DynamicList {
+    Bool(Vec<bool>),
     U8(Vec<u8>),
     U16(Vec<u16>),
     U32(Vec<u32>),
@@ -197,6 +198,11 @@ impl DynamicAttributes {
         Self(SmallVec::new())
     }
 
+    /// Create an attribute collection with space for at least `capacity` values.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(SmallVec::with_capacity(capacity))
+    }
+
     pub fn add(&mut self, attr: DynamicAttribute) {
         self.0.push(attr);
     }
@@ -249,6 +255,18 @@ impl From<Vec<DynamicAttribute>> for DynamicAttributes {
 impl From<DynamicAttributes> for Vec<DynamicAttribute> {
     fn from(v: DynamicAttributes) -> Self {
         v.0.into_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn with_capacity_reserves_requested_space() {
+        let attrs = DynamicAttributes::with_capacity(64);
+        assert!(attrs.0.capacity() >= 64);
+        assert!(attrs.is_empty());
     }
 }
 

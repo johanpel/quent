@@ -1,0 +1,313 @@
+# Generated-instrumentation benchmark schemas.
+quent: alpha
+model: bench
+
+entities:
+  BenchLog:
+    events:
+      static_0: multi
+      static_1:
+        multi:
+          k0: string
+      static_2:
+        multi:
+          k0: string
+          k1: i64
+      static_4:
+        multi:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+      static_8:
+        multi:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+      static_16:
+        multi:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+      static_32:
+        multi:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+          k16: f64
+          k17: i64
+          k18: { list: string }
+          k19: f64
+          k20: { list: string }
+          k21: { list: string }
+          k22: i64
+          k23: i64
+          k24: i64
+          k25: { list: i64 }
+          k26: string
+          k27: { list: i64 }
+          k28: { list: bool }
+          k29: f64
+          k30: { list: bool }
+          k31: { list: f64 }
+      static_64:
+        multi:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+          k16: f64
+          k17: i64
+          k18: { list: string }
+          k19: f64
+          k20: { list: string }
+          k21: { list: string }
+          k22: i64
+          k23: i64
+          k24: i64
+          k25: { list: i64 }
+          k26: string
+          k27: { list: i64 }
+          k28: { list: bool }
+          k29: f64
+          k30: { list: bool }
+          k31: { list: f64 }
+          k32: { list: string }
+          k33: f64
+          k34: i64
+          k35: { list: i64 }
+          k36: i64
+          k37: { list: string }
+          k38: { list: f64 }
+          k39: { list: i64 }
+          k40: bool
+          k41: bool
+          k42: f64
+          k43: bool
+          k44: string
+          k45: { list: f64 }
+          k46: f64
+          k47: { list: bool }
+          k48: { list: string }
+          k49: { list: i64 }
+          k50: { list: i64 }
+          k51: { list: f64 }
+          k52: { list: i64 }
+          k53: bool
+          k54: i64
+          k55: { list: string }
+          k56: bool
+          k57: i64
+          k58: i64
+          k59: string
+          k60: i64
+          k61: bool
+          k62: string
+          k63: f64
+      dynamic:
+        multi:
+          attrs: dynamic
+
+fsms:
+  BenchSpan:
+    states:
+      idle:
+        initial: true
+        to: [static_0, static_1, static_2, static_4, static_8, static_16, static_32, static_64, dynamic, exit]
+      static_0: { to: [idle] }
+      static_1:
+        attributes:
+          k0: string
+        to: [idle]
+      static_2:
+        attributes:
+          k0: string
+          k1: i64
+        to: [idle]
+      static_4:
+        attributes:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+        to: [idle]
+      static_8:
+        attributes:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+        to: [idle]
+      static_16:
+        attributes:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+        to: [idle]
+      static_32:
+        attributes:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+          k16: f64
+          k17: i64
+          k18: { list: string }
+          k19: f64
+          k20: { list: string }
+          k21: { list: string }
+          k22: i64
+          k23: i64
+          k24: i64
+          k25: { list: i64 }
+          k26: string
+          k27: { list: i64 }
+          k28: { list: bool }
+          k29: f64
+          k30: { list: bool }
+          k31: { list: f64 }
+        to: [idle]
+      static_64:
+        attributes:
+          k0: string
+          k1: i64
+          k2: f64
+          k3: bool
+          k4: { list: string }
+          k5: { list: i64 }
+          k6: { list: f64 }
+          k7: { list: bool }
+          k8: i64
+          k9: { list: string }
+          k10: { list: bool }
+          k11: bool
+          k12: string
+          k13: i64
+          k14: { list: f64 }
+          k15: { list: string }
+          k16: f64
+          k17: i64
+          k18: { list: string }
+          k19: f64
+          k20: { list: string }
+          k21: { list: string }
+          k22: i64
+          k23: i64
+          k24: i64
+          k25: { list: i64 }
+          k26: string
+          k27: { list: i64 }
+          k28: { list: bool }
+          k29: f64
+          k30: { list: bool }
+          k31: { list: f64 }
+          k32: { list: string }
+          k33: f64
+          k34: i64
+          k35: { list: i64 }
+          k36: i64
+          k37: { list: string }
+          k38: { list: f64 }
+          k39: { list: i64 }
+          k40: bool
+          k41: bool
+          k42: f64
+          k43: bool
+          k44: string
+          k45: { list: f64 }
+          k46: f64
+          k47: { list: bool }
+          k48: { list: string }
+          k49: { list: i64 }
+          k50: { list: i64 }
+          k51: { list: f64 }
+          k52: { list: i64 }
+          k53: bool
+          k54: i64
+          k55: { list: string }
+          k56: bool
+          k57: i64
+          k58: i64
+          k59: string
+          k60: i64
+          k61: bool
+          k62: string
+          k63: f64
+        to: [idle]
+      dynamic:
+        attributes:
+          attrs: dynamic
+        to: [idle]
+

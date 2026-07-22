@@ -86,3 +86,9 @@ impl<E> Handle<E> {
         self.once_flags & (1u64 << INDEX) != 0
     }
 }
+
+impl<E> Drop for Handle<E> {
+    fn drop(&mut self) {
+        self.observer.flush_producer();
+    }
+}

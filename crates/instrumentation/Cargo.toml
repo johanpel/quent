@@ -14,6 +14,8 @@ serde = [
 ]
 # Exporter backends, forwarded to the matching `quent-io` feature.
 io-callback = ["quent-io/callback"]
+io-bitcode = ["quent-io/bitcode", "serde"]
+io-raw = ["quent-io/raw", "serde"]
 io-ndjson = ["quent-io/ndjson", "serde"]
 io-msgpack = ["quent-io/msgpack", "serde"]
 io-postcard = ["quent-io/postcard", "serde"]

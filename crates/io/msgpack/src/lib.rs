@@ -26,6 +26,8 @@ use uuid::Uuid;
 
 /// File extension for MessagePack event files.
 const EXTENSION: &str = "msgpack";
+const PARALLEL_BATCH_SIZE: usize = 8192;
+const MAX_PARALLEL_CHUNKS: usize = 8;
 
 /// Options for the MessagePack exporter.
 ///
@@ -91,7 +93,12 @@ where
     T: Serialize + Send + EntityEvent + 'static,
 {
     fn batch_size_hint(&self) -> NonZeroUsize {
-        NonZeroUsize::new(if self.parallel { 1024 } else { 256 }).unwrap()
+        NonZeroUsize::new(if self.parallel {
+            PARALLEL_BATCH_SIZE
+        } else {
+            256
+        })
+        .unwrap()
     }
 
     async fn push(&mut self, event: Event<T>) -> ExporterResult<()> {
@@ -116,13 +123,18 @@ where
             return Err(ExporterError::Shutdown);
         };
         let event_count = events.len();
+        let mut write_chunks = false;
+        let mut dropped_events = None;
         if *parallel && event_count > 1 {
             let mut worker_events = std::mem::take(events);
             let mut worker_batch = std::mem::take(batch);
             let mut worker_chunks = std::mem::take(chunks);
-            let (sender, receiver) = tokio::sync::oneshot::channel();
+            let (encoded_sender, encoded_receiver) = tokio::sync::oneshot::channel();
+            let (dropped_sender, dropped_receiver) = tokio::sync::oneshot::channel();
             rayon::spawn_fifo(move || {
-                let workers = rayon::current_num_threads().min(event_count);
+                let workers = rayon::current_num_threads()
+                    .min(MAX_PARALLEL_CHUNKS)
+                    .min(event_count);
                 let chunk_len = event_count.div_ceil(workers);
                 let chunk_count = event_count.div_ceil(chunk_len);
                 worker_chunks.resize_with(chunk_count, Vec::new);
@@ -138,17 +150,19 @@ where
                         }
                     });
                 worker_batch.clear();
-                for chunk in &worker_chunks[..chunk_count] {
-                    worker_batch.extend_from_slice(chunk);
-                }
-                worker_events.clear();
-                let _ = sender.send((worker_events, worker_batch, worker_chunks));
+                let _ = encoded_sender.send((worker_batch, worker_chunks));
+                worker_events
+                    .par_drain(..)
+                    .with_min_len(chunk_len)
+                    .for_each(drop);
+                let _ = dropped_sender.send(worker_events);
             });
-            let (worker_events, worker_batch, worker_chunks) =
-                receiver.await.map_err(ExporterError::other)?;
-            *events = worker_events;
+            let (worker_batch, worker_chunks) =
+                encoded_receiver.await.map_err(ExporterError::other)?;
             *batch = worker_batch;
             *chunks = worker_chunks;
+            write_chunks = true;
+            dropped_events = Some(dropped_receiver);
         } else {
             let started = Instant::now();
             batch.clear();
@@ -163,8 +177,21 @@ where
             *parallel =
                 *serial_batches >= 2 && event_count >= 128 && elapsed >= Duration::from_micros(250);
         }
-        writer.write_all(batch).await?;
-        Ok(())
+        let write_result = async {
+            if write_chunks {
+                for chunk in chunks.iter() {
+                    writer.write_all(chunk).await?;
+                }
+            } else {
+                writer.write_all(batch).await?;
+            }
+            Ok(())
+        }
+        .await;
+        if let Some(receiver) = dropped_events {
+            *events = receiver.await.map_err(ExporterError::other)?;
+        }
+        write_result
     }
 
     async fn shutdown(mut self: Box<Self>) -> ExporterResult<()> {
@@ -232,5 +259,60 @@ where
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Deserialize, Serialize)]
+    struct TestEvent {
+        sequence: u64,
+        payload: String,
+    }
+
+    impl EntityEvent for TestEvent {
+        const NAME: &'static str = "msgpack_test";
+    }
+
+    #[tokio::test]
+    async fn parallel_batches_roundtrip_in_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut exporter = MsgpackExporter::try_new::<TestEvent>(MsgpackExporterOptions {
+            dir: dir.path().to_owned(),
+        })
+        .await
+        .unwrap();
+        let id = Uuid::nil();
+        let mut expected = Vec::new();
+        for size in [256, 256, PARALLEL_BATCH_SIZE + 17] {
+            let mut events = (0..size)
+                .map(|_| {
+                    let sequence = expected.len() as u64;
+                    expected.push(sequence);
+                    Event::new(
+                        id,
+                        sequence,
+                        TestEvent {
+                            sequence,
+                            payload: format!("payload-{sequence}"),
+                        },
+                    )
+                })
+                .collect();
+            exporter.drain_events(&mut events).await.unwrap();
+            assert!(events.is_empty());
+        }
+        <MsgpackExporter as Exporter<TestEvent>>::shutdown(Box::new(exporter))
+            .await
+            .unwrap();
+
+        let path = dir.path().join(TestEvent::NAME);
+        let actual = MsgpackImporter::<TestEvent>::try_new(&MsgpackImporterOptions { path })
+            .unwrap()
+            .map(|event| event.data.sequence)
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected);
     }
 }

@@ -5,7 +5,9 @@ edition.workspace = true
 publish.workspace = true
 
 [features]
-default = ["ndjson", "msgpack", "postcard", "collector"]
+default = ["bitcode", "raw", "ndjson", "msgpack", "postcard", "collector"]
+bitcode = ["dep:quent-io-bitcode", "dep:serde"]
+raw = ["dep:quent-io-raw", "dep:serde"]
 ndjson = ["dep:quent-io-ndjson", "dep:serde"]
 msgpack = ["dep:quent-io-msgpack", "dep:serde"]
 postcard = ["dep:quent-io-postcard", "dep:serde"]
@@ -19,10 +21,12 @@ clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
 http = { workspace = true, optional = true }
 quent-events = { path = "../events" }
 quent-io-types = { path = "types" }
+quent-io-bitcode = { path = "bitcode", optional = true }
 quent-io-callback = { path = "callback", optional = true }
 quent-io-collector = { path = "collector", optional = true }
 quent-io-msgpack = { path = "msgpack", optional = true }
 quent-io-ndjson = { path = "ndjson", optional = true }
 quent-io-postcard = { path = "postcard", optional = true }
+quent-io-raw = { path = "raw", optional = true }
 serde = { workspace = true, optional = true }
 uuid.workspace = true

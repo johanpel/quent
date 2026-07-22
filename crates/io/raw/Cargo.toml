@@ -1,0 +1,19 @@
+[package]
+name = "quent-io-raw"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+bincode.workspace = true
+quent-events = { path = "../../events", features = ["bincode", "serde"] }
+quent-io-types = { path = "../types" }
+rayon.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "sync"] }
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
