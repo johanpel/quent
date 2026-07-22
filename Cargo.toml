@@ -131,6 +131,7 @@ petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prost = "0.14.1"
 pyo3 = "0.29"
+quent-resource = { path = "crates/resource" }
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -32,7 +32,7 @@ model: m
 entities:
   Memory:
     resource:
-      bytes: { kind: occupancy, known-bounds: true }
+      bandwidth: { kind: rate, known-bounds: true }
     events:
       resized:
         multi: true
@@ -55,12 +55,19 @@ fn resource_declaration_generates_records_and_carries_bounds() {
     // The definition rides on the resource entity.
     let memory = schema.entity(&ident("Memory")).unwrap();
     assert!(memory.annotations().has_constraint(RESOURCE));
+    let definition = memory
+        .annotations()
+        .constraint(RESOURCE)
+        .unwrap()
+        .data()
+        .unwrap();
+    assert!(definition.contains(r#""kind":"rate""#), "{definition}");
 
     // The builder generates the usage and bounds records.
     let usage = schema.record(&ident("MemoryUsage")).unwrap();
-    assert!(usage.field(&ident("bytes")).is_some());
+    assert!(usage.field(&ident("bandwidth")).is_some());
     let bounds = schema.record(&ident("MemoryBounds")).unwrap();
-    assert!(bounds.field(&ident("bytes")).is_some());
+    assert!(bounds.field(&ident("bandwidth")).is_some());
 
     let field = memory
         .event(&ident("resized"))
