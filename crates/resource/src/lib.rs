@@ -39,9 +39,10 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 ///    only if it is an FSM.
 /// 4. The resource named by a usage or bounds is a declared resource.
 /// 5. A usage claims only capacities declared by its resource.
-/// 6. A usage record is used only as data carried by an entity reference.
+/// 6. A usage record is used only as data carried by an entity reference and
+///    cannot be nested in a list within that data.
 /// 7. A bounds record is used only by events of the resource it names.
-/// 8. Usage and bounds records may be optional, but cannot be used in a list.
+/// 8. Bounds records may be optional, but cannot be used in a list.
 ///
 /// ## Unit resources
 ///
@@ -156,6 +157,7 @@ struct RecordRef {
     record: Identifier,
     on_entity_ref: bool,
     in_list: bool,
+    in_reference_list: bool,
     entity: Option<(Identifier, bool)>,
     location: String,
 }
@@ -235,15 +237,21 @@ impl Visitor for ResourceConstraint {
             // Record roles are visited after entity fields, so references are
             // resolved in `finish`.
             Element::DataType(DataType::Record(record)) => {
+                let entity_ref_index = cursor.elements().iter().rposition(|element| {
+                    matches!(element, Element::DataType(DataType::EntityRef { .. }))
+                });
                 self.record_refs.push(RecordRef {
                     record: record.clone(),
-                    on_entity_ref: cursor.elements().iter().any(|element| {
-                        matches!(element, Element::DataType(DataType::EntityRef { .. }))
-                    }),
+                    on_entity_ref: entity_ref_index.is_some(),
                     in_list: cursor
                         .elements()
                         .iter()
                         .any(|element| matches!(element, Element::DataType(DataType::List(_)))),
+                    in_reference_list: entity_ref_index.is_some_and(|index| {
+                        cursor.elements()[index + 1..]
+                            .iter()
+                            .any(|element| matches!(element, Element::DataType(DataType::List(_))))
+                    }),
                     entity: enclosing_entity(cursor).map(|entity| {
                         (
                             entity.name().clone(),
@@ -300,15 +308,15 @@ impl Visitor for ResourceConstraint {
             record,
             on_entity_ref,
             in_list,
+            in_reference_list,
             entity,
             location,
         } in &record_refs
         {
             if let Some(usage) = usage_records.get(record) {
-                if *in_list {
-                    errors.push(ResourceError::RecordInList {
+                if *in_reference_list {
+                    errors.push(ResourceError::UsageInList {
                         location: location.clone(),
-                        role: "usage",
                     });
                     continue;
                 }
@@ -338,9 +346,8 @@ impl Visitor for ResourceConstraint {
                 }
             } else if let Some(bounds) = bounds_records.get(record) {
                 if *in_list {
-                    errors.push(ResourceError::RecordInList {
+                    errors.push(ResourceError::BoundsInList {
                         location: location.clone(),
-                        role: "bounds",
                     });
                     continue;
                 }
@@ -506,6 +513,8 @@ pub enum ResourceError {
     },
     #[error("{location}: a usage record is used outside an entity reference")]
     UsageNotOnReference { location: String },
+    #[error("{location}: a usage record cannot be nested in list-valued reference data")]
+    UsageInList { location: String },
     #[error("entity \"{entity}\" uses resource \"{resource}\" but is not an FSM")]
     NonFsmUser {
         entity: Identifier,
@@ -516,11 +525,8 @@ pub enum ResourceError {
         location: String,
         resource: Identifier,
     },
-    #[error("{location}: a {role} record cannot be used in a list")]
-    RecordInList {
-        location: String,
-        role: &'static str,
-    },
+    #[error("{location}: a bounds record cannot be used in a list")]
+    BoundsInList { location: String },
     #[error(
         "{location}: bounds declare \"{capacity}\", which resource \"{resource}\" does not bound"
     )]

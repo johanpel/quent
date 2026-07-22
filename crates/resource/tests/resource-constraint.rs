@@ -275,7 +275,40 @@ fn optional_resource_records_are_accepted() {
 }
 
 #[test]
-fn listed_resource_records_are_rejected() {
+fn listed_resource_references_with_usage_are_accepted() {
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
+    let reference = DataType::EntityRef {
+        data: Some(Box::new(DataType::Record(ident("MemoryUsage")))),
+        annotations: Annotations::default(),
+    };
+    let worker =
+        user_entity_with_data_type("Worker", true, DataType::List(Box::new(reference)), false);
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+
+    assert!(resource_errors(&schema("App", [memory, worker], [usage])).is_empty());
+}
+
+#[test]
+fn usage_records_in_list_valued_reference_data_are_rejected() {
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
+    let worker = user_entity_with_data_type(
+        "Worker",
+        true,
+        DataType::List(Box::new(DataType::Record(ident("MemoryUsage")))),
+        true,
+    );
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+    let errors = resource_errors(&schema("App", [memory, worker], [usage]));
+
+    assert!(
+        errors
+            .iter()
+            .any(|error| matches!(error, ResourceError::UsageInList { .. }))
+    );
+}
+
+#[test]
+fn listed_bounds_records_are_rejected() {
     let memory = resource_entity_with_bounds_type(
         "Memory",
         &[("bytes", "occupancy", true)],
@@ -283,25 +316,13 @@ fn listed_resource_records_are_rejected() {
             "MemoryBounds",
         ))))),
     );
-    let worker = user_entity_with_data_type(
-        "Worker",
-        true,
-        DataType::List(Box::new(DataType::Record(ident("MemoryUsage")))),
-        true,
-    );
     let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
-    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
-    let errors = resource_errors(&schema("App", [memory, worker], [bounds, usage]));
+    let errors = resource_errors(&schema("App", [memory], [bounds]));
 
     assert!(
         errors
             .iter()
-            .any(|error| matches!(error, ResourceError::RecordInList { role: "bounds", .. }))
-    );
-    assert!(
-        errors
-            .iter()
-            .any(|error| matches!(error, ResourceError::RecordInList { role: "usage", .. }))
+            .any(|error| matches!(error, ResourceError::BoundsInList { .. }))
     );
 }
 
