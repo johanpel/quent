@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         run_pnpm(&["install", "--frozen-lockfile"])?;
-        run_pnpm(&["build"])?;
+        run_pnpm(&["ci:build"])?;
     }
 
     Ok(())
