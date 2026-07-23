@@ -55,7 +55,6 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
       - run: pixi run cargo fmt --all -- --check
-      - run: pixi run pnpm --dir ui bindings
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
       - run: pixi run cargo build --workspace --all-features --locked --release

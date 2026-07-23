@@ -50,6 +50,7 @@ members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
     # so default builds keep `quent-time` zero-cost.
@@ -110,6 +111,7 @@ default-members = [
     "examples/simulator/instrumentation",
     "examples/simulator/server",
     "examples/simulator/ui",
+    "examples/simulator/ui-bindings",
 ]
 
 [workspace.package]

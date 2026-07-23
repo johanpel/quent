@@ -161,8 +161,8 @@ stress testing on the UI.
 cargo build -p quent-simulator-server --features ui --release
 ```
 
-This runs `pnpm install && pnpm build` in `ui/` as part of the Cargo build and
-bundles the output into the binary.
+The Cargo build generates the TypeScript bindings, builds the UI, and bundles
+the output into the binary.
 
 ### Swagger UI
 

@@ -8,5 +8,5 @@
     "outDir": "./dist",
     "rootDir": "../../../.."
   },
-  "include": ["src", "../../../../examples/simulator/server/ts-bindings"]
+  "include": ["src", "../../../generated/ts-bindings"]
 }

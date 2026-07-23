@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+//! TypeScript binding generation for the simulator UI.
+
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::{OperatorFilter, QueryBundle, QueryFilter};
@@ -14,8 +16,6 @@ use quent_ui::timeline::{
     response::{BulkTimelinesResponse, SingleTimelineResponse},
 };
 use ts_rs::{Config, TS};
-
-const TS_OUT_DIR: &str = "./ts-bindings/";
 
 fn sync_bindings(generated_dir: &Path, output_dir: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(output_dir)?;
@@ -32,7 +32,7 @@ fn sync_bindings(generated_dir: &Path, output_dir: &Path) -> std::io::Result<()>
         let generated = std::fs::read(entry.path())?;
         let destination = output_dir.join(file_name);
 
-        // Preserve mtimes so generated output does not invalidate the next build.
+        // Avoid notifying TypeScript tooling when generated content is unchanged.
         if !std::fs::read(&destination).is_ok_and(|current| current == generated) {
             std::fs::write(destination, generated)?;
         }
@@ -54,16 +54,12 @@ fn sync_bindings(generated_dir: &Path, output_dir: &Path) -> std::io::Result<()>
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={TS_OUT_DIR}");
-
-    let generated_dir = PathBuf::from(std::env::var("OUT_DIR")?).join("ts-bindings");
-    if generated_dir.exists() {
-        std::fs::remove_dir_all(&generated_dir)?;
-    }
-    std::fs::create_dir_all(&generated_dir)?;
-    let cfg = Config::new().with_out_dir(&generated_dir);
+/// Generates simulator UI TypeScript bindings in `output_dir`.
+///
+/// Unchanged files are preserved, and stale TypeScript files are removed.
+pub fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let generated_dir = tempfile::tempdir()?;
+    let cfg = Config::new().with_out_dir(generated_dir.path());
 
     <QueryBundle<EntityRef> as TS>::export_all(&cfg)?;
 
@@ -77,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     <EntityListRequest<QueryFilter, OperatorFilter> as TS>::export_all(&cfg)?;
     <EntityListResponse as TS>::export_all(&cfg)?;
 
-    sync_bindings(&generated_dir, Path::new(TS_OUT_DIR))?;
+    sync_bindings(generated_dir.path(), output_dir)?;
 
     Ok(())
 }

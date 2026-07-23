@@ -15,4 +15,4 @@ docs/agents/
 __pycache__/
 .env
 
-examples/simulator/server/ts-bindings/
+ui/generated/ts-bindings/
