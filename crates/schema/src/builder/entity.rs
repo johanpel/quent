@@ -56,7 +56,8 @@ impl EntityBuilder {
     ///
     /// # Errors
     ///
-    /// Errors if the entity declares no events.
+    /// Errors if the entity declares no events, an event name is repeated, or
+    /// the annotations are invalid.
     pub fn build(self) -> Result<Entity, BuilderError> {
         let Self {
             name,
