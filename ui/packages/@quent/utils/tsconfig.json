@@ -6,7 +6,7 @@
     "declarationMap": true,
     "noEmit": false,
     "outDir": "./dist",
-    "rootDir": "../../../.."
+    "rootDir": "../../.."
   },
   "include": ["src", "../../../generated/ts-bindings"]
 }

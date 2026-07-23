@@ -32,7 +32,6 @@ reviews:
   # Skip generated and lock files entirely.
   path_filters:
     - "!**/routeTree.gen.ts"
-    - "!ui/generated/ts-bindings/**"
     - "!Cargo.lock"
     - "!pixi.lock"
     - "!ui/pnpm-lock.yaml"

@@ -24,7 +24,7 @@
     /* Path aliases */
     "paths": {
       "@/*": ["./src/*"],
-      "~quent/types/*": ["generated/ts-bindings/*"]
+      "~quent/types/*": ["./generated/ts-bindings/*"]
     }
   },
   "include": ["src", "generated/ts-bindings"],

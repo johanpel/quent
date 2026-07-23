@@ -51,7 +51,6 @@ jobs:
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
-      - run: pixi run pnpm --dir ui bindings
       - run: pixi run pnpm --dir ui routes:generate
       - run: pixi run pnpm --dir ui lint
 
@@ -101,7 +100,6 @@ jobs:
         with:
           cache: true
       - run: pixi run pnpm --dir ui install --frozen-lockfile
-      - run: pixi run pnpm --dir ui bindings
       - run: pixi run pnpm --dir ui exec playwright install --with-deps chromium
       - run: pixi run pnpm --dir ui test:e2e
         env:
@@ -212,13 +210,6 @@ jobs:
           echo '```diff' >> "$GITHUB_STEP_SUMMARY"
           cat ts-bindings.diff >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "## TS Bindings (PR)" >> "$GITHUB_STEP_SUMMARY"
-          for f in ui/generated/ts-bindings/*.ts; do
-            echo "### $(basename "$f")" >> "$GITHUB_STEP_SUMMARY"
-            echo '```typescript' >> "$GITHUB_STEP_SUMMARY"
-            cat "$f" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          done
 
   build:
     name: Build
