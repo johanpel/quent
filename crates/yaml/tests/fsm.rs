@@ -62,7 +62,7 @@ model: m
 entities:
   E:
     events:
-      a: once
+      a: {}
 fsms:
   E:
     states:

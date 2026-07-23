@@ -32,15 +32,17 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 /// ## Requirements
 ///
 /// 1. [`Capacity`] identifiers are unique within a resource.
-/// 2. If and only if any of the resource's capacities have a bound, the
-///    resource entity has at least one event (the "bounds event") which
-///    declares the bounds of all capacities that are bounded.
+/// 2. If and only if any capacity has a bound, the resource has at least one
+///    event carrying its bounds record. The record declares all bounded
+///    capacities.
 /// 3. An entity can use some quantity of a resource's capacities if and
 ///    only if it is an FSM.
 /// 4. The resource named by a usage or bounds is a declared resource.
 /// 5. A usage claims only capacities declared by its resource.
-/// 6. A usage record is used only as the data carried by an entity reference.
+/// 6. A usage record is used only as data carried by an entity reference and
+///    cannot be nested in a list within that data.
 /// 7. A bounds record is used only by events of the resource it names.
+/// 8. Bounds records may be optional, but cannot be used in a list.
 ///
 /// ## Unit resources
 ///
@@ -111,6 +113,15 @@ impl Resource {
     /// Constraint identifier.
     pub const NAME: &'static str = "quent.resource.v0.1.0";
 
+    /// Encode this resource as a constraint payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
+    pub fn constraint_data(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
     /// Return the declared capacity names and definitions.
     ///
     /// Return `None` unless this is [`Self::Definition`].
@@ -145,6 +156,8 @@ struct BoundsRecord {
 struct RecordRef {
     record: Identifier,
     on_entity_ref: bool,
+    in_list: bool,
+    in_reference_list: bool,
     entity: Option<(Identifier, bool)>,
     location: String,
 }
@@ -224,12 +237,21 @@ impl Visitor for ResourceConstraint {
             // Record roles are visited after entity fields, so references are
             // resolved in `finish`.
             Element::DataType(DataType::Record(record)) => {
+                let entity_ref_index = cursor.elements().iter().rposition(|element| {
+                    matches!(element, Element::DataType(DataType::EntityRef { .. }))
+                });
                 self.record_refs.push(RecordRef {
                     record: record.clone(),
-                    on_entity_ref: matches!(
-                        cursor.previous(),
-                        Some(Element::DataType(DataType::EntityRef { .. }))
-                    ),
+                    on_entity_ref: entity_ref_index.is_some(),
+                    in_list: cursor
+                        .elements()
+                        .iter()
+                        .any(|element| matches!(element, Element::DataType(DataType::List(_)))),
+                    in_reference_list: entity_ref_index.is_some_and(|index| {
+                        cursor.elements()[index + 1..]
+                            .iter()
+                            .any(|element| matches!(element, Element::DataType(DataType::List(_))))
+                    }),
                     entity: enclosing_entity(cursor).map(|entity| {
                         (
                             entity.name().clone(),
@@ -285,11 +307,19 @@ impl Visitor for ResourceConstraint {
         for RecordRef {
             record,
             on_entity_ref,
+            in_list,
+            in_reference_list,
             entity,
             location,
         } in &record_refs
         {
             if let Some(usage) = usage_records.get(record) {
+                if *in_reference_list {
+                    errors.push(ResourceError::UsageInList {
+                        location: location.clone(),
+                    });
+                    continue;
+                }
                 // Requirement 6: a usage is carried by an entity reference.
                 if !on_entity_ref {
                     errors.push(ResourceError::UsageNotOnReference {
@@ -315,6 +345,12 @@ impl Visitor for ResourceConstraint {
                     }),
                 }
             } else if let Some(bounds) = bounds_records.get(record) {
+                if *in_list {
+                    errors.push(ResourceError::BoundsInList {
+                        location: location.clone(),
+                    });
+                    continue;
+                }
                 // Requirement 7: a bounds record belongs to its resource, so the
                 // entity referencing it must be that resource.
                 let on_resource = matches!(entity, Some((entity, _)) if entity == &bounds.resource);
@@ -477,6 +513,8 @@ pub enum ResourceError {
     },
     #[error("{location}: a usage record is used outside an entity reference")]
     UsageNotOnReference { location: String },
+    #[error("{location}: a usage record cannot be nested in list-valued reference data")]
+    UsageInList { location: String },
     #[error("entity \"{entity}\" uses resource \"{resource}\" but is not an FSM")]
     NonFsmUser {
         entity: Identifier,
@@ -487,6 +525,8 @@ pub enum ResourceError {
         location: String,
         resource: Identifier,
     },
+    #[error("{location}: a bounds record cannot be used in a list")]
+    BoundsInList { location: String },
     #[error(
         "{location}: bounds declare \"{capacity}\", which resource \"{resource}\" does not bound"
     )]

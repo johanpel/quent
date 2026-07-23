@@ -49,27 +49,16 @@ model: m
 }
 
 #[test]
-fn event_cardinality_required() {
+fn event_multi_must_be_boolean() {
     expect_error(
         "\
 entities:
   E:
     events:
       started:
-        doc: x
+        multi: sometimes
 ",
-        &["event must declare a cardinality"],
-    );
-    expect_error(
-        "\
-entities:
-  E:
-    events:
-      started:
-        once: {}
-        multi: {}
-",
-        &["both `once` and `multi`"],
+        &["invalid boolean"],
     );
 }
 

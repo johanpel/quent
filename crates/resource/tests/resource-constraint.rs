@@ -66,11 +66,18 @@ fn bounds_record(name: &str, resource: &str, fields: &[&str]) -> Record {
 
 /// Create a resource entity with a bounds event referencing `bounds` when given.
 fn resource_entity(name: &str, capacities: &[(&str, &str, bool)], bounds: Option<&str>) -> Entity {
+    let bounds = bounds.map(|bounds| DataType::Record(ident(bounds)));
+    resource_entity_with_bounds_type(name, capacities, bounds)
+}
+
+fn resource_entity_with_bounds_type(
+    name: &str,
+    capacities: &[(&str, &str, bool)],
+    bounds: Option<DataType>,
+) -> Entity {
     let mut builder = EntityBuilder::new(ident(name))
         .with_annotations(resource_annotations(definition_data(capacities)));
-    let fields = bounds
-        .map(|bounds| field("bounds", DataType::Record(ident(bounds))))
-        .into_iter();
+    let fields = bounds.map(|bounds| field("bounds", bounds)).into_iter();
     builder = builder.try_with_event(event("operating", fields)).unwrap();
     builder.build().unwrap()
 }
@@ -81,13 +88,17 @@ fn resource_entity(name: &str, capacities: &[(&str, &str, bool)], bounds: Option
 /// `on_ref`.
 fn user_entity(name: &str, fsm: bool, record: &str, on_ref: bool) -> Entity {
     let record = DataType::Record(ident(record));
+    user_entity_with_data_type(name, fsm, record, on_ref)
+}
+
+fn user_entity_with_data_type(name: &str, fsm: bool, data: DataType, on_ref: bool) -> Entity {
     let ty = if on_ref {
         DataType::EntityRef {
-            data: Some(Box::new(record)),
+            data: Some(Box::new(data)),
             annotations: Annotations::default(),
         }
     } else {
-        record
+        data
     };
     let mut builder = EntityBuilder::new(ident(name))
         .try_with_event(event("using", [field("claim", ty)]))
@@ -240,6 +251,79 @@ fn bounds_record_used_by_a_foreign_entity_is_rejected() {
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::ForeignBounds { resource, .. } if resource == "Memory")
     ));
+}
+
+#[test]
+fn optional_resource_records_are_accepted() {
+    let memory = resource_entity_with_bounds_type(
+        "Memory",
+        &[("bytes", "occupancy", true)],
+        Some(DataType::Option(Box::new(DataType::Record(ident(
+            "MemoryBounds",
+        ))))),
+    );
+    let worker = user_entity_with_data_type(
+        "Worker",
+        true,
+        DataType::Option(Box::new(DataType::Record(ident("MemoryUsage")))),
+        true,
+    );
+    let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+
+    assert!(resource_errors(&schema("App", [memory, worker], [bounds, usage])).is_empty());
+}
+
+#[test]
+fn listed_resource_references_with_usage_are_accepted() {
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
+    let reference = DataType::EntityRef {
+        data: Some(Box::new(DataType::Record(ident("MemoryUsage")))),
+        annotations: Annotations::default(),
+    };
+    let worker =
+        user_entity_with_data_type("Worker", true, DataType::List(Box::new(reference)), false);
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+
+    assert!(resource_errors(&schema("App", [memory, worker], [usage])).is_empty());
+}
+
+#[test]
+fn usage_records_in_list_valued_reference_data_are_rejected() {
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
+    let worker = user_entity_with_data_type(
+        "Worker",
+        true,
+        DataType::List(Box::new(DataType::Record(ident("MemoryUsage")))),
+        true,
+    );
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+    let errors = resource_errors(&schema("App", [memory, worker], [usage]));
+
+    assert!(
+        errors
+            .iter()
+            .any(|error| matches!(error, ResourceError::UsageInList { .. }))
+    );
+}
+
+#[test]
+fn listed_bounds_records_are_rejected() {
+    let memory = resource_entity_with_bounds_type(
+        "Memory",
+        &[("bytes", "occupancy", true)],
+        Some(DataType::List(Box::new(DataType::Record(ident(
+            "MemoryBounds",
+        ))))),
+    );
+    let bounds = bounds_record("MemoryBounds", "Memory", &["bytes"]);
+    let errors = resource_errors(&schema("App", [memory], [bounds]));
+
+    assert!(
+        errors
+            .iter()
+            .any(|error| matches!(error, ResourceError::BoundsInList { .. }))
+    );
 }
 
 fn assert_misplaced_resource(case: &str, schema: &Schema) {

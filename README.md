@@ -1,4 +1,18 @@
-# Quent
+<!-- rumdl-disable MD033 MD041 -->
+
+<p align="center">
+  <img src="ui/public/favicon.svg" alt="Quent honey badger logo" width="240">
+</p>
+
+<h1 align="center">Quent</h1>
+
+<p align="center">
+  <a href="https://github.com/rapidsai/quent/actions/workflows/rust.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/python.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/python.yml/badge.svg" alt="Python CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/cpp.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/cpp.yml/badge.svg" alt="C++ CI"></a>
+  <a href="https://github.com/rapidsai/quent/actions/workflows/ui.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/ui.yml/badge.svg" alt="UI CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/rapidsai/quent" alt="Apache-2.0 license"></a>
+</p>
 
 Quent is a framework for building tools that help understand behavior and
 resource utilization of abstract data and control flow structures in your
