@@ -22,6 +22,7 @@ export default tseslint.config(
       'examples/**',
       '**/dist/**',
       '**/node_modules/**',
+      'generated/**',
       '.e2e-data/**',
       'playwright-report/**',
       'test-results/**',
