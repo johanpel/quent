@@ -27,14 +27,13 @@ pub fn event_with(
     payload: impl IntoIterator<Item = Field>,
 ) -> Event {
     EventBuilder::new(ident(name), cardinality)
-        .try_with_fields(payload)
-        .unwrap()
+        .with_fields(payload)
         .build()
+        .unwrap()
 }
 pub fn entity(name: &str, events: impl IntoIterator<Item = Event>) -> Entity {
     EntityBuilder::new(ident(name))
-        .try_with_events(events)
-        .unwrap()
+        .with_events(events)
         .build()
         .unwrap()
 }
@@ -43,9 +42,9 @@ pub fn eventless_entity(name: &str) -> Entity {
 }
 pub fn record(name: &str, fields: impl IntoIterator<Item = Field>) -> Record {
     RecordBuilder::new(ident(name))
-        .try_with_fields(fields)
-        .unwrap()
+        .with_fields(fields)
         .build()
+        .unwrap()
 }
 pub fn schema(
     name: &str,
@@ -53,9 +52,8 @@ pub fn schema(
     records: impl IntoIterator<Item = Record>,
 ) -> Schema {
     SchemaBuilder::new(ident(name))
-        .try_with_entities(entities)
-        .unwrap()
-        .try_with_records(records)
-        .unwrap()
+        .with_entities(entities)
+        .with_records(records)
         .build()
+        .unwrap()
 }

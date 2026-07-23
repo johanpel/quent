@@ -5,17 +5,17 @@
 //!
 //! Lowering deliberately avoids the usual `Result`/`?` path, which would stop
 //! at the first error. Instead each function reports any problems into one
-//! shared sink and carries on — returning what it built, or `None` (skip the
-//! element) or a stand-in when a name is rejected — so a single run surfaces
-//! every problem in the file, not just the first. Whether it succeeded is
-//! decided by the caller from the sink, not from a `Result`.
+//! shared sink and carries on, returning what it built or `None` to skip an
+//! invalid element. A single run can therefore surface problems across
+//! independent declarations. Whether it succeeded is decided by the caller
+//! from the sink, not from a `Result`.
 //!
 //! Constraint and metadata payloads are opaque: attached as written, never
 //! interpreted.
 
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
-use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
+use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_resource::{Capacity, Resource, ResourceBuilder};
@@ -41,9 +41,9 @@ use crate::diag::Diagnostics;
 ///   the schema.
 ///
 /// Recoverable errors do not stop later phases, allowing one run to report
-/// multiple problems. The returned schema is meaningful only when `sink`
-/// contains no errors.
-pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
+/// multiple problems. A returned schema is meaningful only when `sink`
+/// contains no errors. Returns `None` when no schema can be built.
+pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
     // Validate model-level inputs and prepare resource name resolution.
     if model.quent != "alpha" {
         sink.error(
@@ -53,11 +53,7 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
         );
     }
 
-    // Keep going after a bad name so one run reports every problem, not just the
-    // first. The caller discards this schema whenever the sink holds errors, so
-    // building it with a valid stand-in name here is harmless.
-    let name = ident(&model.model, "model", sink)
-        .unwrap_or_else(|| Identifier::try_new("invalid").expect("stand-in is valid"));
+    let name = ident(&model.model, "model", sink);
     let resources = ResourceLowerer::new(model, sink);
 
     // Lower declared records.
@@ -92,24 +88,9 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
         }
     }
 
-    // Assemble the schema and diagnose record-name collisions.
-    let mut schema = SchemaBuilder::new(name);
-    for record in records {
-        let record_name = record.name().clone();
-        if let Err(error) = schema.try_insert_record(record) {
-            sink.error(
-                &format!("records.{record_name}"),
-                format!(
-                    "record `{record_name}` conflicts with a generated resource record: {error}"
-                ),
-                None,
-            );
-        }
-    }
-
-    schema
-        .try_with_entities(entities)
-        .expect("entity names are unique (deserialized from a map)")
+    let schema = SchemaBuilder::new(name?)
+        .with_records(records)
+        .with_entities(entities)
         .with_annotations(annotations(
             &model.doc,
             &model.constraints,
@@ -117,7 +98,25 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Schema {
             "",
             sink,
         ))
-        .build()
+        .build();
+    match schema {
+        Ok(schema) => Some(schema),
+        Err(error) => {
+            schema_builder_diagnostics(&error, sink);
+            None
+        }
+    }
+}
+
+fn schema_builder_diagnostics(error: &BuilderError, sink: &mut Diagnostics) {
+    match error {
+        BuilderError::DuplicateName(name) => sink.error(
+            &format!("records.{name}"),
+            format!("record `{name}` conflicts with a generated resource record: {error}"),
+            None,
+        ),
+        error => sink.error("", error.to_string(), None),
+    }
 }
 
 /// Lower one record, or `None` (after reporting) if its name is rejected.
@@ -133,19 +132,17 @@ fn record_of(
     let path = format!("records.{name}");
     let id = type_decl_ident(name, "records", sink);
     let fields = fields_of(&record.fields, &path, resources, sink);
-    Some(
-        RecordBuilder::new(id?)
-            .try_with_fields(fields)
-            .expect("field names are unique")
-            .with_annotations(annotations(
-                &record.doc,
-                &record.constraints,
-                &record.metadata,
-                &path,
-                sink,
-            ))
-            .build(),
-    )
+    let record = RecordBuilder::new(id?)
+        .with_fields(fields)
+        .with_annotations(annotations(
+            &record.doc,
+            &record.constraints,
+            &record.metadata,
+            &path,
+            sink,
+        ))
+        .build();
+    build_or_diagnose(record, &path, sink)
 }
 
 /// Lower one entity and any records generated by its resource declaration.
@@ -166,10 +163,13 @@ fn entity_of(
         sink,
     );
 
-    let (records, bounds_record) = match (id.clone(), &entity.resource) {
-        (Some(id), Some(resource)) => resources.lower(name, id, resource, &mut anns, &path, sink),
-        _ => (Vec::new(), None),
+    let (records, bounds_record, resource_constraint) = match (id.clone(), &entity.resource) {
+        (Some(id), Some(resource)) => resources.lower(name, id, resource, &path, sink),
+        _ => (Vec::new(), None, None),
     };
+    if let Some(data) = resource_constraint {
+        anns = anns.with_constraint(Resource::NAME, Some(data));
+    }
 
     let events: Vec<_> = entity
         .events
@@ -186,9 +186,8 @@ fn entity_of(
         })
         .collect();
     match EntityBuilder::new(id?)
-        .try_with_events(events)
-        .expect("event names are unique")
-        .with_annotations(anns.build())
+        .with_events(events)
+        .with_annotations(build_or_diagnose(anns.build(), &path, sink).unwrap_or_default())
         .build()
     {
         Ok(entity) => Some((entity, records)),
@@ -221,10 +220,13 @@ fn fsm_entity_of(
     let id = type_decl_ident(name, "fsms", sink);
     let mut anns = annotations_builder(&spec.doc, &spec.constraints, &spec.metadata, &path, sink);
 
-    let (records, bounds_record) = match (id.clone(), &spec.resource) {
-        (Some(id), Some(resource)) => resources.lower(name, id, resource, &mut anns, &path, sink),
-        _ => (Vec::new(), None),
+    let (records, bounds_record, resource_constraint) = match (id.clone(), &spec.resource) {
+        (Some(id), Some(resource)) => resources.lower(name, id, resource, &path, sink),
+        _ => (Vec::new(), None, None),
     };
+    if let Some(data) = resource_constraint {
+        anns = anns.with_constraint(Resource::NAME, Some(data));
+    }
 
     // Lower the states first, before bailing on a rejected entity name, so one
     // run still reports problems inside the states.
@@ -270,7 +272,7 @@ fn fsm_entity_of(
     }
 
     let built = FsmEntityBuilder::new(id)
-        .with_annotations(anns.build())
+        .with_annotations(build_or_diagnose(anns.build(), &path, sink).unwrap_or_default())
         .with_states(states)
         .build();
     match built {
@@ -295,20 +297,8 @@ fn fsm_shape_error(error: &FsmEntityBuilderError, path: &str, sink: &mut Diagnos
         FsmEntityBuilderError::NoExitState => {
             sink.error(path, "no state transitions to `exit`", None);
         }
-        // Topology violations carry the constraint's errors; report one per
-        // violation, flattening `Multiple`.
-        FsmEntityBuilderError::Invalid(error) => fsm_error_diagnostics(error, path, sink),
-        other => sink.error(path, other.to_string(), None),
-    }
-}
-
-/// Report one diagnostic per FSM topology violation, flattening `Multiple`.
-fn fsm_error_diagnostics(error: &FsmError, path: &str, sink: &mut Diagnostics) {
-    match error {
-        FsmError::Multiple(errors) => {
-            for error in errors {
-                fsm_error_diagnostics(error, path, sink);
-            }
+        FsmEntityBuilderError::Invalid(error) => {
+            sink.error(path, error.to_string(), None);
         }
         other => sink.error(path, other.to_string(), None),
     }
@@ -339,13 +329,11 @@ fn event_of(
     } else {
         Cardinality::Once
     };
-    Some(
-        EventBuilder::new(id?, cardinality)
-            .try_with_fields(fields)
-            .expect("field names are unique")
-            .with_annotations(anns)
-            .build(),
-    )
+    let event = EventBuilder::new(id?, cardinality)
+        .with_fields(fields)
+        .with_annotations(anns)
+        .build();
+    build_or_diagnose(event, &path, sink)
 }
 
 /// Lower event attributes, including a resource bounds field.
@@ -461,19 +449,25 @@ fn entity_ref(
         Some(expr) => Some(type_of(expr, path, resources, sink)?),
         None => None,
     };
-    Some(entity_ref_type(target, data, tree))
+    entity_ref_type(target, data, tree, path, sink)
 }
 
-fn entity_ref_type(target: &str, data: Option<DataType>, tree: bool) -> DataType {
-    let mut builder = AnnotationsBuilder::new();
-    builder.set_constraint(RefTargetConstraint::NAME, Some(target.to_string()));
+fn entity_ref_type(
+    target: &str,
+    data: Option<DataType>,
+    tree: bool,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> Option<DataType> {
+    let mut builder = AnnotationsBuilder::new()
+        .with_constraint(RefTargetConstraint::NAME, Some(target.to_string()));
     if tree {
-        builder.set_constraint(RefTreeConstraint::NAME, None);
+        builder = builder.with_constraint(RefTreeConstraint::NAME, None);
     }
-    DataType::EntityRef {
+    Some(DataType::EntityRef {
         data: data.map(Box::new),
-        annotations: builder.build(),
-    }
+        annotations: build_or_diagnose(builder.build(), path, sink).unwrap_or_default(),
+    })
 }
 
 /// A bare name that is not a [`BuiltinType`], lowered as a record reference.
@@ -527,7 +521,26 @@ fn annotations(
     path: &str,
     sink: &mut Diagnostics,
 ) -> Annotations {
-    annotations_builder(doc, constraints, metadata, path, sink).build()
+    build_or_diagnose(
+        annotations_builder(doc, constraints, metadata, path, sink).build(),
+        path,
+        sink,
+    )
+    .unwrap_or_default()
+}
+
+fn build_or_diagnose<T>(
+    result: Result<T, BuilderError>,
+    path: &str,
+    sink: &mut Diagnostics,
+) -> Option<T> {
+    match result {
+        Ok(value) => Some(value),
+        Err(error) => {
+            sink.error(path, error.to_string(), None);
+            None
+        }
+    }
 }
 
 fn annotations_builder(
@@ -537,26 +550,11 @@ fn annotations_builder(
     path: &str,
     sink: &mut Diagnostics,
 ) -> AnnotationsBuilder {
-    let mut builder = AnnotationsBuilder::new();
-    if let Some(doc) = doc {
-        builder.set_docs(doc.clone());
-    }
-    add_annotations(&mut builder, constraints, metadata, path, sink);
-    builder
-}
-
-fn add_annotations(
-    builder: &mut AnnotationsBuilder,
-    constraints: &AnnotationMap,
-    metadata: &AnnotationMap,
-    path: &str,
-    sink: &mut Diagnostics,
-) {
+    let mut builder = match doc {
+        Some(doc) => AnnotationsBuilder::new().with_docs(doc),
+        None => AnnotationsBuilder::new(),
+    };
     for (name, value) in constraints {
-        if name.is_empty() {
-            sink.error(path, "constraint name must not be empty", None);
-            continue;
-        }
         // The FSM constraint is produced only by the builder, from an `fsms:`
         // block, never written by hand.
         if name == FsmConstraint::NAME {
@@ -575,19 +573,12 @@ fn add_annotations(
             );
             continue;
         }
-        if let Err(e) = builder.try_insert_constraint(name, value.clone()) {
-            sink.error(path, e.to_string(), None);
-        }
+        builder = builder.with_constraint(name, value.clone());
     }
     for (name, value) in metadata {
-        if name.is_empty() {
-            sink.error(path, "metadata name must not be empty", None);
-            continue;
-        }
-        if let Err(e) = builder.try_insert_metadata(name, value.clone()) {
-            sink.error(path, e.to_string(), None);
-        }
+        builder = builder.with_metadata(name, value.clone());
     }
+    builder
 }
 
 /// Validate a record/entity name, or `None` (after reporting) if it is invalid
@@ -668,20 +659,19 @@ impl ResourceLowerer {
         owner: &str,
         id: Identifier,
         resource: &ast::ResourceDecl,
-        anns: &mut AnnotationsBuilder,
         path: &str,
         sink: &mut Diagnostics,
-    ) -> (Vec<Record>, Option<Identifier>) {
+    ) -> (Vec<Record>, Option<Identifier>, Option<String>) {
         let resource_path = format!("{path}.resource");
         let Some(usage_record_name) = self.usage_records.get(owner).cloned() else {
-            return (Vec::new(), None);
+            return (Vec::new(), None, None);
         };
         let bounds_record_name = match resource.bounds_record() {
             Some(name) => ident(name, &format!("{resource_path}.bounds-record"), sink),
             None => Some(ResourceBuilder::default_bounds_record_name(&id)),
         };
         let Some(bounds_record_name) = bounds_record_name else {
-            return (Vec::new(), None);
+            return (Vec::new(), None, None);
         };
 
         let mut builder =
@@ -694,7 +684,7 @@ impl ResourceLowerer {
                     "write `resource: true` for a unit resource, or list capacities",
                     None,
                 );
-                return (Vec::new(), None);
+                return (Vec::new(), None, None);
             }
             ast::ResourceDecl::Capacities(capacities) => Some(capacities),
             ast::ResourceDecl::Detailed(spec) => Some(&spec.capacities),
@@ -710,20 +700,21 @@ impl ResourceLowerer {
 
         match builder.build() {
             Ok(parts) => {
-                match parts.definition.constraint_data() {
-                    Ok(data) => {
-                        anns.set_constraint(Resource::NAME, Some(data));
+                let constraint = match parts.definition.constraint_data() {
+                    Ok(data) => Some(data),
+                    Err(error) => {
+                        sink.error(&resource_path, error.to_string(), None);
+                        None
                     }
-                    Err(error) => sink.error(&resource_path, error.to_string(), None),
-                }
+                };
                 let bounds = parts.bounds.as_ref().map(|record| record.name().clone());
                 let mut records = vec![parts.usage];
                 records.extend(parts.bounds);
-                (records, bounds)
+                (records, bounds, constraint)
             }
             Err(error) => {
                 sink.error(&resource_path, error.to_string(), None);
-                (Vec::new(), None)
+                (Vec::new(), None, None)
             }
         }
     }
@@ -779,9 +770,5 @@ fn usage_ref(
     sink: &mut Diagnostics,
 ) -> Option<DataType> {
     let usage = resources.usage_record(target, path, sink)?;
-    Some(entity_ref_type(
-        target,
-        Some(DataType::Record(usage)),
-        false,
-    ))
+    entity_ref_type(target, Some(DataType::Record(usage)), false, path, sink)
 }

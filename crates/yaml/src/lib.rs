@@ -63,7 +63,15 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         }
     };
 
-    let schema = lower::lower(&model, &mut sink);
+    let schema = match lower::lower(&model, &mut sink) {
+        Some(schema) => schema,
+        None => {
+            if !sink.has_errors() {
+                sink.error("", "schema could not be built", None);
+            }
+            return Err(Error::Invalid(sink));
+        }
+    };
     if sink.has_errors() {
         return Err(Error::Invalid(sink));
     }

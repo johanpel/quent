@@ -26,8 +26,7 @@ pub struct ResourceBuilder {
     name: Identifier,
     usage_record_name: Identifier,
     bounds_record_name: Identifier,
-    capacities: Capacities,
-    errors: Vec<BuildError>,
+    capacities: Vec<(Identifier, Capacity)>,
 }
 
 impl ResourceBuilder {
@@ -60,28 +59,13 @@ impl ResourceBuilder {
             name,
             usage_record_name,
             bounds_record_name,
-            capacities: Capacities::default(),
-            errors: Vec::new(),
+            capacities: Vec::new(),
         }
-    }
-
-    /// The capacity declared under `name`, if any.
-    pub fn capacity(&self, name: &Identifier) -> Option<&Capacity> {
-        self.capacities.get(name)
-    }
-
-    /// Set a capacity, returning the replaced declaration, if any.
-    pub fn set_capacity(&mut self, name: Identifier, capacity: Capacity) -> Option<Capacity> {
-        self.capacities.insert(name, capacity)
     }
 
     /// Add a capacity, returning the builder for chaining.
     pub fn with_capacity(mut self, name: Identifier, capacity: Capacity) -> Self {
-        if self.capacities.contains_key(&name) {
-            self.errors.push(BuildError::DuplicateCapacity(name));
-        } else {
-            self.capacities.insert(name, capacity);
-        }
+        self.capacities.push((name, capacity));
         self
     }
 
@@ -90,9 +74,7 @@ impl ResourceBuilder {
         mut self,
         capacities: impl IntoIterator<Item = (Identifier, Capacity)>,
     ) -> Self {
-        for (name, capacity) in capacities {
-            self = self.with_capacity(name, capacity);
-        }
+        self.capacities.extend(capacities);
         self
     }
 
@@ -111,16 +93,22 @@ impl ResourceBuilder {
             usage_record_name,
             bounds_record_name,
             capacities,
-            mut errors,
         } = self;
+        let mut unique_capacities = Capacities::default();
+        for (name, capacity) in capacities {
+            match unique_capacities.entry(name) {
+                indexmap::map::Entry::Occupied(entry) => {
+                    return Err(BuildError::DuplicateCapacity(entry.key().clone()));
+                }
+                indexmap::map::Entry::Vacant(entry) => {
+                    entry.insert(capacity);
+                }
+            }
+        }
+        let capacities = unique_capacities;
         let has_bounds = capacities.values().any(Capacity::is_bounded);
         if has_bounds && usage_record_name == bounds_record_name {
-            errors.push(BuildError::DuplicateRecordName(usage_record_name.clone()));
-        }
-        match errors.len() {
-            0 => {}
-            1 => return Err(errors.pop().unwrap()),
-            _ => return Err(BuildError::Multiple(errors)),
+            return Err(BuildError::DuplicateRecordName(usage_record_name));
         }
 
         // Usages include every capacity. Bounds omit unbounded capacities
@@ -165,17 +153,17 @@ fn build_resource_record<'a>(
     fields: impl Iterator<Item = &'a Identifier>,
 ) -> Result<Record, BuildError> {
     let annotations = AnnotationsBuilder::new()
-        .try_with_constraint(Resource::NAME, Some(resource.constraint_data()?))?
-        .build();
+        .with_constraint(Resource::NAME, Some(resource.constraint_data()?))
+        .build()?;
     let mut builder = RecordBuilder::new(name).with_annotations(annotations);
     for field in fields {
-        builder = builder.try_with_field(Field::new(
+        builder = builder.with_field(Field::new(
             field.clone(),
             DataType::U64,
             Annotations::default(),
-        ))?;
+        ));
     }
-    Ok(builder.build())
+    Ok(builder.build()?)
 }
 
 fn suffixed_identifier(resource: &Identifier, suffix: &str) -> Identifier {
@@ -189,8 +177,6 @@ pub enum BuildError {
     DuplicateCapacity(Identifier),
     #[error("usage and bounds records have the same name \"{0}\"")]
     DuplicateRecordName(Identifier),
-    #[error("multiple resource builder errors: {0:?}")]
-    Multiple(Vec<BuildError>),
     #[error(transparent)]
     Schema(#[from] BuilderError),
     #[error("serializing resource data: {0}")]
@@ -275,11 +261,9 @@ mod tests {
             .with_capacity(watts.clone(), Capacity::new(CapacityKind::Rate, false))
             .with_capacity(watts, Capacity::new(CapacityKind::Rate, true))
             .build();
-        let Err(BuildError::Multiple(errors)) = result else {
-            panic!("expected multiple errors");
-        };
-        assert_eq!(errors.len(), 2);
-        assert!(matches!(&errors[0], BuildError::DuplicateCapacity(name) if name == &bytes));
-        assert!(matches!(&errors[1], BuildError::DuplicateCapacity(_)));
+        assert!(matches!(
+            result,
+            Err(BuildError::DuplicateCapacity(name)) if name == bytes
+        ));
     }
 }

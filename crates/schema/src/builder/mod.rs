@@ -25,37 +25,40 @@ pub use record::RecordBuilder;
 /// Error returned while assembling a schema element.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum BuilderError {
-    /// A name was added more than once within the same collection.
     #[error("duplicate name \"{0}\"")]
     DuplicateName(String),
-    /// A name was empty.
     #[error("name must not be empty")]
     EmptyName,
-    /// No events were added to an entity.
     #[error("entity must declare at least one event")]
     NoEvents,
 }
 
-pub(crate) fn insert_unique<K, V>(map: &mut Map<K, V>, key: K, value: V) -> Result<(), BuilderError>
+pub(crate) fn collect_unique<K, V>(
+    values: impl IntoIterator<Item = V>,
+    mut key: impl FnMut(&V) -> K,
+) -> Result<Map<K, V>, BuilderError>
 where
     K: Eq + Hash + Display,
 {
-    match map.entry(key) {
-        indexmap::map::Entry::Occupied(entry) => {
-            Err(BuilderError::DuplicateName(entry.key().to_string()))
-        }
-        indexmap::map::Entry::Vacant(entry) => {
-            entry.insert(value);
-            Ok(())
+    let mut map = Map::default();
+    for value in values {
+        match map.entry(key(&value)) {
+            indexmap::map::Entry::Occupied(entry) => {
+                return Err(BuilderError::DuplicateName(entry.key().to_string()));
+            }
+            indexmap::map::Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
         }
     }
+    Ok(map)
 }
 
 /// Builder for a [`Schema`].
 pub struct SchemaBuilder {
     name: Identifier,
-    entities: Map<Identifier, Entity>,
-    records: Map<Identifier, Record>,
+    entities: Vec<Entity>,
+    records: Vec<Record>,
     annotations: AnnotationsBuilder,
 }
 
@@ -64,8 +67,8 @@ impl SchemaBuilder {
     pub fn new(name: Identifier) -> Self {
         Self {
             name,
-            entities: Map::default(),
-            records: Map::default(),
+            entities: Vec::new(),
+            records: Vec::new(),
             annotations: AnnotationsBuilder::new(),
         }
     }
@@ -81,109 +84,28 @@ impl SchemaBuilder {
         Ok(Self::new(name.try_into()?))
     }
 
-    /// The name of the schema.
-    pub fn name(&self) -> &Identifier {
-        &self.name
-    }
-
-    /// The entity declared under `name`, if any.
-    pub fn entity(&self, name: &Identifier) -> Option<&Entity> {
-        self.entities.get(name)
-    }
-
-    /// Set an entity, returning the replaced one with the same name, if any.
-    pub fn set_entity(&mut self, entity: Entity) -> Option<Entity> {
-        self.entities.insert(entity.name().clone(), entity)
-    }
-
-    /// Add an entity.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_insert_entity(&mut self, entity: Entity) -> Result<&mut Self, BuilderError> {
-        insert_unique(&mut self.entities, entity.name().clone(), entity)?;
-        Ok(self)
-    }
-
     /// Add an entity, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_with_entity(mut self, entity: Entity) -> Result<Self, BuilderError> {
-        self.try_insert_entity(entity)?;
-        Ok(self)
+    pub fn with_entity(mut self, entity: Entity) -> Self {
+        self.entities.push(entity);
+        self
     }
 
     /// Add several entities, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors on the first duplicate name.
-    pub fn try_with_entities(
-        mut self,
-        entities: impl IntoIterator<Item = Entity>,
-    ) -> Result<Self, BuilderError> {
-        for entity in entities {
-            self.try_insert_entity(entity)?;
-        }
-        Ok(self)
-    }
-
-    /// The record declared under `name`, if any.
-    pub fn record(&self, name: &Identifier) -> Option<&Record> {
-        self.records.get(name)
-    }
-
-    /// Set a record, returning the replaced one with the same name, if any.
-    pub fn set_record(&mut self, record: Record) -> Option<Record> {
-        self.records.insert(record.name().clone(), record)
-    }
-
-    /// Add a record.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_insert_record(&mut self, record: Record) -> Result<&mut Self, BuilderError> {
-        insert_unique(&mut self.records, record.name().clone(), record)?;
-        Ok(self)
+    pub fn with_entities(mut self, entities: impl IntoIterator<Item = Entity>) -> Self {
+        self.entities.extend(entities);
+        self
     }
 
     /// Add a record, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_with_record(mut self, record: Record) -> Result<Self, BuilderError> {
-        self.try_insert_record(record)?;
-        Ok(self)
+    pub fn with_record(mut self, record: Record) -> Self {
+        self.records.push(record);
+        self
     }
 
     /// Add several records, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors on the first duplicate name.
-    pub fn try_with_records(
-        mut self,
-        records: impl IntoIterator<Item = Record>,
-    ) -> Result<Self, BuilderError> {
-        for record in records {
-            self.try_insert_record(record)?;
-        }
-        Ok(self)
-    }
-
-    /// The annotations of the schema.
-    pub fn annotations(&self) -> &AnnotationsBuilder {
-        &self.annotations
-    }
-
-    /// The annotations of the schema.
-    pub fn annotations_mut(&mut self) -> &mut AnnotationsBuilder {
-        &mut self.annotations
+    pub fn with_records(mut self, records: impl IntoIterator<Item = Record>) -> Self {
+        self.records.extend(records);
+        self
     }
 
     /// Set the schema's annotations, replacing any added so far, and return
@@ -194,12 +116,20 @@ impl SchemaBuilder {
     }
 
     /// Finish building the schema.
-    pub fn build(self) -> Schema {
-        Schema::from_parts(
-            self.name,
-            self.entities,
-            self.records,
-            self.annotations.build(),
-        )
+    ///
+    /// # Errors
+    ///
+    /// Errors if a child name is repeated or the annotations are invalid.
+    pub fn build(self) -> Result<Schema, BuilderError> {
+        let Self {
+            name,
+            entities,
+            records,
+            annotations,
+        } = self;
+        let entities = collect_unique(entities, |entity| entity.name().clone())?;
+        let records = collect_unique(records, |record| record.name().clone())?;
+        let annotations = annotations.build()?;
+        Ok(Schema::from_parts(name, entities, records, annotations))
     }
 }

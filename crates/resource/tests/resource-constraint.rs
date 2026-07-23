@@ -35,25 +35,25 @@ fn bounds_data(resource: &str) -> String {
 /// Create resource constraint annotations carrying `data`.
 fn resource_annotations(data: String) -> Annotations {
     AnnotationsBuilder::new()
-        .try_with_constraint(ResourceConstraint::NAME, Some(data))
-        .unwrap()
+        .with_constraint(ResourceConstraint::NAME, Some(data))
         .build()
+        .unwrap()
 }
 
 fn fsm_annotations() -> Annotations {
     AnnotationsBuilder::new()
-        .try_with_constraint(FsmConstraint::NAME, None)
-        .unwrap()
+        .with_constraint(FsmConstraint::NAME, None)
         .build()
+        .unwrap()
 }
 
 /// Create a record carrying resource `data` with a `U64` field for each name.
 fn resource_record(name: &str, data: String, fields: &[&str]) -> Record {
     let mut builder = RecordBuilder::new(ident(name)).with_annotations(resource_annotations(data));
     for &f in fields {
-        builder = builder.try_with_field(field(f, DataType::U64)).unwrap();
+        builder = builder.with_field(field(f, DataType::U64));
     }
-    builder.build()
+    builder.build().unwrap()
 }
 
 fn usage_record(name: &str, resource: &str, claims: &[&str]) -> Record {
@@ -78,7 +78,7 @@ fn resource_entity_with_bounds_type(
     let mut builder = EntityBuilder::new(ident(name))
         .with_annotations(resource_annotations(definition_data(capacities)));
     let fields = bounds.map(|bounds| field("bounds", bounds)).into_iter();
-    builder = builder.try_with_event(event("operating", fields)).unwrap();
+    builder = builder.with_event(event("operating", fields));
     builder.build().unwrap()
 }
 
@@ -100,9 +100,8 @@ fn user_entity_with_data_type(name: &str, fsm: bool, data: DataType, on_ref: boo
     } else {
         data
     };
-    let mut builder = EntityBuilder::new(ident(name))
-        .try_with_event(event("using", [field("claim", ty)]))
-        .unwrap();
+    let mut builder =
+        EntityBuilder::new(ident(name)).with_event(event("using", [field("claim", ty)]));
     if fsm {
         builder = builder.with_annotations(fsm_annotations());
     }
@@ -346,8 +345,7 @@ fn misplaced_resources_are_rejected() {
     let definition_on_record = schema("App", [], [bad_record]);
 
     let bad_entity = EntityBuilder::new(ident("Worker"))
-        .try_with_event(event("using", []))
-        .unwrap()
+        .with_event(event("using", []))
         .with_annotations(resource_annotations(usage_data("Memory")))
         .build()
         .unwrap();
@@ -355,7 +353,8 @@ fn misplaced_resources_are_rejected() {
 
     let usage_on_schema = SchemaBuilder::new(ident("App"))
         .with_annotations(resource_annotations(usage_data("Memory")))
-        .build();
+        .build()
+        .unwrap();
 
     let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
     let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
@@ -364,9 +363,9 @@ fn misplaced_resources_are_rejected() {
         annotations: Annotations::default(),
     };
     let wrapper = RecordBuilder::new(ident("Wrapper"))
-        .try_with_field(field("carried", carrier))
-        .unwrap()
-        .build();
+        .with_field(field("carried", carrier))
+        .build()
+        .unwrap();
     let usage_without_entity = schema("App", [memory], [usage, wrapper]);
 
     for (case, schema) in [

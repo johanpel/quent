@@ -104,11 +104,11 @@ mod tests {
     fn entity_ref_uses_its_ref_target_marker() {
         use quent_schema::builder::AnnotationsBuilder;
 
-        let mut annotations = AnnotationsBuilder::new();
-        annotations.set_constraint(RefTargetConstraint::NAME, Some("Cluster".to_string()));
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint(RefTargetConstraint::NAME, Some("Cluster".to_string()));
         let ty = DataType::EntityRef {
             data: Some(Box::new(DataType::U64)),
-            annotations: annotations.build(),
+            annotations: annotations.build().unwrap(),
         };
         let tokens = map_data_type(&ty, 0).to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");

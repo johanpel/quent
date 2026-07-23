@@ -1,15 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::builder::{AnnotationsBuilder, BuilderError, insert_unique};
-use crate::schema::Map;
+use crate::builder::{AnnotationsBuilder, BuilderError, collect_unique};
 use crate::schema::identifier::IdentifierError;
 use crate::{Annotations, Entity, Event, Identifier};
 
 /// Builder for an [`Entity`].
 pub struct EntityBuilder {
     name: Identifier,
-    events: Map<Identifier, Event>,
+    events: Vec<Event>,
     annotations: AnnotationsBuilder,
 }
 
@@ -18,7 +17,7 @@ impl EntityBuilder {
     pub fn new(name: Identifier) -> Self {
         Self {
             name,
-            events: Map::default(),
+            events: Vec::new(),
             annotations: AnnotationsBuilder::new(),
         }
     }
@@ -34,64 +33,16 @@ impl EntityBuilder {
         Ok(Self::new(name.try_into()?))
     }
 
-    /// The name of the entity.
-    pub fn name(&self) -> &Identifier {
-        &self.name
-    }
-
-    /// The event declared under `name`, if any.
-    pub fn event(&self, name: &Identifier) -> Option<&Event> {
-        self.events.get(name)
-    }
-
-    /// Set an event, returning the replaced one with the same name, if any.
-    pub fn set_event(&mut self, event: Event) -> Option<Event> {
-        self.events.insert(event.name().clone(), event)
-    }
-
-    /// Add an event.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_insert_event(&mut self, event: Event) -> Result<&mut Self, BuilderError> {
-        insert_unique(&mut self.events, event.name().clone(), event)?;
-        Ok(self)
-    }
-
     /// Add an event, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors if its name is already declared.
-    pub fn try_with_event(mut self, event: Event) -> Result<Self, BuilderError> {
-        self.try_insert_event(event)?;
-        Ok(self)
+    pub fn with_event(mut self, event: Event) -> Self {
+        self.events.push(event);
+        self
     }
 
     /// Add several events, returning the builder for chaining.
-    ///
-    /// # Errors
-    ///
-    /// Errors on the first duplicate name.
-    pub fn try_with_events(
-        mut self,
-        events: impl IntoIterator<Item = Event>,
-    ) -> Result<Self, BuilderError> {
-        for event in events {
-            self.try_insert_event(event)?;
-        }
-        Ok(self)
-    }
-
-    /// The annotations of the entity.
-    pub fn annotations(&self) -> &AnnotationsBuilder {
-        &self.annotations
-    }
-
-    /// The annotations of the entity.
-    pub fn annotations_mut(&mut self) -> &mut AnnotationsBuilder {
-        &mut self.annotations
+    pub fn with_events(mut self, events: impl IntoIterator<Item = Event>) -> Self {
+        self.events.extend(events);
+        self
     }
 
     /// Set the entity's annotations, replacing any added so far, and return
@@ -107,14 +58,17 @@ impl EntityBuilder {
     ///
     /// Errors if the entity declares no events.
     pub fn build(self) -> Result<Entity, BuilderError> {
-        if self.events.is_empty() {
+        let Self {
+            name,
+            events,
+            annotations,
+        } = self;
+        if events.is_empty() {
             return Err(BuilderError::NoEvents);
         }
-        Ok(Entity::from_parts(
-            self.name,
-            self.events,
-            self.annotations.build(),
-        ))
+        let events = collect_unique(events, |event| event.name().clone())?;
+        let annotations = annotations.build()?;
+        Ok(Entity::from_parts(name, events, annotations))
     }
 }
 

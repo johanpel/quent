@@ -154,7 +154,7 @@ fn empty_annotation_name() {
 constraints:
   '': x
 ",
-        &["constraint name must not be empty"],
+        &["name must not be empty"],
     );
 }
 

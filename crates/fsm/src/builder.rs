@@ -46,7 +46,7 @@ pub enum FsmEntityBuilderError {
     NoExitState,
     #[error("duplicate state `{0}`")]
     DuplicateState(Identifier),
-    /// A duplicate attribute name within a state reached the schema builder.
+    /// The generated schema element is invalid.
     #[error(transparent)]
     Build(#[from] BuilderError),
     /// The FSM topology failed to serialize to its constraint payload.
@@ -119,7 +119,7 @@ impl FsmEntityBuilder {
             .map(|s| s.name.clone())
             .collect();
         let initial = match initials.as_slice() {
-            [one] => one.clone(),
+            [initial] => initial.clone(),
             [] => return Err(FsmEntityBuilderError::NoInitialState),
             _ => return Err(FsmEntityBuilderError::MultipleInitialStates(initials)),
         };
@@ -132,8 +132,7 @@ impl FsmEntityBuilder {
         let Some((first_exit, other_exits)) = exits.split_first() else {
             return Err(FsmEntityBuilderError::NoExitState);
         };
-
-        let transitions: Vec<Transition> = states
+        let transitions = states
             .iter()
             .flat_map(|state| {
                 let source = state.name.clone();
@@ -155,22 +154,23 @@ impl FsmEntityBuilder {
             // reports it, so `Once` here is only a stand-in.
             let cardinality = fsm.cardinality(&state.name).unwrap_or(Cardinality::Once);
             let event = EventBuilder::new(state.name, cardinality)
-                .try_with_fields(state.attributes)?
-                .build();
-            entity = entity.try_with_event(event)?;
+                .with_fields(state.attributes)
+                .build()?;
+            entity = entity.with_event(event);
         }
 
-        annotations.set_constraint(FsmConstraint::NAME, Some(fsm.constraint_data()?));
-        let entity = entity.with_annotations(annotations.build()).build()?;
+        annotations =
+            annotations.with_constraint(FsmConstraint::NAME, Some(fsm.constraint_data()?));
+        let entity = entity.with_annotations(annotations.build()?).build()?;
 
         // Validate the full topology now, the same checks the constraint runs
         // during schema validation, so a built entity is always valid.
-        let mut errors = Vec::new();
-        check_entity(&entity, &fsm, &mut errors);
-        match errors.len() {
-            0 => Ok(entity),
-            1 => Err(FsmEntityBuilderError::Invalid(errors.pop().unwrap())),
-            _ => Err(FsmEntityBuilderError::Invalid(FsmError::Multiple(errors))),
+        let mut topology_errors = Vec::new();
+        check_entity(&entity, &fsm, &mut topology_errors);
+        if let Some(error) = topology_errors.into_iter().next() {
+            Err(FsmEntityBuilderError::Invalid(error))
+        } else {
+            Ok(entity)
         }
     }
 }

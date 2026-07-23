@@ -337,9 +337,9 @@ mod test {
         let entity_ref = DataType::EntityRef {
             data: None,
             annotations: AnnotationsBuilder::new()
-                .try_with_constraint("quent.visitor-test.v0.1.0", None)
-                .unwrap()
-                .build(),
+                .with_constraint("quent.visitor-test.v0.1.0", None)
+                .build()
+                .unwrap(),
         };
         let schema = schema(
             "S",

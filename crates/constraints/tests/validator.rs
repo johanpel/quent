@@ -12,9 +12,9 @@ use quent_schema::{
 /// Annotations carrying the constraint `name` without data.
 fn constraint(name: &str) -> Annotations {
     AnnotationsBuilder::new()
-        .try_with_constraint(name, None)
-        .unwrap()
+        .with_constraint(name, None)
         .build()
+        .unwrap()
 }
 
 fn empty_schema() -> Schema {
@@ -97,7 +97,8 @@ fn passing_constraint_on_empty_schema() {
 fn constraint_without_validator_is_unregistered() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .with_annotations(constraint("unknown"))
-        .build();
+        .build()
+        .unwrap();
     let report = validate::<(NoopA,)>(&schema);
     assert_eq!(report.unregistered_constraints.len(), 1);
     assert!(
@@ -114,11 +115,12 @@ fn metadata_is_never_validated() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .with_annotations(
             AnnotationsBuilder::new()
-                .try_with_metadata("not_validated", None)
-                .unwrap()
-                .build(),
+                .with_metadata("not_validated", None)
+                .build()
+                .unwrap(),
         )
-        .build();
+        .build()
+        .unwrap();
     let report = validate::<(NoopA,)>(&schema);
     assert!(report.unregistered_constraints.is_empty());
 }
@@ -128,29 +130,27 @@ fn unregistered_constraint_is_reported_once() {
     let unknown = || constraint("unknown");
     let field = Field::new(ident("ef"), DataType::U64, unknown());
     let event = EventBuilder::new(ident("Ev"), Cardinality::Once)
-        .try_with_field(field)
-        .unwrap()
+        .with_field(field)
         .with_annotations(unknown())
-        .build();
+        .build()
+        .unwrap();
     let entity = EntityBuilder::new(ident("E"))
-        .try_with_event(event)
-        .unwrap()
+        .with_event(event)
         .with_annotations(unknown())
         .build()
         .unwrap();
     let record_field = Field::new(ident("rf"), DataType::U64, unknown());
     let record = RecordBuilder::new(ident("R"))
-        .try_with_field(record_field)
-        .unwrap()
+        .with_field(record_field)
         .with_annotations(unknown())
-        .build();
+        .build()
+        .unwrap();
     let schema = SchemaBuilder::new(ident("S"))
-        .try_with_entity(entity)
-        .unwrap()
-        .try_with_record(record)
-        .unwrap()
+        .with_entity(entity)
+        .with_record(record)
         .with_annotations(unknown())
-        .build();
+        .build()
+        .unwrap();
     let report = validate::<(NoopA,)>(&schema);
     // The same name used at six sites is deduplicated to a single entry.
     assert_eq!(
@@ -174,7 +174,8 @@ fn constraint_failure_is_reported_per_constraint() {
 fn unregistered_and_failure_aggregate() {
     let schema = SchemaBuilder::new(ident("TestSchema"))
         .with_annotations(constraint("unknown"))
-        .build();
+        .build()
+        .unwrap();
     let report = validate::<(Failing,)>(&schema);
     assert!(
         report

@@ -70,8 +70,11 @@ mod tests {
 
     fn entity(name: &str, event: &str) -> quent_schema::Entity {
         EntityBuilder::new(ident(name))
-            .try_with_event(EventBuilder::new(ident(event), Cardinality::Once).build())
-            .unwrap()
+            .with_event(
+                EventBuilder::new(ident(event), Cardinality::Once)
+                    .build()
+                    .unwrap(),
+            )
             .build()
             .unwrap()
     }
@@ -79,11 +82,10 @@ mod tests {
     #[test]
     fn emits_a_variant_and_arm_per_entity() {
         let schema = SchemaBuilder::new(ident("Demo"))
-            .try_with_entity(entity("Query", "submitted"))
-            .unwrap()
-            .try_with_entity(entity("Server", "booted"))
-            .unwrap()
-            .build();
+            .with_entity(entity("Query", "submitted"))
+            .with_entity(entity("Server", "booted"))
+            .build()
+            .unwrap();
         let opts = Options {
             event_derives: &["Debug"],
             ..Options::default()

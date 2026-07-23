@@ -120,19 +120,18 @@ mod tests {
     #[test]
     fn generate_assembles_event_impl_observer_handle_and_context() {
         let connection = EntityBuilder::new(ident("Connection"))
-            .try_with_event(
+            .with_event(
                 EventBuilder::new(ident("data"), Cardinality::Multi)
-                    .try_with_field(field("bytes", DataType::U64))
-                    .unwrap()
-                    .build(),
+                    .with_field(field("bytes", DataType::U64))
+                    .build()
+                    .unwrap(),
             )
-            .unwrap()
             .build()
             .unwrap();
         let s = SchemaBuilder::new(ident("Demo"))
-            .try_with_entity(connection)
-            .unwrap()
-            .build();
+            .with_entity(connection)
+            .build()
+            .unwrap();
         let src = pretty(generate_runtime_types(&s).unwrap());
         assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
         assert!(src.contains(r#"const NAME: &'static str = "connection""#));

@@ -114,7 +114,7 @@ pub struct Report<R> {
 /// # type ConstraintB = DocConstraint;
 /// #
 /// # let schema: Schema =
-/// #     SchemaBuilder::new(Identifier::try_new("MySchema").unwrap()).build();
+/// #     SchemaBuilder::new(Identifier::try_new("MySchema").unwrap()).build().unwrap();
 ///
 /// let report = validate::<(ConstraintA, ConstraintB)>(&schema);
 /// assert!(report.base_constraints.is_ok());

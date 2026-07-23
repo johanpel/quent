@@ -41,15 +41,14 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
 /// Annotations carrying the FSM constraint with `data`.
 fn fsm_annotations(data: Option<String>) -> Annotations {
     AnnotationsBuilder::new()
-        .try_with_constraint(FsmConstraint::NAME, data)
-        .unwrap()
+        .with_constraint(FsmConstraint::NAME, data)
         .build()
+        .unwrap()
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
     EntityBuilder::new(ident(name))
-        .try_with_events(events)
-        .unwrap()
+        .with_events(events)
         .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
         .unwrap()
@@ -96,8 +95,7 @@ fn single_state_fsm_passes() {
 #[test]
 fn missing_data_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .try_with_event(event("a", Cardinality::Once))
-        .unwrap()
+        .with_event(event("a", Cardinality::Once))
         .with_annotations(fsm_annotations(None))
         .build()
         .unwrap();
@@ -112,8 +110,7 @@ fn missing_data_is_rejected() {
 #[test]
 fn invalid_json_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .try_with_event(event("a", Cardinality::Once))
-        .unwrap()
+        .with_event(event("a", Cardinality::Once))
         .with_annotations(fsm_annotations(Some("{ trash".to_string())))
         .build()
         .unwrap();
