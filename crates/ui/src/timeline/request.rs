@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-/// Configures the timeline window and number of bins.
+/// Configuration of the window and number of bins of a timeline.
 #[derive(TS, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct TimelineConfig {
     /// The number of bins for binned timelines.
