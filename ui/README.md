@@ -22,18 +22,14 @@ A front end for query profiling instrumentation
 
 ### Prerequisites
 
-- **Rust** stable, version 1.93 or newer
-- **protoc** (Protocol Buffers compiler)
-- **Node.js 24.11.0** (enforced via `.nvmrc`, `.node-version`, and Volta)
-  - Using nvm: `nvm use` or `nvm install`
-  - Using volta: Automatically switches to correct version
-  - Using asdf/nodenv: Uses `.node-version` file
-- **pnpm 11.6.0** (pinned via `packageManager` and Volta; `>=11.6.0` required)
-  - Install with `npm install -g pnpm@11.6.0` or see
-    [pnpm installation](https://pnpm.io/installation)
+Install [Pixi](https://pixi.sh), then enter the repository environment:
 
-Alternatively, run `pixi shell` from the repository root to provide the full
-toolchain.
+```bash
+pixi shell
+```
+
+Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run UI
+development and build commands from this environment.
 
 ### Installation
 

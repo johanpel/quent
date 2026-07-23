@@ -108,19 +108,14 @@ opinionated but replaceable implementation based on the modeling approach.
 
 ### Prerequisites
 
-- Rust (stable, >= 1.93)
-- Node.js (>= 24.11)
-- pnpm (>= 10)
-- protoc (protobuf compiler)
-
-Or use [pixi](https://pixi.sh) to manage all dependencies:
+Install [Pixi](https://pixi.sh), then enter the repository environment:
 
 ```bash
 pixi shell
 ```
 
-This installs the required toolchains and drops you into a shell with
-everything on `PATH`.
+Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run
+development and build commands from this environment.
 
 ### UI development
 
