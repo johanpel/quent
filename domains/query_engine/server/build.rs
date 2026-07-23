@@ -13,7 +13,6 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
     let ui_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ui");
     let bindings_dir = ui_dir.join("generated/ts-bindings");
     println!("cargo:rerun-if-changed={}", ui_dir.join("src").display());
-    println!("cargo:rerun-if-changed={}", bindings_dir.display());
     println!(
         "cargo:rerun-if-changed={}",
         ui_dir.join("index.html").display()

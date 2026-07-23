@@ -8,5 +8,4 @@ publish.workspace = true
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
 quent-simulator-ui = { path = "../ui" }
 quent-ui = { path = "../../../crates/ui" }
-tempfile = "3"
 ts-rs = { workspace = true, features = ["uuid-impl", "serde-json-impl", "format"] }
