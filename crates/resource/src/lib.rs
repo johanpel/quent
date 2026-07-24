@@ -6,7 +6,7 @@
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_fsm::FsmConstraint;
 use quent_schema::{
-    Annotations, DataType, Entity, Identifier,
+    Annotations, DataType, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use rustc_hash::{FxHashMap as Map, FxHashSet};
@@ -52,9 +52,9 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 #[derive(Default)]
 pub struct ResourceConstraint {
     errors: Vec<ResourceError>,
-    resources: Map<Identifier, Map<Identifier, bool>>,
-    usage_records: Map<Identifier, UsageRecord>,
-    bounds_records: Map<Identifier, BoundsRecord>,
+    resources: Map<Path, Map<Identifier, bool>>,
+    usage_records: Map<Path, UsageRecord>,
+    bounds_records: Map<Path, BoundsRecord>,
     record_refs: Vec<RecordRef>,
 }
 
@@ -104,9 +104,9 @@ pub enum Resource {
     /// Declares the capacities provided by the annotated entity.
     Definition(Capacities),
     /// Declares the annotated record as bounds for `resource`.
-    Bounds { resource: Identifier },
+    Bounds { resource: Path },
     /// Declares the annotated record as a usage of `resource`.
-    Usage { resource: Identifier },
+    Usage { resource: Path },
 }
 
 impl Resource {
@@ -142,23 +142,23 @@ impl Resource {
 }
 
 struct UsageRecord {
-    resource: Identifier,
+    resource: Path,
     claims: Vec<Identifier>,
     location: String,
 }
 
 struct BoundsRecord {
-    resource: Identifier,
+    resource: Path,
     fields: Vec<Identifier>,
     location: String,
 }
 
 struct RecordRef {
-    record: Identifier,
+    record: Path,
     on_entity_ref: bool,
     in_list: bool,
     in_reference_list: bool,
-    entity: Option<(Identifier, bool)>,
+    entity: Option<(Path, bool)>,
     location: String,
 }
 
@@ -171,7 +171,7 @@ impl Visitor for ResourceConstraint {
                 match self.decode_resource_annotation(cursor, entity.annotations()) {
                     Some(Resource::Definition(capacities)) => {
                         self.resources.insert(
-                            entity.name().clone(),
+                            entity.path().clone(),
                             capacities
                                 .iter()
                                 .map(|(name, capacity)| (name.clone(), capacity.is_bounded()))
@@ -192,7 +192,7 @@ impl Visitor for ResourceConstraint {
                 match self.decode_resource_annotation(cursor, record.annotations()) {
                     Some(Resource::Usage { resource }) => {
                         self.usage_records.insert(
-                            record.name().clone(),
+                            record.path().clone(),
                             UsageRecord {
                                 resource,
                                 claims: record.fields().map(|field| field.name().clone()).collect(),
@@ -202,7 +202,7 @@ impl Visitor for ResourceConstraint {
                     }
                     Some(Resource::Bounds { resource }) => {
                         self.bounds_records.insert(
-                            record.name().clone(),
+                            record.path().clone(),
                             BoundsRecord {
                                 resource,
                                 fields: record.fields().map(|field| field.name().clone()).collect(),
@@ -254,7 +254,7 @@ impl Visitor for ResourceConstraint {
                     }),
                     entity: enclosing_entity(cursor).map(|entity| {
                         (
-                            entity.name().clone(),
+                            entity.path().clone(),
                             entity.annotations().has_constraint(FsmConstraint::NAME),
                         )
                     }),
@@ -501,14 +501,11 @@ pub enum ResourceError {
         element: &'static str,
     },
     #[error("{location}: names undeclared resource \"{resource}\"")]
-    UnknownResource {
-        location: String,
-        resource: Identifier,
-    },
+    UnknownResource { location: String, resource: Path },
     #[error("{location}: claims undeclared capacity \"{capacity}\" of resource \"{resource}\"")]
     UndeclaredCapacity {
         location: String,
-        resource: Identifier,
+        resource: Path,
         capacity: Identifier,
     },
     #[error("{location}: a usage record is used outside an entity reference")]
@@ -516,15 +513,9 @@ pub enum ResourceError {
     #[error("{location}: a usage record cannot be nested in list-valued reference data")]
     UsageInList { location: String },
     #[error("entity \"{entity}\" uses resource \"{resource}\" but is not an FSM")]
-    NonFsmUser {
-        entity: Identifier,
-        resource: Identifier,
-    },
+    NonFsmUser { entity: Path, resource: Path },
     #[error("{location}: bounds of resource \"{resource}\" used outside that resource's events")]
-    ForeignBounds {
-        location: String,
-        resource: Identifier,
-    },
+    ForeignBounds { location: String, resource: Path },
     #[error("{location}: a bounds record cannot be used in a list")]
     BoundsInList { location: String },
     #[error(
@@ -532,22 +523,19 @@ pub enum ResourceError {
     )]
     UnboundedCapacity {
         location: String,
-        resource: Identifier,
+        resource: Path,
         capacity: Identifier,
     },
     #[error("{location}: bounds of resource \"{resource}\" omit bounded capacity \"{capacity}\"")]
     UncoveredCapacity {
         location: String,
-        resource: Identifier,
+        resource: Path,
         capacity: Identifier,
     },
     #[error("{location}: unbounded resource \"{resource}\" declares a bounds record")]
-    UnexpectedBounds {
-        location: String,
-        resource: Identifier,
-    },
+    UnexpectedBounds { location: String, resource: Path },
     #[error("resource \"{resource}\" has a bounded capacity but no bounds event")]
-    MissingBounds { resource: Identifier },
+    MissingBounds { resource: Path },
     #[error("multiple resource violations:\n{}", bullet_list(.0))]
     Multiple(Vec<ResourceError>),
 }

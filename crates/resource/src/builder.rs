@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_schema::{
-    Annotations, DataType, Field, Identifier, Record,
+    Annotations, DataType, Field, Identifier, Path, Record,
     builder::{AnnotationsBuilder, BuilderError, RecordBuilder},
 };
 use thiserror::Error;
@@ -23,44 +23,54 @@ pub struct ResourceParts {
 
 /// Builds a resource definition and its usage and bounds record types.
 pub struct ResourceBuilder {
-    name: Identifier,
-    usage_record_name: Identifier,
-    bounds_record_name: Identifier,
+    path: Path,
+    usage_record_path: Path,
+    bounds_record_path: Path,
     capacities: Vec<(Identifier, Capacity)>,
 }
 
 impl ResourceBuilder {
-    /// Start a resource using `{name}Usage` and `{name}Bounds` record names.
-    pub fn new(name: Identifier) -> Self {
-        let usage_record_name = Self::default_usage_record_name(&name);
-        let bounds_record_name = Self::default_bounds_record_name(&name);
-        Self::with_record_names(name, usage_record_name, bounds_record_name)
+    /// Start a resource using sibling `{name}Usage` and `{name}Bounds` record paths.
+    pub fn new(path: impl Into<Path>) -> Self {
+        let path = path.into();
+        let usage_record_path = Self::default_usage_record_path(&path);
+        let bounds_record_path = Self::default_bounds_record_path(&path);
+        Self::with_record_paths(path, usage_record_path, bounds_record_path)
     }
 
-    /// Return the default usage record name for `resource`.
-    pub fn default_usage_record_name(resource: &Identifier) -> Identifier {
-        suffixed_identifier(resource, "Usage")
+    /// Return the default usage record path for `resource`.
+    pub fn default_usage_record_path(resource: &Path) -> Path {
+        resource.with_name(suffixed_identifier(resource.name(), "Usage"))
     }
 
-    /// Return the default bounds record name for `resource`.
-    pub fn default_bounds_record_name(resource: &Identifier) -> Identifier {
-        suffixed_identifier(resource, "Bounds")
+    /// Return the default bounds record path for `resource`.
+    pub fn default_bounds_record_path(resource: &Path) -> Path {
+        resource.with_name(suffixed_identifier(resource.name(), "Bounds"))
     }
 
-    /// Start a resource with explicit generated record names.
+    /// Start a resource with explicit generated record paths.
     ///
-    /// `bounds_record_name` is used only when a capacity is bounded.
-    pub fn with_record_names(
-        name: Identifier,
-        usage_record_name: Identifier,
-        bounds_record_name: Identifier,
+    /// `bounds_record_path` is used only when a capacity is bounded.
+    pub fn with_record_paths(
+        path: impl Into<Path>,
+        usage_record_path: impl Into<Path>,
+        bounds_record_path: impl Into<Path>,
     ) -> Self {
         Self {
-            name,
-            usage_record_name,
-            bounds_record_name,
+            path: path.into(),
+            usage_record_path: usage_record_path.into(),
+            bounds_record_path: bounds_record_path.into(),
             capacities: Vec::new(),
         }
+    }
+
+    /// Start a resource with explicit generated record paths.
+    pub fn with_record_names(
+        path: impl Into<Path>,
+        usage_record_path: impl Into<Path>,
+        bounds_record_path: impl Into<Path>,
+    ) -> Self {
+        Self::with_record_paths(path, usage_record_path, bounds_record_path)
     }
 
     /// Add a capacity, returning the builder for chaining.
@@ -89,9 +99,9 @@ impl ResourceBuilder {
     /// bounds are generated, or generation fails.
     pub fn build(self) -> Result<ResourceParts, BuildError> {
         let ResourceBuilder {
-            name,
-            usage_record_name,
-            bounds_record_name,
+            path,
+            usage_record_path,
+            bounds_record_path,
             capacities,
         } = self;
         let mut unique_capacities = Capacities::default();
@@ -107,25 +117,25 @@ impl ResourceBuilder {
         }
         let capacities = unique_capacities;
         let has_bounds = capacities.values().any(Capacity::is_bounded);
-        if has_bounds && usage_record_name == bounds_record_name {
-            return Err(BuildError::DuplicateRecordName(usage_record_name));
+        if has_bounds && usage_record_path == bounds_record_path {
+            return Err(BuildError::DuplicateRecordName(usage_record_path));
         }
 
         // Usages include every capacity. Bounds omit unbounded capacities
         // because those have no bound value to carry.
         let usage = build_resource_record(
-            usage_record_name,
+            usage_record_path,
             Resource::Usage {
-                resource: name.clone(),
+                resource: path.clone(),
             },
             capacities.keys(),
         )?;
 
         let bounds = if has_bounds {
             Some(build_resource_record(
-                bounds_record_name,
+                bounds_record_path,
                 Resource::Bounds {
-                    resource: name.clone(),
+                    resource: path.clone(),
                 },
                 capacities
                     .iter()
@@ -148,14 +158,14 @@ impl ResourceBuilder {
 ///
 /// Each supplied identifier becomes a `U64` field.
 fn build_resource_record<'a>(
-    name: Identifier,
+    path: Path,
     resource: Resource,
     fields: impl Iterator<Item = &'a Identifier>,
 ) -> Result<Record, BuildError> {
     let annotations = AnnotationsBuilder::new()
         .with_constraint(Resource::NAME, Some(resource.constraint_data()?))
         .build()?;
-    let mut builder = RecordBuilder::new(name).with_annotations(annotations);
+    let mut builder = RecordBuilder::new(path).with_annotations(annotations);
     for field in fields {
         builder = builder.with_field(Field::new(
             field.clone(),
@@ -175,8 +185,8 @@ fn suffixed_identifier(resource: &Identifier, suffix: &str) -> Identifier {
 pub enum BuildError {
     #[error("duplicate capacity \"{0}\"")]
     DuplicateCapacity(Identifier),
-    #[error("usage and bounds records have the same name \"{0}\"")]
-    DuplicateRecordName(Identifier),
+    #[error("usage and bounds records have the same path \"{0}\"")]
+    DuplicateRecordName(Path),
     #[error(transparent)]
     Schema(#[from] BuilderError),
     #[error("serializing resource data: {0}")]
@@ -187,14 +197,11 @@ pub enum BuildError {
 mod tests {
     use super::*;
     use crate::CapacityKind;
-    use quent_schema::test_utils::ident;
+    use quent_schema::test_utils::{ident, path};
 
     #[test]
     fn builds_definition_and_records() {
         let bytes = ident("bytes");
-        let usage_name = ident("MemoryUsage");
-        let bounds_name = ident("MemoryBounds");
-
         let parts = ResourceBuilder::new(ident("Memory"))
             .with_capacity(bytes.clone(), Capacity::new(CapacityKind::Occupancy, true))
             .build()
@@ -206,12 +213,12 @@ mod tests {
         assert_eq!(capacity.kind(), CapacityKind::Occupancy);
         assert!(capacity.is_bounded());
         assert!(capacities.next().is_none());
-        assert_eq!(parts.usage.name(), &usage_name);
+        assert_eq!(parts.usage.path(), &path("MemoryUsage"));
         assert!(parts.usage.field(&bytes).is_some());
         assert!(
             parts
                 .bounds
-                .is_some_and(|bounds| bounds.name() == &bounds_name)
+                .is_some_and(|bounds| bounds.path() == &path("MemoryBounds"))
         );
     }
 
@@ -221,7 +228,7 @@ mod tests {
     fn builds_unit_resource() {
         let parts = ResourceBuilder::new(ident("Thread")).build().unwrap();
         assert!(parts.definition.capacities().unwrap().next().is_none());
-        assert_eq!(parts.usage.name(), &ident("ThreadUsage"));
+        assert_eq!(parts.usage.path(), &path("ThreadUsage"));
         assert_eq!(parts.usage.fields().count(), 0);
         assert!(parts.bounds.is_none());
     }
@@ -237,8 +244,8 @@ mod tests {
         .build()
         .unwrap();
 
-        assert_eq!(parts.usage.name(), &ident("MemoryClaim"));
-        assert_eq!(parts.bounds.unwrap().name(), &ident("MemoryLimits"));
+        assert_eq!(parts.usage.path(), &path("MemoryClaim"));
+        assert_eq!(parts.bounds.unwrap().path(), &path("MemoryLimits"));
     }
 
     #[test]
@@ -265,5 +272,19 @@ mod tests {
             result,
             Err(BuildError::DuplicateCapacity(name)) if name == bytes
         ));
+    }
+
+    #[test]
+    fn generated_records_are_siblings_of_the_resource() {
+        let parts = ResourceBuilder::new(path("Foo::Memory"))
+            .with_capacity(ident("bytes"), Capacity::new(CapacityKind::Occupancy, true))
+            .build()
+            .unwrap();
+
+        assert_eq!(parts.usage.path().to_string(), "Foo::MemoryUsage");
+        assert_eq!(
+            parts.bounds.unwrap().path().to_string(),
+            "Foo::MemoryBounds"
+        );
     }
 }
