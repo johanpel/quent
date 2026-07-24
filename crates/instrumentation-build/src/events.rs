@@ -24,7 +24,7 @@ pub(crate) fn generate_event_types(
 }
 
 fn entity_event_enum(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let entity_pascal = to_case(entity.name(), Case::Pascal);
+    let entity_pascal = to_case(entity.path().name(), Case::Pascal);
     let enum_ident = raw_ident(format!("{entity_pascal}Event"));
     let docs = doc_attr_or(
         entity.annotations().docs(),
@@ -91,7 +91,7 @@ mod tests {
                         field("n", DataType::U32),
                         field("opt", DataType::Option(Box::new(DataType::I32))),
                         field("list", DataType::List(Box::new(DataType::String))),
-                        field("rec", DataType::Record(ident("SomeRecord"))),
+                        field("rec", DataType::Record(ident("SomeRecord").into())),
                         field("dynrec", DataType::DynamicRecord),
                         field(
                             "eref",

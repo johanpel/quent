@@ -29,7 +29,7 @@ pub(crate) fn generate_record_types(
 }
 
 fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let record_pascal = to_case(record.name(), Case::Pascal);
+    let record_pascal = to_case(record.path().name(), Case::Pascal);
     let ident = raw_ident(record_pascal.clone());
     let docs = doc_attr_or(
         record.annotations().docs(),
@@ -75,7 +75,7 @@ mod tests {
                 record(
                     "Nested",
                     [
-                        field("inner", DataType::Record(ident("OnePrim"))),
+                        field("inner", DataType::Record(ident("OnePrim").into())),
                         field("list", DataType::List(Box::new(DataType::String))),
                     ],
                 ),

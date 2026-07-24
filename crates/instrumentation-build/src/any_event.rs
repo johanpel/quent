@@ -28,7 +28,7 @@ pub(crate) fn generate_any_event(
     let variants: Vec<(Ident, Ident)> = schema
         .entities()
         .map(|entity| {
-            let pascal = to_case(entity.name(), Case::Pascal);
+            let pascal = to_case(entity.path().name(), Case::Pascal);
             (
                 raw_ident(pascal.clone()),
                 raw_ident(format!("{pascal}Event")),
