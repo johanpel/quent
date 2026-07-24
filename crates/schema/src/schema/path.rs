@@ -12,29 +12,9 @@ use crate::Identifier;
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(try_from = "Vec<Identifier>"))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[cfg_attr(feature = "ts", ts(as = "Vec<Identifier>"))]
 pub struct Path(Vec<Identifier>);
-
-#[cfg(feature = "ts")]
-impl ts_rs::TS for Path {
-    type WithoutGenerics = Self;
-    type OptionInnerType = Self;
-
-    fn name(_: &ts_rs::Config) -> String {
-        "Path".to_owned()
-    }
-
-    fn inline(config: &ts_rs::Config) -> String {
-        format!("Array<{}>", Identifier::inline(config))
-    }
-
-    fn decl(config: &ts_rs::Config) -> String {
-        format!("type Path = {};", Self::inline(config))
-    }
-
-    fn output_path() -> Option<std::path::PathBuf> {
-        Some("Path.ts".into())
-    }
-}
 
 /// Reason a path failed validation.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
