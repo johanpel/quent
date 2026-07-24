@@ -3,7 +3,7 @@
 
 use quent_constraints::Constraint as _;
 use quent_fsm::FsmConstraint;
-use quent_resource::{ResourceConstraint, ResourceError};
+use quent_resource::{Resource, ResourceConstraint, ResourceError};
 use quent_schema::{
     Annotations, DataType, Entity, Record, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, RecordBuilder, SchemaBuilder},
@@ -25,13 +25,19 @@ fn definition_data(capacities: &[(&str, &str, bool)]) -> String {
 }
 
 fn usage_data(resource: &str) -> String {
-    let resource: Vec<_> = resource.split("::").collect();
-    serde_json::json!({ "usage": { "resource": resource } }).to_string()
+    Resource::Usage {
+        resource: path(resource),
+    }
+    .constraint_data()
+    .unwrap()
 }
 
 fn bounds_data(resource: &str) -> String {
-    let resource: Vec<_> = resource.split("::").collect();
-    serde_json::json!({ "bounds": { "resource": resource } }).to_string()
+    Resource::Bounds {
+        resource: path(resource),
+    }
+    .constraint_data()
+    .unwrap()
 }
 
 /// Create resource constraint annotations carrying `data`.

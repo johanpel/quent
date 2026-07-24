@@ -9,12 +9,13 @@ use thiserror::Error;
 use crate::Identifier;
 
 /// A nonempty absolute path of identifier segments.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(try_from = "Vec<Identifier>"))]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[cfg_attr(feature = "ts", ts(as = "Vec<Identifier>"))]
-pub struct Path(Vec<Identifier>);
+pub struct Path {
+    namespace: Vec<Identifier>,
+    name: Identifier,
+}
 
 /// Reason a path failed validation.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -32,45 +33,43 @@ pub enum PathError {
 }
 
 impl Path {
-    /// Returns all path segments.
-    pub fn segments(&self) -> &[Identifier] {
-        &self.0
-    }
-
     /// Returns the segments preceding the path name.
     pub fn namespace(&self) -> &[Identifier] {
-        &self.0[..self.0.len() - 1]
+        &self.namespace
     }
 
     /// Returns the final path segment.
     pub fn name(&self) -> &Identifier {
-        self.0.last().expect("Path guarantees at least one segment")
+        &self.name
     }
 
     /// Returns this path with its final segment replaced.
     pub fn with_name(&self, name: Identifier) -> Self {
-        let mut segments = self.0.clone();
-        *segments
-            .last_mut()
-            .expect("Path guarantees at least one segment") = name;
-        Self(segments)
+        Self {
+            namespace: self.namespace.clone(),
+            name,
+        }
     }
 }
 
 impl From<Identifier> for Path {
-    fn from(identifier: Identifier) -> Self {
-        Self(vec![identifier])
+    fn from(name: Identifier) -> Self {
+        Self {
+            namespace: Vec::new(),
+            name,
+        }
     }
 }
 
 impl TryFrom<Vec<Identifier>> for Path {
     type Error = PathError;
 
-    fn try_from(segments: Vec<Identifier>) -> Result<Self, Self::Error> {
-        if segments.is_empty() {
-            return Err(PathError::Empty);
-        }
-        Ok(Self(segments))
+    fn try_from(mut segments: Vec<Identifier>) -> Result<Self, Self::Error> {
+        let name = segments.pop().ok_or(PathError::Empty)?;
+        Ok(Self {
+            namespace: segments,
+            name,
+        })
     }
 }
 
@@ -95,24 +94,19 @@ impl FromStr for Path {
 
 impl Display for Path {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut segments = self.0.iter();
-        formatter.write_str(
-            segments
-                .next()
-                .expect("Path guarantees at least one segment"),
-        )?;
-        for segment in segments {
-            write!(formatter, "::{segment}")?;
+        for segment in &self.namespace {
+            write!(formatter, "{segment}::")?;
         }
-        Ok(())
+        formatter.write_str(&self.name)
     }
 }
 
 impl PartialEq<str> for Path {
     fn eq(&self, other: &str) -> bool {
         let mut other_segments = other.split("::");
-        self.0
+        self.namespace
             .iter()
+            .chain(std::iter::once(&self.name))
             .all(|segment| other_segments.next().is_some_and(|other| segment == other))
             && other_segments.next().is_none()
     }
@@ -124,21 +118,18 @@ impl PartialEq<&str> for Path {
     }
 }
 
-impl<'a> IntoIterator for &'a Path {
-    type Item = &'a Identifier;
-    type IntoIter = std::slice::Iter<'a, Identifier>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+impl PartialOrd for Path {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
-impl IntoIterator for Path {
-    type Item = Identifier;
-    type IntoIter = std::vec::IntoIter<Identifier>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+impl Ord for Path {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.namespace
+            .iter()
+            .chain(std::iter::once(&self.name))
+            .cmp(other.namespace.iter().chain(std::iter::once(&other.name)))
     }
 }
 
@@ -151,16 +142,9 @@ mod tests {
     fn constructs_and_inspects_paths() {
         let path = Path::try_from(vec![ident("Foo"), ident("Query")]).unwrap();
 
-        assert_eq!(path.segments(), &[ident("Foo"), ident("Query")]);
         assert_eq!(path.namespace(), &[ident("Foo")]);
         assert_eq!(path.name(), "Query");
         assert_eq!(path.with_name(ident("Result")).to_string(), "Foo::Result");
-        assert_eq!(
-            path.into_iter()
-                .map(|segment| segment.to_string())
-                .collect::<Vec<_>>(),
-            ["Foo", "Query"]
-        );
     }
 
     #[test]
