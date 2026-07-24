@@ -685,7 +685,7 @@ fn emit_context(
     quote! {
         #[pyclass(name = "Context")]
         pub struct PyContext {
-            inner: Option<#q::Context>,
+            inner: Option<#q::ContextInner>,
             #(#struct_fields,)*
             id: #q::uuid::Uuid,
         }
@@ -715,9 +715,9 @@ fn emit_context(
                 };
                 let id = #q::uuid::Uuid::now_v7();
                 let inner = match &opts {
-                    Some(_) => #q::Context::try_new(id)
+                    Some(_) => #q::ContextInner::try_new(id)
                         .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?,
-                    None => #q::Context::noop(id),
+                    None => #q::ContextInner::noop(id),
                 };
                 // Single sync/async bridge: build every entity's observer (each
                 // constructing its exporter from the options, bound to the id)
