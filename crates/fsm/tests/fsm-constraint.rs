@@ -47,7 +47,7 @@ fn fsm_annotations(data: Option<String>) -> Annotations {
 }
 
 fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
-    EntityBuilder::new(ident(name))
+    EntityBuilder::new(name.parse::<quent_schema::Path>().unwrap())
         .with_events(events)
         .with_annotations(fsm_annotations(Some(data.to_string())))
         .build()
@@ -76,6 +76,18 @@ fn well_formed_linear_fsm_passes() {
         &fsm,
     );
     assert!(validate(&schema_with(entity)).is_empty());
+}
+
+#[test]
+fn diagnostics_include_the_qualified_entity_path() {
+    let fsm = fsm("a", &[("a", "missing")], &["a"]);
+    let entity = entity_with("Foo::E", vec![event("a", Cardinality::Once)], &fsm);
+
+    assert!(
+        validate(&schema_with(entity)).iter().any(
+            |error| matches!(error, FsmError::UnknownState { entity, .. } if entity == "Foo::E")
+        )
+    );
 }
 
 #[test]

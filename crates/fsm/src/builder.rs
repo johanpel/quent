@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use quent_constraints::Constraint;
 use quent_schema::builder::{AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder};
-use quent_schema::{Annotations, Cardinality, Entity, Field, Identifier};
+use quent_schema::{Annotations, Cardinality, Entity, Field, Identifier, Path};
 use thiserror::Error;
 
 use crate::{ExitStates, Fsm, FsmConstraint, FsmError, Transition, check_entity};
@@ -30,7 +30,7 @@ pub struct StateDecl {
 /// [`Self::build`] validates the topology with the same checks as
 /// [`crate::FsmConstraint`], so a built entity is always valid.
 pub struct FsmEntityBuilder {
-    id: Identifier,
+    path: Path,
     annotations: AnnotationsBuilder,
     states: Vec<StateDecl>,
 }
@@ -58,10 +58,10 @@ pub enum FsmEntityBuilderError {
 }
 
 impl FsmEntityBuilder {
-    /// Begin an FSM entity named `id`.
-    pub fn new(id: Identifier) -> Self {
+    /// Begin an FSM entity at `path`.
+    pub fn new(path: impl Into<Path>) -> Self {
         Self {
-            id,
+            path: path.into(),
             annotations: AnnotationsBuilder::new(),
             states: Vec::new(),
         }
@@ -99,7 +99,7 @@ impl FsmEntityBuilder {
     /// topology is invalid.
     pub fn build(self) -> Result<Entity, FsmEntityBuilderError> {
         let Self {
-            id,
+            path,
             mut annotations,
             states,
         } = self;
@@ -148,7 +148,7 @@ impl FsmEntityBuilder {
             ExitStates::new(first_exit.clone(), other_exits.to_vec()),
         );
 
-        let mut entity = EntityBuilder::new(id);
+        let mut entity = EntityBuilder::new(path);
         for state in states {
             // An isolated state has no place on the topology; the FSM constraint
             // reports it, so `Once` here is only a stand-in.
