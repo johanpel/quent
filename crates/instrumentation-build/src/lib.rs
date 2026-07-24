@@ -40,9 +40,6 @@
 //!
 //! # Restrictions
 //!
-//! Qualified record and entity paths are not supported; generation fails with
-//! [`GenerateError::UnsupportedTypePath`].
-//!
 //! The schema does not limit how many events an entity declares, but this
 //! generator caps once-cardinality
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
@@ -58,6 +55,7 @@ mod any_event;
 mod common;
 mod data_type;
 mod events;
+mod namespace;
 mod records;
 mod runtime;
 
@@ -66,10 +64,6 @@ use std::path::PathBuf;
 use quent_constraints::{BaseConstraintsError, Report, validate};
 use quent_schema::{Path, Schema};
 use quote::quote;
-
-use events::generate_event_types;
-use records::generate_record_types;
-use runtime::generate_runtime_types;
 
 /// Options controlling instrumentation library generation.
 pub struct Options {
@@ -95,8 +89,8 @@ pub struct Options {
     /// `None`.
     pub file_name: Option<String>,
 
-    /// Emit `AnyEvent` and `AnyEvent::from_any`, a decoder from a type-erased
-    /// `&dyn Any` back to the concrete `Event<T>`. Carries [`Self::event_derives`].
+    /// Emit root and namespace-local `AnyEvent` enums that decode type-erased
+    /// events. Each enum carries [`Self::event_derives`].
     pub any_event: bool,
 }
 
@@ -126,11 +120,6 @@ pub enum GenerateError {
     },
     #[error("generated code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
-    #[error("qualified type path `{path}` is not supported")]
-    UnsupportedTypePath {
-        /// The unsupported record or entity path.
-        path: Path,
-    },
     #[error(
         "entity `{entity}` declares {count} once-events, exceeding the maximum of {max}",
         max = crate::runtime::MAX_ONCE_EVENTS
@@ -141,6 +130,8 @@ pub enum GenerateError {
         /// The number of once-cardinality events the entity declares.
         count: usize,
     },
+    #[error("`AnyEvent` generation requires at least one entity")]
+    NoEntitiesForAnyEvent,
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -177,36 +168,234 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns [`GenerateError`] if the schema contains a qualified type path, a
+/// Returns [`GenerateError`] if `AnyEvent` is requested without any entities, a
 /// derive entry is not a parseable Rust path, or the generated code is not a
 /// valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    ensure_unqualified_type_paths(schema)?;
+    let namespaces = namespace::Namespace::root(schema);
+    if opts.any_event && !namespaces.has_entities() {
+        return Err(GenerateError::NoEntitiesForAnyEvent);
+    }
 
-    // record structs, event enums, then the live instrumentation surface
     let reexports = runtime::reexports();
-    let records = generate_record_types(schema, opts)?;
-    let events = generate_event_types(schema, opts)?;
-    let runtime = generate_runtime_types(schema)?;
-    let any_event = if opts.any_event {
-        any_event::generate_any_event(schema, opts)?
-    } else {
-        quote! {}
-    };
-    let file = syn::parse2::<syn::File>(quote! { #reexports #records #events #runtime #any_event })
-        .map_err(GenerateError::InvalidGeneratedCode)?;
+    let entity_types = runtime::entity_types(schema);
+    let types = generate_namespace(schema, opts, &namespaces)?;
+    let model = runtime::generate_model(schema);
+    let file = syn::parse2::<syn::File>(quote! {
+        #reexports
+        #entity_types
+        #types
+        #model
+    })
+    .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
 }
 
-fn ensure_unqualified_type_paths(schema: &Schema) -> Result<(), GenerateError> {
-    let qualified = schema
+fn generate_namespace(
+    schema: &Schema,
+    opts: &Options,
+    namespace: &namespace::Namespace<'_>,
+) -> Result<proc_macro2::TokenStream, GenerateError> {
+    let records = namespace
         .records()
-        .map(|record| record.path())
-        .chain(schema.entities().map(|entity| entity.path()))
-        .find(|path| !path.namespace().is_empty());
+        .iter()
+        .map(|record| records::record_struct(record, opts))
+        .collect::<Result<Vec<_>, _>>()?;
+    let events = namespace
+        .entities()
+        .iter()
+        .map(|(_, entity)| events::entity_event_enum(entity, opts))
+        .collect::<Result<Vec<_>, _>>()?;
+    let runtime = namespace
+        .entities()
+        .iter()
+        .map(|(index, entity)| runtime::entity_runtime_types(schema, entity, *index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let children = namespace
+        .children()
+        .iter()
+        .map(|child| {
+            let segment = child
+                .path()
+                .last()
+                .expect("child namespaces extend their parent");
+            let module = common::module_ident(segment);
+            let contents = generate_namespace(schema, opts, child)?;
+            Ok::<_, GenerateError>(quote! {
+                pub mod #module {
+                    #contents
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let any_event = if opts.any_event && namespace.has_entities() {
+        any_event::generate_any_event(namespace, opts)?
+    } else {
+        quote! {}
+    };
+    Ok(quote! {
+        #(#records)*
+        #(#events)*
+        #(#runtime)*
+        #(#children)*
+        #any_event
+    })
+}
 
-    match qualified {
-        Some(path) => Err(GenerateError::UnsupportedTypePath { path: path.clone() }),
-        None => Ok(()),
+#[cfg(test)]
+mod path_tests {
+    use super::*;
+    use quent_constraints::Constraint;
+    use quent_ref_target::RefTargetConstraint;
+    use quent_schema::builder::AnnotationsBuilder;
+    use quent_schema::builder::SchemaBuilder;
+    use quent_schema::test_utils::{entity, event, field, record, record_type};
+    use quent_schema::{Annotations, DataType};
+
+    #[test]
+    fn places_entity_types_in_path_modules() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Foo::Query", [event("event", [])]))
+            .build()
+            .unwrap();
+
+        let source = generate_str(&schema, &Options::default()).unwrap();
+        assert!(source.contains("pub mod foo"));
+        assert!(source.contains("pub enum QueryEvent"));
+        assert!(
+            source.contains("pub type Observer<E> = ::quent_instrumentation::EntityObserver<E>")
+        );
+        assert!(source.contains(
+            "pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<Demo>>>"
+        ));
+        assert!(source.contains("impl super::Handle<Query>"));
+        assert!(source.contains("impl ::quent_instrumentation::Entity for Query"));
+        assert!(source.contains("type Context = super::Context<super::Demo>"));
+        assert!(source.contains(r#"const NAME: &'static str = "Foo::Query""#));
+        assert!(!source.contains("foo_query_observer"));
+    }
+
+    #[test]
+    fn separates_types_with_colliding_flattened_paths() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("Foo::BarBaz", []))
+            .with_record(record("FooBar::Baz", []))
+            .build()
+            .unwrap();
+
+        let source = generate_str(&schema, &Options::default()).unwrap();
+        assert!(source.contains("pub mod foo"));
+        assert!(source.contains("pub struct BarBaz"));
+        assert!(source.contains("pub mod foo_bar"));
+        assert!(source.contains("pub struct Baz"));
+    }
+
+    #[test]
+    fn does_not_merge_namespaces_that_share_a_rust_name() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("FooBar::First", []))
+            .with_record(record("foo_bar::Second", []))
+            .build()
+            .unwrap();
+
+        let source = generate_str(&schema, &Options::default()).unwrap();
+        assert_eq!(source.matches("pub mod foo_bar").count(), 2);
+    }
+
+    #[test]
+    fn qualifies_types_across_path_modules() {
+        let target_annotations = AnnotationsBuilder::new()
+            .with_constraint(RefTargetConstraint::NAME, Some("Foo::Worker".to_string()))
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("Bar::Meta", []))
+            .with_record(record("Foo::Parent", []))
+            .with_record(record("Foo::Nested::Local", []))
+            .with_record(record("Foo::Nested::Child::Value", []))
+            .with_record(record("Foo::Sibling::Value", []))
+            .with_entity(entity("Foo::Worker", [event("created", [])]))
+            .with_entity(entity(
+                "Foo::Nested::Task",
+                [event(
+                    "created",
+                    [
+                        field("meta", record_type("Bar::Meta")),
+                        field("parent", record_type("Foo::Parent")),
+                        field("local", record_type("Foo::Nested::Local")),
+                        field("child", record_type("Foo::Nested::Child::Value")),
+                        field("sibling", record_type("Foo::Sibling::Value")),
+                        field(
+                            "worker",
+                            DataType::EntityRef {
+                                data: None,
+                                annotations: target_annotations,
+                            },
+                        ),
+                        field(
+                            "any",
+                            DataType::EntityRef {
+                                data: None,
+                                annotations: Annotations::default(),
+                            },
+                        ),
+                    ],
+                )],
+            ))
+            .build()
+            .unwrap();
+
+        let source = generate_str(&schema, &Options::default()).unwrap();
+        assert!(source.contains("meta: super::super::bar::Meta"));
+        assert!(source.contains("parent: super::Parent"));
+        assert!(source.contains("local: Local"));
+        assert!(source.contains("child: child::Value"));
+        assert!(source.contains("sibling: super::sibling::Value"));
+        assert!(source.contains("worker: ::quent_instrumentation::EntityRef<super::Worker>"));
+        assert!(
+            source.contains("any: ::quent_instrumentation::EntityRef<super::super::AnyEntity>")
+        );
+    }
+
+    #[test]
+    fn generates_any_event_per_entity_namespace() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Root", [event("created", [])]))
+            .with_entity(entity("Foo::Query", [event("created", [])]))
+            .with_entity(entity("Foo::Nested::Task", [event("created", [])]))
+            .build()
+            .unwrap();
+        let opts = Options {
+            any_event: true,
+            ..Options::default()
+        };
+
+        let source = generate_str(&schema, &opts).unwrap();
+        assert!(source.contains("Root(&'a ::quent_instrumentation::Event<RootEvent>)"));
+        assert!(source.contains("Foo(foo::AnyEvent<'a>)"));
+        assert!(source.contains("Query(&'a ::quent_instrumentation::Event<QueryEvent>)"));
+        assert!(source.contains("Nested(nested::AnyEvent<'a>)"));
+        assert!(source.contains("Task(&'a ::quent_instrumentation::Event<TaskEvent>)"));
+        assert!(source.contains("foo::AnyEvent::from_any(any)"));
+        assert!(source.contains("nested::AnyEvent::from_any(any)"));
+    }
+
+    #[test]
+    fn rejects_any_event_without_entities() {
+        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
+        let opts = Options {
+            any_event: true,
+            ..Options::default()
+        };
+
+        assert!(matches!(
+            generate_str(&schema, &opts),
+            Err(GenerateError::NoEntitiesForAnyEvent)
+        ));
     }
 }
