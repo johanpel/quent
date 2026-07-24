@@ -4,7 +4,7 @@
 //! Reference tests: `ref:` and `scope-ref:` emit the right constraints and are
 //! validated against the schema.
 
-use quent_schema::test_utils::ident;
+use quent_schema::test_utils::{ident, path};
 use quent_schema::{Annotations, Cardinality, DataType, Schema};
 use quent_yaml::parse_from_str;
 
@@ -17,7 +17,7 @@ fn schema_of(src: &str) -> Schema {
 
 fn cardinality(schema: &Schema, entity: &str, event: &str) -> Cardinality {
     schema
-        .entity(&ident(entity))
+        .entity(&path(entity))
         .unwrap()
         .event(&ident(event))
         .unwrap()
@@ -32,7 +32,7 @@ fn ref_annotations<'s>(
     field: &str,
 ) -> &'s Annotations {
     let field = schema
-        .entity(&ident(entity))
+        .entity(&path(entity))
         .unwrap()
         .event(&ident(event))
         .unwrap()
@@ -92,7 +92,7 @@ entities:
         Cardinality::Multi
     );
     let field = schema
-        .entity(&ident("Engine"))
+        .entity(&path("Engine"))
         .unwrap()
         .event(&ident("started"))
         .unwrap()
@@ -129,7 +129,7 @@ entities:
 ",
     );
     let field = schema
-        .entity(&ident("Engine"))
+        .entity(&path("Engine"))
         .unwrap()
         .event(&ident("started"))
         .unwrap()

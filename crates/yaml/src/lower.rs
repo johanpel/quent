@@ -22,7 +22,9 @@ use quent_resource::{Capacity, Resource, ResourceBuilder};
 use quent_schema::builder::{
     AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
-use quent_schema::{Annotations, Cardinality, DataType, Entity, Field, Identifier, Record, Schema};
+use quent_schema::{
+    Annotations, Cardinality, DataType, Entity, Field, Identifier, Path, Record, Schema,
+};
 use serde::Deserialize;
 
 use crate::ast::{self, AnnotationMap, Model, TypeExpr};
@@ -110,11 +112,9 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
 
 fn schema_builder_diagnostics(error: &BuilderError, sink: &mut Diagnostics) {
     match error {
-        BuilderError::DuplicateName(name) => sink.error(
-            &format!("records.{name}"),
-            format!("record `{name}` conflicts with a generated resource record: {error}"),
-            None,
-        ),
+        BuilderError::DuplicateName(name) => {
+            sink.error("", format!("duplicate type path `{name}`"), None)
+        }
         error => sink.error("", error.to_string(), None),
     }
 }
@@ -309,7 +309,7 @@ fn event_of(
     name: &str,
     event: &ast::Event,
     entity_path: &str,
-    bounds_record: Option<&Identifier>,
+    bounds_record: Option<&Path>,
     resources: &ResourceLowerer,
     sink: &mut Diagnostics,
 ) -> Option<quent_schema::Event> {
@@ -340,7 +340,7 @@ fn event_of(
 fn event_fields(
     fields: &IndexMap<String, ast::Field>,
     path: &str,
-    bounds_record: Option<&Identifier>,
+    bounds_record: Option<&Path>,
     resources: &ResourceLowerer,
     sink: &mut Diagnostics,
 ) -> Vec<Field> {
@@ -473,7 +473,7 @@ fn entity_ref_type(
 /// A bare name that is not a [`BuiltinType`], lowered as a record reference.
 fn record_ref(name: &str, path: &str, sink: &mut Diagnostics) -> Option<DataType> {
     match Identifier::try_new(name) {
-        Ok(id) => Some(DataType::Record(id)),
+        Ok(id) => Some(DataType::Record(id.into())),
         Err(e) => {
             sink.error(path, format!("invalid type `{name}`: {e}"), None);
             None
@@ -611,7 +611,7 @@ fn ident(name: &str, path: &str, sink: &mut Diagnostics) -> Option<Identifier> {
 
 #[derive(Default)]
 struct ResourceLowerer {
-    usage_records: IndexMap<String, Identifier>,
+    usage_records: IndexMap<String, Path>,
 }
 
 impl ResourceLowerer {
@@ -643,9 +643,9 @@ impl ResourceLowerer {
         sink: &mut Diagnostics,
     ) {
         let record = match resource.usage_record() {
-            Some(name) => ident(name, &format!("{path}.usage-record"), sink),
+            Some(name) => ident(name, &format!("{path}.usage-record"), sink).map(Path::from),
             None => ident(owner, path, sink)
-                .map(|owner| ResourceBuilder::default_usage_record_name(&owner)),
+                .map(|owner| ResourceBuilder::default_usage_record_path(&owner.into())),
         };
         if let Some(record) = record {
             self.usage_records
@@ -661,14 +661,18 @@ impl ResourceLowerer {
         resource: &ast::ResourceDecl,
         path: &str,
         sink: &mut Diagnostics,
-    ) -> (Vec<Record>, Option<Identifier>, Option<String>) {
+    ) -> (Vec<Record>, Option<Path>, Option<String>) {
         let resource_path = format!("{path}.resource");
         let Some(usage_record_name) = self.usage_records.get(owner).cloned() else {
             return (Vec::new(), None, None);
         };
         let bounds_record_name = match resource.bounds_record() {
-            Some(name) => ident(name, &format!("{resource_path}.bounds-record"), sink),
-            None => Some(ResourceBuilder::default_bounds_record_name(&id)),
+            Some(name) => {
+                ident(name, &format!("{resource_path}.bounds-record"), sink).map(Path::from)
+            }
+            None => Some(ResourceBuilder::default_bounds_record_path(
+                &id.clone().into(),
+            )),
         };
         let Some(bounds_record_name) = bounds_record_name else {
             return (Vec::new(), None, None);
@@ -707,7 +711,7 @@ impl ResourceLowerer {
                         None
                     }
                 };
-                let bounds = parts.bounds.as_ref().map(|record| record.name().clone());
+                let bounds = parts.bounds.as_ref().map(|record| record.path().clone());
                 let mut records = vec![parts.usage];
                 records.extend(parts.bounds);
                 (records, bounds, constraint)
@@ -719,7 +723,7 @@ impl ResourceLowerer {
         }
     }
 
-    fn usage_record(&self, target: &str, path: &str, sink: &mut Diagnostics) -> Option<Identifier> {
+    fn usage_record(&self, target: &str, path: &str, sink: &mut Diagnostics) -> Option<Path> {
         if let Some(record) = self.usage_records.get(target) {
             return Some(record.clone());
         }
@@ -738,7 +742,7 @@ impl ResourceLowerer {
 /// Reports an error when no bounds record is available.
 fn bounds_field(
     name: Option<Identifier>,
-    bounds_record: Option<&Identifier>,
+    bounds_record: Option<&Path>,
     path: &str,
     sink: &mut Diagnostics,
 ) -> Option<Field> {

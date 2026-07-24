@@ -5,7 +5,7 @@
 //! unit resource), `uses:` claims a resource, and `sets-resource-bounds: true`
 //! marks an attribute carrying the generated bounds record.
 
-use quent_schema::test_utils::ident;
+use quent_schema::test_utils::{ident, path, record_type};
 use quent_schema::{DataType, Schema};
 use quent_yaml::parse_from_str;
 
@@ -53,7 +53,7 @@ fn resource_declaration_generates_records_and_carries_bounds() {
     let schema = schema_of(MEMORY_AND_TASK);
 
     // The definition rides on the resource entity.
-    let memory = schema.entity(&ident("Memory")).unwrap();
+    let memory = schema.entity(&path("Memory")).unwrap();
     assert!(memory.annotations().has_constraint(RESOURCE));
     let definition = memory
         .annotations()
@@ -64,9 +64,9 @@ fn resource_declaration_generates_records_and_carries_bounds() {
     assert!(definition.contains(r#""kind":"rate""#), "{definition}");
 
     // The builder generates the usage and bounds records.
-    let usage = schema.record(&ident("MemoryUsage")).unwrap();
+    let usage = schema.record(&path("MemoryUsage")).unwrap();
     assert!(usage.field(&ident("bandwidth")).is_some());
-    let bounds = schema.record(&ident("MemoryBounds")).unwrap();
+    let bounds = schema.record(&path("MemoryBounds")).unwrap();
     assert!(bounds.field(&ident("bandwidth")).is_some());
 
     let field = memory
@@ -74,7 +74,7 @@ fn resource_declaration_generates_records_and_carries_bounds() {
         .unwrap()
         .field(&ident("limits"))
         .unwrap();
-    assert_eq!(field.ty(), &DataType::Record(ident("MemoryBounds")));
+    assert_eq!(field.ty(), &record_type("MemoryBounds"));
 }
 
 #[test]
@@ -92,14 +92,14 @@ entities:
     );
     assert!(
         schema
-            .entity(&ident("Thread"))
+            .entity(&path("Thread"))
             .unwrap()
             .annotations()
             .has_constraint(RESOURCE)
     );
-    let usage = schema.record(&ident("ThreadUsage")).unwrap();
+    let usage = schema.record(&path("ThreadUsage")).unwrap();
     assert_eq!(usage.fields().count(), 0);
-    assert!(schema.record(&ident("ThreadBounds")).is_none());
+    assert!(schema.record(&path("ThreadBounds")).is_none());
 }
 
 #[test]
@@ -117,7 +117,7 @@ fsms:
         to: [exit]
 ",
     );
-    let worker = schema.entity(&ident("Worker")).unwrap();
+    let worker = schema.entity(&path("Worker")).unwrap();
     assert!(worker.annotations().has_constraint(FSM));
     assert!(worker.annotations().has_constraint(RESOURCE));
 }
@@ -140,7 +140,7 @@ fsms:
         to: [resizing, exit]
 ",
     );
-    let pool = schema.entity(&ident("Pool")).unwrap();
+    let pool = schema.entity(&path("Pool")).unwrap();
     assert!(pool.annotations().has_constraint(FSM));
     assert!(pool.annotations().has_constraint(RESOURCE));
     let field = pool
@@ -148,14 +148,14 @@ fsms:
         .unwrap()
         .field(&ident("limits"))
         .unwrap();
-    assert_eq!(field.ty(), &DataType::Record(ident("PoolBounds")));
+    assert_eq!(field.ty(), &record_type("PoolBounds"));
 }
 
 #[test]
 fn uses_carries_the_usage_record_on_a_targeted_reference() {
     let schema = schema_of(MEMORY_AND_TASK);
     let field = schema
-        .entity(&ident("Task"))
+        .entity(&path("Task"))
         .unwrap()
         .event(&ident("running"))
         .unwrap()
@@ -164,10 +164,7 @@ fn uses_carries_the_usage_record_on_a_targeted_reference() {
     let DataType::EntityRef { data, annotations } = field.ty() else {
         panic!("expected an entity ref, got {:?}", field.ty());
     };
-    assert_eq!(
-        data.as_deref(),
-        Some(&DataType::Record(ident("MemoryUsage")))
-    );
+    assert_eq!(data.as_deref(), Some(&record_type("MemoryUsage")));
     assert_eq!(
         annotations.constraint(REF_TARGET).unwrap().data(),
         Some("Memory")
@@ -236,24 +233,24 @@ fsms:
 ",
     );
 
-    assert!(schema.record(&ident("MemoryUsage")).is_some());
+    assert!(schema.record(&path("MemoryUsage")).is_some());
     assert!(
         schema
-            .record(&ident("MemoryClaim"))
+            .record(&path("MemoryClaim"))
             .unwrap()
             .field(&ident("bytes"))
             .is_some()
     );
     assert!(
         schema
-            .record(&ident("MemoryLimits"))
+            .record(&path("MemoryLimits"))
             .unwrap()
             .field(&ident("bytes"))
             .is_some()
     );
 
     let usage = schema
-        .entity(&ident("Task"))
+        .entity(&path("Task"))
         .unwrap()
         .event(&ident("running"))
         .unwrap()
@@ -262,19 +259,16 @@ fsms:
     let DataType::EntityRef { data, .. } = usage.ty() else {
         panic!("expected an entity ref");
     };
-    assert_eq!(
-        data.as_deref(),
-        Some(&DataType::Record(ident("MemoryClaim")))
-    );
+    assert_eq!(data.as_deref(), Some(&record_type("MemoryClaim")));
 
     let bounds = schema
-        .entity(&ident("Memory"))
+        .entity(&path("Memory"))
         .unwrap()
         .event(&ident("resized"))
         .unwrap()
         .field(&ident("limits"))
         .unwrap();
-    assert_eq!(bounds.ty(), &DataType::Record(ident("MemoryLimits")));
+    assert_eq!(bounds.ty(), &record_type("MemoryLimits"));
 }
 
 #[test]
@@ -313,7 +307,10 @@ entities:
       registered: {}
 ",
     );
-    assert!(errors.contains("generated resource record"), "{errors}");
+    assert!(
+        errors.contains("duplicate type path `MemoryUsage`"),
+        "{errors}"
+    );
 }
 
 #[test]
