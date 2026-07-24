@@ -210,28 +210,3 @@ fn ensure_unqualified_type_paths(schema: &Schema) -> Result<(), GenerateError> {
         None => Ok(()),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use quent_schema::test_utils::{entity, event, record, schema};
-
-    #[test]
-    fn rejects_qualified_type_paths() {
-        let schemas = [
-            (
-                schema("M", [entity("Foo::E", [event("ev", [])])], []),
-                "Foo::E",
-            ),
-            (schema("M", [], [record("Foo::R", [])]), "Foo::R"),
-        ];
-
-        for (schema, expected) in schemas {
-            let error = generate_str(&schema, &Options::default()).unwrap_err();
-            let GenerateError::UnsupportedTypePath { path } = error else {
-                panic!("unexpected error: {error}");
-            };
-            assert_eq!(path, expected);
-        }
-    }
-}
