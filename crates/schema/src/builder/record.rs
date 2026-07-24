@@ -2,35 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::builder::{AnnotationsBuilder, BuilderError, collect_unique};
-use crate::schema::identifier::IdentifierError;
-use crate::{Annotations, Field, Identifier, Record};
+use crate::{Annotations, Field, Path, PathError, Record};
 
 /// Builder for a [`Record`].
 pub struct RecordBuilder {
-    name: Identifier,
+    path: Path,
     fields: Vec<Field>,
     annotations: AnnotationsBuilder,
 }
 
 impl RecordBuilder {
     /// Start a record named `name`.
-    pub fn new(name: Identifier) -> Self {
+    pub fn new(path: impl Into<Path>) -> Self {
         Self {
-            name,
+            path: path.into(),
             fields: Vec::new(),
             annotations: AnnotationsBuilder::new(),
         }
     }
 
-    /// Start a record named `name`, validating `name` as an [`Identifier`].
+    /// Start a record at `path`, validating its segments.
     ///
     /// # Errors
     ///
-    /// Errors if `name` is not a valid identifier.
-    pub fn try_new(
-        name: impl TryInto<Identifier, Error = IdentifierError>,
-    ) -> Result<Self, IdentifierError> {
-        Ok(Self::new(name.try_into()?))
+    /// Errors if `path` is not a valid path.
+    pub fn try_new(path: impl AsRef<str>) -> Result<Self, PathError> {
+        Ok(Self::new(path.as_ref().parse::<Path>()?))
     }
 
     /// Add a field, returning the builder for chaining.
@@ -59,12 +56,12 @@ impl RecordBuilder {
     /// Errors if a field name is repeated or the annotations are invalid.
     pub fn build(self) -> Result<Record, BuilderError> {
         let Self {
-            name,
+            path,
             fields,
             annotations,
         } = self;
         let fields = collect_unique(fields, |field| field.name().clone())?;
         let annotations = annotations.build()?;
-        Ok(Record::from_parts(name, fields, annotations))
+        Ok(Record::from_parts(path, fields, annotations))
     }
 }

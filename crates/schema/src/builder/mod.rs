@@ -127,9 +127,44 @@ impl SchemaBuilder {
             records,
             annotations,
         } = self;
-        let entities = collect_unique(entities, |entity| entity.name().clone())?;
-        let records = collect_unique(records, |record| record.name().clone())?;
+        let entities = collect_unique(entities, |entity| entity.path().clone())?;
+        let records = collect_unique(records, |record| record.path().clone())?;
+        if let Some(path) = entities.keys().find(|path| records.contains_key(*path)) {
+            return Err(BuilderError::DuplicateName(path.to_string()));
+        }
         let annotations = annotations.build()?;
         Ok(Schema::from_parts(name, entities, records, annotations))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{entity, event, path, record};
+
+    #[test]
+    fn qualified_type_paths_coexist() {
+        let schema = SchemaBuilder::try_new("Schema")
+            .unwrap()
+            .with_entity(entity("Foo::Q", [event("event", [])]))
+            .with_entity(entity("Bar::Q", [event("event", [])]))
+            .build()
+            .unwrap();
+
+        assert!(schema.entity(&path("Foo::Q")).is_some());
+        assert!(schema.entity(&path("Bar::Q")).is_some());
+    }
+
+    #[test]
+    fn record_and_entity_cannot_share_a_path() {
+        let result = SchemaBuilder::try_new("Schema")
+            .unwrap()
+            .with_entity(entity("Foo::Q", [event("event", [])]))
+            .with_record(record("Foo::Q", []))
+            .build();
+        let Err(error) = result else {
+            panic!("expected a duplicate path error");
+        };
+        assert_eq!(error, BuilderError::DuplicateName("Foo::Q".to_string()));
     }
 }

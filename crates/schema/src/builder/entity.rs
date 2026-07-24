@@ -2,35 +2,32 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::builder::{AnnotationsBuilder, BuilderError, collect_unique};
-use crate::schema::identifier::IdentifierError;
-use crate::{Annotations, Entity, Event, Identifier};
+use crate::{Annotations, Entity, Event, Path, PathError};
 
 /// Builder for an [`Entity`].
 pub struct EntityBuilder {
-    name: Identifier,
+    path: Path,
     events: Vec<Event>,
     annotations: AnnotationsBuilder,
 }
 
 impl EntityBuilder {
     /// Start an entity named `name`.
-    pub fn new(name: Identifier) -> Self {
+    pub fn new(path: impl Into<Path>) -> Self {
         Self {
-            name,
+            path: path.into(),
             events: Vec::new(),
             annotations: AnnotationsBuilder::new(),
         }
     }
 
-    /// Start an entity named `name`, validating `name` as an [`Identifier`].
+    /// Start an entity at `path`, validating its segments.
     ///
     /// # Errors
     ///
-    /// Errors if `name` is not a valid identifier.
-    pub fn try_new(
-        name: impl TryInto<Identifier, Error = IdentifierError>,
-    ) -> Result<Self, IdentifierError> {
-        Ok(Self::new(name.try_into()?))
+    /// Errors if `path` is not a valid path.
+    pub fn try_new(path: impl AsRef<str>) -> Result<Self, PathError> {
+        Ok(Self::new(path.as_ref().parse::<Path>()?))
     }
 
     /// Add an event, returning the builder for chaining.
@@ -60,7 +57,7 @@ impl EntityBuilder {
     /// the annotations are invalid.
     pub fn build(self) -> Result<Entity, BuilderError> {
         let Self {
-            name,
+            path,
             events,
             annotations,
         } = self;
@@ -69,7 +66,7 @@ impl EntityBuilder {
         }
         let events = collect_unique(events, |event| event.name().clone())?;
         let annotations = annotations.build()?;
-        Ok(Entity::from_parts(name, events, annotations))
+        Ok(Entity::from_parts(path, events, annotations))
     }
 }
 
