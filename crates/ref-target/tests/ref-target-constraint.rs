@@ -85,3 +85,17 @@ fn invalid_target_identifier_is_rejected() {
             .any(|e| matches!(e, RefTargetError::InvalidData { .. })),
     );
 }
+
+#[test]
+fn qualified_target_resolves() {
+    let worker = entity("Foo::Worker", [event("created", [])]);
+    let task = entity(
+        "Bar::Task",
+        [event(
+            "created",
+            [field("on", entity_ref(Some("Foo::Worker")))],
+        )],
+    );
+
+    assert!(validate(&schema_with(vec![worker, task])).is_empty());
+}
