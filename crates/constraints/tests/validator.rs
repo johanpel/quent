@@ -5,7 +5,9 @@ use quent_constraints::{Constraint, validate};
 use quent_schema::{
     Annotations, Cardinality, DataType, Field, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
-    test_utils::{self, entity, event, eventless_entity, field, ident, record, schema},
+    test_utils::{
+        self, entity, event, eventless_entity, field, ident, record, record_type, schema,
+    },
     visitor::{Cursor, Visitor},
 };
 
@@ -26,10 +28,7 @@ fn ghost_ref_schema() -> Schema {
         "S",
         vec![entity(
             "E",
-            vec![event(
-                "Ev",
-                vec![field("f", DataType::Record(ident("ghost")))],
-            )],
+            vec![event("Ev", vec![field("f", record_type("ghost"))])],
         )],
         vec![],
     )

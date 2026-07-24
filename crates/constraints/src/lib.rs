@@ -5,6 +5,7 @@
 
 pub mod utils;
 
+mod duplicate_type_paths;
 mod entities_without_events;
 mod recursive_record;
 mod unregistered_constraints;
@@ -53,6 +54,8 @@ pub struct BaseConstraintsError {
     pub recursive_records: Vec<String>,
     /// Entities that declare no events.
     pub entities_without_events: Vec<String>,
+    /// Paths declared by both a record and an entity.
+    pub duplicate_type_paths: Vec<String>,
 }
 impl Display for BaseConstraintsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -63,6 +66,7 @@ impl Display for BaseConstraintsError {
                 utils::bullet_list(&self.invalid_references),
                 utils::bullet_list(&self.recursive_records),
                 utils::bullet_list(&self.entities_without_events),
+                utils::bullet_list(&self.duplicate_type_paths),
             ]
             .join("\n")
         )
@@ -129,12 +133,14 @@ pub fn validate<C: Constraints>(schema: &Schema) -> Report<C::Output> {
         unregistered_constraints,
         recursive_records,
         entities_without_events,
+        duplicate_type_paths,
         results,
     ) = schema.walk((
         unresolved_refs::UnresolvedReferences::default(),
         unregistered_constraints::UnregisteredConstraints::new(C::NAMES),
         recursive_record::RecursiveRecords::default(),
         entities_without_events::EntitiesWithoutEvents::default(),
+        duplicate_type_paths::DuplicateTypePaths::default(),
         C::default(),
     ));
     Report {
@@ -143,12 +149,14 @@ pub fn validate<C: Constraints>(schema: &Schema) -> Report<C::Output> {
             invalid_references.len(),
             recursive_records.len(),
             entities_without_events.len(),
+            duplicate_type_paths.len(),
         ) {
-            (0, 0, 0) => Ok(()),
+            (0, 0, 0, 0) => Ok(()),
             _ => Err(BaseConstraintsError {
                 invalid_references,
                 recursive_records,
                 entities_without_events,
+                duplicate_type_paths,
             }),
         },
         results,

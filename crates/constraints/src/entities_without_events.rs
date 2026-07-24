@@ -16,7 +16,7 @@ impl Visitor for EntitiesWithoutEvents {
         if let Element::Entity(entity) = cursor.current()
             && entity.events().len() == 0
         {
-            self.entities.push(entity.name().to_string());
+            self.entities.push(entity.path().to_string());
         }
     }
 
