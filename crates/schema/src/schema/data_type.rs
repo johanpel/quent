@@ -24,11 +24,9 @@ pub enum DataType {
     F64,
     Option(Box<DataType>),
     List(Box<DataType>),
-    /// A reference to a named [`crate::record::Record`].
+    /// A reference to the [`crate::Record`] declared at the exact path.
     ///
-    /// The top-level [`crate::Schema::records`] field must contain a
-    /// [`crate::record::Record`] with this name, otherwise the
-    /// [`crate::Schema`] is ill-formed.
+    /// The [`crate::Schema`] is ill-formed if no record is declared at this path.
     Record(Path),
     /// A record whose fields are determined by the instrumentation client at
     /// run-time.

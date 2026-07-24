@@ -12,7 +12,7 @@ pub struct RecordBuilder {
 }
 
 impl RecordBuilder {
-    /// Start a record named `name`.
+    /// Starts a record at the supplied qualified path.
     pub fn new(path: impl Into<Path>) -> Self {
         Self {
             path: path.into(),

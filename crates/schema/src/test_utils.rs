@@ -17,11 +17,13 @@ use crate::{
 pub fn ident(s: &str) -> Identifier {
     Identifier::try_new(s).unwrap()
 }
+/// Parses a schema path, panicking if it is invalid.
 pub fn path(s: &str) -> Path {
     s.parse().unwrap()
 }
-pub fn record_type(name: &str) -> DataType {
-    DataType::Record(path(name))
+/// Constructs a record-reference data type, panicking if the path is invalid.
+pub fn record_type(s: &str) -> DataType {
+    DataType::Record(path(s))
 }
 pub fn field(name: &str, ty: DataType) -> Field {
     Field::new(ident(name), ty, Annotations::default())
@@ -66,6 +68,7 @@ pub fn schema(
         .unwrap()
 }
 
+/// Constructs a schema without applying [`SchemaBuilder`] validation.
 pub fn unchecked_schema(
     name: &str,
     entities: impl IntoIterator<Item = Entity>,

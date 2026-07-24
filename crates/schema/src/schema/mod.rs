@@ -65,7 +65,7 @@ impl Schema {
         &self.annotations
     }
 
-    /// The entity declared under `name`, if any.
+    /// Returns the entity declared at `path`, if any.
     pub fn entity(&self, path: &Path) -> Option<&Entity> {
         self.entities.get(path)
     }
@@ -75,7 +75,7 @@ impl Schema {
         self.entities.values()
     }
 
-    /// The record declared under `name`, if any.
+    /// Returns the record declared at `path`, if any.
     pub fn record(&self, path: &Path) -> Option<&Record> {
         self.records.get(path)
     }

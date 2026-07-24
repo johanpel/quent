@@ -12,7 +12,7 @@ pub struct EntityBuilder {
 }
 
 impl EntityBuilder {
-    /// Start an entity named `name`.
+    /// Starts an entity whose identity is the supplied qualified path.
     pub fn new(path: impl Into<Path>) -> Self {
         Self {
             path: path.into(),
