@@ -1,16 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! A per-entity instance handle forwarding events to the observer's event
-//! pipeline.
+//! Per-entity event emission and cardinality state.
 
 use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::observer::Observer;
+use crate::event_pipeline::EventPipeline;
 
-/// An error from emitting through a [`Handle`].
+/// An error from emitting through an [`EventHandle`].
 #[derive(Debug, thiserror::Error)]
 pub enum HandleError {
     /// A once-cardinality event was emitted more than once for one entity
@@ -24,25 +23,28 @@ pub enum HandleError {
 
 /// A handle to one entity instance.
 ///
-/// Exports this instance's events through an [`Observer`] shared with other
-/// handles.
+/// Exports this instance's events through an [`EventPipeline`] shared with
+/// other handles.
 /// Enforces once-cardinality events are sent at most once.
+///
+/// This type is hidden because [`HandleInner`](crate::HandleInner) adds
+/// entity-marker and reference operations.
 #[doc(hidden)]
-pub struct Handle<E> {
+pub struct EventHandle<E> {
     id: Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
     once_flags: u64,
-    observer: Arc<Observer<E>>,
+    observer: Arc<EventPipeline<E>>,
 }
 
-impl<E> Handle<E> {
+impl<E> EventHandle<E> {
     /// Create a handle for a new entity instance, with a generated id.
-    pub fn new(observer: Arc<Observer<E>>) -> Self {
+    pub fn new(observer: Arc<EventPipeline<E>>) -> Self {
         Self::with_id(Uuid::now_v7(), observer)
     }
 
     /// Create a handle for the entity instance identified by `id`.
-    pub fn with_id(id: Uuid, observer: Arc<Observer<E>>) -> Self {
+    pub fn with_id(id: Uuid, observer: Arc<EventPipeline<E>>) -> Self {
         Self {
             id,
             once_flags: 0,

@@ -48,17 +48,17 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
         format!("Handle to one entity instance in the `{model_name}` instrumentation model.");
     quote! {
         #[doc = #observer_docs]
-        pub type Observer<E> = ::quent_instrumentation::EntityObserver<E>;
+        pub type Observer<E> = ::quent_instrumentation::ObserverInner<E>;
 
         #[doc = #handle_docs]
         pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<#model>>> {
-            inner: ::quent_instrumentation::EntityHandle<E>,
+            inner: ::quent_instrumentation::HandleInner<E>,
         }
 
         impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>>
-            ::core::convert::From<::quent_instrumentation::EntityHandle<E>> for Handle<E>
+            ::core::convert::From<::quent_instrumentation::HandleInner<E>> for Handle<E>
         {
-            fn from(inner: ::quent_instrumentation::EntityHandle<E>) -> Self {
+            fn from(inner: ::quent_instrumentation::HandleInner<E>) -> Self {
                 Self { inner }
             }
         }
@@ -66,7 +66,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
         impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>> ::core::ops::Deref
             for Handle<E>
         {
-            type Target = ::quent_instrumentation::EntityHandle<E>;
+            type Target = ::quent_instrumentation::HandleInner<E>;
 
             fn deref(&self) -> &Self::Target {
                 &self.inner
@@ -82,7 +82,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, DynamicAttributes, EntityRef, Event, HandleError, Uuid,
+            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Uuid,
         };
     }
 }
@@ -141,7 +141,7 @@ fn entity_impl(schema: &Schema, entity: &Entity, index: usize) -> TokenStream {
 
             fn observer(
                 context: &#context<#model>,
-            ) -> ::std::sync::Arc<::quent_instrumentation::Observer<Self::Event>> {
+            ) -> ::std::sync::Arc<::quent_instrumentation::EventPipeline<Self::Event>> {
                 ::core::clone::Clone::clone(&context.observers().#index)
             }
         }
@@ -184,6 +184,5 @@ mod tests {
         assert!(src.contains("type Event = ConnectionEvent"));
         assert!(src.contains("impl Handle<Connection>"));
         assert!(src.contains("pub struct Demo"));
-        assert!(src.contains("pub type Context<M>"));
     }
 }

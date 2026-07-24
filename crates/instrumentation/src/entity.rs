@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use quent_events::EntityEvent;
 
-use crate::{Handle, Observer};
+use crate::{EventHandle, EventPipeline};
 
 /// Associates a generated entity marker with its event type and context.
 pub trait Entity: Sized {
@@ -18,21 +18,24 @@ pub trait Entity: Sized {
     type Context;
 
     /// Generated handle for this entity.
-    type Handle: From<EntityHandle<Self>>;
+    type Handle: From<HandleInner<Self>>;
 
     /// Returns this entity's shared observer from `context`.
     ///
     /// Repeated calls for the same context must clone the same observer.
+    ///
+    /// This is hidden because callers obtain observers through
+    /// [`Context::observer`](crate::Context::observer).
     #[doc(hidden)]
-    fn observer(context: &Self::Context) -> Arc<Observer<Self::Event>>;
+    fn observer(context: &Self::Context) -> Arc<EventPipeline<Self::Event>>;
 }
 
 /// Provides handles for an entity type through its shared event observer.
-pub struct EntityObserver<E: Entity> {
-    inner: Arc<Observer<E::Event>>,
+pub struct ObserverInner<E: Entity> {
+    inner: Arc<EventPipeline<E::Event>>,
 }
 
-impl<E: Entity> Clone for EntityObserver<E> {
+impl<E: Entity> Clone for ObserverInner<E> {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -40,19 +43,19 @@ impl<E: Entity> Clone for EntityObserver<E> {
     }
 }
 
-impl<E: Entity> EntityObserver<E> {
-    pub(crate) fn new(inner: Arc<Observer<E::Event>>) -> Self {
+impl<E: Entity> ObserverInner<E> {
+    pub(crate) fn new(inner: Arc<EventPipeline<E::Event>>) -> Self {
         Self { inner }
     }
 
     /// Creates a handle for a fresh entity instance.
     pub fn handle(&self) -> E::Handle {
-        EntityHandle::new(Handle::new(Arc::clone(&self.inner))).into()
+        HandleInner::new(EventHandle::new(Arc::clone(&self.inner))).into()
     }
 
     /// Creates a handle for the entity instance identified by `id`.
     pub fn handle_with_id(&self, id: crate::Uuid) -> E::Handle {
-        EntityHandle::new(Handle::with_id(id, Arc::clone(&self.inner))).into()
+        HandleInner::new(EventHandle::with_id(id, Arc::clone(&self.inner))).into()
     }
 }
 
@@ -60,13 +63,16 @@ impl<E: Entity> EntityObserver<E> {
 ///
 /// Generated local newtypes wrap this type so they can add inherent
 /// entity-specific event methods.
+///
+/// This type is hidden because those newtypes are the application-facing
+/// handle API.
 #[doc(hidden)]
-pub struct EntityHandle<E: Entity> {
-    inner: Handle<E::Event>,
+pub struct HandleInner<E: Entity> {
+    inner: EventHandle<E::Event>,
 }
 
-impl<E: Entity> EntityHandle<E> {
-    fn new(inner: Handle<E::Event>) -> Self {
+impl<E: Entity> HandleInner<E> {
+    fn new(inner: EventHandle<E::Event>) -> Self {
         Self { inner }
     }
 
@@ -96,12 +102,16 @@ impl<E: Entity> EntityHandle<E> {
     }
 
     /// Emits an event without cardinality tracking.
+    ///
+    /// This is hidden because generated event methods provide the typed API.
     #[doc(hidden)]
     pub fn emit(&self, event: E::Event) {
         self.inner.emit(event);
     }
 
     /// Emits an event unless the bit at `INDEX` was previously set.
+    ///
+    /// This is hidden because generated once-event methods provide the typed API.
     ///
     /// # Errors
     ///
@@ -116,6 +126,8 @@ impl<E: Entity> EntityHandle<E> {
     }
 
     /// Returns whether the bit at `INDEX` has been set.
+    ///
+    /// This is hidden because generated once-event methods expose named checks.
     #[doc(hidden)]
     pub fn is_emitted<const INDEX: u32>(&self) -> bool {
         self.inner.is_emitted::<INDEX>()

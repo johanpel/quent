@@ -264,7 +264,7 @@ mod path_tests {
         assert!(source.contains("pub mod foo"));
         assert!(source.contains("pub enum QueryEvent"));
         assert!(
-            source.contains("pub type Observer<E> = ::quent_instrumentation::EntityObserver<E>")
+            source.contains("pub type Observer<E> = ::quent_instrumentation::ObserverInner<E>")
         );
         assert!(source.contains(
             "pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<Demo>>>"

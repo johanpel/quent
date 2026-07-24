@@ -3,7 +3,9 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{Context, Entity, EntityObserver, ExporterOptions, Uuid, build_info, write_sidecar};
+use crate::{
+    ContextInner, Entity, ExporterOptions, ObserverInner, Uuid, build_info, write_sidecar,
+};
 
 /// Supplies schema-specific observers and metadata to an instrumentation context.
 pub trait Model: Sized {
@@ -14,12 +16,14 @@ pub trait Model: Sized {
     ///
     /// `exporter` is `None` for a no-op context.
     ///
+    /// This is hidden because [`Context`] invokes it during construction.
+    ///
     /// # Errors
     ///
     /// Returns an error when an observer or its exporter cannot be constructed.
     #[doc(hidden)]
     fn build_observers(
-        context: &Context,
+        context: &ContextInner,
         exporter: Option<&ExporterOptions>,
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
 
@@ -28,12 +32,12 @@ pub trait Model: Sized {
 }
 
 /// Instrumentation context for a generated model.
-pub struct ModelContext<M: Model> {
+pub struct Context<M: Model> {
     observers: M::Observers,
-    inner: Context,
+    inner: ContextInner,
 }
 
-impl<M: Model> ModelContext<M> {
+impl<M: Model> Context<M> {
     /// Creates a context and builds every entity's exporter pipeline.
     ///
     /// Passing `None` creates a no-op context that discards events.
@@ -47,9 +51,9 @@ impl<M: Model> ModelContext<M> {
         exporter: Option<ExporterOptions>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let inner = if exporter.is_some() {
-            Context::try_new(id)?
+            ContextInner::try_new(id)?
         } else {
-            Context::noop(id)
+            ContextInner::noop(id)
         };
         if let Some(options) = &exporter {
             write_sidecar(options, id, M::model_info());
@@ -64,17 +68,20 @@ impl<M: Model> ModelContext<M> {
     }
 
     /// Returns the observer associated with entity marker `E`.
-    pub fn observer<E>(&self) -> EntityObserver<E>
+    pub fn observer<E>(&self) -> ObserverInner<E>
     where
         E: Entity<Context = Self>,
     {
-        EntityObserver::new(E::observer(self))
+        ObserverInner::new(E::observer(self))
     }
 
     /// Returns the model-specific observer storage.
     ///
     /// This preserves its concrete type so [`Entity`] implementations can
     /// select their associated observer.
+    ///
+    /// This is hidden because callers obtain typed observers through
+    /// [`Self::observer`].
     #[doc(hidden)]
     pub fn observers(&self) -> &M::Observers {
         &self.observers

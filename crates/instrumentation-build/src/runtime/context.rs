@@ -30,12 +30,12 @@ pub(super) fn schema_model(schema: &Schema) -> TokenStream {
             #[allow(clippy::type_complexity)]
             type Observers = (
                 #(
-                    ::std::sync::Arc<::quent_instrumentation::Observer<#event_tys>>,
+                    ::std::sync::Arc<::quent_instrumentation::EventPipeline<#event_tys>>,
                 )*
             );
 
             fn build_observers(
-                context: &::quent_instrumentation::Context,
+                context: &::quent_instrumentation::ContextInner,
                 exporter: ::core::option::Option<&::quent_instrumentation::ExporterOptions>,
             ) -> ::core::result::Result<
                 Self::Observers,
@@ -63,7 +63,7 @@ pub(super) fn schema_model(schema: &Schema) -> TokenStream {
                     ::core::option::Option::None => ::core::result::Result::Ok((
                             #(
                                 ::std::sync::Arc::new(
-                                    ::quent_instrumentation::Observer::<#event_tys>::noop(),
+                                    ::quent_instrumentation::EventPipeline::<#event_tys>::noop(),
                                 ),
                             )*
                         )),
@@ -91,7 +91,5 @@ pub(super) fn schema_model(schema: &Schema) -> TokenStream {
             }
         }
 
-        /// Instrumentation context for model `M`.
-        pub type Context<M> = ::quent_instrumentation::ModelContext<M>;
     }
 }
