@@ -3,6 +3,10 @@
 
 use quent_schema::{Entity, Identifier, Record, Schema};
 
+/// A tree of Rust namespaces that preserves each entity's schema-order index.
+///
+/// Entity indices select slots in the generated `Model::Observers` tuple and
+/// must not be renumbered when entities are distributed across namespaces.
 pub(crate) struct Namespace<'schema> {
     path: Vec<Identifier>,
     records: Vec<&'schema Record>,
