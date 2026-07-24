@@ -8,26 +8,25 @@ use proc_macro2::{Literal, TokenStream};
 use quent_schema::{Cardinality, Entity};
 use quote::quote;
 
-use super::{event_ident, handle_ident, marker_ident};
+use super::{event_ident, marker_ident};
 use crate::GenerateError;
-use crate::common::{doc_attr_or, raw_ident, to_case};
+use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
 
 /// The maximum once-events an entity may declare: one bit per event in the
 /// handle's `u64` once-flag word.
 pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 
-/// Generate the declaration of an {Entity}Handle and its impls.
+/// Generate entity-specific methods on the generic handle.
 ///
 /// # Errors
 ///
 /// Returns [`GenerateError::TooManyOnceEvents`] if the entity declares more
 /// once-cardinality events than fit the once-flag word.
 pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
-    let entity_pascal = to_case(entity.name(), Case::Pascal);
     let event_ty = event_ident(entity);
-    let handle_ty = handle_ident(entity);
     let marker_ty = marker_ident(entity);
+    let handle_ty = relative_root_type("Handle", entity.path().namespace());
 
     let once_count = entity
         .events()
@@ -35,7 +34,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
         .count();
     if once_count > MAX_ONCE_EVENTS {
         return Err(GenerateError::TooManyOnceEvents {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             count: once_count,
         });
     }
@@ -63,7 +62,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                 .fields()
                 .map(|f| {
                     let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0);
+                    let ty = map_data_type(f.ty(), 0, entity.path().namespace());
                     quote! { #name: #ty }
                 })
                 .collect();
@@ -121,41 +120,8 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
         })
         .collect();
 
-    let handle_doc = format!("Handle to one `{entity_pascal}` entity instance.");
     Ok(quote! {
-        #[doc = #handle_doc]
-        pub struct #handle_ty {
-            inner: ::quent_instrumentation::Handle<#event_ty>,
-        }
-
-        impl #handle_ty {
-            /// Id of the entity instance this handle emits for.
-            pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
-                self.inner.id()
-            }
-
-            /// A typed reference to this instance, carrying no data.
-            pub fn as_entity_ref(&self) -> ::quent_instrumentation::EntityRef<#marker_ty> {
-                ::quent_instrumentation::EntityRef::new(self.uuid(), ())
-            }
-
-            /// A typed reference to this instance, carrying `data`.
-            pub fn as_entity_ref_with<T>(&self, data: T) -> ::quent_instrumentation::EntityRef<#marker_ty, T> {
-                ::quent_instrumentation::EntityRef::new(self.uuid(), data)
-            }
-
-            /// A reference to this instance for a field not restricted to a
-            /// target entity type, carrying no data.
-            pub fn as_any_entity_ref(&self) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity> {
-                ::quent_instrumentation::EntityRef::new(self.uuid(), ())
-            }
-
-            /// A reference to this instance for a field not restricted to a
-            /// target entity type, carrying `data`.
-            pub fn as_any_entity_ref_with<T>(&self, data: T) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity, T> {
-                ::quent_instrumentation::EntityRef::new(self.uuid(), data)
-            }
-
+        impl #handle_ty<#marker_ty> {
             #(#methods)*
         }
     })

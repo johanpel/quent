@@ -8,14 +8,18 @@
 //! generated instrumentation library only.
 
 mod context;
+mod entity;
 mod entity_ref;
 mod handle;
+mod model;
 mod observer;
 mod sidecar;
 
 pub use context::Context;
+pub use entity::{Entity, EntityHandle, EntityObserver};
 pub use entity_ref::{AnyEntity, EntityRef};
 pub use handle::{Handle, HandleError};
+pub use model::{Model, ModelContext};
 pub use observer::{EventSender, Observer};
 pub use sidecar::write_sidecar;
 

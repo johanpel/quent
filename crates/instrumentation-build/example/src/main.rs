@@ -3,7 +3,7 @@
 
 use quent_instrumentation::{EventCallback, ExporterOptions};
 
-use crate::demo::{ConnectionHandle, ConnectionObserver, DemoContext, Uuid};
+use crate::demo::{Connection, Context, Demo, Handle, Observer, Query, Server, Uuid};
 
 #[allow(unused)]
 mod demo {
@@ -12,16 +12,16 @@ mod demo {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The context owns the exporter and exposes one observer per entity type.
-    let context: DemoContext = demo::DemoContext::try_new(Some(debug_printing_exporter()))?;
+    let context: Context<Demo> = Context::try_new(Some(debug_printing_exporter()))?;
 
     // `observer.handle()` creates a fresh entity instance to events emit for.
-    let mut server = context.server_observer().handle();
+    let mut server = context.observer::<Server>().handle();
     server.booted()?;
 
-    let observer: ConnectionObserver = context.connection_observer();
+    let observer: Observer<Connection> = context.observer::<Connection>();
     // Once-cardinality events take `&mut self` and may fire only once, tracked
     // by the handle, hence it is mut:
-    let mut conn: ConnectionHandle = observer.handle();
+    let mut conn: Handle<Connection> = observer.handle();
 
     // One method per entity event:
     conn.opened(
@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // FSMs will get typestate pattern handles in the future, also see
     // https://github.com/rapidsai/quent/issues/416
-    let mut query = context.query_observer().handle();
+    let mut query = context.observer::<Query>().handle();
     query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
     query.running(10)?;
     query.ready(true)?;
