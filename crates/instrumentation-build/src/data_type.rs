@@ -3,13 +3,12 @@
 
 //! Mapping from schema [`DataType`]s to Rust type tokens.
 
-use convert_case::Case;
 use proc_macro2::TokenStream;
 use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, DataType};
 use quote::quote;
 
-use crate::common::{raw_ident, to_case};
+use crate::common::{relative_root_type, relative_type_path};
 
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
 /// type may have, far above any realistic schema. Self-referential records are
@@ -23,7 +22,11 @@ pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 /// # Panics
 ///
 /// Panics if `ty` nests deeper than [`MAX_TYPE_DEPTH`].
-pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
+pub(crate) fn map_data_type(
+    ty: &DataType,
+    depth: usize,
+    source_namespace: &[quent_schema::Identifier],
+) -> TokenStream {
     assert!(
         depth <= MAX_TYPE_DEPTH,
         "field type nesting exceeds the maximum depth of {MAX_TYPE_DEPTH}"
@@ -43,23 +46,20 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type(inner, depth + 1);
+            let inner = map_data_type(inner, depth + 1, source_namespace);
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type(inner, depth + 1);
+            let inner = map_data_type(inner, depth + 1, source_namespace);
             quote! { Vec<#inner> }
         }
-        DataType::Record(name) => {
-            let ident = raw_ident(to_case(name.name(), Case::Pascal));
-            quote! { #ident }
-        }
+        DataType::Record(path) => relative_type_path(path, source_namespace, ""),
         DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
         DataType::EntityRef { data, annotations } => {
-            let target = ref_target_marker(annotations);
+            let target = ref_target_marker(annotations, source_namespace);
             match data {
                 Some(inner) => {
-                    let inner = map_data_type(inner, depth + 1);
+                    let inner = map_data_type(inner, depth + 1, source_namespace);
                     quote! { ::quent_instrumentation::EntityRef<#target, #inner> }
                 }
                 None => quote! { ::quent_instrumentation::EntityRef<#target> },
@@ -71,13 +71,13 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
 /// The target-entity marker type for an entity reference, taken from its
 /// ref-target constraint, or the `AnyEntity` marker when it is not restricted
 /// to a target entity.
-fn ref_target_marker(annotations: &Annotations) -> TokenStream {
+fn ref_target_marker(
+    annotations: &Annotations,
+    source_namespace: &[quent_schema::Identifier],
+) -> TokenStream {
     match RefTarget::from_annotations(annotations) {
-        Some(entity) => {
-            let marker = raw_ident(to_case(entity.as_ref().name(), Case::Pascal));
-            quote! { #marker }
-        }
-        None => quote! { AnyEntity },
+        Some(entity) => relative_type_path(entity.as_ref(), source_namespace, ""),
+        None => relative_root_type("AnyEntity", source_namespace),
     }
 }
 
@@ -95,7 +95,7 @@ mod tests {
         for _ in 0..(MAX_TYPE_DEPTH + 5) {
             ty = DataType::Option(Box::new(ty));
         }
-        let _ = map_data_type(&ty, 0);
+        let _ = map_data_type(&ty, 0, &[]);
     }
 
     #[test]
@@ -108,7 +108,7 @@ mod tests {
             data: Some(Box::new(DataType::U64)),
             annotations: annotations.build().unwrap(),
         };
-        let tokens = map_data_type(&ty, 0).to_string();
+        let tokens = map_data_type(&ty, 0, &[]).to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");
     }
 }

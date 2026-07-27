@@ -5,7 +5,7 @@
 
 use convert_case::{Boundary, Case, Casing};
 use proc_macro2::{Span, TokenStream};
-use quent_schema::Identifier;
+use quent_schema::{Identifier, Path};
 use quote::quote;
 use syn::Ident;
 
@@ -50,6 +50,46 @@ pub(crate) fn to_case(id: &Identifier, case: Case) -> String {
     id.to_string()
         .remove_boundaries(&Boundary::digits())
         .to_case(case)
+}
+
+/// Return the Pascal-case type name for the final path segment.
+pub(crate) fn path_name_pascal(path: &Path) -> String {
+    to_case(path.name(), Case::Pascal)
+}
+
+/// Return the Rust module name for a path segment.
+pub(crate) fn module_ident(segment: &Identifier) -> Ident {
+    raw_ident(to_case(segment, Case::Snake))
+}
+
+/// Return a generated type path relative to `source_namespace`.
+pub(crate) fn relative_type_path(
+    path: &Path,
+    source_namespace: &[Identifier],
+    suffix: &str,
+) -> TokenStream {
+    let common = path
+        .namespace()
+        .iter()
+        .zip(source_namespace)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut segments = Vec::new();
+    segments.extend((common..source_namespace.len()).map(|_| quote! { super }));
+    for segment in &path.namespace()[common..] {
+        let module = module_ident(segment);
+        segments.push(quote! { #module });
+    }
+    let ty = raw_ident(format!("{}{}", path_name_pascal(path), suffix));
+    segments.push(quote! { #ty });
+    quote! { #(#segments)::* }
+}
+
+/// Return a root type path relative to `source_namespace`.
+pub(crate) fn relative_root_type(name: &str, source_namespace: &[Identifier]) -> TokenStream {
+    let parents = source_namespace.iter().map(|_| quote! { super });
+    let ty = raw_ident(name.to_owned());
+    quote! { #(#parents::)* #ty }
 }
 
 /// Build an identifier from an already-cased name, raw-escaping Rust keywords.

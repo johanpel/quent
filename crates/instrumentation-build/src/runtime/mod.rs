@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of the live instrumentation surface for a schema.
+//! Generation of the live instrumentation surface: per-entity observers and
+//! handles, plus the schema's context that deals them out.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
@@ -10,32 +11,17 @@ use quote::quote;
 use syn::Ident;
 
 use crate::GenerateError;
-use crate::common::{raw_ident, to_case};
+use crate::common::{path_name_pascal, raw_ident, relative_root_type, to_case};
 
 mod context;
 mod handle;
 
 pub(crate) use handle::MAX_ONCE_EVENTS;
 
-/// Generates the entity runtime types and model integration.
-pub(crate) fn generate_runtime_types(schema: &Schema) -> Result<TokenStream, GenerateError> {
-    let entity_types = entity_types(schema);
-    let entities = schema
-        .entities()
-        .map(|entity| entity_runtime_types(schema, entity))
-        .collect::<Result<Vec<_>, _>>()?;
-    let observer_storage = context::observer_storage(schema)?;
-    let model = context::schema_model(schema);
-
-    Ok(quote! {
-        #entity_types
-        #(#entities)*
-        #observer_storage
-        #model
-    })
-}
-
-fn entity_runtime_types(schema: &Schema, entity: &Entity) -> Result<TokenStream, GenerateError> {
+pub(crate) fn entity_runtime_types(
+    schema: &Schema,
+    entity: &Entity,
+) -> Result<TokenStream, GenerateError> {
     let marker = entity_marker(entity);
     let event_impl = entity_event_impl(entity);
     let handle = handle::entity_handle(entity)?;
@@ -48,7 +34,21 @@ fn entity_runtime_types(schema: &Schema, entity: &Entity) -> Result<TokenStream,
     })
 }
 
-fn entity_types(schema: &Schema) -> TokenStream {
+pub(crate) fn generate_model(
+    schema: &Schema,
+    namespaces: &crate::namespace::Namespace<'_>,
+) -> TokenStream {
+    context::schema_model(schema, namespaces)
+}
+
+pub(crate) fn observer_storage(
+    schema: &Schema,
+    namespace: &crate::namespace::Namespace<'_>,
+) -> Result<TokenStream, GenerateError> {
+    context::observer_storage(schema, namespace)
+}
+
+pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
     let model = model_ident(schema);
     let model_name = schema.name().to_string();
     let handle_docs =
@@ -79,7 +79,10 @@ fn entity_types(schema: &Schema) -> TokenStream {
     }
 }
 
-/// Re-exports shared runtime types used by the generated API.
+/// Re-export the always-available runtime types that appear in the generated
+/// API, so consumers reference them through the generated module rather than
+/// `quent_instrumentation`. Opt-in types like the callback exporter are
+/// not re-exported.
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
@@ -88,6 +91,8 @@ pub(crate) fn reexports() -> TokenStream {
     }
 }
 
+/// `{Entity}` — the zero-size marker naming the entity, used as the target
+/// type of [`EntityRef`](quent_instrumentation::EntityRef) fields that point at it.
 fn entity_marker(entity: &Entity) -> TokenStream {
     let marker = marker_ident(entity);
     let doc = format!("Marker type for the `{}` entity.", entity.path());
@@ -98,9 +103,10 @@ fn entity_marker(entity: &Entity) -> TokenStream {
     }
 }
 
+/// Tie an entity's event enum to its canonical schema path.
 fn entity_event_impl(entity: &Entity) -> TokenStream {
     let event_ty = event_ident(entity);
-    let stream_name = to_case(entity.path().name(), Case::Snake);
+    let stream_name = entity.path().to_string();
     quote! {
         impl ::quent_instrumentation::EntityEvent for #event_ty {
             const NAME: &'static str = #stream_name;
@@ -108,30 +114,33 @@ fn entity_event_impl(entity: &Entity) -> TokenStream {
     }
 }
 
+/// `{Entity}Event` — the entity's event enum.
 fn event_ident(entity: &Entity) -> Ident {
-    raw_ident(format!(
-        "{}Event",
-        to_case(entity.path().name(), Case::Pascal)
-    ))
+    raw_ident(format!("{}Event", path_name_pascal(entity.path())))
 }
 
+/// `{Entity}` — the entity's ref-target marker type.
 fn marker_ident(entity: &Entity) -> Ident {
-    raw_ident(to_case(entity.path().name(), Case::Pascal))
+    raw_ident(path_name_pascal(entity.path()))
 }
 
-fn model_ident(schema: &Schema) -> Ident {
+pub(super) fn model_ident(schema: &Schema) -> Ident {
     raw_ident(to_case(schema.name(), Case::Pascal))
 }
 
 fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
+    let namespace = entity.path().namespace();
     let marker = marker_ident(entity);
     let event = event_ident(entity);
-    let model = model_ident(schema);
+    let context = relative_root_type("Context", namespace);
+    let model_name = model_ident(schema).to_string();
+    let model = relative_root_type(&model_name, namespace);
+    let handle = relative_root_type("Handle", namespace);
     quote! {
         impl ::quent_instrumentation::Entity for #marker {
             type Event = #event;
-            type Context = Context<#model>;
-            type Handle = Handle<Self>;
+            type Context = #context<#model>;
+            type Handle = #handle<Self>;
         }
     }
 }
@@ -146,7 +155,7 @@ mod tests {
     use quent_schema::test_utils::{field, ident};
 
     #[test]
-    fn generates_generic_instrumentation_api() {
+    fn generate_assembles_event_impl_observer_handle_and_context() {
         let connection = EntityBuilder::new(ident("Connection"))
             .with_event(
                 EventBuilder::new(ident("data"), Cardinality::Multi)
@@ -156,20 +165,22 @@ mod tests {
             )
             .build()
             .unwrap();
-        let schema = SchemaBuilder::new(ident("Demo"))
+        let s = SchemaBuilder::new(ident("Demo"))
             .with_entity(connection)
             .build()
             .unwrap();
-
-        let source = pretty(generate_runtime_types(&schema).unwrap());
-
-        assert!(source.contains("pub struct Handle<E:"));
-        assert!(source.contains("impl Handle<Connection>"));
-        assert!(source.contains("pub struct DemoObservers"));
-        assert!(source.contains("connection_observer:"));
-        assert!(source.contains("pub struct Demo"));
-        assert!(source.contains("impl ::quent_instrumentation::Entity for Connection"));
-        assert!(source.contains("type Context = Context<Demo>"));
-        assert!(source.contains(r#"const NAME: &'static str = "connection""#));
+        let entity = s.entities().next().unwrap();
+        let entity_types = entity_runtime_types(&s, entity).unwrap();
+        let namespaces = crate::namespace::Namespace::root(&s);
+        let model = generate_model(&s, &namespaces);
+        let src = pretty(quote! {
+            #entity_types
+            #model
+        });
+        assert!(src.contains("impl ::quent_instrumentation::EntityEvent for ConnectionEvent"));
+        assert!(src.contains(r#"const NAME: &'static str = "Connection""#));
+        assert!(src.contains("type Event = ConnectionEvent"));
+        assert!(src.contains("impl Handle<Connection>"));
+        assert!(src.contains("pub struct Demo"));
     }
 }

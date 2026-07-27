@@ -10,7 +10,7 @@ use quote::quote;
 
 use super::{event_ident, marker_ident};
 use crate::GenerateError;
-use crate::common::{doc_attr_or, raw_ident, to_case};
+use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
 
 /// The maximum once-events an entity may declare: one bit per event in the
@@ -26,7 +26,7 @@ pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
-    let handle_ty = raw_ident("Handle".to_owned());
+    let handle_ty = relative_root_type("Handle", entity.path().namespace());
 
     let once_count = entity
         .events()
@@ -62,7 +62,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                 .fields()
                 .map(|f| {
                     let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0);
+                    let ty = map_data_type(f.ty(), 0, entity.path().namespace());
                     quote! { #name: #ty }
                 })
                 .collect();
