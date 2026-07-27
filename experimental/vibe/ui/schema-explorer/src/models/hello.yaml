@@ -1,0 +1,7 @@
+quent: alpha
+model: Hello
+
+entities:
+  App:
+    events:
+      started: {}
