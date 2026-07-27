@@ -97,6 +97,8 @@ pub struct Options {
 
     /// Emit `AnyEvent` and `AnyEvent::from_any`, a decoder from a type-erased
     /// `&dyn Any` back to the concrete `Event<T>`. Carries [`Self::event_derives`].
+    ///
+    /// No aggregate is emitted when the schema declares no events.
     pub any_event: bool,
 }
 
@@ -188,7 +190,10 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let records = generate_record_types(schema, opts)?;
     let events = generate_event_types(schema, opts)?;
     let runtime = generate_runtime_types(schema)?;
-    let any_event = if opts.any_event {
+    let has_events = schema
+        .entities()
+        .any(|entity| entity.events().next().is_some());
+    let any_event = if opts.any_event && has_events {
         any_event::generate_any_event(schema, opts)?
     } else {
         quote! {}
@@ -208,5 +213,25 @@ fn ensure_unqualified_type_paths(schema: &Schema) -> Result<(), GenerateError> {
     match qualified {
         Some(path) => Err(GenerateError::UnsupportedTypePath { path: path.clone() }),
         None => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quent_schema::builder::SchemaBuilder;
+    use quent_schema::test_utils::ident;
+
+    #[test]
+    fn skips_any_event_without_events() {
+        let schema = SchemaBuilder::new(ident("Demo")).build().unwrap();
+        let options = Options {
+            any_event: true,
+            ..Options::default()
+        };
+
+        let source = generate_str(&schema, &options).unwrap();
+
+        assert!(!source.contains("enum AnyEvent"));
     }
 }
