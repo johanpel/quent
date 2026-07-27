@@ -3,7 +3,7 @@
 
 //! The runtime host that observers of a model instance run on.
 
-use crate::event_pipeline::{EventPipeline, spawn_forwarder};
+use crate::observer_inner::{ObserverInner, spawn_forwarder};
 use quent_events::EntityEvent;
 use quent_io::ExporterProvider;
 use std::future::Future;
@@ -130,7 +130,7 @@ impl ContextInner {
         self.runtime.as_ref()
     }
 
-    /// Create an [`EventPipeline`] for one entity event type `T`, building its
+    /// Creates an [`ObserverInner`] for one entity event type `T`, building its
     /// exporter from `provider` bound to this context's id.
     ///
     /// The exporter is constructed here (so construction errors surface through
@@ -139,12 +139,12 @@ impl ContextInner {
     pub async fn observer<T>(
         &self,
         provider: impl ExporterProvider<T>,
-    ) -> Result<EventPipeline<T>, Box<dyn std::error::Error>>
+    ) -> Result<ObserverInner<T>, Box<dyn std::error::Error>>
     where
         T: Send + EntityEvent + 'static,
     {
         let Some(runtime) = self.runtime() else {
-            return Ok(EventPipeline::noop());
+            return Ok(ObserverInner::noop());
         };
         let exporter = provider.create_exporter(self.id).await?;
         Ok(spawn_forwarder(runtime, exporter))

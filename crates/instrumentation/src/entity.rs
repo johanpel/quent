@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use quent_events::EntityEvent;
 
-use crate::{EventHandle, EventPipeline};
+use crate::ObserverInner;
 
 /// Associates a generated entity marker with its event type and context.
 pub trait Entity: Sized {
@@ -19,23 +19,14 @@ pub trait Entity: Sized {
 
     /// Generated handle for this entity.
     type Handle: From<HandleInner<Self>>;
-
-    /// Returns this entity's shared observer from `context`.
-    ///
-    /// Repeated calls for the same context must clone the same observer.
-    ///
-    /// This is hidden because callers obtain observers through
-    /// [`Context::observer`](crate::Context::observer).
-    #[doc(hidden)]
-    fn observer(context: &Self::Context) -> Arc<EventPipeline<Self::Event>>;
 }
 
 /// Provides handles for an entity type through its shared event observer.
-pub struct ObserverInner<E: Entity> {
-    inner: Arc<EventPipeline<E::Event>>,
+pub struct Observer<E: Entity> {
+    inner: Arc<ObserverInner<E::Event>>,
 }
 
-impl<E: Entity> Clone for ObserverInner<E> {
+impl<E: Entity> Clone for Observer<E> {
     fn clone(&self) -> Self {
         Self {
             inner: Arc::clone(&self.inner),
@@ -43,20 +34,37 @@ impl<E: Entity> Clone for ObserverInner<E> {
     }
 }
 
-impl<E: Entity> ObserverInner<E> {
-    pub(crate) fn new(inner: Arc<EventPipeline<E::Event>>) -> Self {
+impl<E: Entity> Observer<E> {
+    /// Creates an observer backed by `inner`.
+    ///
+    /// This method is hidden because generated model implementations construct
+    /// observers while callers obtain them through their model context.
+    #[doc(hidden)]
+    pub fn new(inner: Arc<ObserverInner<E::Event>>) -> Self {
         Self { inner }
     }
 
     /// Creates a handle for a fresh entity instance.
     pub fn handle(&self) -> E::Handle {
-        HandleInner::new(EventHandle::new(Arc::clone(&self.inner))).into()
+        HandleInner::new(Arc::clone(&self.inner)).into()
     }
 
     /// Creates a handle for the entity instance identified by `id`.
     pub fn handle_with_id(&self, id: crate::Uuid) -> E::Handle {
-        HandleInner::new(EventHandle::with_id(id, Arc::clone(&self.inner))).into()
+        HandleInner::with_id(id, Arc::clone(&self.inner)).into()
     }
+}
+
+/// An error from emitting through a generated entity handle.
+#[derive(Debug, thiserror::Error)]
+pub enum HandleError {
+    /// A once-cardinality event was emitted more than once for one entity
+    /// instance.
+    #[error("once-event `{event}` already emitted for this entity instance")]
+    OnceAlreadyEmitted {
+        /// Name of the event that was re-emitted.
+        event: &'static str,
+    },
 }
 
 /// Common operations for generated handles.
@@ -68,17 +76,28 @@ impl<E: Entity> ObserverInner<E> {
 /// handle API.
 #[doc(hidden)]
 pub struct HandleInner<E: Entity> {
-    inner: EventHandle<E::Event>,
+    id: crate::Uuid,
+    /// One bit per once-cardinality event, set once that event is emitted.
+    once_flags: u64,
+    observer: Arc<ObserverInner<E::Event>>,
 }
 
 impl<E: Entity> HandleInner<E> {
-    fn new(inner: EventHandle<E::Event>) -> Self {
-        Self { inner }
+    fn new(observer: Arc<ObserverInner<E::Event>>) -> Self {
+        Self::with_id(crate::Uuid::now_v7(), observer)
+    }
+
+    fn with_id(id: crate::Uuid, observer: Arc<ObserverInner<E::Event>>) -> Self {
+        Self {
+            id,
+            once_flags: 0,
+            observer,
+        }
     }
 
     /// Returns the entity instance ID.
     pub fn uuid(&self) -> crate::Uuid {
-        self.inner.id()
+        self.id
     }
 
     /// Returns a typed reference to this instance carrying no data.
@@ -106,7 +125,7 @@ impl<E: Entity> HandleInner<E> {
     /// This is hidden because generated event methods provide the typed API.
     #[doc(hidden)]
     pub fn emit(&self, event: E::Event) {
-        self.inner.emit(event);
+        self.observer.emit(self.id, event);
     }
 
     /// Emits an event unless the bit at `INDEX` was previously set.
@@ -121,8 +140,15 @@ impl<E: Entity> HandleInner<E> {
         &mut self,
         event_name: &'static str,
         event: E::Event,
-    ) -> Result<(), crate::HandleError> {
-        self.inner.emit_once::<INDEX>(event_name, event)
+    ) -> Result<(), HandleError> {
+        const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
+        let mask = 1u64 << INDEX;
+        if self.once_flags & mask != 0 {
+            return Err(HandleError::OnceAlreadyEmitted { event: event_name });
+        }
+        self.once_flags |= mask;
+        self.observer.emit(self.id, event);
+        Ok(())
     }
 
     /// Returns whether the bit at `INDEX` has been set.
@@ -130,6 +156,7 @@ impl<E: Entity> HandleInner<E> {
     /// This is hidden because generated once-event methods expose named checks.
     #[doc(hidden)]
     pub fn is_emitted<const INDEX: u32>(&self) -> bool {
-        self.inner.is_emitted::<INDEX>()
+        const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
+        self.once_flags & (1u64 << INDEX) != 0
     }
 }

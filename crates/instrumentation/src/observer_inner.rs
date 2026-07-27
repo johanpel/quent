@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-entity event pipelines that forward events to exporters.
+//! Shared event forwarding state for entity observers.
 
 use crate::context::{Runtime, drive};
 use quent_events::{EntityEvent, Event};
@@ -71,16 +71,16 @@ impl<T> EventSender<T> {
     }
 }
 
-/// Forwards events of one entity event type `T` to its configured exporter.
+/// Backs an entity observer with event forwarding and exporter lifecycle management.
 ///
-/// A context creates one pipeline per entity type and shares it among that
+/// A context creates one instance per entity type and shares it among that
 /// entity's observer and handles. Dropping the final shared owner cancels the
 /// forwarder and flushes the exporter.
 ///
 /// This type is hidden because generated libraries expose that shared lifecycle
 /// through their `Observer<E>` and `Handle<E>` types.
 #[doc(hidden)]
-pub struct EventPipeline<T> {
+pub struct ObserverInner<T> {
     events_sender: EventSender<T>,
     cancellation_token: CancellationToken,
     forwarder_handle: Option<JoinHandle<()>>,
@@ -92,7 +92,7 @@ pub struct EventPipeline<T> {
     runtime: Option<Runtime>,
 }
 
-impl<T> EventPipeline<T> {
+impl<T> ObserverInner<T> {
     /// Construct a no-op pipeline that discards events and holds no runtime
     /// resources whatsoever.
     pub fn noop() -> Self {
@@ -125,7 +125,7 @@ impl<T> EventPipeline<T> {
     }
 }
 
-impl<T> Drop for EventPipeline<T> {
+impl<T> Drop for ObserverInner<T> {
     fn drop(&mut self) {
         self.cancellation_token.cancel();
 
@@ -144,11 +144,11 @@ impl<T> Drop for EventPipeline<T> {
 }
 
 /// Spawn the forwarder task for `exporter` on `runtime` and wrap it in an
-/// [`EventPipeline`]. The task drains and flushes the exporter on cancellation.
+/// [`ObserverInner`]. The task drains and flushes the exporter on cancellation.
 pub(crate) fn spawn_forwarder<T>(
     runtime: &Runtime,
     mut exporter: Box<dyn Exporter<T>>,
-) -> EventPipeline<T>
+) -> ObserverInner<T>
 where
     T: Send + EntityEvent + 'static,
 {
@@ -200,7 +200,7 @@ where
         }
     });
 
-    EventPipeline {
+    ObserverInner {
         events_sender: EventSender {
             tx: Some(events_sender),
             disable_error_log: Arc::new(AtomicBool::new(false)),
@@ -221,10 +221,10 @@ mod tests {
     }
 
     #[test]
-    fn noop_pipeline_holds_no_sender_and_discards_events() {
-        let pipeline = EventPipeline::<TestEvent>::noop();
-        assert!(pipeline.events_sender.tx.is_none());
+    fn noop_observer_holds_no_sender_and_discards_events() {
+        let observer = ObserverInner::<TestEvent>::noop();
+        assert!(observer.events_sender.tx.is_none());
         // Emitting is a silent no-op.
-        pipeline.emit(Uuid::now_v7(), TestEvent);
+        observer.emit(Uuid::now_v7(), TestEvent);
     }
 }

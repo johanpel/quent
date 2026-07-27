@@ -10,7 +10,7 @@ mod common;
 use std::path::Path;
 
 use common::TestEvent;
-use quent_instrumentation::{ContextInner, EventPipeline};
+use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use uuid::Uuid;
@@ -33,7 +33,7 @@ fn active(root: &Path) -> (ContextInner, ExporterOptions, Uuid) {
 
 /// Build an observer through the one bridge: the context builds the exporter
 /// from the options (bound to its id) and hosts it on its runtime.
-fn build(ctx: &ContextInner, exporter_opts: &ExporterOptions) -> EventPipeline<TestEvent> {
+fn build(ctx: &ContextInner, exporter_opts: &ExporterOptions) -> ObserverInner<TestEvent> {
     ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts.clone()).await })
         .unwrap()
 }

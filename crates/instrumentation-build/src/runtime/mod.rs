@@ -8,7 +8,7 @@ use convert_case::Case;
 use proc_macro2::TokenStream;
 use quent_schema::{Entity, Schema};
 use quote::quote;
-use syn::{Ident, Index};
+use syn::Ident;
 
 use crate::GenerateError;
 use crate::common::{path_name_pascal, raw_ident, relative_root_type, to_case};
@@ -21,12 +21,11 @@ pub(crate) use handle::MAX_ONCE_EVENTS;
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
     entity: &Entity,
-    index: usize,
 ) -> Result<TokenStream, GenerateError> {
     let marker = entity_marker(entity);
     let event_impl = entity_event_impl(entity);
     let handle = handle::entity_handle(entity)?;
-    let entity_impl = entity_impl(schema, entity, index);
+    let entity_impl = entity_impl(schema, entity);
     Ok(quote! {
         #marker
         #event_impl
@@ -35,21 +34,26 @@ pub(crate) fn entity_runtime_types(
     })
 }
 
-pub(crate) fn generate_model(schema: &Schema) -> TokenStream {
-    context::schema_model(schema)
+pub(crate) fn generate_model(
+    schema: &Schema,
+    namespaces: &crate::namespace::Namespace<'_>,
+) -> TokenStream {
+    context::schema_model(schema, namespaces)
+}
+
+pub(crate) fn observer_storage(
+    schema: &Schema,
+    namespace: &crate::namespace::Namespace<'_>,
+) -> Result<TokenStream, GenerateError> {
+    context::observer_storage(schema, namespace)
 }
 
 pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
     let model = model_ident(schema);
     let model_name = schema.name().to_string();
-    let observer_docs =
-        format!("Observer for an entity type in the `{model_name}` instrumentation model.");
     let handle_docs =
         format!("Handle to one entity instance in the `{model_name}` instrumentation model.");
     quote! {
-        #[doc = #observer_docs]
-        pub type Observer<E> = ::quent_instrumentation::ObserverInner<E>;
-
         #[doc = #handle_docs]
         pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<#model>>> {
             inner: ::quent_instrumentation::HandleInner<E>,
@@ -82,7 +86,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Uuid,
+            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Observer, Uuid,
         };
     }
 }
@@ -124,7 +128,7 @@ pub(super) fn model_ident(schema: &Schema) -> Ident {
     raw_ident(to_case(schema.name(), Case::Pascal))
 }
 
-fn entity_impl(schema: &Schema, entity: &Entity, index: usize) -> TokenStream {
+fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
     let namespace = entity.path().namespace();
     let marker = marker_ident(entity);
     let event = event_ident(entity);
@@ -132,18 +136,11 @@ fn entity_impl(schema: &Schema, entity: &Entity, index: usize) -> TokenStream {
     let model_name = model_ident(schema).to_string();
     let model = relative_root_type(&model_name, namespace);
     let handle = relative_root_type("Handle", namespace);
-    let index = Index::from(index);
     quote! {
         impl ::quent_instrumentation::Entity for #marker {
             type Event = #event;
             type Context = #context<#model>;
             type Handle = #handle<Self>;
-
-            fn observer(
-                context: &#context<#model>,
-            ) -> ::std::sync::Arc<::quent_instrumentation::EventPipeline<Self::Event>> {
-                ::core::clone::Clone::clone(&context.observers().#index)
-            }
         }
     }
 }
@@ -173,8 +170,9 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
-        let entity_types = entity_runtime_types(&s, entity, 0).unwrap();
-        let model = generate_model(&s);
+        let entity_types = entity_runtime_types(&s, entity).unwrap();
+        let namespaces = crate::namespace::Namespace::root(&s);
+        let model = generate_model(&s, &namespaces);
         let src = pretty(quote! {
             #entity_types
             #model

@@ -10,17 +10,15 @@
 mod context;
 mod entity;
 mod entity_ref;
-mod event_handle;
-mod event_pipeline;
 mod model;
+mod observer_inner;
 mod sidecar;
 
 pub use context::ContextInner;
-pub use entity::{Entity, HandleInner, ObserverInner};
+pub use entity::{Entity, HandleError, HandleInner, Observer};
 pub use entity_ref::{AnyEntity, EntityRef};
-pub use event_handle::{EventHandle, HandleError};
-pub use event_pipeline::{EventPipeline, EventSender};
-pub use model::{Context, Model};
+pub use model::{Context, Model, ObserverAccess};
+pub use observer_inner::{EventSender, ObserverInner};
 pub use sidecar::write_sidecar;
 
 // Re-export everything the generated instrumentation code references, so a

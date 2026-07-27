@@ -3,16 +3,28 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{
-    ContextInner, Entity, ExporterOptions, ObserverInner, Uuid, build_info, write_sidecar,
-};
+use crate::{ContextInner, Entity, ExporterOptions, Observer, Uuid, build_info, write_sidecar};
+
+/// Provides typed access to an entity observer in a generated model.
+///
+/// This trait is hidden because generated observer collections implement it
+/// while callers use [`Context::observer`].
+#[doc(hidden)]
+pub trait ObserverAccess<E: Entity> {
+    /// Returns the observer stored for `E`.
+    fn observer(&self) -> Observer<E>;
+}
 
 /// Supplies schema-specific observers and metadata to an instrumentation context.
 pub trait Model: Sized {
-    /// Observer storage for this model.
+    /// Generated observers for this model.
+    ///
+    /// This associated type is hidden because callers access observers through
+    /// [`Context::observer`].
+    #[doc(hidden)]
     type Observers;
 
-    /// Builds one shared observer for every entity in this model.
+    /// Builds the observers for this model.
     ///
     /// `exporter` is `None` for a no-op context.
     ///
@@ -68,22 +80,11 @@ impl<M: Model> Context<M> {
     }
 
     /// Returns the observer associated with entity marker `E`.
-    pub fn observer<E>(&self) -> ObserverInner<E>
+    pub fn observer<E>(&self) -> Observer<E>
     where
         E: Entity<Context = Self>,
+        M::Observers: ObserverAccess<E>,
     {
-        ObserverInner::new(E::observer(self))
-    }
-
-    /// Returns the model-specific observer storage.
-    ///
-    /// This preserves its concrete type so [`Entity`] implementations can
-    /// select their associated observer.
-    ///
-    /// This is hidden because callers obtain typed observers through
-    /// [`Self::observer`].
-    #[doc(hidden)]
-    pub fn observers(&self) -> &M::Observers {
-        &self.observers
+        self.observers.observer()
     }
 }

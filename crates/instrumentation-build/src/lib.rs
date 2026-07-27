@@ -132,6 +132,13 @@ pub enum GenerateError {
     },
     #[error("`AnyEvent` generation requires at least one entity")]
     NoEntitiesForAnyEvent,
+    #[error("generated observer type `{generated}` conflicts with schema type `{schema_path}`")]
+    GeneratedTypeCollision {
+        /// The generated Rust type name.
+        generated: String,
+        /// The schema type whose generated name conflicts.
+        schema_path: Path,
+    },
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -179,22 +186,112 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
     let reexports = runtime::reexports();
     let entity_types = runtime::entity_types(schema);
-    let types = generate_namespace(schema, opts, &namespaces)?;
-    let model = runtime::generate_model(schema);
+    let types = generate_namespace(schema, opts, &namespaces, false)?;
+    let model = runtime::generate_model(schema, &namespaces);
+    let any_event = if opts.any_event {
+        any_event::generate_any_event(&namespaces, opts)?
+    } else {
+        quote! {}
+    };
     let file = syn::parse2::<syn::File>(quote! {
         #reexports
         #entity_types
         #types
         #model
+        #any_event
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
-    Ok(prettyplease::unparse(&file))
+    Ok(format_generated_source(prettyplease::unparse(&file)))
+}
+
+fn format_generated_source(source: String) -> String {
+    let mut output = Vec::new();
+    let mut module_indents = vec![0];
+    let mut previous_was_prefix = false;
+    let mut block_doc_indent = None;
+
+    for line in source.lines() {
+        let line = normalize_doc_comment(line);
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = line.trim_start();
+        while !trimmed.is_empty()
+            && module_indents.len() > 1
+            && indent < module_indents.last().copied().unwrap_or(0)
+        {
+            module_indents.pop();
+        }
+
+        let at_module_scope = indent == module_indents.last().copied().unwrap_or(0);
+        let inside_block_doc = block_doc_indent.is_some();
+        let starts_block_doc = trimmed.starts_with("/**");
+        let is_prefix = at_module_scope
+            && (inside_block_doc
+                || starts_block_doc
+                || trimmed.starts_with("///")
+                || trimmed.starts_with("#["));
+        let is_item = at_module_scope && is_item_start(trimmed);
+
+        if (is_prefix || is_item)
+            && !previous_was_prefix
+            && output
+                .last()
+                .is_some_and(|previous: &String| !previous.is_empty())
+        {
+            output.push(String::new());
+        }
+
+        if starts_block_doc && !trimmed.contains("*/") {
+            block_doc_indent = Some(indent);
+        } else if inside_block_doc && trimmed.contains("*/") {
+            block_doc_indent = None;
+        }
+
+        previous_was_prefix = is_prefix;
+        if at_module_scope && is_module_start(trimmed) {
+            module_indents.push(indent + 4);
+            previous_was_prefix = false;
+        }
+        output.push(line);
+    }
+
+    output.push(String::new());
+    output.join("\n")
+}
+
+fn normalize_doc_comment(line: &str) -> String {
+    let indent = line.len() - line.trim_start().len();
+    let (whitespace, trimmed) = line.split_at(indent);
+    for marker in ["///", "//!", "/**"] {
+        if let Some(comment) = trimmed.strip_prefix(marker)
+            && !comment.is_empty()
+            && !comment.starts_with(char::is_whitespace)
+            && !comment.starts_with('/')
+        {
+            return format!("{whitespace}{marker} {comment}");
+        }
+    }
+    line.to_owned()
+}
+
+fn is_item_start(line: &str) -> bool {
+    [
+        "const ", "enum ", "extern ", "fn ", "impl ", "impl<", "mod ", "pub ", "pub(", "static ",
+        "struct ", "trait ", "type ", "union ", "unsafe ", "use ",
+    ]
+    .iter()
+    .any(|prefix| line.starts_with(prefix))
+}
+
+fn is_module_start(line: &str) -> bool {
+    let line = line.strip_prefix("pub ").unwrap_or(line);
+    line.starts_with("mod ") && line.ends_with('{')
 }
 
 fn generate_namespace(
     schema: &Schema,
     opts: &Options,
     namespace: &namespace::Namespace<'_>,
+    include_any_event: bool,
 ) -> Result<proc_macro2::TokenStream, GenerateError> {
     let records = namespace
         .records()
@@ -204,12 +301,12 @@ fn generate_namespace(
     let events = namespace
         .entities()
         .iter()
-        .map(|(_, entity)| events::entity_event_enum(entity, opts))
+        .map(|entity| events::entity_event_enum(entity, opts))
         .collect::<Result<Vec<_>, _>>()?;
     let runtime = namespace
         .entities()
         .iter()
-        .map(|(index, entity)| runtime::entity_runtime_types(schema, entity, *index))
+        .map(|entity| runtime::entity_runtime_types(schema, entity))
         .collect::<Result<Vec<_>, _>>()?;
     let children = namespace
         .children()
@@ -220,7 +317,7 @@ fn generate_namespace(
                 .last()
                 .expect("child namespaces extend their parent");
             let module = common::module_ident(segment);
-            let contents = generate_namespace(schema, opts, child)?;
+            let contents = generate_namespace(schema, opts, child, true)?;
             Ok::<_, GenerateError>(quote! {
                 pub mod #module {
                     #contents
@@ -228,16 +325,18 @@ fn generate_namespace(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let any_event = if opts.any_event && namespace.has_entities() {
+    let any_event = if include_any_event && opts.any_event && namespace.has_entities() {
         any_event::generate_any_event(namespace, opts)?
     } else {
         quote! {}
     };
+    let observer_storage = runtime::observer_storage(schema, namespace)?;
     Ok(quote! {
         #(#records)*
         #(#events)*
         #(#runtime)*
         #(#children)*
+        #observer_storage
         #any_event
     })
 }
@@ -249,7 +348,7 @@ mod path_tests {
     use quent_ref_target::RefTargetConstraint;
     use quent_schema::builder::AnnotationsBuilder;
     use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event, field, record, record_type};
+    use quent_schema::test_utils::{entity, event, field, path, record, record_type};
     use quent_schema::{Annotations, DataType};
 
     #[test]
@@ -263,15 +362,20 @@ mod path_tests {
         let source = generate_str(&schema, &Options::default()).unwrap();
         assert!(source.contains("pub mod foo"));
         assert!(source.contains("pub enum QueryEvent"));
-        assert!(
-            source.contains("pub type Observer<E> = ::quent_instrumentation::ObserverInner<E>")
-        );
+        assert!(!source.contains("pub type Observer"));
         assert!(source.contains(
             "pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<Demo>>>"
         ));
         assert!(source.contains("impl super::Handle<Query>"));
         assert!(source.contains("impl ::quent_instrumentation::Entity for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
+        assert!(source.contains("pub struct DemoObservers"));
+        assert!(source.contains("struct FooObservers"));
+        assert!(source.contains("foo_observers: foo::FooObservers"));
+        assert!(source.contains("query_observer: ::quent_instrumentation::Observer<Query>"));
+        assert!(source.contains(
+            "impl ::quent_instrumentation::ObserverAccess<foo::Query> for DemoObservers"
+        ));
         assert!(source.contains(r#"const NAME: &'static str = "Foo::Query""#));
         assert!(!source.contains("foo_query_observer"));
     }
@@ -290,6 +394,25 @@ mod path_tests {
         assert!(source.contains("pub struct BarBaz"));
         assert!(source.contains("pub mod foo_bar"));
         assert!(source.contains("pub struct Baz"));
+    }
+
+    #[test]
+    fn rejects_observer_type_collisions() {
+        let conflicting_path = path("Foo::FooObservers");
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("Foo::FooObservers", []))
+            .with_entity(entity("Foo::Query", [event("event", [])]))
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            generate_str(&schema, &Options::default()),
+            Err(GenerateError::GeneratedTypeCollision {
+                generated,
+                schema_path,
+            }) if generated == "FooObservers" && schema_path == conflicting_path
+        ));
     }
 
     #[test]
@@ -383,6 +506,9 @@ mod path_tests {
         assert!(source.contains("Task(&'a ::quent_instrumentation::Event<TaskEvent>)"));
         assert!(source.contains("foo::AnyEvent::from_any(any)"));
         assert!(source.contains("nested::AnyEvent::from_any(any)"));
+        assert!(
+            source.rfind("pub enum AnyEvent") > source.rfind("impl ::quent_instrumentation::Model")
+        );
     }
 
     #[test]

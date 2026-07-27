@@ -26,7 +26,7 @@ use pprof::ProfilerGuard;
 use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
 use quent_events::EntityEvent;
-use quent_instrumentation::{ContextInner, EventPipeline};
+use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions};
 use serde::{Deserialize, Serialize};
@@ -84,9 +84,9 @@ impl EntityEvent for BenchEvent {
 fn build_observer(
     id: Uuid,
     exporter: Option<ExporterOptions>,
-) -> BenchResult<(ContextInner, EventPipeline<BenchEvent>)> {
+) -> BenchResult<(ContextInner, ObserverInner<BenchEvent>)> {
     let Some(options) = exporter else {
-        return Ok((ContextInner::noop(id), EventPipeline::noop()));
+        return Ok((ContextInner::noop(id), ObserverInner::noop()));
     };
     let ctx = ContextInner::try_new(id)?;
     let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
@@ -96,7 +96,7 @@ fn build_observer(
 // The in-process collector server runs this sink per source: it decodes received
 // `BenchEvent`s and records them through a local ndjson observer, built up front.
 struct BenchSink {
-    observer: EventPipeline<BenchEvent>,
+    observer: ObserverInner<BenchEvent>,
 }
 
 impl BenchSink {

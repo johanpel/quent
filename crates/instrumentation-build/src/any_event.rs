@@ -30,7 +30,7 @@ pub(crate) fn generate_any_event(
     let variants: Vec<(Ident, TokenStream)> = namespace
         .entities()
         .iter()
-        .map(|(_, entity)| {
+        .map(|entity| {
             let variant = raw_ident(path_name_pascal(entity.path()));
             let event = relative_type_path(entity.path(), namespace.path(), "Event");
             (variant, event)
