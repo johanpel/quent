@@ -24,25 +24,11 @@ fn state(name: &str, to: &[&str], initial: bool) -> StateDecl {
 
 // Build the constraint's JSON directly so we can build it in an invalid way.
 fn fsm(initial: &str, transitions: &[(&str, &str)]) -> String {
-    let mut states = vec![initial];
-    for &(source, target) in transitions {
-        if !states.contains(&source) {
-            states.push(source);
-        }
-        if !states.contains(&target) {
-            states.push(target);
-        }
-    }
-    fsm_with_states(initial, &states, transitions)
-}
-
-fn fsm_with_states(initial: &str, states: &[&str], transitions: &[(&str, &str)]) -> String {
     let transitions: Vec<serde_json::Value> = transitions
         .iter()
         .map(|&(source, target)| serde_json::json!({ "source": source, "target": target }))
         .collect();
     serde_json::json!({
-        "states": states,
         "initial_state": initial,
         "transitions": transitions,
     })
@@ -91,7 +77,7 @@ fn well_formed_linear_fsm_passes() {
 
 #[test]
 fn diagnostics_include_the_qualified_entity_path() {
-    let fsm = fsm_with_states("a", &["a"], &[("a", "missing")]);
+    let fsm = fsm("a", &[("a", "missing")]);
     let entity = entity_with("Foo::E", vec![event("a", Cardinality::Once)], &fsm);
 
     assert!(
@@ -186,7 +172,7 @@ fn fsm_without_a_final_state_is_rejected() {
 #[test]
 fn state_unreachable_from_initial_is_rejected() {
     // b and c form a disconnected component.
-    let fsm = fsm_with_states("a", &["a", "b", "c"], &[("b", "c")]);
+    let fsm = fsm("a", &[("b", "c")]);
     let entity = entity_with(
         "E",
         vec![
@@ -442,7 +428,7 @@ fn state_with_an_outgoing_transition_is_not_final() {
 fn multiple_violations_are_aggregated() {
     // b and c are unreachable from the initial state.
     // b is declared Multi though it is acyclic.
-    let fsm = fsm_with_states("a", &["a", "b", "c"], &[("b", "c")]);
+    let fsm = fsm("a", &[("b", "c")]);
     let entity = entity_with(
         "E",
         vec![

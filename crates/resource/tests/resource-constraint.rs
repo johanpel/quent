@@ -54,7 +54,6 @@ fn fsm_annotations() -> Annotations {
             FsmConstraint::NAME,
             Some(
                 serde_json::json!({
-                    "states": ["using", "done"],
                     "initial_state": "using",
                     "transitions": [{ "source": "using", "target": "done" }],
                 })
@@ -71,7 +70,6 @@ fn final_state_fsm_annotations(state: &str) -> Annotations {
             FsmConstraint::NAME,
             Some(
                 serde_json::json!({
-                    "states": ["start", state],
                     "initial_state": "start",
                     "transitions": [{ "source": "start", "target": state }],
                 })

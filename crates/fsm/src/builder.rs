@@ -120,7 +120,6 @@ impl FsmEntityBuilder {
             _ => return Err(FsmEntityBuilderError::MultipleInitialStates(initials)),
         };
 
-        let state_names = states.iter().map(|state| state.name.clone()).collect();
         let transitions = states
             .iter()
             .flat_map(|state| {
@@ -131,7 +130,7 @@ impl FsmEntityBuilder {
                     .map(move |target| Transition::new(source.clone(), target.clone()))
             })
             .collect();
-        let fsm = Fsm::new(state_names, initial, transitions);
+        let fsm = Fsm::new(initial, transitions);
 
         let mut entity = EntityBuilder::new(path);
         for state in states {

@@ -50,8 +50,6 @@ impl Transition {
 /// The state-transition topology of a finite state machine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fsm {
-    /// The states of this FSM.
-    states: Vec<Identifier>,
     /// The name of the initial state this FSM transitions into when it comes
     /// into existence.
     initial_state: Identifier,
@@ -60,13 +58,8 @@ pub struct Fsm {
 }
 
 impl Fsm {
-    pub(crate) fn new(
-        states: Vec<Identifier>,
-        initial_state: Identifier,
-        transitions: Vec<Transition>,
-    ) -> Self {
+    pub(crate) fn new(initial_state: Identifier, transitions: Vec<Transition>) -> Self {
         Self {
-            states,
             initial_state,
             transitions,
         }
@@ -117,12 +110,10 @@ impl Fsm {
         })
     }
 
-    /// Every state named by this FSM. May yield duplicates for states also
-    /// named by the initial state or a transition.
+    /// Every state named by this FSM: the initial state and every transition
+    /// endpoint. May yield duplicates.
     fn states(&self) -> impl Iterator<Item = &Identifier> {
-        self.states
-            .iter()
-            .chain(std::iter::once(&self.initial_state))
+        std::iter::once(&self.initial_state)
             .chain(self.transitions.iter().flat_map(|t| [&t.source, &t.target]))
     }
 
