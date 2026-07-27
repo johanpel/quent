@@ -23,8 +23,6 @@ pub(crate) fn generate_any_event(
     schema: &Schema,
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    let derives = derive_attr(opts.event_derives)?;
-
     let variants: Vec<(Ident, Ident)> = schema
         .entities()
         .map(|entity| {
@@ -35,7 +33,11 @@ pub(crate) fn generate_any_event(
             )
         })
         .collect();
+    if variants.is_empty() {
+        return Ok(quote! {});
+    }
 
+    let derives = derive_attr(opts.event_derives)?;
     let decls = variants.iter().map(|(variant, event)| {
         quote! { #variant(&'a ::quent_instrumentation::Event<#event>) }
     });
@@ -116,6 +118,17 @@ mod tests {
         assert_eq!(
             pretty(generate_any_event(&schema, &opts).unwrap()),
             pretty(expected)
+        );
+    }
+
+    #[test]
+    fn emits_nothing_without_entities() {
+        let schema = SchemaBuilder::new(ident("Demo")).build().unwrap();
+
+        assert!(
+            generate_any_event(&schema, &Options::default())
+                .unwrap()
+                .is_empty()
         );
     }
 }
