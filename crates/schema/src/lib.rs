@@ -39,7 +39,7 @@
 //! constructing the schema in-memory using this crate, e.g. by ensuring that
 //! [`Identifier`]s are accepted by the prescribed grammar. Some constraints may
 //! be about event attributes or order, e.g. that FSM states are reachable from
-//! the entry transition and an exit transition is reachable from all states.
+//! the entry transition and a final state is reachable from all states.
 //! The latter is an example of a constraint that is not expressed through a
 //! core schema concept, because it does not contribute to the ability to write
 //! or read events.

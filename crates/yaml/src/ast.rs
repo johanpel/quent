@@ -65,10 +65,7 @@ pub(crate) struct StateSpec {
     pub(crate) initial: bool,
     #[serde(default)]
     pub(crate) attributes: IndexMap<String, Field>,
-    // States the FSM can transition to.
-    //
-    // "exit" is a reserved special name to mark a state as final before
-    // dissapearing from existence through the exit transition.
+    /// States the FSM can transition to. An empty list makes this a final state.
     #[serde(default)]
     pub(crate) to: Vec<String>,
 }
