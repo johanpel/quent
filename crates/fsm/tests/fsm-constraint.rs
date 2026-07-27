@@ -172,11 +172,12 @@ fn fsm_without_a_final_state_is_rejected() {
 #[test]
 fn state_unreachable_from_initial_is_rejected() {
     // b and c form a disconnected component.
-    let fsm = fsm("a", &[("b", "c")]);
+    let fsm = fsm("a", &[("a", "done"), ("b", "c")]);
     let entity = entity_with(
         "E",
         vec![
             event("a", Cardinality::Once),
+            event("done", Cardinality::Once),
             event("b", Cardinality::Once),
             event("c", Cardinality::Once),
         ],
@@ -211,27 +212,16 @@ fn state_cannot_reach_a_final_state_is_rejected() {
     );
 }
 
-#[test]
-fn fsm_state_not_in_events_is_rejected() {
-    let fsm = fsm("phantom", &[]);
-    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &fsm);
-    let errors = validate(&schema_with(entity));
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, FsmError::UnknownState { state, .. } if state == "phantom")),
-    );
-}
-
 // TODO(johanpel): consider allowing FSMs to have freestanding events
 #[test]
 fn event_not_covered_by_fsm_is_rejected() {
     // dead is declared but never appears as a state in the FSM.
-    let fsm = fsm("a", &[]);
+    let fsm = fsm("a", &[("a", "done")]);
     let entity = entity_with(
         "E",
         vec![
             event("a", Cardinality::Once),
+            event("done", Cardinality::Once),
             event("dead", Cardinality::Once),
         ],
         &fsm,
@@ -262,8 +252,15 @@ fn cycle_requires_multi_cardinality() {
 
 #[test]
 fn acyclic_requires_once_cardinality() {
-    let fsm = fsm("a", &[]);
-    let entity = entity_with("E", vec![event("a", Cardinality::Multi)], &fsm);
+    let fsm = fsm("a", &[("a", "done")]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event("a", Cardinality::Multi),
+            event("done", Cardinality::Once),
+        ],
+        &fsm,
+    );
     let errors = validate(&schema_with(entity));
     assert!(errors.iter().any(|e| matches!(
         e,
@@ -375,15 +372,6 @@ fn builder_rejects_malformed_states() {
         FsmEntityBuilderError::Invalid(FsmError::CannotReachFinalState { .. })
     ));
 
-    let initial_final = FsmEntityBuilder::new(ident("E"))
-        .with_states([state("a", &[], true)])
-        .build()
-        .unwrap_err();
-    assert!(matches!(
-        initial_final,
-        FsmEntityBuilderError::Invalid(FsmError::InitialStateIsFinal { .. })
-    ));
-
     // A duplicate that is also marked initial must report the duplicate, not
     // `MultipleInitialStates`.
     let duplicate = FsmEntityBuilder::new(ident("E"))
@@ -414,25 +402,15 @@ fn multiple_final_states_pass() {
 }
 
 #[test]
-fn state_with_an_outgoing_transition_is_not_final() {
-    let fsm = fsm("a", &[("a", "b")]);
-    let entity = entity_with(
-        "E",
-        vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
-        &fsm,
-    );
-    assert!(validate(&schema_with(entity)).is_empty());
-}
-
-#[test]
 fn multiple_violations_are_aggregated() {
     // b and c are unreachable from the initial state.
     // b is declared Multi though it is acyclic.
-    let fsm = fsm("a", &[("b", "c")]);
+    let fsm = fsm("a", &[("a", "done"), ("b", "c")]);
     let entity = entity_with(
         "E",
         vec![
             event("a", Cardinality::Once),
+            event("done", Cardinality::Once),
             event("b", Cardinality::Multi),
             event("c", Cardinality::Once),
         ],

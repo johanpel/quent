@@ -48,30 +48,18 @@ fn resource_annotations(data: String) -> Annotations {
         .unwrap()
 }
 
-fn fsm_annotations() -> Annotations {
+fn fsm_annotations(initial: &str, transitions: &[(&str, &str)]) -> Annotations {
+    let transitions: Vec<serde_json::Value> = transitions
+        .iter()
+        .map(|&(source, target)| serde_json::json!({ "source": source, "target": target }))
+        .collect();
     AnnotationsBuilder::new()
         .with_constraint(
             FsmConstraint::NAME,
             Some(
                 serde_json::json!({
-                    "initial_state": "using",
-                    "transitions": [{ "source": "using", "target": "done" }],
-                })
-                .to_string(),
-            ),
-        )
-        .build()
-        .unwrap()
-}
-
-fn final_state_fsm_annotations(state: &str) -> Annotations {
-    AnnotationsBuilder::new()
-        .with_constraint(
-            FsmConstraint::NAME,
-            Some(
-                serde_json::json!({
-                    "initial_state": "start",
-                    "transitions": [{ "source": "start", "target": state }],
+                    "initial_state": initial,
+                    "transitions": transitions,
                 })
                 .to_string(),
             ),
@@ -138,7 +126,7 @@ fn user_entity_with_data_type(name: &str, fsm: bool, data: DataType, on_ref: boo
     if fsm {
         builder = builder
             .with_event(event("done", []))
-            .with_annotations(fsm_annotations());
+            .with_annotations(fsm_annotations("using", &[("using", "done")]));
     }
     builder.build().unwrap()
 }
@@ -151,7 +139,7 @@ fn final_state_user_entity(name: &str, record: &str) -> Entity {
     EntityBuilder::new(path(name))
         .with_event(event("start", []))
         .with_event(event("done", [field("claim", ty)]))
-        .with_annotations(final_state_fsm_annotations("done"))
+        .with_annotations(fsm_annotations("start", &[("start", "done")]))
         .build()
         .unwrap()
 }
