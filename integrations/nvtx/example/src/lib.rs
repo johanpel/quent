@@ -3,10 +3,11 @@
 
 //! In-process NVTX capture, driven by the application.
 //!
-//! [`run_capture`] wires the NVTX injection hook into a Quent `Observer` built
-//! on a caller-supplied exporter, runs a fixed set of NVTX annotations, and
-//! flushes. The binary debug-prints captured events; the test reuses the same
-//! routine with a collecting exporter — one code path, no subprocess or files.
+//! [`run_capture`] wires the NVTX injection hook into a Quent event pipeline
+//! built on a caller-supplied exporter, runs a fixed set of NVTX annotations,
+//! and flushes. The binary debug-prints captured events; the test reuses the
+//! same routine with a collecting exporter — one code path, no subprocess or
+//! files.
 //!
 //! Capture is in-process: this crate links `nvtx-injection` with its
 //! `static-injection` feature, so NVTX initializes injection at the first NVTX
@@ -15,15 +16,15 @@
 use std::sync::{Arc, Barrier};
 
 use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{Context, EventCallback};
+use quent_instrumentation::{ContextInner, EventCallback};
 use uuid::Uuid;
 
 /// Capture the NVTX events produced by the fixed annotation sequence into
 /// `exporter`.
 ///
-/// Builds a Quent context and observer on `exporter`, installs the injection
+/// Builds a Quent context and event pipeline on `exporter`, installs the injection
 /// hook (one-shot per process) to forward each event, runs the annotations, and
-/// drops the observer to flush.
+/// drops the pipeline to flush.
 pub fn run_capture(
     session: Uuid,
     exporter: EventCallback,
@@ -41,17 +42,18 @@ pub fn run_capture_n_threads(
     session: Uuid,
     exporter: EventCallback,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let ctx = Context::try_new(session)?;
-    let observer = ctx.block_on(async { ctx.observer::<NvtxEventEntity>(exporter).await })?;
+    let context = ContextInner::try_new(session)?;
+    let pipeline =
+        context.block_on(async { context.observer::<NvtxEventEntity>(exporter).await })?;
 
-    // Forward each captured event into the observer, before the first NVTX call.
-    let sender = observer.sender();
+    // Forward each captured event into the pipeline, before the first NVTX call.
+    let sender = pipeline.sender();
     nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
 
     annotated_work_n_threads(n);
 
-    // Dropping the observer drains and flushes the exporter.
-    drop(observer);
+    // Dropping the pipeline drains and flushes the exporter.
+    drop(pipeline);
     Ok(())
 }
 

@@ -143,6 +143,13 @@ pub enum GenerateError {
         /// The number of once-cardinality events the entity declares.
         count: usize,
     },
+    #[error("generated observer type `{generated}` conflicts with schema type `{schema_path}`")]
+    GeneratedTypeCollision {
+        /// The generated Rust type name.
+        generated: String,
+        /// The schema type whose generated name conflicts.
+        schema_path: Path,
+    },
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -180,8 +187,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// # Errors
 ///
 /// Returns [`GenerateError`] if the schema contains a qualified type path, a
-/// derive entry is not a parseable Rust path, or the generated code is not a
-/// valid Rust file.
+/// generated observer type conflicts with a schema type, a derive entry is not
+/// a parseable Rust path, or the generated code is not a valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     ensure_unqualified_type_paths(schema)?;
 

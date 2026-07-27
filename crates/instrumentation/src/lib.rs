@@ -8,15 +8,19 @@
 //! generated instrumentation library only.
 
 mod context;
+mod entity;
 mod entity_ref;
 mod handle;
+mod model;
 mod observer;
 mod sidecar;
 
-pub use context::Context;
+pub use context::ContextInner;
+pub use entity::{Entity, Observer};
 pub use entity_ref::{AnyEntity, EntityRef};
-pub use handle::{Handle, HandleError};
-pub use observer::{EventSender, Observer};
+pub use handle::{HandleError, HandleInner};
+pub use model::{Context, Model, ObserverProvider};
+pub use observer::{EventSender, ObserverInner};
 pub use sidecar::write_sidecar;
 
 // Re-export everything the generated instrumentation code references, so a
@@ -62,7 +66,7 @@ mod tests {
     fn e2e_filesystem_export() {
         let dir = tempfile::tempdir().unwrap();
         let id = Uuid::now_v7();
-        let ctx = Context::try_new(id).unwrap();
+        let ctx = ContextInner::try_new(id).unwrap();
         let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
             FileSystemFormat::Ndjson,
             dir.path().to_path_buf(),

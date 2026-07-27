@@ -1,107 +1,100 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of the schema context — builds every entity's observer on
-//! construction and hands out cheap clones.
+//! Generation of the schema model used by the generic instrumentation context.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_schema::Schema;
+use quent_schema::{Entity, Schema};
 use quote::quote;
+use syn::Ident;
 
-use super::{event_ident, observer_ident};
+use super::{event_ident, marker_ident, model_ident};
+use crate::GenerateError;
 use crate::common::{raw_ident, to_case};
 
-/// Generate the declaration of an {Schema}Context and its impls.
-pub(super) fn schema_context(schema: &Schema) -> TokenStream {
-    let schema_pascal = to_case(schema.name(), Case::Pascal);
-    let context_ty = raw_ident(format!("{schema_pascal}Context"));
-    let model_name = schema.name().to_string();
+/// Generates the model's typed observer storage.
+pub(super) fn observer_storage(schema: &Schema) -> Result<TokenStream, GenerateError> {
+    let storage = observers_ident(schema);
+    let storage_name = storage.to_string();
+    if let Some(schema_path) = schema
+        .records()
+        .map(|record| record.path())
+        .chain(schema.entities().map(|entity| entity.path()))
+        .find(|path| to_case(path.name(), Case::Pascal) == storage_name)
+    {
+        return Err(GenerateError::GeneratedTypeCollision {
+            generated: storage_name,
+            schema_path: schema_path.clone(),
+        });
+    }
 
-    let fields: Vec<_> = schema
-        .entities()
-        .map(|e| raw_ident(to_case(e.path().name(), Case::Snake)))
-        .collect();
-    let observer_tys: Vec<_> = schema.entities().map(observer_ident).collect();
-    let event_tys: Vec<_> = schema.entities().map(event_ident).collect();
-    let accessors: Vec<_> = schema
-        .entities()
-        .map(|e| {
-            raw_ident(format!(
-                "{}_observer",
-                to_case(e.path().name(), Case::Snake)
-            ))
-        })
-        .collect();
-    let accessor_docs: Vec<String> = schema
-        .entities()
-        .map(|e| {
-            format!(
-                "Observer for `{}` entities.",
-                to_case(e.path().name(), Case::Pascal)
-            )
-        })
-        .collect();
-
-    let context_doc = format!(
-        "Instrumentation context for the `{model_name}` model. Construct it with \
-         [`Self::try_new`], then call a `*_observer()` accessor to get an entity's \
-         event observer, which creates the per-instance handles that emit events."
+    let description = format!(
+        "Observers for the `{}` instrumentation model.",
+        schema.name()
     );
+    let hidden_docs = "Hidden because the model context provides typed observer access.";
+    let entity_fields = schema.entities().map(|entity| {
+        let field = entity_observer_field(entity);
+        let entity_ty = marker_ident(entity);
+        quote! {
+            #field: ::quent_instrumentation::Observer<#entity_ty>
+        }
+    });
+
+    Ok(quote! {
+        #[doc = #description]
+        #[doc = ""]
+        #[doc = #hidden_docs]
+        #[doc(hidden)]
+        pub struct #storage {
+            #(#entity_fields,)*
+        }
+    })
+}
+
+/// Generates the model marker and its runtime integration.
+pub(super) fn schema_model(schema: &Schema) -> TokenStream {
+    let model = model_ident(schema);
+    let model_name = schema.name().to_string();
+    let observers = observers_ident(schema);
+    let active_observers = observer_storage_initializer(schema, true);
+    let noop_observers = observer_storage_initializer(schema, false);
+    let observer_impls = schema
+        .entities()
+        .map(|entity| observer_storage_impl(schema, entity));
+
+    let model_doc = format!("The `{model_name}` instrumentation model.");
 
     quote! {
-        #[doc = #context_doc]
-        pub struct #context_ty {
-            #(#fields: #observer_tys,)*
-            _inner: ::quent_instrumentation::Context,
-        }
+        #[doc = #model_doc]
+        pub struct #model;
 
-        impl #context_ty {
-            /// Create a context, building every entity's exporter pipeline.
-            /// Pass `None` for a no-op context that discards events.
-            pub fn try_new(
-                exporter: ::core::option::Option<::quent_instrumentation::ExporterOptions>,
-            ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                Self::try_with_id(::quent_instrumentation::Uuid::now_v7(), exporter)
-            }
+        #(#observer_impls)*
 
-            /// Create a context that adopts an existing `id` rather than
-            /// generating one.
-            pub fn try_with_id(
-                id: ::quent_instrumentation::Uuid,
-                exporter: ::core::option::Option<::quent_instrumentation::ExporterOptions>,
-            ) -> ::core::result::Result<Self, ::std::boxed::Box<dyn ::std::error::Error>> {
-                // With an exporter, build an active context, write the provenance
-                // sidecar, then build each entity's observer using the exporter
-                // options as its provider. `None` builds a no-op context and
-                // no-op observers.
-                let ( _inner, #(#fields,)* ) = match &exporter {
+        impl ::quent_instrumentation::Model for #model {
+            type Observers = #observers;
+
+            fn build_observers(
+                context: &::quent_instrumentation::ContextInner,
+                exporter: ::core::option::Option<&::quent_instrumentation::ExporterOptions>,
+            ) -> ::core::result::Result<
+                Self::Observers,
+                ::std::boxed::Box<dyn ::std::error::Error>,
+            > {
+                match exporter {
                     ::core::option::Option::Some(options) => {
-                        let context = ::quent_instrumentation::Context::try_new(id)?;
-                        ::quent_instrumentation::write_sidecar(options, id, Self::model_info());
-                        let ( #(#fields,)* ) = context.block_on(async {
+                        context.block_on(async {
                             ::core::result::Result::<
                                 _,
                                 ::std::boxed::Box<dyn ::std::error::Error>,
-                            >::Ok((
-                                #(
-                                    context
-                                        .observer::<#event_tys>(::core::clone::Clone::clone(options))
-                                        .await?,
-                                )*
-                            ))
-                        })?;
-                        ( context, #(#fields,)* )
+                            >::Ok(#active_observers)
+                        })
                     }
-                    ::core::option::Option::None => (
-                        ::quent_instrumentation::Context::noop(id),
-                        #( ::quent_instrumentation::Observer::<#event_tys>::noop(), )*
-                    ),
-                };
-                ::core::result::Result::Ok(Self {
-                    #( #fields: #observer_tys { inner: ::std::sync::Arc::new(#fields) }, )*
-                    _inner,
-                })
+                    ::core::option::Option::None => {
+                        ::core::result::Result::Ok(#noop_observers)
+                    }
+                }
             }
 
             fn model_info() -> ::quent_instrumentation::build_info::ModelInfo {
@@ -123,18 +116,61 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
                     analyzer_package: ::core::option::Option::None,
                 }
             }
-
-            /// Identity of this context.
-            pub fn id(&self) -> ::quent_instrumentation::Uuid {
-                self._inner.id()
-            }
-
-            #(
-                #[doc = #accessor_docs]
-                pub fn #accessors(&self) -> #observer_tys {
-                    ::core::clone::Clone::clone(&self.#fields)
-                }
-            )*
         }
     }
+}
+
+fn observer_storage_initializer(schema: &Schema, active: bool) -> TokenStream {
+    let storage = observers_ident(schema);
+    let entity_fields = schema.entities().map(|entity| {
+        let field = entity_observer_field(entity);
+        let entity_ty = marker_ident(entity);
+        let event_ty = event_ident(entity);
+        let observer = if active {
+            quote! {
+                context
+                    .observer::<#event_ty>(::core::clone::Clone::clone(options))
+                    .await?
+            }
+        } else {
+            quote! {
+                ::quent_instrumentation::ObserverInner::<#event_ty>::noop()
+            }
+        };
+        quote! {
+            #field: ::quent_instrumentation::Observer::<#entity_ty>::new(
+                ::std::sync::Arc::new(#observer),
+            )
+        }
+    });
+    quote! {
+        #storage {
+            #(#entity_fields,)*
+        }
+    }
+}
+
+fn observer_storage_impl(schema: &Schema, entity: &Entity) -> TokenStream {
+    let storage = observers_ident(schema);
+    let entity_ty = marker_ident(entity);
+    let field = entity_observer_field(entity);
+
+    quote! {
+        impl ::quent_instrumentation::ObserverProvider<#entity_ty> for #storage {
+            fn observer(&self) -> ::quent_instrumentation::Observer<#entity_ty> {
+                ::core::clone::Clone::clone(&self.#field)
+            }
+        }
+    }
+}
+
+fn observers_ident(schema: &Schema) -> Ident {
+    raw_ident(format!("{}Observers", to_case(schema.name(), Case::Pascal)))
+}
+
+fn entity_observer_field(entity: &Entity) -> Ident {
+    raw_ident(format!(
+        "{}_observer",
+        to_case(entity.path().name(), Case::Snake)
+    ))
 }
