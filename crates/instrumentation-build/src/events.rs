@@ -113,9 +113,9 @@ mod tests {
             [],
         );
         let expected = quote! {
-            #[doc = "Events emitted by `E` entities."]
+            #[doc = " Events emitted by `E` entities."]
             pub enum EEvent {
-                #[doc = "The `ev` event."]
+                #[doc = " The `ev` event."]
                 Ev {
                     b: bool,
                     id: ::quent_instrumentation::Uuid,
@@ -153,11 +153,11 @@ mod tests {
             .unwrap();
 
         let expected = quote! {
-            #[doc = "entity doc"]
+            #[doc = " entity doc"]
             pub enum EEvent {
-                #[doc = "event doc"]
+                #[doc = " event doc"]
                 Ev {
-                    #[doc = "field doc"]
+                    #[doc = " field doc"]
                     x: u8
                 }
             }
@@ -176,14 +176,14 @@ mod tests {
             [],
         );
         let expected = quote! {
-            #[doc = "Events emitted by `Alpha` entities."]
+            #[doc = " Events emitted by `Alpha` entities."]
             pub enum AlphaEvent {
-                #[doc = "The `started` event."]
+                #[doc = " The `started` event."]
                 Started { id: u32 }
             }
-            #[doc = "Events emitted by `Beta` entities."]
+            #[doc = " Events emitted by `Beta` entities."]
             pub enum BetaEvent {
-                #[doc = "The `ended` event."]
+                #[doc = " The `ended` event."]
                 Ended
             }
         };
@@ -218,9 +218,9 @@ mod tests {
             [],
         );
         let expected = quote! {
-            #[doc = "Events emitted by `E` entities."]
+            #[doc = " Events emitted by `E` entities."]
             pub enum EEvent {
-                #[doc = "The `ev` event."]
+                #[doc = " The `ev` event."]
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
                     eref_list: ::quent_instrumentation::EntityRef<AnyEntity, Vec<String>>
@@ -250,9 +250,9 @@ mod tests {
             [],
         );
         let expected = quote! {
-            #[doc = "Events emitted by `Sig` entities."]
+            #[doc = " Events emitted by `Sig` entities."]
             pub enum SigEvent {
-                #[doc = "The `type` event."]
+                #[doc = " The `type` event."]
                 Type {
                     u8: u8,
                     r#type: u8,

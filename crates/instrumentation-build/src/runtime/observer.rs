@@ -9,7 +9,7 @@ use quent_schema::Entity;
 use quote::quote;
 
 use super::{event_ident, handle_ident, observer_ident};
-use crate::common::to_case;
+use crate::common::{doc_text, to_case};
 
 /// Generate the declaration of an {Entity}Observer and its impls.
 pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
@@ -18,13 +18,16 @@ pub(super) fn entity_observer(entity: &Entity) -> TokenStream {
     let observer_ty = observer_ident(entity);
     let handle_ty = handle_ident(entity);
 
-    let observer_doc = format!(
+    let observer_doc = doc_text(&format!(
         "Observer for `{entity_pascal}` entities. Obtain a per-instance handle \
          with [`Self::handle`]."
-    );
-    let handle_fn_doc = format!("Create a handle for a fresh `{entity_pascal}` instance.");
-    let handle_with_id_doc =
-        format!("Create a handle for the `{entity_pascal}` instance identified by `id`.");
+    ));
+    let handle_fn_doc = doc_text(&format!(
+        "Create a handle for a fresh `{entity_pascal}` instance."
+    ));
+    let handle_with_id_doc = doc_text(&format!(
+        "Create a handle for the `{entity_pascal}` instance identified by `id`."
+    ));
 
     quote! {
         #[doc = #observer_doc]

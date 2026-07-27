@@ -10,7 +10,7 @@ use quote::quote;
 
 use super::{event_ident, handle_ident, marker_ident};
 use crate::GenerateError;
-use crate::common::{doc_attr_or, raw_ident, to_case};
+use crate::common::{doc_attr_or, doc_text, raw_ident, to_case};
 use crate::data_type::map_data_type;
 
 /// The maximum once-events an entity may declare: one bit per event in the
@@ -87,11 +87,11 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                     let event_name = event.name().to_string();
                     let emitted_method =
                         raw_ident(format!("{}_emitted", to_case(event.name(), Case::Snake)));
-                    let emitted_doc = format!(
+                    let emitted_doc = doc_text(&format!(
                         "Whether the once-cardinality `{}` event has already been emitted \
                          for this instance.",
                         event.name()
-                    );
+                    ));
                     quote! {
                         #docs
                         pub fn #method(
@@ -121,7 +121,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
         })
         .collect();
 
-    let handle_doc = format!("Handle to one `{entity_pascal}` entity instance.");
+    let handle_doc = doc_text(&format!("Handle to one `{entity_pascal}` entity instance."));
     Ok(quote! {
         #[doc = #handle_doc]
         pub struct #handle_ty {

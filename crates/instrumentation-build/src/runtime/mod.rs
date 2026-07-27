@@ -11,7 +11,7 @@ use quote::quote;
 use syn::Ident;
 
 use crate::GenerateError;
-use crate::common::{raw_ident, to_case};
+use crate::common::{doc_text, raw_ident, to_case};
 
 mod context;
 mod handle;
@@ -66,10 +66,10 @@ pub(crate) fn reexports() -> TokenStream {
 /// type of [`EntityRef`](quent_instrumentation::EntityRef) fields that point at it.
 fn entity_marker(entity: &Entity) -> TokenStream {
     let marker = marker_ident(entity);
-    let doc = format!(
+    let doc = doc_text(&format!(
         "Marker type for the `{}` entity.",
         to_case(entity.path().name(), Case::Pascal)
-    );
+    ));
     quote! {
         #[doc = #doc]
         #[derive(Debug, Clone, Copy)]

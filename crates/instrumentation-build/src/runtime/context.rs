@@ -10,7 +10,7 @@ use quent_schema::Schema;
 use quote::quote;
 
 use super::{event_ident, observer_ident};
-use crate::common::{raw_ident, to_case};
+use crate::common::{doc_text, raw_ident, to_case};
 
 /// Generate the declaration of an {Schema}Context and its impls.
 pub(super) fn schema_context(schema: &Schema) -> TokenStream {
@@ -36,18 +36,18 @@ pub(super) fn schema_context(schema: &Schema) -> TokenStream {
     let accessor_docs: Vec<String> = schema
         .entities()
         .map(|e| {
-            format!(
+            doc_text(&format!(
                 "Observer for `{}` entities.",
                 to_case(e.path().name(), Case::Pascal)
-            )
+            ))
         })
         .collect();
 
-    let context_doc = format!(
+    let context_doc = doc_text(&format!(
         "Instrumentation context for the `{model_name}` model. Construct it with \
          [`Self::try_new`], then call a `*_observer()` accessor to get an entity's \
          event observer, which creates the per-instance handles that emit events."
-    );
+    ));
 
     quote! {
         #[doc = #context_doc]

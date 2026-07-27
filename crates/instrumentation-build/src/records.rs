@@ -83,16 +83,16 @@ mod tests {
             ],
         );
         let expected = quote! {
-            #[doc = "The `OnePrim` record."]
+            #[doc = " The `OnePrim` record."]
             pub struct OnePrim {
                 pub a: u8
             }
-            #[doc = "The `Nested` record."]
+            #[doc = " The `Nested` record."]
             pub struct Nested {
                 pub inner: OnePrim,
                 pub list: Vec<String>
             }
-            #[doc = "The `Empty` record."]
+            #[doc = " The `Empty` record."]
             pub struct Empty;
         };
         assert_eq!(

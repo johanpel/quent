@@ -32,7 +32,10 @@ pub(crate) fn derive_attr(derives: &[&str]) -> Result<TokenStream, GenerateError
 /// Build a `#[doc = ..]` attribute from `docs`.
 pub(crate) fn doc_attr(docs: Option<&str>) -> TokenStream {
     match docs {
-        Some(text) => quote! { #[doc = #text] },
+        Some(text) => {
+            let text = doc_text(text);
+            quote! { #[doc = #text] }
+        }
         None => quote! {},
     }
 }
@@ -40,8 +43,16 @@ pub(crate) fn doc_attr(docs: Option<&str>) -> TokenStream {
 /// Build a `#[doc = ..]` attribute from `docs`, falling back to `fallback` when
 /// `docs` is `None`, so the item is always documented.
 pub(crate) fn doc_attr_or(docs: Option<&str>, fallback: &str) -> TokenStream {
-    let text = docs.unwrap_or(fallback);
+    let text = doc_text(docs.unwrap_or(fallback));
     quote! { #[doc = #text] }
+}
+
+/// Adds conventional spacing to nonempty documentation text.
+pub(crate) fn doc_text(text: &str) -> String {
+    match text.chars().next() {
+        Some(first) if !first.is_whitespace() => format!(" {text}"),
+        _ => text.to_owned(),
+    }
 }
 
 /// Case-convert a schema identifier without splitting letter/digit boundaries,
