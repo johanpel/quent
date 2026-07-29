@@ -20,5 +20,5 @@ export type OperatorActiveSpanEntry = {
   /** Plan ID this operator belongs to. */
   planId: string;
   /** Pre-computed custom statistics for the operator popup. */
-  statistics: Array<{ key: string; value: StatValue }>;
+  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
 };

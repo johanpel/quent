@@ -40,7 +40,7 @@ export interface InspectedNodeData {
   nodeId: string;
   label: string;
   operationType: string;
-  statistics: Array<{ key: string; value: StatValue }>;
+  statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
 }
 
 /** Data for the currently selected/pinned node (persists in the panel after click) */
