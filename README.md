@@ -14,171 +14,301 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/rapidsai/quent" alt="Apache-2.0 license"></a>
 </p>
 
-Quent is a framework for building tools that help understand behavior and
-resource utilization of abstract data and control flow structures in your
-application. It provides a set of modeling concepts (especially Finite State
-Machines, Resources, and how they can be related).
+## What is Quent?
 
-From an application model, a statically typed instrumentation API is generated.
-Applications instrumented with this API emit structured telemetry that can be
-stored, analyzed, and visualized.
+Quent helps build dedicated performance analysis tools tailored to your
+application. You and your agents first describe a _schema_ of _events_ with
+_attributes_, which you use to instrument anything (called an _entity_) in your
+application.
 
-Quent provides building blocks for each of these layers, so you (or preferably
-your coding agent) can mix and match to build a dedicated, semantically rich
-profiling / telemetry tool for your application.
+Quent then turns a _schema_ into a dedicated _instrumentation library_. This
+instrumentation library not only has a type-safe API but also uses a statically
+typed export path. It also generates an _analysis library_ that provides the
+means to query stored events for various purposes. This includes not only the
+means to look up events by attribute values but also the means to convert events
+into something semantically rich, leveraging the rules imposed by _mods_.
 
-In this experimental stage, the first domain we target is that of query engines,
-but the basic concepts are domain-agnostic and may be applied to other domains.
+<p align="center">
+<img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="640">
+</p>
 
-Here's an example of the in-tree UI for query engines where the goal is to make
-it easy to relate how control structures influence resources and how this all
-relates to query plans:
+Mods (short for "semantic modules") are curated vertical slices of Quent’s
+stack. Each mod can contribute constraints on schema elements (e.g. on events or
+attributes), code generators, analysis componentss, visualizations, and agent
+interfaces, among others.
 
-![Quent overview demo](ui/docs/screenshots/demo.gif)
+By applying mods to an application-specific model, you and your coding agents
+can easily provide the last bit of glue to mix and match mod components to
+ultimately produce a dedicated performance analysis tool in which you can
+quickly explore the dynamic behavior of your program.
+
+For example, see the UI for the accelerated query engine domain, a primary use
+case for Quent: ![Quent overview demo](ui/docs/screenshots/demo.gif)
+
+## Why
+
+Quent is built to address a growing complexity gap between complex modern
+systems software and low-level profiling tools.
+
+Highly dynamic software systems (take query engines, for example) have a lot
+of "stuff" to do before the heavy computation actually starts inside
+accelerators. All that "stuff" is complex, highly layered, and very
+custom-tailored. This may include asynchronous execution engines, multi-layered
+workload schedulers, out-of-core execution support, caching, and much more. All
+this must not become a bottleneck to the raw computational and I/O performance
+that accelerated systems nowadays provide. Looking at all this abstract
+machinery with traditional profiling tools is, however, hard and time-consuming.
+
+The goal is to reduce time to conclusion (TTC) for these applications by
+allowing developers to start performance analysis from code they work with every
+day, have full control over, and have already formed mental models for. This
+helps narrow the analysis first in a familiar environment
+before reaching for other excellent low-level profiling tools such as NVIDIA
+Nsight Systems or Nsight Compute for deeper system-level or closer-to-hardware
+analysis.
 
 ## Status
 
-This project is experimental and under heavy development. The modeling concepts,
-generated and non-generated APIs, and implementations are continunously subject
-to breaking changes for now. There are no releases. Consider this project
-pre-alpha. Expect bugs. At the same time, early experiments are welcome, as well
-as thoughts, questions, suggestions, and feature requests.
+Quent is an experimental alpha-stage project and is changing quickly. Its schema
+format, generated APIs, runtime, analysis components, and documentation may
+change without compatibility guarantees for now. There are no releases yet;
+breaking changes and bugs are currently expected. Use this at your own risk.
 
-## Show me the code
+### Mods
 
-An extensive example of using all modeling concepts to define a model and the
-resulting instrumentation API is found here:
+Built-in mods include generally useful capabilities:
 
-- [Example](examples/readme/src/lib.rs)
+- `quent-fsm`: describes the potential sequences of events by modeling entities
+  as finite-state machines.
+  - Through this mod, the instrumentation library can be generated
+    such that invalid transitions are already rejected at compile time, and/or
+    an analysis library can validate whether FSM transition events followed the
+    described topology.
+- `quent-resource`: defines resources such as memories, channels, and processing
+  elements, and how other entities can use them.
+  - Through this mod, an analysis library can provide functionality
+    that checks whether resources were saturated above some threshold for a
+    certain duration, or it can generate data for a resource utilization
+    timeline visualization.
+- `quent-ref-target`: constrains references to other entities to be of a certain
+  type.
+- `quent-ref-scope`: allows forming hierarchies of event-emitting entities to,
+  e.g., provide the canonical path of performance analysis exploration through
+  all event data from a UI.
 
-A simulated application (a query engine), analysis back-end and front-end can be
-found here:
+Mods can be self-authored and also provide components around
+application- or domain-specific semantics. For example, applications that
+capture dynamically defined computation paths via directed acyclic graphs can
+describe a set of rules about how vertices and edges are declared and can
+provide the means to analyze data-flow throughput over these edges. An analysis
+component finds all associated events, and a UI component as part of the
+mod can visually render the graph.
 
-- [Simulator](examples/simulator/)
-- [Analyzer](examples/simulator/analyzer/)
-- [Front-end](ui/)
+## Quick example
 
-While Quent is a Rust-based project, it can generate a C++ instrumentation API.
-This is shown here:
+### Schema definition
 
-- [C++ Integration Example](examples/cpp-integration/)
+Quent schemas describe the things, a.k.a. _entities_, that can emit _events_
+with _attributes_, much like structured logs. Such a schema is said to capture
+the "application event model" because, on the one hand, it just tells you what
+events exist and, on the other hand, especially by leveraging mods, you sort of
+model the potential behavior of things in your application.
+Examples include an object whose lifecycle you want to track, a span around part
+of a function, an asynchronous task, or a memory pool.
 
-It can also generate a PyO3-backed Python extension module for the same model:
+Quent's YAML-based source format is one way to capture your application event
+model:
 
-- [Python Integration Example](examples/python-integration/)
+```yaml
+quent: alpha # version of Quent's YAML-based DSL
+model: Hello # name of the model
 
-## How
-
-A developer constructs a **model** of their application: **FSMs** to track
-lifecycles of objects, **Resources** to represent things with limited capacity,
-and **Usages** to tie the two together. The model produces a type-safe
-instrumentation API through which events are emitted and stored.
-
-Analysis tools consume the emitted events and, using the structural information
-from the model, automatically derive timelines and utilization graphs. For
-query engines, this includes plan DAG visualizations and per-operator
-breakdowns. Application-specific analysis is easy to build on top of the
-structured modeling approach that the framework provides.
-
-## Provided by this repository
-
-- **Specification**: the [docs](docs/) directory, defining the modeling
-  concepts and a domain-specific model for query engines.
-- Rust implementations of:
-  - **Instrumentation**: a domain-agnostic library for emitting
-    type-safe telemetry from a model.
-  - **Exporters**: pluggable telemetry transports.
-  - **Analyzers**: components to build application-specific services that
-    reconstruct in-memory models from collected events, with traits for querying
-    FSM states, resource usage, and entity relationships, besides
-    application-custom logic.
-- Query engine domain-specific building blocks for the above, and examples:
-  - **Web UI**: a React-based frontend for interactive visualization of query
-    plans (DAGs), resource timelines, and operator statistics.
-  - **Simulator**: an example application that emits telemetry for a simulated
-    query engine, useful for development and demonstration.
-
-The core of the project is the modeling approach: Entities, FSMs, Resources,
-Capacities, and Usages, and the logic that connects them (resource utilization
-tracking, hierarchical aggregation, and model reconstruction from events).
-Everything else (storage, transport, instrumentation, and visualization) is an
-opinionated but replaceable implementation based on the modeling approach.
-
-## Development
-
-### Prerequisites
-
-Install [Pixi](https://pixi.sh), then enter the repository environment:
-
-```bash
-pixi shell
+entities:
+  App: # model the entire application process as an entity
+    events:
+      started: {} # that emits an event when it starts.
 ```
 
-Pixi provides the required Rust, Node.js, pnpm, and protoc versions. Run
-development and build commands from this environment.
+Mods can apply rulesets that add guarantees and more specialized
+meaning to a schema. For example, an FSM ruleset defines the valid order in
+which an entity's events can be emitted.
 
-### UI development
+Quent's YAML-based source format provides built-in syntax for FSMs:
 
-The easiest way to get a working backend for UI development is with Docker
-Compose:
+```yaml
+quent: alpha
+model: hello
 
-```bash
-docker compose up --build
+fsms:
+  App:
+    states:
+      started:
+        initial: true
+        to: [ended]
+      ended:
+        to: [exit]
+        attributes:
+          success: bool
 ```
 
-This spawns the simulator server (collector on `:7836`, analyzer HTTP API on
-`:8080`) and runs the simulator application, which generates a test dataset
-by sending simulated query engine events to the collector.
+### Generating an instrumentation library
 
-Then start the Vite dev server:
+After you finish modeling your application's events, a Cargo build script can
+use `quent-yaml` to parse and validate a YAML source before
+`quent-instrumentation-build` generates a typed Rust instrumentation library in
+Cargo's `OUT_DIR`.
 
-```bash
-cd ui
-pnpm install
-pnpm dev
+While Quent's core (generated) libraries are written in Rust, please see the
+[cross-language integration section](#cross-language-integration) for how to
+generate Python or C++ wrappers.
+
+### Instrumenting an application
+
+After generating the instrumentation library, include the generated source and
+emit the schema's events:
+
+```rust
+mod hello {
+    include!(concat!(env!("OUT_DIR"), "/hello.rs"));
+}
+
+let exporter = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+    FileSystemFormat::Ndjson,
+    "quent-data".into(),
+));
+let context = hello::HelloContext::try_new(Some(exporter))?;
+let mut app = context.app_observer().handle();
+app.started()?;
 ```
 
-`pnpm dev` generates the TypeScript bindings consumed by the UI before starting
-Vite. Run `pnpm bindings` after changing Rust types while the dev server remains
-open. The `start`, `typecheck`, and `build` scripts also ensure bindings exist.
+## Cross-language integration
 
-The dev server starts on <http://localhost:5173> by default.
+Quent generates one canonical Rust instrumentation library. When needed,
+additional code generators can provide C++ or Python bindings over that
+implementation. This keeps event behavior and exporter integration consistent
+across languages without maintaining separate language-specific SDKs.
 
-#### Running the server without Docker
+- [C++ integration example](examples/cpp-integration/)
+- [Python integration example](examples/python-integration/)
 
-Without the `ui` feature, the server only exposes the analysis API and does not
-build and serve the static webpage, so you can use the Vite dev server as
-described previously.
+## More advanced examples
 
-```bash
-cargo run -p quent-simulator-server -- --cors-address http://localhost:5173
+To give a more illustrative example of leveraging more mods, the
+example below shows an application event model for a contrived distributed
+application whose FSM-modeled entities use resources and tree-forming
+references.
+
+```yaml
+quent: alpha
+model: distributed_worker
+
+entities:
+  Cluster:
+    events:
+      started: {}
+
+  Worker:
+    events:
+      started:
+        attributes:
+          cluster: { scope-ref: Cluster }
+          host: string
+
+  ThreadPool:
+    events:
+      created:
+        attributes:
+          worker: { scope-ref: Worker }
+
+  Thread:
+    resource: true
+    events:
+      registered:
+        attributes:
+          pool: { scope-ref: ThreadPool }
+
+  Memory:
+    resource:
+      bytes: { kind: occupancy, known-bounds: true }
+    events:
+      registered:
+        attributes:
+          worker: { scope-ref: Worker }
+          capacity: { sets-resource-bounds: true }
+
+  Channel:
+    resource:
+      bytes: { kind: rate }
+    events:
+      connected:
+        attributes:
+          source: { scope-ref: Worker }
+          target: { ref: Worker }
+
+fsms:
+  Task:
+    states:
+      allocating:
+        initial: true
+        attributes:
+          worker: { scope-ref: Worker }
+          memory: { uses: Memory }
+        to: [computing]
+      computing:
+        attributes:
+          memory: { uses: Memory }
+          thread: { uses: Thread }
+        to: [sending, exit]
+      sending:
+        attributes:
+          channel: { uses: Channel }
+        to: [exit]
 ```
 
-To generate a test dataset, run the simulator:
+Or a schema for (simplified) traditional telemetry signals:
 
-```bash
-cargo run -p quent-simulator
+```yaml
+quent: alpha
+model: telemetry
+
+entities:
+  Log:
+    events:
+      info:
+        multi: true
+        attributes:
+          message: string
+      warn:
+        multi: true
+        attributes:
+          message: string
+      error:
+        multi: true
+        attributes:
+          message: string
+
+  Metric:
+    events:
+      sample:
+        multi: true
+        attributes:
+          value: f64
+
+fsms:
+  TraceSpan:
+    states:
+      open:
+        initial: true
+        to: [closed]
+        attributes:
+          name: string
+      closed:
+        to: [exit]
 ```
 
-### Building with the static webpage
+## More information
 
-With the `ui` feature flag, the server also serves the static webpage, removing
-the need for a separate frontend server. This approach can be useful to do some
-stress testing on the UI.
-
-```bash
-cargo build -p quent-simulator-server --features ui --release
-```
-
-The Cargo build generates the TypeScript bindings, builds the UI, and bundles
-the output into the binary.
-
-### Swagger UI
-
-An interactive API explorer is available behind the `swagger` feature flag:
-
-```bash
-cargo build -p quent-simulator-server --features ui,swagger --release
-```
-
-Then visit <http://localhost:8080/swagger-ui>.
+- [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
+- [Development guide](DEVELOPMENT.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Documentation book](docs/) — outdated and may not match current APIs.
