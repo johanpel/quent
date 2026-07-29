@@ -214,7 +214,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </Suspense>
             </div>
             <DagPlayhead startTimeUnixNs={queryBundle.start_time_unix_ns} />
-            <DAGNodeInfoPanel isDark={isDark} />
+            <DAGNodeInfoPanel isDark={isDark} quantitySpecs={queryBundle.quantity_specs} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
