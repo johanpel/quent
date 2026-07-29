@@ -32,7 +32,7 @@ into something semantically rich, leveraging the rules imposed by _mods_.
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
 stack. Each mod can contribute constraints on schema elements (e.g. on events or
-attributes), code generators, analysis componentss, visualizations, and agent
+attributes), code generators, analysis components, visualizations, and agent
 interfaces, among others.
 
 By applying mods to an application-specific model, you and your coding agents
