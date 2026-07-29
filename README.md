@@ -46,7 +46,7 @@ case for Quent: ![Quent overview demo](ui/docs/screenshots/demo.gif)
 ## Why
 
 Quent is built to address a growing complexity gap between complex modern
-systems software and low-level profiling tools.
+distributed systems software and low-level profiling tools.
 
 Highly dynamic software systems (take query engines, for example) have a lot
 of "stuff" to do before the heavy computation actually starts inside
@@ -60,9 +60,9 @@ machinery with traditional profiling tools is, however, hard and time-consuming.
 The goal is to reduce time to conclusion (TTC) for these applications by
 allowing developers to start performance analysis from code they work with every
 day, have full control over, and have already formed mental models for. This
-helps narrow the analysis first in a familiar environment
-before reaching for other excellent low-level profiling tools such as NVIDIA
-Nsight Systems or Nsight Compute for deeper system-level or closer-to-hardware
+helps narrow the analysis first in a familiar environment before reaching for
+other excellent low-level profiling tools such as Linux Perf, NVIDIA Nsight
+Systems or Nsight Compute for deeper system-level or closer-to-hardware
 analysis.
 
 ## Status
