@@ -71,8 +71,10 @@ export function buildOperatorRows(
       const stats: Record<string, StatValue> = {
         duration_s: duration !== null ? Number(duration.toFixed(6)) : null,
       };
+      const statQuantities: Record<string, string> = {};
       for (const stat of parseCustomStatistics(op)) {
         stats[stat.key] = stat.value;
+        if (stat.quantity) statQuantities[stat.key] = stat.quantity;
       }
       rows.push({
         partitionId,
@@ -86,6 +88,7 @@ export function buildOperatorRows(
         itemName,
         itemId: op.id,
         stats,
+        statQuantities,
       });
     }
   }

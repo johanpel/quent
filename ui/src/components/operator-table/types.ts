@@ -15,4 +15,6 @@ export interface OperatorTableRow {
   itemName: string;
   itemId: string;
   stats: Record<string, StatValue>;
+  /** Maps stat key → quantity name (key into QueryBundle.quantity_specs) for stats that have one. */
+  statQuantities: Record<string, string>;
 }

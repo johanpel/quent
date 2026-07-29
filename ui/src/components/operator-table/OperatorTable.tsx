@@ -129,6 +129,20 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     [entities, includedPlanIds]
   );
 
+  const statQuantitySpecs = useMemo(() => {
+    const quantitySpecs = queryBundle.quantity_specs;
+    const result: Record<string, import('@quent/utils').QuantitySpec> = {};
+    for (const row of allRows) {
+      for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
+        if (!(statKey in result)) {
+          const spec = quantitySpecs[quantityName];
+          if (spec) result[statKey] = spec;
+        }
+      }
+    }
+    return result;
+  }, [allRows, queryBundle.quantity_specs]);
+
   // When the DAG has a selection, narrow the table to just the matching
   // operator rows. If the selection is non-empty but matches nothing in the
   // current sibling-plan scope (e.g. a stage node was selected), fall back to
@@ -359,6 +373,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
+          statQuantitySpecs={statQuantitySpecs}
         />
       </div>
     </div>

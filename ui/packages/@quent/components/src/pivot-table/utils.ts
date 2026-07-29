@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { inferFieldFormatter } from '@quent/utils';
-import type { StatValue, ContinuousPaletteName } from '@quent/utils';
+import { inferFieldFormatter, formatQuantity } from '@quent/utils';
+import type { StatValue, ContinuousPaletteName, QuantitySpec } from '@quent/utils';
 import { continuousColor } from '@quent/utils';
 import type {
   StatGroupExpandedRow,
@@ -23,8 +23,13 @@ export interface GroupIndexDef {
   getLabel: (row: StatGroupExpandedRow) => string;
 }
 
-export function formatNumericStat(n: number | null, statName: string): string {
+export function formatNumericStat(
+  n: number | null,
+  statName: string,
+  quantitySpec?: QuantitySpec
+): string {
   if (n === null) return '-';
+  if (quantitySpec) return formatQuantity(n, quantitySpec, 'Occupancy');
   return inferFieldFormatter(statName)(n);
 }
 
@@ -41,9 +46,13 @@ export function itemHasId(items: Iterable<string>, target: ReadonlySet<string>):
   return false;
 }
 
-export function formatStatValue(value: StatValue, statName: string): string {
+export function formatStatValue(
+  value: StatValue,
+  statName: string,
+  quantitySpec?: QuantitySpec
+): string {
   if (value === null || value === undefined) return '-';
-  if (typeof value === 'number') return formatNumericStat(value, statName);
+  if (typeof value === 'number') return formatNumericStat(value, statName, quantitySpec);
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (Array.isArray(value)) return value.join(', ');
   return String(value);

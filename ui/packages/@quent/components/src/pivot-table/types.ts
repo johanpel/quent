@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue, ContinuousPaletteName } from '@quent/utils';
+import type { StatValue, ContinuousPaletteName, QuantitySpec } from '@quent/utils';
 import type { AggMode, HoveredStatInfo } from '@quent/hooks';
 
 // Re-exports of pivot-table-related types that originate in @quent/hooks but
@@ -86,6 +86,8 @@ export interface PivotTableDisplayConfig {
   aggMode: AggMode;
   colorPalette: ContinuousPaletteName;
   darkMode: boolean;
+  /** Per-stat QuantitySpec for quantity-aware formatting, keyed by stat name. */
+  statQuantitySpecs?: Record<string, QuantitySpec>;
 }
 
 // --- PivotedStatTable types ---

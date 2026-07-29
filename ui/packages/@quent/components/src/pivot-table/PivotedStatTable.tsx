@@ -180,6 +180,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
     onMouseEnter: () => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat)),
     onMouseLeave: () => interaction.setHoveredStat(null),
   };
+  const quantitySpec = display.statQuantitySpecs?.[stat];
   if (!display.isAggregating) {
     const val = row.values.get(stat) ?? null;
     return (
@@ -188,7 +189,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
         style={{ backgroundColor: bg, boxShadow: cellHighlight }}
         {...statCellProps}
       >
-        {formatStatValue(val, stat)}
+        {formatStatValue(val, stat, quantitySpec)}
       </td>
     );
   }
@@ -211,7 +212,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {formatNumericStat(displayVal, stat)}
+      {formatNumericStat(displayVal, stat, quantitySpec)}
     </td>
   );
 }
@@ -246,6 +247,8 @@ interface PivotedStatTableProps<TRow> {
   /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
+  /** Per-stat QuantitySpec for quantity-aware formatting, keyed by stat name. */
+  statQuantitySpecs?: Record<string, import('@quent/utils').QuantitySpec>;
 }
 
 export function PivotedStatTable<TRow>({
@@ -266,6 +269,7 @@ export function PivotedStatTable<TRow>({
   onReorderStat,
   sorting,
   onSortingChange,
+  statQuantitySpecs,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -515,8 +519,9 @@ export function PivotedStatTable<TRow>({
       aggMode,
       colorPalette: nodePalette,
       darkMode: isDark,
+      statQuantitySpecs,
     }),
-    [isAggregating, aggMode, nodePalette, isDark]
+    [isAggregating, aggMode, nodePalette, isDark, statQuantitySpecs]
   );
   const dndContextValue = useMemo(
     () => ({
