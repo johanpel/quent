@@ -213,10 +213,9 @@ across languages without maintaining separate language-specific SDKs.
 
 ## More advanced examples
 
-To give a more illustrative example of leveraging more mods, the
-example below shows an application event model for a contrived distributed
-application whose FSM-modeled entities use resources and tree-forming
-references.
+To give a more illustrative example of some built-in mod features, the example
+below shows an application event model for a contrived distributed application
+whose FSM-modeled entities use resources and tree-forming references:
 
 ```yaml
 quent: alpha
@@ -285,7 +284,7 @@ fsms:
         to: [exit]
 ```
 
-Or a schema for (simplified) traditional telemetry signals:
+Quent can also represent traditional telemetry signals, e.g. (simplified):
 
 ```yaml
 quent: alpha
@@ -315,13 +314,25 @@ entities:
           value: f64
 
 fsms:
-  TraceSpan:
+  OtelSpan: # like OTel tracing spans
     states:
       open:
         initial: true
         to: [closed]
         attributes:
           name: string
+      closed:
+        to: [exit]
+
+  TracingSpan: # like tracing crate spans
+    states:
+      entered:
+        initial: true
+        to: [exit, closed]
+        attributes:
+          name: string
+      exited:
+        to: [entered, closed]
       closed:
         to: [exit]
 ```
