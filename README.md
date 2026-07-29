@@ -72,9 +72,9 @@ format, generated APIs, runtime, analysis components, and documentation may
 change without compatibility guarantees for now. There are no releases yet;
 breaking changes and bugs are currently expected. Use this at your own risk.
 
-### Mods
+## Mods
 
-Built-in mods include generally useful capabilities:
+Built-in mods include things useful for a wide variety of applications:
 
 - `quent-fsm`: describes the potential sequences of events by modeling entities
   as finite-state machines.
@@ -94,13 +94,13 @@ Built-in mods include generally useful capabilities:
   e.g., provide the canonical path of performance analysis exploration through
   all event data from a UI.
 
-Mods can be self-authored and also provide components around
-application- or domain-specific semantics. For example, applications that
-capture dynamically defined computation paths via directed acyclic graphs can
-describe a set of rules about how vertices and edges are declared and can
-provide the means to analyze data-flow throughput over these edges. An analysis
-component finds all associated events, and a UI component as part of the
-mod can visually render the graph.
+Mods can be self-authored to provide components around application- or
+domain-specific concerns. For example, applications like query engines often
+capture their computational path via directed acyclic graphs. By capturing rules
+for how a schema should represent vertices and edges, and how data flow across
+edges can be captured, an analysis component can quickly find all associated
+events, and an UI component can visually render the graph and data flowing
+across edges over time.
 
 ## Quick example
 
