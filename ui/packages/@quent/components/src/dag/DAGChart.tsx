@@ -48,8 +48,13 @@ import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
-import { inferFieldFormatter } from '@quent/utils';
+import {
+  continuousColor,
+  getOperationTypeColor,
+  buildOperatorColorMap,
+  inferFieldFormatter,
+} from '@quent/utils';
+import type { QuantitySpec } from '@quent/utils';
 
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
@@ -317,6 +322,21 @@ const FlowLayout = ({
     [data.nodes]
   );
 
+  // Build a stat-key → QuantitySpec map for quantity-aware legend formatting.
+  const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
+    if (!data.quantitySpecs) return {};
+    const result: Record<string, QuantitySpec> = {};
+    for (const node of data.nodes) {
+      for (const stat of parseCustomStatistics(node.metadata?.rawNode)) {
+        if (stat.quantity && !(stat.key in result)) {
+          const spec = data.quantitySpecs[stat.quantity];
+          if (spec) result[stat.key] = spec;
+        }
+      }
+    }
+    return result;
+  }, [data.nodes, data.quantitySpecs]);
+
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
     // Determine which nodes have incoming/outgoing edges
@@ -338,6 +358,7 @@ const FlowLayout = ({
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
           flowBarVisible,
+          quantitySpecs: data.quantitySpecs,
         },
         style: {
           width: NODE_LAYOUT_WIDTH,
@@ -455,7 +476,7 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
-      <DAGLegend isDark={isDark} />
+      <DAGLegend isDark={isDark} statQuantitySpecs={statQuantitySpecs} />
       <MiniMap
         pannable
         zoomable

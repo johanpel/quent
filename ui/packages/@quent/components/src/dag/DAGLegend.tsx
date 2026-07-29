@@ -20,7 +20,8 @@ import {
   getLegendGradientStops,
   type PaletteTheme,
 } from '@quent/utils';
-import { inferFieldFormatter } from '@quent/utils';
+import { inferFieldFormatter, formatQuantity } from '@quent/utils';
+import type { QuantitySpec } from '@quent/utils';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -33,10 +34,20 @@ interface ContinuousLegendProps {
   max: number;
   palette: ContinuousPaletteName;
   isDark: boolean;
+  quantitySpec?: QuantitySpec;
 }
 
-const ContinuousLegend = ({ field, min, max, palette, isDark }: ContinuousLegendProps) => {
-  const fmt = inferFieldFormatter(field);
+const ContinuousLegend = ({
+  field,
+  min,
+  max,
+  palette,
+  isDark,
+  quantitySpec,
+}: ContinuousLegendProps) => {
+  const fmt = quantitySpec
+    ? (v: number) => formatQuantity(v, quantitySpec, 'Occupancy')
+    : inferFieldFormatter(field);
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -135,11 +146,13 @@ function NodeLegendContent({
   field,
   palette,
   isDark,
+  statQuantitySpecs,
 }: {
   coloring: NodeColoring;
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
+  statQuantitySpecs?: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
@@ -150,6 +163,7 @@ function NodeLegendContent({
         max={coloring.max}
         palette={palette}
         isDark={isDark}
+        quantitySpec={statQuantitySpecs?.[field]}
       />
     );
   }
@@ -161,11 +175,13 @@ function EdgeLegendContent({
   field,
   palette,
   isDark,
+  statQuantitySpecs,
 }: {
   coloring: EdgeColoring;
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
+  statQuantitySpecs?: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
@@ -176,6 +192,7 @@ function EdgeLegendContent({
         max={coloring.max}
         palette={palette}
         isDark={isDark}
+        quantitySpec={statQuantitySpecs?.[field]}
       />
     );
   }
@@ -185,10 +202,12 @@ function EdgeLegendContent({
 interface DAGLegendProps {
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
+  /** Pre-resolved stat-key → QuantitySpec map for quantity-aware legend formatting. */
+  statQuantitySpecs?: Record<string, QuantitySpec>;
 }
 
 /** Panel overlay showing node/edge coloring legends within the ReactFlow canvas. */
-export const DAGLegend = ({ isDark }: DAGLegendProps) => {
+export const DAGLegend = ({ isDark, statQuantitySpecs }: DAGLegendProps) => {
   const nodeColoring = useNodeColoringValue();
   const edgeColoring = useEdgeColoring();
   const [nodePalette] = useNodeColorPalette();
@@ -247,6 +266,7 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
           field={nodeField}
           palette={nodePalette}
           isDark={isDark}
+          statQuantitySpecs={statQuantitySpecs}
         />
         {hasNode && hasEdge && <div className="border-t border-border" />}
         <EdgeLegendContent
@@ -254,6 +274,7 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
           field={edgeField}
           palette={edgePalette}
           isDark={isDark}
+          statQuantitySpecs={statQuantitySpecs}
         />
         {(hasNode || hasEdge) && hasDataFlow && <div className="border-t border-border" />}
         {hasDataFlow && (

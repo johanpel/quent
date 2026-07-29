@@ -27,6 +27,7 @@ export interface DAGData {
   nodes: import('@quent/utils').DAGNode[];
   edges: import('@quent/utils').DAGEdge[];
   queryData: QueryPlanDataItem[];
+  quantitySpecs?: { [key in string]?: import('@quent/utils').QuantitySpec };
 }
 
 export interface QueryPlanNodeData extends Record<string, unknown> {

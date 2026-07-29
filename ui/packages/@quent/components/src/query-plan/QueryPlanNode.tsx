@@ -26,7 +26,7 @@ import {
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { inferFieldFormatter } from '@quent/utils';
+import { formatStatWithQuantity } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 
@@ -53,6 +53,8 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    * relayouts exactly once.
    */
   flowBarVisible?: boolean;
+  /** Quantity specs from the QueryBundle, forwarded for quantity-aware stat formatting. */
+  quantitySpecs?: { [key: string]: import('@quent/utils').QuantitySpec | undefined };
 }
 
 const nodeVariants = cva(
@@ -118,14 +120,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     return data.label;
   }, [nodeLabelField, data]);
 
-  const colorFieldValue = colorField
-    ? (statistics.find(s => s.key === colorField)?.value ?? null)
-    : null;
+  const colorFieldStat = colorField ? statistics.find(s => s.key === colorField) : null;
+  const colorFieldValue = colorFieldStat?.value ?? null;
   const formattedColorFieldValue =
     colorFieldValue === null
       ? null
       : typeof colorFieldValue === 'number'
-        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        ? formatStatWithQuantity(
+            colorFieldValue,
+            colorField!,
+            colorFieldStat?.quantity,
+            data.quantitySpecs
+          )
         : String(colorFieldValue);
 
   const baseColor = data.baseColor ?? getOperationTypeColor(data.operationType);
