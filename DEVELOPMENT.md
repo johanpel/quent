@@ -28,7 +28,7 @@ language-bridge crates and are intended for Linux.
 Check Markdown with the version used by CI:
 
 ```bash
-uvx rumdl==0.1.67 check --diff
+pixi run --frozen uvx rumdl==0.1.67 check --diff
 ```
 
 Run the UI checks from `ui/`:
