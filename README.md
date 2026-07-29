@@ -14,8 +14,6 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/rapidsai/quent" alt="Apache-2.0 license"></a>
 </p>
 
-## What is Quent?
-
 Quent helps build dedicated performance analysis tools tailored to your
 application. You and your agents first describe a _schema_ of _events_ with
 _attributes_, which you use to instrument anything (called an _entity_) in your
@@ -108,47 +106,33 @@ mod can visually render the graph.
 
 ### Schema definition
 
-Quent schemas describe the things, a.k.a. _entities_, that can emit _events_
-with _attributes_, much like structured logs. Such a schema is said to capture
-the "application event model" because, on the one hand, it just tells you what
-events exist and, on the other hand, especially by leveraging mods, you sort of
-model the potential behavior of things in your application.
-Examples include an object whose lifecycle you want to track, a span around part
-of a function, an asynchronous task, or a memory pool.
+At the surface, writing a Quent schema is similar to defining attributes of
+structured logs. While it can do so, it is a bit more than that. A Quent schema
+is said to capture the "application event model" because, it tells you what
+events exist and, especially by leveraging mods, you model the behavior of
+entities in your application.
+
+Examples of entities include an object whose lifecycle you want to track, a span
+of code of a function that you want to time, an asynchronous task traveling
+through its executor, a memory pool dealing out allocations, basically anything
+that you could emit some useful event for.
 
 Quent's YAML-based source format is one way to capture your application event
 model:
 
 ```yaml
-quent: alpha # version of Quent's YAML-based DSL
-model: Hello # name of the model
+quent: alpha # Version of Quent's YAML-based DSL
+model: Hello # Name of the model
 
 entities:
-  App: # model the entire application process as an entity
-    events:
-      started: {} # that emits an event when it starts.
-```
-
-Mods can apply rulesets that add guarantees and more specialized
-meaning to a schema. For example, an FSM ruleset defines the valid order in
-which an entity's events can be emitted.
-
-Quent's YAML-based source format provides built-in syntax for FSMs:
-
-```yaml
-quent: alpha
-model: hello
-
-fsms:
+  # Model the entire program as an entity.
   App:
-    states:
+    events:
+      # We want to know when the program started ...
       started:
-        initial: true
-        to: [ended]
-      ended:
-        to: [exit]
         attributes:
-          success: bool
+          # ... and what its arguments were
+          args: list<string>
 ```
 
 ### Generating an instrumentation library
@@ -168,18 +152,54 @@ After generating the instrumentation library, include the generated source and
 emit the schema's events:
 
 ```rust
-mod hello {
-    include!(concat!(env!("OUT_DIR"), "/hello.rs"));
-}
+// Include the generated code
+include!(concat!(env!("OUT_DIR"), "/hello.rs"));
 
-let exporter = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
-    FileSystemFormat::Ndjson,
-    "quent-data".into(),
-));
-let context = hello::HelloContext::try_new(Some(exporter))?;
-let mut app = context.app_observer().handle();
-app.started()?;
+// Spawn a context (named after the model, see YAML) with a runtime for event
+// exporting:
+let context = HelloContext::try_new(None)?;
+
+// Every entity type gets its own export pipeline, called an "observer":
+let obs = context.app_observer();
+
+// Every entity instance has an associated handle dealt out by the observer:
+let app = obs.handle();
+
+// Emit an event.
+app.started(std::env::args().collect())?;
 ```
+
+### Applying mods
+
+Mods can apply sets of rules to schemas that add guarantees and specialized
+semantics. This ultimately helps ensure that events can be properly interpreted
+during analysis and that the outcome can be properly visualized (or otherwise
+utilized).
+
+Quent's YAML-based source format provides built-in syntax for FSMs:
+
+```yaml
+quent: alpha
+model: hello
+
+fsms:
+  App:s
+    states:
+      started:
+        initial: true
+        to: [ended]
+      ended:
+        to: [exit]
+        attributes:
+          success: bool
+```
+
+> TODO:
+>
+> - Add a succinct example of an FSM mod's effect on instrumentation (typestate
+>   pattern API), analysis (invalid transition detection), visualization, and
+>   other components.
+> - Add a succinct example of self-authoring a simple attribute-convention mod.
 
 ## Cross-language integration
 
