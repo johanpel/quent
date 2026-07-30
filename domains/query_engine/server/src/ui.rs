@@ -8,7 +8,9 @@ use axum::{
 };
 
 use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
+use quent_query_engine_analyzer::{
+    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
+};
 use quent_query_engine_ui as ui;
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
@@ -138,7 +140,7 @@ where
         analyzer
             .query_engine_model()
             .query_groups()
-            .map(QueryGroup::to_ui)
+            .map(|query_group| query_group.to_ui())
             .collect::<Vec<_>>(),
     ))
 }

@@ -806,7 +806,9 @@ mod tests {
     use quent_analyzer::AnalyzerResult;
     use quent_events::Event;
     use quent_query_engine_analyzer::{
-        QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
+        QueryEngineModel,
+        plain::legacy::{Engine, InMemoryQueryEngineModel},
+        ui::UiAnalyzer,
     };
     use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
     use quent_ui::{

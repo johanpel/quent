@@ -9,12 +9,9 @@ use quent_query_engine_ui as ui;
 use quent_time::{span::SpanUnixNanoSec, try_to_secs_relative};
 use uuid::Uuid;
 
-/// Read-only analyzer API for an engine entity.
-pub trait EngineEntity: Entity + Span + ResourceGroup {
-    fn to_ui(&self) -> AnalyzerResult<ui::Engine>;
-}
+use crate::EngineEntity;
 
-/// The analyzer's Engine entity.
+/// The event-backed engine entity.
 #[derive(Debug)]
 pub struct Engine(EntityEvents<engine::Engine>);
 
@@ -26,8 +23,10 @@ impl Engine {
     pub fn push(&mut self, event: Event<engine::EngineEvent>) {
         self.0.push(event);
     }
+}
 
-    pub fn to_ui(&self) -> AnalyzerResult<ui::Engine> {
+impl EngineEntity for Engine {
+    fn to_ui(&self) -> AnalyzerResult<ui::Engine> {
         let d = self.0.data();
         let start = self.0.earliest_timestamp();
         let end = self.0.latest_timestamp();
@@ -52,9 +51,11 @@ impl Entity for Engine {
     fn id(&self) -> Uuid {
         self.0.id()
     }
+
     fn type_name(&self) -> &str {
         "engine"
     }
+
     fn instance_name(&self) -> &str {
         self.0
             .data()

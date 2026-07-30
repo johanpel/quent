@@ -4,7 +4,8 @@
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::{
-    entities,
+    EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
+    WorkerEntity, entities,
     ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
 };
 use quent_query_engine_ui::{

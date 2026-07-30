@@ -3,38 +3,41 @@
 
 use rustc_hash::FxHashMap as HashMap;
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity};
+use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
-use crate::plan::Plan;
+use crate::PlanEntity;
 
-/// A tree of [`Plan`]s.
+/// A tree of [`PlanEntity`] values.
 ///
-/// [`Plan`]s under a `Query` may form a tree, typically with a trunk and
+/// Plans under a `Query` may form a tree, typically with a trunk and
 /// potentially a single branching point when they are fanned out over workers
 /// for distributed `Engine`s.
 ///
-/// Under the `Query` there must be always one top-level [`Plan`] (the root of
+/// Under the `Query` there must be always one top-level plan (the root of
 /// the tree). For example, this could be what in some `Engine`s is called a
-/// "logical" [`Plan`].
+/// "logical" plan.
 ///
-/// An `Engine` may "lower" a [`Plan`] to produce a derived [`Plan`], any
+/// An `Engine` may "lower" a plan to produce a derived plan, any
 /// arbitrary number of times. At some point, at least one `Worker` will
-/// execute a [`Plan`], but the model is flexible enough to allow a `Worker`
-/// to locally "lower" the [`Plan`] further.
+/// execute a plan, but the model is flexible enough to allow a `Worker`
+/// to locally "lower" the plan further.
 #[derive(Clone, Debug)]
 pub struct PlanTree {
-    /// The [`Plan`] ID.
+    /// The plan ID.
     pub id: Uuid,
-    /// The ID of the `Worker` this [`Plan`] is local to.
+    /// The ID of the `Worker` this plan is local to.
     pub worker: Option<Uuid>,
-    /// The child [`Plan`]. If this is an empty list, this is a leaf [`Plan`].
+    /// The child plans. If this is an empty list, this is a leaf plan.
     pub children: Vec<PlanTree>,
 }
 
 impl PlanTree {
-    fn build(current_plan_id: Uuid, plans: &HashMap<Uuid, &Plan>) -> AnalyzerResult<PlanTree> {
+    fn build<P>(current_plan_id: Uuid, plans: &HashMap<Uuid, &P>) -> AnalyzerResult<PlanTree>
+    where
+        P: PlanEntity,
+    {
         let plan = plans
             .get(&current_plan_id)
             .ok_or(AnalyzerError::InvalidId(current_plan_id))?;
@@ -62,15 +65,18 @@ impl PlanTree {
         })
     }
 
-    pub fn try_new<'a>(
-        plans: impl Iterator<Item = &'a Plan>,
+    pub fn try_new<'a, P>(
+        plans: impl Iterator<Item = &'a P>,
         query_id: Uuid,
-    ) -> AnalyzerResult<Self> {
-        let plans: HashMap<Uuid, &Plan> = plans.map(|p| (p.id(), p)).collect();
+    ) -> AnalyzerResult<Self>
+    where
+        P: PlanEntity + 'a,
+    {
+        let plans: HashMap<Uuid, &P> = plans.map(|p| (p.id(), p)).collect();
 
         let root_plans: Vec<_> = plans
             .values()
-            .filter(|p: &&&Plan| {
+            .filter(|p| {
                 p.parent()
                     .and_then(|parent| parent.query_id)
                     .is_some_and(|r| r.uuid() == query_id)
@@ -130,6 +136,7 @@ mod tests {
     use quent_time::TimeUnixNanoSec;
 
     use super::*;
+    use crate::plain::legacy::Plan;
 
     fn make_plan(id: Uuid, parent: PlanParent, worker_id: Option<Uuid>) -> Plan {
         let mut plan = Plan::try_new(id).unwrap();

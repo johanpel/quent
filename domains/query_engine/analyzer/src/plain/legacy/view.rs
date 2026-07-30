@@ -8,16 +8,11 @@ use quent_analyzer::{
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{
-    QueryEngineModel,
-    engine::Engine,
-    model::{InMemoryQueryEngineModel, QueryEngineEntityId},
-    operator::Operator,
-    plan::{Plan, tree::PlanTree},
-    port::Port,
-    query::Query,
-    query_group::QueryGroup,
-    worker::Worker,
+use crate::{QueryEngineModel, QueryEntity, plan_tree::PlanTree};
+
+use super::{
+    Engine, InMemoryQueryEngineModel, Operator, Plan, Port, Query, QueryEngineEntityId, QueryGroup,
+    Worker,
 };
 
 /// A view of a query engine model scoped by one single query.
@@ -89,6 +84,14 @@ impl<'a> Model for InMemoryQueryEngineModelView<'a> {
 }
 
 impl<'a> QueryEngineModel for InMemoryQueryEngineModelView<'a> {
+    type Engine = Engine;
+    type Query = Query;
+    type QueryGroup = QueryGroup;
+    type Worker = Worker;
+    type Plan = Plan;
+    type Operator = Operator;
+    type Port = Port;
+
     fn engine(&self) -> AnalyzerResult<&Engine> {
         Ok(self.engine)
     }

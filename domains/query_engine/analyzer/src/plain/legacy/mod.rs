@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Legacy event-backed query-engine analyzer storage.
+
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, EntityId, Model,
     resource::{Resource, ResourceGroup, ResourceTypeDecl, collection::ResourceCollection},
@@ -10,17 +12,25 @@ use quent_query_engine_model::QueryEngineEvent;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{
-    QueryEngineModel,
-    engine::Engine,
-    operator::Operator,
-    plan::{Plan, tree::PlanTree},
-    port::Port,
-    query::{Query, QueryBuilder},
-    query_group::QueryGroup,
-    view::InMemoryQueryEngineModelView,
-    worker::Worker,
-};
+mod engine;
+mod operator;
+mod plan;
+mod port;
+mod query;
+mod query_group;
+mod view;
+mod worker;
+
+pub use engine::Engine;
+pub use operator::Operator;
+pub use plan::Plan;
+pub use port::Port;
+pub use query::{Query, QueryBuilder};
+pub use query_group::QueryGroup;
+pub use view::InMemoryQueryEngineModelView;
+pub use worker::Worker;
+
+use crate::{QueryEngineModel, QueryEngineModelMut, plan_tree::PlanTree};
 
 #[derive(Debug)]
 pub struct InMemoryQueryEngineModel {
@@ -96,6 +106,14 @@ impl Model for InMemoryQueryEngineModel {
 }
 
 impl QueryEngineModel for InMemoryQueryEngineModel {
+    type Engine = Engine;
+    type Query = Query;
+    type QueryGroup = QueryGroup;
+    type Worker = Worker;
+    type Plan = Plan;
+    type Operator = Operator;
+    type Port = Port;
+
     fn engine(&self) -> AnalyzerResult<&Engine> {
         Ok(&self.engine)
     }
@@ -149,8 +167,16 @@ impl QueryEngineModel for InMemoryQueryEngineModel {
         self.ports.values()
     }
 
-    fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<crate::plan::tree::PlanTree> {
+    fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree> {
         PlanTree::try_new(self.plans.values(), query_id)
+    }
+}
+
+impl QueryEngineModelMut for InMemoryQueryEngineModel {
+    fn operator_mut(&mut self, operator_id: Uuid) -> AnalyzerResult<&mut Operator> {
+        self.operators
+            .get_mut(&operator_id)
+            .ok_or(AnalyzerError::InvalidId(operator_id))
     }
 }
 
