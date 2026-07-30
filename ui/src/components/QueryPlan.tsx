@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, lazy, Suspense } from 'react';
@@ -213,7 +213,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
                 <DAGChart data={dagData} height="100%" isDark={isDark} />
               </Suspense>
             </div>
-            <DagPlayhead startTimeUnixNs={queryBundle.start_time_unix_ns} />
+            <DagPlayhead />
             <DAGNodeInfoPanel isDark={isDark} />
           </div>
         </ResizablePanel>

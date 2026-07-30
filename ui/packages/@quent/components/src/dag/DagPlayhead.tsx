@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { cn, formatDurationForWindow } from '@quent/utils';
 import {
@@ -10,7 +10,7 @@ import {
   usePlayheadTimeS,
   useSetPlayheadTimeS,
 } from '@quent/hooks';
-import { broadcastSyncedPointer, hideSyncedPointer, nanosToMs } from '../lib/timeline.utils';
+import { broadcastSyncedPointer, hideSyncedPointer } from '../lib/timeline.utils';
 
 /** Interval between play ticks; each tick advances the playhead by one bin. */
 const PLAY_INTERVAL_MS = 100;
@@ -18,11 +18,6 @@ const KEYBOARD_STEP_BINS = 1;
 const KEYBOARD_FAST_STEP_BINS = 10;
 
 interface DagPlayheadProps {
-  /**
-   * Query epoch (ns since Unix epoch). Used to broadcast a synced axis
-   * pointer to the timeline charts while scrubbing/playing.
-   */
-  startTimeUnixNs: bigint;
   className?: string;
 }
 
@@ -38,7 +33,7 @@ function formatTimeLabel(timeS: number, windowS: number): string {
  * changes into per-bin frames. Renders nothing when the feature is
  * unavailable or disabled.
  */
-export function DagPlayhead({ startTimeUnixNs, className }: DagPlayheadProps) {
+export function DagPlayhead({ className }: DagPlayheadProps) {
   const enabled = useDataFlowEnabled();
   const meta = useDataFlowMeta();
   const playheadTimeS = usePlayheadTimeS();
@@ -50,8 +45,6 @@ export function DagPlayhead({ startTimeUnixNs, className }: DagPlayheadProps) {
   const pendingClientXRef = useRef<number | null>(null);
   const playheadRef = useRef<number | null>(playheadTimeS);
   playheadRef.current = playheadTimeS;
-
-  const startTimeMs = useMemo(() => nanosToMs(startTimeUnixNs), [startTimeUnixNs]);
 
   const bin = meta?.bin ?? null;
 
@@ -72,9 +65,9 @@ export function DagPlayhead({ startTimeUnixNs, className }: DagPlayheadProps) {
       const t = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
       const timeS = bin.startS + t * (bin.endS - bin.startS);
       setPlayheadTimeS(timeS);
-      broadcastSyncedPointer(startTimeMs + timeS * 1000);
+      broadcastSyncedPointer(timeS * 1000);
     },
-    [bin, setPlayheadTimeS, startTimeMs]
+    [bin, setPlayheadTimeS]
   );
 
   const handlePointerDown = useCallback(
@@ -172,11 +165,11 @@ export function DagPlayhead({ startTimeUnixNs, className }: DagPlayheadProps) {
       const current = playheadRef.current ?? startS;
       const next = Math.min(current + binDurationS, endS);
       setPlayheadTimeS(next);
-      broadcastSyncedPointer(startTimeMs + next * 1000);
+      broadcastSyncedPointer(next * 1000);
       if (next >= endS) setIsPlaying(false);
     }, PLAY_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [isPlaying, bin, setPlayheadTimeS, startTimeMs]);
+  }, [isPlaying, bin, setPlayheadTimeS]);
 
   // Clear the synced crosshair when playback stops.
   useEffect(() => {

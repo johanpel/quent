@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Verbatim, application-agnostic NVTX event vocabulary.
@@ -37,6 +37,8 @@ pub enum NvtxEvent {
     RangePush {
         /// Raw domain handle (`0` = default domain).
         domain: u64,
+        /// Raw OS thread id (same id space as [`NvtxEvent::NameThread`]).
+        thread_id: u32,
         /// Captured event attributes (message, color, category, payload).
         attributes: NvtxEventAttributes,
     },
@@ -44,6 +46,8 @@ pub enum NvtxEvent {
     RangePop {
         /// Raw domain handle (`0` = default domain).
         domain: u64,
+        /// Raw OS thread id (same id space as [`NvtxEvent::NameThread`]).
+        thread_id: u32,
     },
     /// `nvtxDomainRangeStartEx` — open a process-wide range keyed by id.
     RangeStart {

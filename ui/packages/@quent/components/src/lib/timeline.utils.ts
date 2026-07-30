@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { TimelineSeries, TimelineMark } from '../timeline/types';
@@ -38,13 +38,12 @@ import { MAX_TIMELINE_BINS } from '@quent/utils';
 void getColorForKey;
 const LONG_ENTITIES_BIN_MULTIPLIER = 30;
 
-/** Minimum bin duration in nanoseconds — prevents ECharts from stacking bins when zoomed too far. */
-export const MIN_BIN_DURATION_NS = 250;
+/** Minimum bin duration in nanoseconds — the backend cannot produce sub-1ns bins. */
+export const MIN_BIN_DURATION_NS = 10;
 
 /**
- * Minimum visible zoom window in seconds.
- * Below this, each bin would cover less than MIN_BIN_DURATION_NS nanoseconds.
- * 10 ns/bin × 400 bins = 4 μs
+ * Minimum visible zoom window in seconds: the smallest window the backend can
+ * bin at 1 ns/bin. 1 ns/bin × MAX_TIMELINE_BINS bins.
  */
 export const MIN_ZOOM_WINDOW_S = (MIN_BIN_DURATION_NS * MAX_TIMELINE_BINS) / 1_000_000_000;
 
@@ -71,7 +70,6 @@ export function getLongEntitiesThreshold(windowSeconds: number): number {
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
-  startTime: bigint,
   theme: PaletteTheme,
   capacities?: CapacityDecl[],
   quantitySpecs?: { [key in string]?: QuantitySpec },
@@ -83,7 +81,9 @@ export function buildBinnedTimelineSeries(
   const { bin_duration, num_bins, span } = config;
 
   const numBinsNumber = Number(num_bins);
-  const firstBinMs = nanosToMs(startTime) + span.start * 1_000;
+  // x-domain is relative to query start (ms); span.start is already relative
+  // seconds, so no absolute epoch base is added — keeps values float64-exact.
+  const firstBinMs = span.start * 1_000;
   const binDurationMs = bin_duration * 1_000;
 
   const timestamps = new Array<number>(numBinsNumber);
@@ -170,7 +170,6 @@ export function getLongFsms(data: ResourceTimeline): FiniteStateMachine[] {
  */
 export function buildTimelineMarks(
   longFsms: FiniteStateMachine[],
-  startTime: bigint,
   theme: PaletteTheme,
   resourceIdsForFilter?: Set<string> | null,
   fsmTypes?: { [key in string]?: FsmTypeDecl },
@@ -180,7 +179,6 @@ export function buildTimelineMarks(
 ): TimelineMark[] | undefined {
   if (longFsms.length === 0) return undefined;
 
-  const startTimeMs = nanosToMs(startTime);
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
   const marks = longFsms.flatMap(fsm => {
@@ -196,8 +194,8 @@ export function buildTimelineMarks(
           return null;
         }
         const next = fsm.transitions[i + 1];
-        const xStart = startTimeMs + transition.timestamp * 1000;
-        const xEnd = startTimeMs + next.timestamp * 1000;
+        const xStart = transition.timestamp * 1000;
+        const xEnd = next.timestamp * 1000;
         const color = colorFsm(transition.name);
         return {
           label,
@@ -473,8 +471,8 @@ function broadcastHidePointer(source: EChartsInstance | null) {
 }
 
 /**
- * Broadcast a synced axis-pointer crosshair at `timestampMs` (epoch ms) to
- * every registered timeline chart, without a source chart. Used by the DAG
+ * Broadcast a synced axis-pointer crosshair at `timestampMs` (ms relative to
+ * query start) to every registered timeline chart, without a source chart. Used by the DAG
  * playhead so scrubbing/playing draws a crosshair on the right-panel
  * timelines with zero React re-renders.
  */

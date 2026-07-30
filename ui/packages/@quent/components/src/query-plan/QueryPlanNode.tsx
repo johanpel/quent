@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { memo, useState, useMemo, useCallback } from 'react';
@@ -26,7 +26,7 @@ import {
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { inferFieldFormatter } from '@quent/utils';
+import { inferFieldFormatter, isNumericValue } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 
@@ -124,7 +124,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const formattedColorFieldValue =
     colorFieldValue === null
       ? null
-      : typeof colorFieldValue === 'number'
+      : isNumericValue(colorFieldValue)
         ? inferFieldFormatter(colorField!)(colorFieldValue)
         : String(colorFieldValue);
 

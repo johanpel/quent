@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generates a Rust instrumentation library source from a
@@ -97,6 +97,8 @@ pub struct Options {
 
     /// Emit `AnyEvent` and `AnyEvent::from_any`, a decoder from a type-erased
     /// `&dyn Any` back to the concrete `Event<T>`. Carries [`Self::event_derives`].
+    ///
+    /// No aggregate is emitted when the schema declares no events.
     pub any_event: bool,
 }
 

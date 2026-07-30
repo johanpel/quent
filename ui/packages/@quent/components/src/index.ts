@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -12,6 +12,8 @@ export { Button, buttonVariants } from './ui/button';
 export type { ButtonProps } from './ui/button';
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from './ui/card';
 export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
+export { ControlField, ControlGrid, ControlSection } from './ui/control-grid';
+export type { ControlFieldProps, ControlGridProps, ControlSectionProps } from './ui/control-grid';
 export { DataText } from './ui/data-text';
 export {
   DropdownMenu,
@@ -65,6 +67,11 @@ export {
 } from './ui/select';
 export { SelectField } from './ui/select-field';
 export type { SelectFieldProps, SelectFieldOption } from './ui/select-field';
+export { RequiredMultiSelectField } from './ui/required-multi-select-field';
+export type {
+  RequiredMultiSelectFieldProps,
+  RequiredMultiSelectOption,
+} from './ui/required-multi-select-field';
 export { Skeleton } from './ui/skeleton';
 export { TreeView } from './ui/tree-view';
 export type { TreeDataItem } from './ui/tree-view';

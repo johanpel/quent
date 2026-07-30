@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useState } from 'react';
@@ -11,7 +11,7 @@ import {
 } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 import { thinScrollbarClass } from '../ui/thin-scroll';
-import { inferFieldFormatter } from '@quent/utils';
+import { inferFieldFormatter, isNumericValue } from '@quent/utils';
 import { DataFlowMatrix } from './DataFlowMatrix';
 
 export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
@@ -86,7 +86,7 @@ export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
                     <div className="ml-2 flex flex-col gap-0.5">
                       {value.map((item, i) => (
                         <DataText key={i} className="text-muted-foreground whitespace-pre-line">
-                          {item}
+                          {String(item)}
                         </DataText>
                       ))}
                     </div>
@@ -95,7 +95,7 @@ export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
                   <div className="flex items-center justify-between">
                     <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                     <DataText className="text-muted-foreground ml-1">
-                      {typeof value === 'number' ? inferFieldFormatter(key)(value) : String(value)}
+                      {isNumericValue(value) ? inferFieldFormatter(key)(value) : String(value)}
                     </DataText>
                   </div>
                 )}

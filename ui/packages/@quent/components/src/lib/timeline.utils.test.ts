@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi } from 'vitest';
@@ -390,7 +390,7 @@ const taskFsm: FiniteStateMachine = {
 
 describe('buildTimelineMarks attributes', () => {
   it('copies recorded and derived attributes onto marks', () => {
-    const marks = buildTimelineMarks([taskFsm], 0n, 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([taskFsm], 'light', new Set([THREAD_ID]));
     expect(marks).toBeDefined();
     // Only the computing transition has a usage on the filtered resource.
     expect(marks).toHaveLength(1);
@@ -406,7 +406,7 @@ describe('buildTimelineMarks attributes', () => {
   });
 
   it('omits attribute keys for attribute-less transitions', () => {
-    const marks = buildTimelineMarks([taskFsm], 0n, 'light', null);
+    const marks = buildTimelineMarks([taskFsm], 'light', null);
     expect(marks).toHaveLength(2);
     const queueing = marks!.find(m => m.stateName === 'queueing')!;
     expect(queueing.derivedAttributes).toBeUndefined();
@@ -422,7 +422,7 @@ describe('buildTimelineMarks attributes', () => {
         return rest;
       }),
     } as unknown as FiniteStateMachine;
-    const marks = buildTimelineMarks([legacyFsm], 0n, 'light', new Set([THREAD_ID]));
+    const marks = buildTimelineMarks([legacyFsm], 'light', new Set([THREAD_ID]));
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
     expect(marks![0]!.derivedAttributes).toBeUndefined();

@@ -16,23 +16,8 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+        with:
+          cache: true
       - name: Check SPDX license headers
-        run: |
-          missing=()
-          while IFS= read -r file; do
-            if ! grep -q "SPDX-License-Identifier" "$file"; then
-              missing+=("$file")
-            fi
-          done < <(git ls-files -- '*.ts' '*.tsx' '*.rs' '*.proto' '*.css')
-
-          if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "The following files are missing an SPDX license header:"
-            printf '  %s\n' "${missing[@]}"
-            echo ""
-            echo "Add the following header to the top of each file:"
-            echo "  // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
-            echo "  // SPDX-License-Identifier: Apache-2.0"
-            exit 1
-          fi
-
-          echo "All $(git ls-files -- '*.ts' '*.tsx' '*.rs' '*.proto' '*.css' | wc -l | tr -d ' ') files have SPDX license headers."
+        run: pixi run pre-commit run verify-copyright --all-files
