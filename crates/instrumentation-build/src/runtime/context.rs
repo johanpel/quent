@@ -60,6 +60,11 @@ pub(super) fn schema_model(schema: &Schema) -> TokenStream {
     let observers = observers_ident(schema);
     let active_observers = observer_storage_initializer(schema, true);
     let noop_observers = observer_storage_initializer(schema, false);
+    let options_binding = if schema.entities().next().is_some() {
+        raw_ident("options".to_owned())
+    } else {
+        raw_ident("_options".to_owned())
+    };
     let observer_impls = schema
         .entities()
         .map(|entity| observer_storage_impl(schema, entity));
@@ -83,7 +88,7 @@ pub(super) fn schema_model(schema: &Schema) -> TokenStream {
                 ::std::boxed::Box<dyn ::std::error::Error>,
             > {
                 match exporter {
-                    ::core::option::Option::Some(options) => {
+                    ::core::option::Option::Some(#options_binding) => {
                         context.block_on(async {
                             ::core::result::Result::<
                                 _,
