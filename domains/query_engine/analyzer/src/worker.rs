@@ -9,6 +9,11 @@ use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
+/// Read-only analyzer API for a worker entity.
+pub trait WorkerEntity: Entity + Span + ResourceGroup {
+    fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Worker;
+}
+
 /// A [`Worker`] is an [`Entity`] that executes `Query` `Plan`s.
 #[derive(Debug)]
 pub struct Worker(EntityEvents<worker::Worker>);

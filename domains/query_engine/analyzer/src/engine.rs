@@ -9,6 +9,11 @@ use quent_query_engine_ui as ui;
 use quent_time::{span::SpanUnixNanoSec, try_to_secs_relative};
 use uuid::Uuid;
 
+/// Read-only analyzer API for an engine entity.
+pub trait EngineEntity: Entity + Span + ResourceGroup {
+    fn to_ui(&self) -> AnalyzerResult<ui::Engine>;
+}
+
 /// The analyzer's Engine entity.
 #[derive(Debug)]
 pub struct Engine(EntityEvents<engine::Engine>);

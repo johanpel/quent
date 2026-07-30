@@ -22,6 +22,12 @@ use uuid::Uuid;
 /// Builder for Query FSMs.
 pub type QueryBuilder = FsmEventsBuilder<ModelQueryTransition>;
 
+/// Read-only analyzer API for a query entity.
+pub trait QueryEntity: Fsm + Using + ResourceGroup {
+    fn query_group_id(&self) -> Option<Uuid>;
+    fn to_ui(&self) -> AnalyzerResult<ui::Query>;
+}
+
 /// A reconstructed Query FSM with resource group support.
 #[derive(Debug)]
 pub struct Query {

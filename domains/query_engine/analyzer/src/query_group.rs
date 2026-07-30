@@ -8,6 +8,11 @@ use quent_query_engine_model::query_group;
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
+/// Read-only analyzer API for a query-group entity.
+pub trait QueryGroupEntity: Entity + ResourceGroup {
+    fn to_ui(&self) -> ui::QueryGroup;
+}
+
 /// A QueryGroup is an entity that groups [`super::query::Query`]s
 #[derive(Debug)]
 pub struct QueryGroup(EntityEvents<query_group::QueryGroup>);

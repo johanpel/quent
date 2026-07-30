@@ -10,6 +10,14 @@ use uuid::Uuid;
 
 pub mod tree;
 
+/// Read-only analyzer API for a plan entity.
+pub trait PlanEntity: Entity + ResourceGroup {
+    fn parent(&self) -> Option<&PlanParent>;
+    fn worker_id(&self) -> Option<Uuid>;
+    fn edges(&self) -> &[Edge];
+    fn to_ui(&self) -> ui::Plan;
+}
+
 /// A Directed-Acyclic-Graph of `Operator`s and [`Edge`]s.
 ///
 /// Represents the dataflow starting at data sources, through operators

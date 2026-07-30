@@ -10,6 +10,14 @@ use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
+/// Read-only analyzer API for an operator entity.
+pub trait OperatorEntity: Entity + ResourceGroup {
+    fn plan_id(&self) -> Option<Uuid>;
+    fn active_span(&self) -> Option<SpanUnixNanoSec>;
+    fn operator_type_name(&self) -> Option<&str>;
+    fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Operator;
+}
+
 /// An Operator in a Plan DAG.
 #[derive(Debug)]
 pub struct Operator {

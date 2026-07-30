@@ -10,6 +10,12 @@ use quent_query_engine_ui as ui;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
+/// Read-only analyzer API for a port entity.
+pub trait PortEntity: Entity + ResourceGroup {
+    fn operator_id(&self) -> Option<Uuid>;
+    fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Port;
+}
+
 /// A Port of an Operator in a Plan DAG.
 #[derive(Debug)]
 pub struct Port(EntityEvents<port::Port>);
