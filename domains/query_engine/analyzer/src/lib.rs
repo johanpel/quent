@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Analyzes raw events to produce useful performance insights.
@@ -46,6 +46,7 @@ pub mod model;
 pub mod view;
 
 // UI related mods
+pub mod entities;
 pub mod ui;
 
 pub trait QueryEngineModel: Model {

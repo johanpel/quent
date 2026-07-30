@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // PRIVATE to @quent/hooks — do not export raw atoms (HOOKS-02).
@@ -10,9 +10,10 @@ import type {
   EdgeWidthConfig,
   EdgeColoring,
   NodeLabelField,
+  DagLayoutDirection,
   StatValue,
 } from '@quent/utils';
-import { NODE_LABEL_FIELD } from '@quent/utils';
+import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
 
 /**
@@ -134,3 +135,8 @@ export const nodeColorPaletteAtom = atom<ContinuousPaletteName>('blue');
 
 /** Continuous color palette used for edge coloring */
 export const edgeColorPaletteAtom = atom<ContinuousPaletteName>('teal');
+
+/** Direction the DAG layout flows — defaults to sources at the bottom, result at the top */
+export const selectedDagLayoutDirectionAtom = atom<DagLayoutDirection>(
+  DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
+);

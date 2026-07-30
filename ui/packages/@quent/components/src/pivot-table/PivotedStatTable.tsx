@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
@@ -22,6 +22,7 @@ import {
   getSortValue,
   gradientBg,
   itemHasId,
+  numericSortingFn,
 } from './utils';
 import type {
   GroupedDataTableGroupRenderMode,
@@ -382,8 +383,10 @@ export function PivotedStatTable<TRow>({
       for (const row of visiblePivotedRows) {
         const v = getSortValue(row, stat, isAggregating, aggMode);
         if (v !== null) {
-          if (v < min) min = v;
-          if (v > max) max = v;
+          // Convert to number for gradient color math — precision loss is acceptable here
+          const n = Number(v);
+          if (n < min) min = n;
+          if (n > max) max = n;
         }
       }
       if (min !== Infinity) ranges.set(stat, { min, max });
@@ -566,6 +569,7 @@ export function PivotedStatTable<TRow>({
       header: stat,
       enableSorting: true,
       sortUndefined: 'last',
+      sortingFn: numericSortingFn,
       accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];

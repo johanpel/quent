@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Python type stub generator for PyO3 bridges.
@@ -36,7 +36,7 @@ fn py_type(ty: &ValueType, optional: bool) -> String {
         ValueType::F32 | ValueType::F64 => "float".to_string(),
         ValueType::List(inner) => format!("list[{}]", py_type(inner, false)),
         ValueType::Struct(type_path, _) => struct_stub_name(type_path),
-        ValueType::CustomAttributes => "Mapping[str, bool | int | float | str | None]".to_string(),
+        ValueType::DynamicAttributes => "Mapping[str, bool | int | float | str | None]".to_string(),
     };
 
     if optional {

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generation of record structs.
@@ -8,7 +8,7 @@ use proc_macro2::TokenStream;
 use quent_schema::{Record, Schema};
 use quote::quote;
 
-use crate::common::{derive_attr, doc_attr, raw_ident, to_case};
+use crate::common::{derive_attr, doc_attr, doc_attr_or, raw_ident, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
@@ -29,8 +29,12 @@ pub(crate) fn generate_record_types(
 }
 
 fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, GenerateError> {
-    let ident = raw_ident(to_case(record.name(), Case::Pascal));
-    let docs = doc_attr(record.annotations().docs());
+    let record_pascal = to_case(record.path().name(), Case::Pascal);
+    let ident = raw_ident(record_pascal.clone());
+    let docs = doc_attr_or(
+        record.annotations().docs(),
+        &format!("The `{record_pascal}` record."),
+    );
     let derives = derive_attr(opts.record_derives)?;
     let fields: Vec<TokenStream> = record
         .fields()
@@ -42,7 +46,7 @@ fn record_struct(record: &Record, opts: &Options) -> Result<TokenStream, Generat
         })
         .collect();
     if fields.is_empty() {
-        Ok(quote! { #docs #derives pub struct #ident {} })
+        Ok(quote! { #docs #derives pub struct #ident; })
     } else {
         Ok(quote! {
             #docs
@@ -71,7 +75,7 @@ mod tests {
                 record(
                     "Nested",
                     [
-                        field("inner", DataType::Record(ident("OnePrim"))),
+                        field("inner", DataType::Record(ident("OnePrim").into())),
                         field("list", DataType::List(Box::new(DataType::String))),
                     ],
                 ),
@@ -79,14 +83,17 @@ mod tests {
             ],
         );
         let expected = quote! {
+            #[doc = "The `OnePrim` record."]
             pub struct OnePrim {
                 pub a: u8
             }
+            #[doc = "The `Nested` record."]
             pub struct Nested {
                 pub inner: OnePrim,
                 pub list: Vec<String>
             }
-            pub struct Empty {}
+            #[doc = "The `Empty` record."]
+            pub struct Empty;
         };
         assert_eq!(
             pretty(generate_record_types(&s, &Options::default()).unwrap()),

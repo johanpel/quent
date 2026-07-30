@@ -1,11 +1,12 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Mapping from schema [`DataType`]s to Rust type tokens.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_schema::DataType;
+use quent_ref_target::RefTarget;
+use quent_schema::{Annotations, DataType};
 use quote::quote;
 
 use crate::common::{raw_ident, to_case};
@@ -29,7 +30,7 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
     );
     match ty {
         DataType::Bool => quote! { bool },
-        DataType::Uuid => quote! { ::uuid::Uuid },
+        DataType::Uuid => quote! { ::quent_instrumentation::Uuid },
         DataType::String => quote! { String },
         DataType::U8 => quote! { u8 },
         DataType::U16 => quote! { u16 },
@@ -50,23 +51,41 @@ pub(crate) fn map_data_type(ty: &DataType, depth: usize) -> TokenStream {
             quote! { Vec<#inner> }
         }
         DataType::Record(name) => {
-            let ident = raw_ident(to_case(name, Case::Pascal));
+            let ident = raw_ident(to_case(name.name(), Case::Pascal));
             quote! { #ident }
         }
-        DataType::DynamicRecord => quote! { ::quent_attributes::CustomAttributes },
-        DataType::EntityRef { data, .. } => match data {
-            Some(inner) => {
-                let inner = map_data_type(inner, depth + 1);
-                quote! { ::quent_instrumentation_runtime::EntityRef<#inner> }
+        DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
+        DataType::EntityRef { data, annotations } => {
+            let target = ref_target_marker(annotations);
+            match data {
+                Some(inner) => {
+                    let inner = map_data_type(inner, depth + 1);
+                    quote! { ::quent_instrumentation::EntityRef<#target, #inner> }
+                }
+                None => quote! { ::quent_instrumentation::EntityRef<#target> },
             }
-            None => quote! { ::quent_instrumentation_runtime::EntityRef },
-        },
+        }
+    }
+}
+
+/// The target-entity marker type for an entity reference, taken from its
+/// ref-target constraint, or the `AnyEntity` marker when it is not restricted
+/// to a target entity.
+fn ref_target_marker(annotations: &Annotations) -> TokenStream {
+    match RefTarget::from_annotations(annotations) {
+        Some(entity) => {
+            let marker = raw_ident(to_case(entity.as_ref().name(), Case::Pascal));
+            quote! { #marker }
+        }
+        None => quote! { AnyEntity },
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quent_constraints::Constraint;
+    use quent_ref_target::RefTargetConstraint;
     use quent_schema::DataType;
 
     #[test]
@@ -77,5 +96,19 @@ mod tests {
             ty = DataType::Option(Box::new(ty));
         }
         let _ = map_data_type(&ty, 0);
+    }
+
+    #[test]
+    fn entity_ref_uses_its_ref_target_marker() {
+        use quent_schema::builder::AnnotationsBuilder;
+
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint(RefTargetConstraint::NAME, Some("Cluster".to_string()));
+        let ty = DataType::EntityRef {
+            data: Some(Box::new(DataType::U64)),
+            annotations: annotations.build().unwrap(),
+        };
+        let tokens = map_data_type(&ty, 0).to_string();
+        assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");
     }
 }

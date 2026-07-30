@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import EChartsReactCore from 'echarts-for-react/lib/core';
 import { echarts } from '../lib/echarts';
 import type { EChartsOption } from '../lib/echarts';
@@ -19,9 +19,10 @@ import {
   TIMELINE_MONO_FONT,
   useTimelineEchartsTheme,
 } from './timelineEchartsTheme';
-import { MIN_ZOOM_WINDOW_S, nanosToMs } from '../lib/timeline.utils';
 import { useVisibleMaxValue } from './useVisibleMaxValue';
 import { useChartConnect } from '../lib/useChartConnect';
+import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
+import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { Opts } from 'echarts-for-react/lib/types';
 
 export const CHART_GROUP = 'timeline-sync-group';
@@ -40,7 +41,6 @@ export interface TimelineHoverPosition {
 
 /** Stacked-area timeline chart backed by ECharts, with zoom sync and optional tooltip. */
 export function Timeline({
-  startTime,
   durationSeconds,
   series,
   timestamps,
@@ -49,7 +49,6 @@ export function Timeline({
   isDark,
   onHoverChange,
 }: {
-  startTime: bigint;
   /** Full query duration — used to set xAxis range so dataZoom percentages align across all connected charts */
   durationSeconds: number;
   series: TimelineSeries;
@@ -82,8 +81,7 @@ export function Timeline({
         type: 'line',
         stack: isOverlay ? `overlay-total` : 'total',
         step: 'middle',
-        symbol: 'circle',
-        symbolSize: (value: number[]) => (value[1] === 0 || isOverlay ? 0 : 4),
+        symbol: 'none',
         hoverAnimation: false,
         showSymbol: false,
         ...TIMELINE_X_AXIS_ANIMATION,
@@ -177,9 +175,7 @@ export function Timeline({
     return (v: number) => firstEntry?.formatter(v, 0) ?? String(v);
   }, [series]);
 
-  const startTimeMs = useMemo(() => nanosToMs(startTime), [startTime]);
-
-  const maxValue = useVisibleMaxValue(series, timestamps, startTimeMs);
+  const maxValue = useVisibleMaxValue(series, timestamps);
 
   const yAxisOptions = useMemo(
     () => [
@@ -206,11 +202,11 @@ export function Timeline({
   const xAxisOptions = useMemo(
     () => ({
       boundaryGap: [0, 0] as [number, number],
-      type: 'time',
+      type: 'value',
       animation: false,
       show: true,
-      min: startTimeMs,
-      max: startTimeMs + durationSeconds * 1_000,
+      min: 0,
+      max: durationSeconds * 1_000,
       axisLine: { onZero: true },
       axisLabel: { show: false },
       axisPointer: {
@@ -220,19 +216,13 @@ export function Timeline({
         label: { show: false },
       },
     }),
-    [startTimeMs, durationSeconds]
+    [durationSeconds]
   );
 
   const gridOptions = useMemo(() => ({ ...TIMELINE_SPACING }), []);
 
-  const minZoomSpanPct = useMemo(() => {
-    if (durationSeconds <= 0) return 0;
-    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
-  }, [durationSeconds]);
-
-  const minZoomSpanPctRef = useRef(minZoomSpanPct);
-  minZoomSpanPctRef.current = minZoomSpanPct;
-  const atZoomLimitRef = useRef(false);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
+  const attachWheelNavigation = useTimelineWheelNavigation(minZoomSpanPct);
 
   // ECharts' built-in tooltip is reduced to crosshair only (`showContent: false`).
   // Tooltip content is rendered by the parent via `onHoverChange` — keeping
@@ -299,7 +289,7 @@ export function Timeline({
   const timestampsRef = useRef(timestamps);
   timestampsRef.current = timestamps;
 
-  const onChartReady = useCallback((instance: EChartsInstance) => {
+  const onChartReady = (instance: EChartsInstance) => {
     const dom = instance.getDom();
     const outsideTimelineViz = (e: PointerEvent) => {
       const rect = dom.getBoundingClientRect();
@@ -359,42 +349,8 @@ export function Timeline({
       isDraggingRef.current = false;
     });
 
-    // Update atZoomLimitRef from ECharts' datazoom event, which fires synchronously
-    // within the same dispatch tick as the wheel handler — no React render-cycle lag.
-    instance.on('datazoom', () => {
-      const opt = instance.getOption() as { dataZoom?: Array<{ start?: number; end?: number }> };
-      const dz = opt.dataZoom?.[0];
-      if (dz != null) {
-        const spanPct = (dz.end ?? 100) - (dz.start ?? 0);
-        atZoomLimitRef.current = spanPct <= minZoomSpanPctRef.current * 1.01;
-      }
-    });
-
-    // Pass non-shift wheel events through to the page for normal scrolling.
-    // Without this, ECharts' inside dataZoom calls preventDefault on all wheel events.
-    // When at the zoom limit, also block shift+wheel-in before ECharts sees it —
-    // ECharts converts a blocked zoom into a pan, so we must stop it at the source.
-    dom.addEventListener(
-      'wheel',
-      e => {
-        if (!e.shiftKey) {
-          e.stopPropagation();
-        } else if (e.deltaY < 0 && atZoomLimitRef.current) {
-          e.stopPropagation();
-        }
-      },
-      { capture: true, passive: true }
-    );
-
-    // Prevent the browser from handling shift+wheel-in when ECharts can't zoom further
-    dom.addEventListener(
-      'wheel',
-      e => {
-        if (e.shiftKey && e.deltaY < 0) e.preventDefault();
-      },
-      { passive: false }
-    );
-  }, []);
+    attachWheelNavigation(instance);
+  };
 
   // If this Timeline is unmounted while the pointer is over it (e.g. a tree
   // row is virtualized away mid-hover, or ResourceTimeline swaps to a

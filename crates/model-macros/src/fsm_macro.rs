@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! `fsm!` proc macro implementation.
@@ -302,6 +302,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         })
         .collect();
 
+    let attributes_arms: Vec<TokenStream> = state_pascal_names
+        .iter()
+        .zip(state_types.iter())
+        .map(|(pascal, _ty)| {
+            quote! { #transition_enum::#pascal(data) => quent_model::analyze::ExtractAttributes::extract_attributes(data) }
+        })
+        .collect();
+
     let parent_group_id_arms: Vec<TokenStream> = state_pascal_names
         .iter()
         .zip(state_types.iter())
@@ -428,6 +436,13 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 match self {
                     #(#parent_group_id_arms,)*
                     #transition_enum::Exit => None,
+                }
+            }
+
+            fn attributes(&self) -> Vec<quent_model::attributes::DynamicAttribute> {
+                match self {
+                    #(#attributes_arms,)*
+                    #transition_enum::Exit => vec![],
                 }
             }
 

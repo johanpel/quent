@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Binary wrapper around the fixed query-engine event emitter. See the crate
 //! library for the scenario.
 
 use clap::Parser;
-use quent_exporter::clap::ExporterArgs;
+use quent_io::clap::ExporterArgs;
 use quent_query_engine_fixed::emit;
 use quent_simulator_instrumentation::SimulatorContext;
 

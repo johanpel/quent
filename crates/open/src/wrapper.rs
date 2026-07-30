@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generate a standalone wrapper crate serving the quent UI for a model via
@@ -20,6 +20,12 @@ use crate::spec::ViewerSpec;
 /// Name of the generated wrapper package (also the built binary name).
 pub const WRAPPER_PACKAGE: &str = "quent-open-viewer";
 
+/// Cargo package of quent's I/O crate (export/import formats).
+pub const IO_PACKAGE: &str = "quent-io";
+/// Cargo package of the I/O crate before its rename to [`IO_PACKAGE`], for
+/// artifacts pinned to quent revisions that predate the rename.
+pub const LEGACY_IO_PACKAGE: &str = "quent-exporter";
+
 /// Wrapper env var for the output root: a directory of `<context-uuid>/`
 /// context directories.
 pub const ROOT_ENV: &str = "QUENT_OPEN_ROOT";
@@ -27,9 +33,11 @@ pub const ROOT_ENV: &str = "QUENT_OPEN_ROOT";
 pub const ADDR_ENV: &str = "QUENT_OPEN_ADDR";
 
 /// Write the wrapper crate (`Cargo.toml` + `src/main.rs`) into `crate_dir`.
-pub fn generate(spec: &ViewerSpec, crate_dir: &Path) -> Result<()> {
+/// `io_package` is the name of quent's I/O crate at the pinned revision
+/// ([`IO_PACKAGE`], or [`LEGACY_IO_PACKAGE`] for revisions predating the rename).
+pub fn generate(spec: &ViewerSpec, crate_dir: &Path, io_package: &str) -> Result<()> {
     std::fs::create_dir_all(crate_dir.join("src"))?;
-    std::fs::write(crate_dir.join("Cargo.toml"), cargo_toml(spec))?;
+    std::fs::write(crate_dir.join("Cargo.toml"), cargo_toml(spec, io_package))?;
     std::fs::write(crate_dir.join("src/main.rs"), main_rs(spec))?;
     Ok(())
 }
@@ -47,7 +55,7 @@ fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
 /// Wrapper `Cargo.toml`, built with `cargo-manifest`: pin quent crates to
 /// `quent.{remote,commit}` and the analyzer to `analyzer.{remote,commit}`; the
 /// empty `[workspace]` keeps the generated crate out of any parent workspace.
-fn cargo_toml(spec: &ViewerSpec) -> String {
+fn cargo_toml(spec: &ViewerSpec, io_package: &str) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
     let dependencies = BTreeMap::from([
@@ -60,8 +68,9 @@ fn cargo_toml(spec: &ViewerSpec) -> String {
             git_dep(quent.clone(), q_rev, &[]),
         ),
         (
-            "quent-exporter".to_string(),
-            git_dep(quent, q_rev, &[spec.format.extension()]),
+            // All formats enabled so the analyzer can detect the artifact's format at runtime.
+            io_package.to_string(),
+            git_dep(quent, q_rev, &["ndjson", "msgpack", "postcard"]),
         ),
         (
             spec.analyzer_package.clone(),
@@ -108,13 +117,11 @@ fn cargo_toml(spec: &ViewerSpec) -> String {
 /// bind address come from env so one built binary serves any artifacts.
 fn main_rs(spec: &ViewerSpec) -> String {
     let analyzer_crate = format_ident!("{}", spec.analyzer_crate());
-    let format_variant = format_ident!("{}", spec.format.variant());
     let (root_env, addr_env) = (ROOT_ENV, ADDR_ENV);
     let tokens = quote! {
         use std::net::SocketAddr;
         use std::path::PathBuf;
 
-        use quent_exporter::FileSystemFormat;
         use quent_query_engine_analyzer::ui::QuentViewer;
         use quent_query_engine_server::analyzer_cache::index_query_engines;
         use quent_query_engine_server::analyzer_service_router;
@@ -126,17 +133,15 @@ fn main_rs(spec: &ViewerSpec) -> String {
         async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let root = PathBuf::from(std::env::var(#root_env)?);
             let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
-            let format = FileSystemFormat::#format_variant;
 
             let import_root = root.clone();
             let importer = move |id: uuid::Uuid| {
                 Ok(<Viewer as QuentViewer>::import_events(
                     &import_root.join(id.to_string()),
-                    format,
                 )?)
             };
             let lister_root = root.clone();
-            let lister = move || index_query_engines(&lister_root, format);
+            let lister = move || index_query_engines(&lister_root);
 
             let router = analyzer_service_router::<Analyzer>(
                 Box::new(importer),
@@ -159,13 +164,10 @@ fn main_rs(spec: &ViewerSpec) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::spec::{Format, GitPin, ViewerSpec};
-    use std::path::PathBuf;
+    use crate::spec::{GitPin, ViewerSpec};
 
     fn spec() -> ViewerSpec {
         ViewerSpec {
-            root: PathBuf::from("/data/ctx"),
-            format: Format::Msgpack,
             analyzer_package: "quent-simulator-analyzer".into(),
             quent: GitPin {
                 remote: "https://example.com/quent".into(),
@@ -180,17 +182,18 @@ mod tests {
 
     #[test]
     fn cargo_toml_pins_quent_and_analyzer() {
-        let manifest: toml::Value = toml::from_str(&cargo_toml(&spec())).unwrap();
+        let manifest: toml::Value = toml::from_str(&cargo_toml(&spec(), IO_PACKAGE)).unwrap();
         assert!(manifest.get("workspace").is_some(), "standalone workspace");
         let deps = &manifest["dependencies"];
         let server = &deps["quent-query-engine-server"];
         assert_eq!(server["git"].as_str().unwrap(), "https://example.com/quent");
         assert_eq!(server["rev"].as_str().unwrap(), "quentcommit");
         assert_eq!(server["features"][0].as_str().unwrap(), "ui");
-        assert_eq!(
-            deps["quent-exporter"]["features"][0].as_str().unwrap(),
-            "msgpack"
-        );
+        // The exporter enables all formats so the analyzer detects the artifact's format at runtime.
+        let exporter_features = deps["quent-io"]["features"].as_array().unwrap();
+        for format in ["ndjson", "msgpack", "postcard"] {
+            assert!(exporter_features.iter().any(|f| f.as_str() == Some(format)));
+        }
         let analyzer = &deps["quent-simulator-analyzer"];
         assert_eq!(
             analyzer["git"].as_str().unwrap(),
@@ -200,10 +203,30 @@ mod tests {
     }
 
     #[test]
-    fn main_rs_names_viewer_and_format() {
+    fn cargo_toml_supports_the_legacy_io_package() {
+        // Artifacts pinned to quent revisions predating the `quent-exporter` →
+        // `quent-io` rename depend on the legacy package instead, same features.
+        let manifest: toml::Value =
+            toml::from_str(&cargo_toml(&spec(), LEGACY_IO_PACKAGE)).unwrap();
+        let deps = &manifest["dependencies"];
+        assert!(deps.get("quent-io").is_none());
+        let exporter = &deps["quent-exporter"];
+        assert_eq!(
+            exporter["git"].as_str().unwrap(),
+            "https://example.com/quent"
+        );
+        assert_eq!(exporter["rev"].as_str().unwrap(), "quentcommit");
+        let features = exporter["features"].as_array().unwrap();
+        for format in ["ndjson", "msgpack", "postcard"] {
+            assert!(features.iter().any(|f| f.as_str() == Some(format)));
+        }
+    }
+
+    #[test]
+    fn main_rs_wires_the_viewer() {
         let main = main_rs(&spec());
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
-        assert!(main.contains("FileSystemFormat::Msgpack"));
+        assert!(main.contains("import_events"));
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
     }
 }

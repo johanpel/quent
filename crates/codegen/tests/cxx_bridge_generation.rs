@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests for CXX bridge code generation.
@@ -141,10 +141,10 @@ fn generate_query_engine_cxx_bridge() {
         "operator.rs should have parent_operator_ids"
     );
 
-    // Verify CustomAttributes bridge is generated
+    // Verify DynamicAttributes bridge is generated
     assert!(
-        files.iter().any(|f| f.name == "custom_attributes.rs"),
-        "custom_attributes.rs should be generated"
+        files.iter().any(|f| f.name == "dynamic_attributes.rs"),
+        "dynamic_attributes.rs should be generated"
     );
 }
 

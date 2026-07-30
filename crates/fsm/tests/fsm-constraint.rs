@@ -1,16 +1,26 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_fsm::{Fsm, FsmConstraint, FsmError};
+use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
-    Cardinality, Entity, Event, Schema,
+    Annotations, Cardinality, Entity, Event, Schema,
     builder::{AnnotationsBuilder, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
     event_with(name, cardinality, vec![])
+}
+
+fn state(name: &str, to: &[&str], initial: bool, exit: bool) -> StateDecl {
+    StateDecl {
+        name: ident(name),
+        attributes: vec![],
+        to: to.iter().map(|s| ident(s)).collect(),
+        initial,
+        exit,
+    }
 }
 
 // Build the constraint's JSON directly so we can build it in an invalid way.
@@ -28,17 +38,20 @@ fn fsm(initial: &str, transitions: &[(&str, &str)], exit: &[&str]) -> String {
     .to_string()
 }
 
-fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
-    EntityBuilder::new(ident(name))
-        .events(events)
-        .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, Some(data.to_string()))
-                .unwrap()
-                .build(),
-        )
+/// Annotations carrying the FSM constraint with `data`.
+fn fsm_annotations(data: Option<String>) -> Annotations {
+    AnnotationsBuilder::new()
+        .with_constraint(FsmConstraint::NAME, data)
         .build()
+        .unwrap()
+}
+
+fn entity_with(name: &str, events: Vec<Event>, data: &str) -> Entity {
+    EntityBuilder::new(name.parse::<quent_schema::Path>().unwrap())
+        .with_events(events)
+        .with_annotations(fsm_annotations(Some(data.to_string())))
+        .build()
+        .unwrap()
 }
 
 fn schema_with(entity: Entity) -> Schema {
@@ -66,6 +79,18 @@ fn well_formed_linear_fsm_passes() {
 }
 
 #[test]
+fn diagnostics_include_the_qualified_entity_path() {
+    let fsm = fsm("a", &[("a", "missing")], &["a"]);
+    let entity = entity_with("Foo::E", vec![event("a", Cardinality::Once)], &fsm);
+
+    assert!(
+        validate(&schema_with(entity)).iter().any(
+            |error| matches!(error, FsmError::UnknownState { entity, .. } if entity == "Foo::E")
+        )
+    );
+}
+
+#[test]
 fn well_formed_self_loop_fsm_passes() {
     let fsm = fsm("a", &[("a", "a")], &["a"]);
     let entity = entity_with("E", vec![event("a", Cardinality::Multi)], &fsm);
@@ -82,15 +107,10 @@ fn single_state_fsm_passes() {
 #[test]
 fn missing_data_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
-        .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, None)
-                .unwrap()
-                .build(),
-        )
-        .build();
+        .with_event(event("a", Cardinality::Once))
+        .with_annotations(fsm_annotations(None))
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
@@ -102,15 +122,10 @@ fn missing_data_is_rejected() {
 #[test]
 fn invalid_json_is_rejected() {
     let entity = EntityBuilder::new(ident("E"))
-        .event(event("a", Cardinality::Once))
-        .unwrap()
-        .annotations(
-            AnnotationsBuilder::new()
-                .constraint(FsmConstraint::NAME, Some("{ trash".to_string()))
-                .unwrap()
-                .build(),
-        )
-        .build();
+        .with_event(event("a", Cardinality::Once))
+        .with_annotations(fsm_annotations(Some("{ trash".to_string())))
+        .build()
+        .unwrap();
     let errors = validate(&schema_with(entity));
     assert!(
         errors
@@ -290,43 +305,70 @@ fn entity_without_fsm_constraint_is_ignored() {
 }
 
 #[test]
-fn builder_produces_valid_fsm_and_exposes_data() {
-    let entity = bare_entity(
-        "E",
-        vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
-    );
-    let fsm = Fsm::builder(&entity, ident("a"), ident("b"))
-        .transition(ident("a"), ident("b"))
+fn builder_produces_entity_with_state_events() {
+    let entity = FsmEntityBuilder::new(ident("E"))
+        .with_states([
+            state("a", &["b"], true, false),
+            state("b", &[], false, true),
+        ])
         .build()
         .unwrap();
 
-    assert_eq!(fsm.initial_state(), &ident("a"));
-    assert_eq!(fsm.transitions().len(), 1);
-    assert_eq!(fsm.transitions()[0].source(), &ident("a"));
-    assert_eq!(fsm.transitions()[0].target(), &ident("b"));
-    assert_eq!(
-        fsm.exit_from_states().collect::<Vec<_>>(),
-        vec![&ident("b")],
-    );
+    let names: Vec<_> = entity.events().map(|e| e.name().to_string()).collect();
+    assert_eq!(names, vec!["a", "b"]);
+    assert!(entity.annotations().has_constraint(FsmConstraint::NAME));
 }
 
 #[test]
-fn builder_rejects_unknown_event() {
-    // b is not an event
-    let entity = bare_entity("E", vec![event("a", Cardinality::Once)]);
-    let err = Fsm::builder(&entity, ident("b"), ident("b"))
+fn cardinality_is_derived_from_cycles() {
+    // a -> b, b -> b: a sits off any cycle (Once), b self-loops (Multi).
+    let entity = FsmEntityBuilder::new(ident("E"))
+        .with_states([
+            state("a", &["b"], true, false),
+            state("b", &["b"], false, true),
+        ])
         .build()
-        .err()
         .unwrap();
-    let errors = match err {
-        FsmError::Multiple(errors) => errors,
-        single => vec![single],
-    };
-    assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, FsmError::UnknownState { state, .. } if state == "b")),
-    );
+
+    let cardinality = |name: &str| entity.event(&ident(name)).unwrap().cardinality();
+    assert_eq!(cardinality("a"), Cardinality::Once);
+    assert_eq!(cardinality("b"), Cardinality::Multi);
+}
+
+#[test]
+fn builder_rejects_malformed_states() {
+    let no_initial = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &[], false, true)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_initial, FsmEntityBuilderError::NoInitialState));
+
+    let many_initial = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &[], true, false), state("b", &[], true, true)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        many_initial,
+        FsmEntityBuilderError::MultipleInitialStates(_)
+    ));
+
+    let no_exit = FsmEntityBuilder::new(ident("E"))
+        .with_states([state("a", &["a"], true, false)])
+        .build()
+        .unwrap_err();
+    assert!(matches!(no_exit, FsmEntityBuilderError::NoExitState));
+
+    // A duplicate that is also marked initial must report the duplicate, not
+    // `MultipleInitialStates`.
+    let duplicate = FsmEntityBuilder::new(ident("E"))
+        .with_state(state("a", &[], true, true))
+        .with_state(state("a", &[], true, false))
+        .build()
+        .unwrap_err();
+    assert!(matches!(
+        duplicate,
+        FsmEntityBuilderError::DuplicateState(_)
+    ));
 }
 
 #[test]

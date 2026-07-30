@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Quent built-in FSM constraint
@@ -12,7 +12,7 @@ use petgraph::{
 };
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
-    Cardinality, Entity, Identifier,
+    Cardinality, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ use thiserror::Error;
 
 mod builder;
 
-pub use builder::FsmBuilder;
+pub use builder::{FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
 
 /// A directed transition between two named states in an [`Fsm`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -32,6 +32,10 @@ pub struct Transition {
 }
 
 impl Transition {
+    pub(crate) fn new(source: Identifier, target: Identifier) -> Self {
+        Self { source, target }
+    }
+
     /// The name of the source state.
     pub fn source(&self) -> &Identifier {
         &self.source
@@ -51,6 +55,12 @@ struct ExitStates {
     others: Vec<Identifier>,
 }
 
+impl ExitStates {
+    pub(crate) fn new(state: Identifier, others: Vec<Identifier>) -> Self {
+        Self { state, others }
+    }
+}
+
 /// The state-transition topology of a finite state machine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fsm {
@@ -65,15 +75,16 @@ pub struct Fsm {
 }
 
 impl Fsm {
-    /// Return a builder for an [`Fsm`] constraint over `entity`, beginning in
-    /// `initial_state` and able to exit from `exit_state`. Further exit states
-    /// can be added on the builder.
-    pub fn builder(
-        entity: &Entity,
+    pub(crate) fn new(
         initial_state: Identifier,
-        exit_state: Identifier,
-    ) -> FsmBuilder<'_> {
-        FsmBuilder::new(entity, initial_state, exit_state)
+        transitions: Vec<Transition>,
+        exit_from_states: ExitStates,
+    ) -> Self {
+        Self {
+            initial_state,
+            transitions,
+            exit_from_states,
+        }
     }
 
     /// The name of the initial state this FSM transitions into when it comes
@@ -93,6 +104,52 @@ impl Fsm {
     /// The states from which this FSM can exit to go out of existence.
     pub fn exit_from_states(&self) -> impl Iterator<Item = &Identifier> {
         std::iter::once(&self.exit_from_states.state).chain(self.exit_from_states.others.iter())
+    }
+
+    /// This FSM encoded as its [`FsmConstraint`] payload (JSON).
+    ///
+    /// # Errors
+    ///
+    /// Errors if the topology fails to serialize.
+    pub(crate) fn constraint_data(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
+    /// The cardinality a state's event must have: [`Cardinality::Multi`] if the
+    /// state lies on a cycle, [`Cardinality::Once`] otherwise, or `None` if the
+    /// name is not a state of this FSM.
+    pub fn cardinality(&self, state: &Identifier) -> Option<Cardinality> {
+        if !self.states().any(|s| s == state) {
+            return None;
+        }
+        Some(if find_cyclic(&self.graph(), self).contains(state) {
+            Cardinality::Multi
+        } else {
+            Cardinality::Once
+        })
+    }
+
+    /// Every state named by this FSM: the initial state, every transition
+    /// endpoint, and every exit state. May yield duplicates.
+    fn states(&self) -> impl Iterator<Item = &Identifier> {
+        std::iter::once(&self.initial_state)
+            .chain(self.transitions.iter().flat_map(|t| [&t.source, &t.target]))
+            .chain(self.exit_from_states())
+    }
+
+    /// The transition graph with synthetic `Init` and `Exit` nodes.
+    fn graph(&self) -> DiGraphMap<GraphNode<'_>, ()> {
+        std::iter::once((GraphNode::Init, GraphNode::Named(&self.initial_state), ()))
+            .chain(
+                self.transitions
+                    .iter()
+                    .map(|t| (GraphNode::Named(&t.source), GraphNode::Named(&t.target), ())),
+            )
+            .chain(
+                self.exit_from_states()
+                    .map(|x| (GraphNode::Named(x), GraphNode::Exit, ())),
+            )
+            .collect()
     }
 }
 
@@ -152,7 +209,7 @@ impl Visitor for FsmConstraint {
             Some(s) => s,
             None => {
                 self.errors.push(FsmError::InvalidData {
-                    entity: entity.name().clone(),
+                    entity: entity.path().clone(),
                     message: "constraint data is missing".to_string(),
                 });
                 return;
@@ -162,7 +219,7 @@ impl Visitor for FsmConstraint {
             Ok(f) => f,
             Err(e) => {
                 self.errors.push(FsmError::InvalidData {
-                    entity: entity.name().clone(),
+                    entity: entity.path().clone(),
                     message: format!("failed to decode fsm: {e}"),
                 });
                 return;
@@ -181,7 +238,7 @@ impl Visitor for FsmConstraint {
 }
 
 impl Constraint for FsmConstraint {
-    const NAME: &'static str = "quent.fsm.v1";
+    const NAME: &'static str = "quent.fsm.v0.1.0";
 }
 
 pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError>) {
@@ -189,7 +246,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for event in entity.events() {
         if event.name().to_ascii_lowercase() == "exit" {
             errors.push(FsmError::ReservedStateName {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 name: "exit",
             });
         }
@@ -202,15 +259,12 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         .collect();
 
     // Gather every state named
-    let states: HashSet<&Identifier> = std::iter::once(&fsm.initial_state)
-        .chain(fsm.transitions.iter().flat_map(|t| [&t.source, &t.target]))
-        .chain(fsm.exit_from_states())
-        .collect();
+    let states: HashSet<&Identifier> = fsm.states().collect();
 
     // Requirement 2: every state name corresponds to an entity event name.
     for &state in states.difference(&event_names) {
         errors.push(FsmError::UnknownState {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             state: state.clone(),
         });
     }
@@ -218,24 +272,13 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     // Requirement 3: every entity event appears as a state.
     for &event in event_names.difference(&states) {
         errors.push(FsmError::UncoveredEvent {
-            entity: entity.name().clone(),
+            entity: entity.path().clone(),
             event: event.clone(),
         });
     }
 
     // Graph of states + transitions
-    let graph: DiGraphMap<GraphNode, ()> =
-        std::iter::once((GraphNode::Init, GraphNode::Named(&fsm.initial_state), ()))
-            .chain(
-                fsm.transitions
-                    .iter()
-                    .map(|t| (GraphNode::Named(&t.source), GraphNode::Named(&t.target), ())),
-            )
-            .chain(
-                fsm.exit_from_states()
-                    .map(|x| (GraphNode::Named(x), GraphNode::Exit, ())),
-            )
-            .collect();
+    let graph = fsm.graph();
 
     // Requirement 4: every state is reachable from the initial state.
     let reachable_from_init: HashSet<GraphNode> =
@@ -243,7 +286,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for &name in &states {
         if !reachable_from_init.contains(&GraphNode::Named(name)) {
             errors.push(FsmError::UnreachableFromInit {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
             });
         }
@@ -256,7 +299,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
     for &name in &states {
         if !reaches_exit.contains(&GraphNode::Named(name)) {
             errors.push(FsmError::CannotReachExit {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
             });
         }
@@ -275,7 +318,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         };
         if *actual != expected_cardinality {
             errors.push(FsmError::CardinalityMismatch {
-                entity: entity.name().clone(),
+                entity: entity.path().clone(),
                 state: name.clone(),
                 expected: expected_cardinality,
                 found: *actual,
@@ -318,37 +361,22 @@ enum GraphNode<'a> {
 #[derive(Debug, Error)]
 pub enum FsmError {
     #[error("entity \"{entity}\" fsm: {message}")]
-    InvalidData { entity: Identifier, message: String },
+    InvalidData { entity: Path, message: String },
     #[error("entity \"{entity}\" fsm: \"{name}\" is a reserved state name")]
-    ReservedStateName {
-        entity: Identifier,
-        name: &'static str,
-    },
+    ReservedStateName { entity: Path, name: &'static str },
     #[error("entity \"{entity}\" fsm: state \"{state}\" is unreachable from the initial state")]
-    UnreachableFromInit {
-        entity: Identifier,
-        state: Identifier,
-    },
+    UnreachableFromInit { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: state \"{state}\" cannot reach any exit transition")]
-    CannotReachExit {
-        entity: Identifier,
-        state: Identifier,
-    },
+    CannotReachExit { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: state \"{state}\" does not match any event")]
-    UnknownState {
-        entity: Identifier,
-        state: Identifier,
-    },
+    UnknownState { entity: Path, state: Identifier },
     #[error("entity \"{entity}\" fsm: event \"{event}\" does not appear as a state")]
-    UncoveredEvent {
-        entity: Identifier,
-        event: Identifier,
-    },
+    UncoveredEvent { entity: Path, event: Identifier },
     #[error(
         "entity \"{entity}\" fsm: state \"{state}\" expects cardinality {expected:?}, but event has {found:?}"
     )]
     CardinalityMismatch {
-        entity: Identifier,
+        entity: Path,
         state: Identifier,
         expected: Cardinality,
         found: Cardinality,
