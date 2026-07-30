@@ -305,7 +305,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .as_ref()
             .map(|s| s.resolve(&self.model))
             .transpose()?;
-        let operator_filter = entry.application.operator_id;
+        let operator_ids = entry.application.operator_ids.into_iter().collect();
 
         // Restrict candidates to the requested query: a task belongs to a query
         // iff its operator is one of that query's operators. Without this, tasks
@@ -322,8 +322,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             &self.model,
             |task| {
                 task.operator_id().is_some_and(|op| {
-                    query_operators.contains(&op)
-                        && operator_filter.is_none_or(|filter| op == filter)
+                    query_operators.contains(&op) && operator_matches(&operator_ids, Some(op))
                 })
             },
             entities::ListQuery {
