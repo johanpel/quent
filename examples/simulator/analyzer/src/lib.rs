@@ -125,6 +125,14 @@ fn scale_operator_statistic(name: &str, value: &mut Option<DynamicValue>) {
     }
 }
 
+fn operator_statistic_name(name: String) -> String {
+    if SECOND_OPERATOR_STATISTICS.contains(&name.as_str()) {
+        name.strip_suffix("_ns").unwrap_or(&name).to_owned()
+    } else {
+        name
+    }
+}
+
 fn quantity_specs() -> StdHashMap<String, QuantitySpec> {
     [
         ("capacity_bytes".into(), QuantitySpec::bytes()),
@@ -259,10 +267,16 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .map(|operator| {
                 let mut ui_operator = operator.to_ui(epoch);
                 if let Some(statistics) = &mut ui_operator.statistics {
-                    for (name, statistic) in &mut statistics.custom_statistics {
-                        scale_operator_statistic(name, &mut statistic.value);
-                        statistic.quantity = operator_statistic_quantity(name).map(str::to_owned);
-                    }
+                    statistics.custom_statistics =
+                        std::mem::take(&mut statistics.custom_statistics)
+                            .into_iter()
+                            .map(|(name, mut statistic)| {
+                                scale_operator_statistic(&name, &mut statistic.value);
+                                statistic.quantity =
+                                    operator_statistic_quantity(&name).map(str::to_owned);
+                                (operator_statistic_name(name), statistic)
+                            })
+                            .collect();
                 }
                 (operator.id(), ui_operator)
             })
