@@ -2752,6 +2752,7 @@ dependencies = [
  "quent-events",
  "quent-io-types",
  "serde",
+ "thiserror",
  "uuid",
 ]
 

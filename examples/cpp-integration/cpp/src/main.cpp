@@ -31,8 +31,9 @@ int main() {
   // resource group uses an independent id here.
   auto cluster_id = uuid::now_v7();
   {
-    // Create instrumentation context — events exported to ndjson.
-    auto ctx = quent::create_context("ndjson", "./events");
+    // Create instrumentation context — events exported to NDJSON.
+    auto ctx = quent::create_context(
+        quent::ExporterOptions::ndjson("./events/ndjson"));
 
     auto cluster_obs = quent::cluster::create_observer(*ctx);
     cluster_obs->cluster_declaration(cluster_id,

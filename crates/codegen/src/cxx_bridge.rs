@@ -496,6 +496,60 @@ fn emit_context_bridge(
     let impl_tokens = quote! {
         use std::sync::Arc;
 
+        pub struct ExporterOptions {
+            inner: Option<#q::io::ExporterOptions>,
+        }
+
+        impl ExporterOptions {
+            pub fn none() -> Box<Self> {
+                Box::new(Self { inner: None })
+            }
+
+            pub fn ndjson(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Ndjson,
+                    output_dir,
+                )
+            }
+
+            pub fn msgpack(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Msgpack,
+                    output_dir,
+                )
+            }
+
+            pub fn postcard(output_dir: String) -> Box<Self> {
+                Self::filesystem(
+                    #q::io::filesystem::Format::Postcard,
+                    output_dir,
+                )
+            }
+
+            pub fn collector(address: String) -> Result<Box<Self>, String> {
+                Ok(Box::new(Self {
+                    inner: Some(#q::io::ExporterOptions::Collector(
+                        #q::io::CollectorExporterOptions::try_new(&address)
+                            .map_err(|err| err.to_string())?,
+                    )),
+                }))
+            }
+
+            fn filesystem(
+                format: #q::io::filesystem::Format,
+                output_dir: String,
+            ) -> Box<Self> {
+                Box::new(Self {
+                    inner: Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(
+                            format,
+                            std::path::PathBuf::from(output_dir),
+                        ),
+                    )),
+                })
+            }
+        }
+
         pub struct Context {
             #(#struct_fields,)*
         }
@@ -512,22 +566,13 @@ fn emit_context_bridge(
             type Kind = ::cxx::kind::Opaque;
         }
 
-        pub fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>, String> {
-            let opts = match exporter.as_str() {
-                "ndjson" => Some(#q::io::ExporterOptions::FileSystem(
-                    #q::io::filesystem::exporter::Options::new(
-                        #q::io::filesystem::Format::Ndjson,
-                        std::path::PathBuf::from(output_dir),
-                    ),
-                )),
-                _ => None,
-            };
+        pub fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>, String> {
             let id = #q::uuid::Uuid::now_v7();
             // Single sync/async bridge: build every entity's observer (each
             // constructing its exporter from the options, bound to the id)
             // concurrently on the context's runtime, block until done. The
             // observers keep the runtime alive; `inner` drops here.
-            let (#(#build_fields,)*) = match opts {
+            let (#(#build_fields,)*) = match options.inner {
                 None => (#(#build_wraps(#q::Observer::<#build_event_tys>::noop()),)*),
                 Some(options) => {
                     let inner = #q::ContextInner::try_new(id).map_err(|e| e.to_string())?;
@@ -566,8 +611,20 @@ pub mod ffi {{
     }}
 
     extern "Rust" {{
+        type ExporterOptions;
+        #[Self = "ExporterOptions"]
+        fn none() -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn ndjson(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn msgpack(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn postcard(output_dir: String) -> Box<ExporterOptions>;
+        #[Self = "ExporterOptions"]
+        fn collector(address: String) -> Result<Box<ExporterOptions>>;
+
         type Context;
-        fn create_context(exporter: String, output_dir: String) -> Result<Box<Context>>;
+        fn create_context(options: Box<ExporterOptions>) -> Result<Box<Context>>;
     }}
 }}
 "#

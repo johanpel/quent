@@ -683,6 +683,58 @@ fn emit_context(
         .collect();
 
     quote! {
+        #[pyclass(name = "ExporterOptions", frozen)]
+        pub struct PyExporterOptions {
+            inner: Option<#q::io::ExporterOptions>,
+        }
+
+        impl PyExporterOptions {
+            fn filesystem(
+                format: #q::io::filesystem::Format,
+                output_dir: std::path::PathBuf,
+            ) -> Self {
+                Self {
+                    inner: Some(#q::io::ExporterOptions::FileSystem(
+                        #q::io::filesystem::exporter::Options::new(format, output_dir),
+                    )),
+                }
+            }
+        }
+
+        #[pymethods]
+        impl PyExporterOptions {
+            #[staticmethod]
+            pub fn none() -> Self {
+                Self { inner: None }
+            }
+
+            #[staticmethod]
+            pub fn ndjson(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Ndjson, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn msgpack(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Msgpack, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn postcard(output_dir: std::path::PathBuf) -> Self {
+                Self::filesystem(#q::io::filesystem::Format::Postcard, output_dir)
+            }
+
+            #[staticmethod]
+            pub fn collector(address: String) -> PyResult<Self> {
+                Ok(Self {
+                    inner: Some(#q::io::ExporterOptions::Collector(
+                        #q::io::CollectorExporterOptions::try_new(&address).map_err(|err| {
+                            pyo3::exceptions::PyValueError::new_err(err.to_string())
+                        })?,
+                    )),
+                })
+            }
+        }
+
         #[pyclass(name = "Context")]
         pub struct PyContext {
             inner: Option<#q::ContextInner>,
@@ -693,26 +745,8 @@ fn emit_context(
         #[pymethods]
         impl PyContext {
             #[new]
-            pub fn new(
-                exporter: Option<String>,
-                output_dir: Option<String>,
-            ) -> PyResult<Self> {
-                let opts = match exporter.as_deref() {
-                    Some("ndjson") => Some(#q::io::ExporterOptions::FileSystem(
-                        #q::io::filesystem::exporter::Options::new(
-                            #q::io::filesystem::Format::Ndjson,
-                            std::path::PathBuf::from(
-                                output_dir.unwrap_or_else(|| ".".to_string()),
-                            ),
-                        ),
-                    )),
-                    None => None,
-                    Some(other) => {
-                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                            "unsupported exporter `{other}` for generated PyO3 bridge; supported values: `'ndjson'`, `None`"
-                        )));
-                    }
-                };
+            pub fn new(options: Option<PyRef<'_, PyExporterOptions>>) -> PyResult<Self> {
+                let opts = options.and_then(|options| options.inner.clone());
                 let id = #q::uuid::Uuid::now_v7();
                 let inner = match &opts {
                     Some(_) => #q::ContextInner::try_new(id)
@@ -1087,6 +1121,7 @@ pub fn emit(model: &ModelBuilder, options: &PyO3Options) -> Vec<GeneratedFile> {
                 m.add_function(wrap_pyfunction!(now_v7, m)?)?;
                 m.add_function(wrap_pyfunction!(nil_uuid, m)?)?;
                 m.add_class::<PyUuid>()?;
+                m.add_class::<PyExporterOptions>()?;
                 m.add_class::<PyContext>()?;
                 #(
                     m.add_class::<#observer_classes>()?;
