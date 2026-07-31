@@ -86,6 +86,10 @@ export {
   useHoveredStat,
   useSetHoveredStat,
   useSetDagDisplayedNodeIds,
+  useQuantitySpecs,
+  useSetQuantitySpecs,
+  useStatQuantitySpecs,
+  useSetStatQuantitySpecs,
 } from './dag/dagControlSelectors';
 export type {
   HoveredStatInfo,

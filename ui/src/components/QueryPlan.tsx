@@ -7,7 +7,12 @@ import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
-import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
+import {
+  useSelectedPlanId,
+  useSetSelectedPlanId,
+  useSetHoveredWorkerId,
+  useSetQuantitySpecs,
+} from '@quent/hooks';
 import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {
@@ -44,6 +49,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
+  const setQuantitySpecs = useSetQuantitySpecs();
 
   const {
     data: queryBundle,
@@ -92,6 +98,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
       setPlanId(queryBundle.plan_tree.id);
     }
   }, [queryBundle, planId, setPlanId]);
+
+  useEffect(() => {
+    setQuantitySpecs(queryBundle?.quantity_specs ?? null);
+  }, [queryBundle, setQuantitySpecs]);
 
   // handle loading and error states
   if (queryBundleLoading) {
@@ -214,7 +224,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </Suspense>
             </div>
             <DagPlayhead startTimeUnixNs={queryBundle.start_time_unix_ns} />
-            <DAGNodeInfoPanel isDark={isDark} quantitySpecs={queryBundle.quantity_specs} />
+            <DAGNodeInfoPanel isDark={isDark} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

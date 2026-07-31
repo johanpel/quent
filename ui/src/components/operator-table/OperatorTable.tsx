@@ -22,6 +22,7 @@ import {
   useHighlightedNodeIds,
   useHoveredStat,
   useStatGroupTableControls,
+  useQuantitySpecs,
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -98,6 +99,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const { entities } = queryBundle;
+  const quantitySpecs = useQuantitySpecs();
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
@@ -130,18 +132,17 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   );
 
   const statQuantitySpecs = useMemo(() => {
-    const quantitySpecs = queryBundle.quantity_specs;
     const result: Record<string, QuantitySpec> = {};
     for (const row of allRows) {
       for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
         if (!(statKey in result)) {
-          const spec = quantitySpecs[quantityName];
+          const spec = quantitySpecs?.[quantityName];
           if (spec) result[statKey] = spec;
         }
       }
     }
     return result;
-  }, [allRows, queryBundle.quantity_specs]);
+  }, [allRows, quantitySpecs]);
 
   // When the DAG has a selection, narrow the table to just the matching
   // operator rows. If the selection is non-empty but matches nothing in the

@@ -12,6 +12,7 @@ import {
   useSelectedEdgeColorField,
   useDataFlowEnabled,
   useDataFlowMeta,
+  useStatQuantitySpecs,
 } from '@quent/hooks';
 import {
   cn,
@@ -202,12 +203,10 @@ function EdgeLegendContent({
 interface DAGLegendProps {
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
-  /** Pre-resolved stat-key → QuantitySpec map for quantity-aware legend formatting. */
-  statQuantitySpecs?: Record<string, QuantitySpec>;
 }
 
 /** Panel overlay showing node/edge coloring legends within the ReactFlow canvas. */
-export const DAGLegend = ({ isDark, statQuantitySpecs }: DAGLegendProps) => {
+export const DAGLegend = ({ isDark }: DAGLegendProps) => {
   const nodeColoring = useNodeColoringValue();
   const edgeColoring = useEdgeColoring();
   const [nodePalette] = useNodeColorPalette();
@@ -216,6 +215,7 @@ export const DAGLegend = ({ isDark, statQuantitySpecs }: DAGLegendProps) => {
   const [edgeField] = useSelectedEdgeColorField();
   const dataFlowEnabled = useDataFlowEnabled();
   const dataFlowMeta = useDataFlowMeta();
+  const statQuantitySpecs = useStatQuantitySpecs();
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
 
   // Data-flow overlay legends: FSM states (colored like the timeline view)

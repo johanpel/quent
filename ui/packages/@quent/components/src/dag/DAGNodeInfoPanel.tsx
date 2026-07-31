@@ -8,24 +8,19 @@ import {
   useDataFlowEnabled,
   useDataFlowMeta,
   useDataFlowFrame,
+  useQuantitySpecs,
 } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 import { thinScrollbarClass } from '../ui/thin-scroll';
 import { formatStatWithQuantity } from '@quent/utils';
-import type { QuantitySpec } from '@quent/utils';
 import { DataFlowMatrix } from './DataFlowMatrix';
 
-export const DAGNodeInfoPanel = ({
-  isDark = false,
-  quantitySpecs,
-}: {
-  isDark?: boolean;
-  quantitySpecs?: Record<string, QuantitySpec>;
-}) => {
+export const DAGNodeInfoPanel = ({ isDark = false }: { isDark?: boolean }) => {
   const selectedNodeData = useSelectedNodeData();
   const dataFlowEnabled = useDataFlowEnabled();
   const dataFlowMeta = useDataFlowMeta();
   const dataFlowFrame = useDataFlowFrame();
+  const quantitySpecs = useQuantitySpecs();
   const [isExpanded, setIsExpanded] = useState(false);
 
   const operatorFrame =
@@ -103,7 +98,7 @@ export const DAGNodeInfoPanel = ({
                     <DataText className="capitalize">{key.replace(/_/g, ' ')}:</DataText>
                     <DataText className="text-muted-foreground ml-1">
                       {typeof value === 'number'
-                        ? formatStatWithQuantity(value, key, quantity, quantitySpecs)
+                        ? formatStatWithQuantity(value, key, quantity, quantitySpecs ?? undefined)
                         : String(value)}
                     </DataText>
                   </div>
