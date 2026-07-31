@@ -21,8 +21,7 @@ import {
   getLegendGradientStops,
   type PaletteTheme,
 } from '@quent/utils';
-import { inferFieldFormatter, formatQuantity } from '@quent/utils';
-import type { QuantitySpec } from '@quent/utils';
+import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -35,7 +34,7 @@ interface ContinuousLegendProps {
   max: number;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  quantitySpec?: QuantitySpec;
+  formatValue?: (v: number) => string;
 }
 
 const ContinuousLegend = ({
@@ -44,11 +43,9 @@ const ContinuousLegend = ({
   max,
   palette,
   isDark,
-  quantitySpec,
+  formatValue,
 }: ContinuousLegendProps) => {
-  const fmt = quantitySpec
-    ? (v: number) => formatQuantity(v, quantitySpec, 'Occupancy')
-    : inferFieldFormatter(field);
+  const fmt = formatValue ?? inferFieldFormatter(field);
   return (
     <div className="flex flex-col gap-1">
       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -142,6 +139,14 @@ export const CategoricalLegend = ({
   );
 };
 
+function resolveFormatter(
+  field: string,
+  statQuantitySpecs: Record<string, QuantitySpec>
+): ((v: number) => string) | undefined {
+  const spec = statQuantitySpecs[field];
+  return spec ? (v: number) => formatQuantity(v, spec, 'Occupancy') : undefined;
+}
+
 function NodeLegendContent({
   coloring,
   field,
@@ -153,7 +158,7 @@ function NodeLegendContent({
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  statQuantitySpecs?: Record<string, QuantitySpec>;
+  statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
@@ -164,7 +169,7 @@ function NodeLegendContent({
         max={coloring.max}
         palette={palette}
         isDark={isDark}
-        quantitySpec={statQuantitySpecs?.[field]}
+        formatValue={resolveFormatter(field, statQuantitySpecs)}
       />
     );
   }
@@ -182,7 +187,7 @@ function EdgeLegendContent({
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  statQuantitySpecs?: Record<string, QuantitySpec>;
+  statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
@@ -193,7 +198,7 @@ function EdgeLegendContent({
         max={coloring.max}
         palette={palette}
         isDark={isDark}
-        quantitySpec={statQuantitySpecs?.[field]}
+        formatValue={resolveFormatter(field, statQuantitySpecs)}
       />
     );
   }
