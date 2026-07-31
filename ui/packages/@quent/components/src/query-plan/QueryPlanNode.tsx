@@ -25,8 +25,8 @@ import {
   useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
+import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { formatStatWithQuantity } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 
@@ -54,7 +54,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    */
   flowBarVisible?: boolean;
   /** Quantity specs from the QueryBundle, forwarded for quantity-aware stat formatting. */
-  quantitySpecs?: { [key: string]: import('@quent/utils').QuantitySpec | undefined };
+  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }
 
 const nodeVariants = cva(

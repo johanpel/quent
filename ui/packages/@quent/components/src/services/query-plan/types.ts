@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TreeDataItem } from '../../ui/tree-view';
+import type { DAGNode, DAGEdge, QuantitySpec } from '@quent/utils';
 
 export interface QueryPlanDataItem extends TreeDataItem {
   queryId?: string;
@@ -24,10 +25,10 @@ export type {
 } from '@quent/utils';
 
 export interface DAGData {
-  nodes: import('@quent/utils').DAGNode[];
-  edges: import('@quent/utils').DAGEdge[];
+  nodes: DAGNode[];
+  edges: DAGEdge[];
   queryData: QueryPlanDataItem[];
-  quantitySpecs?: { [key in string]?: import('@quent/utils').QuantitySpec };
+  quantitySpecs?: { [key in string]?: QuantitySpec };
 }
 
 export interface QueryPlanNodeData extends Record<string, unknown> {

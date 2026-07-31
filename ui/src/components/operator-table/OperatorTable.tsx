@@ -8,7 +8,7 @@ import {
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
-import { getOperationTypeColor } from '@quent/utils';
+import { getOperationTypeColor, type QuantitySpec } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -131,7 +131,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
 
   const statQuantitySpecs = useMemo(() => {
     const quantitySpecs = queryBundle.quantity_specs;
-    const result: Record<string, import('@quent/utils').QuantitySpec> = {};
+    const result: Record<string, QuantitySpec> = {};
     for (const row of allRows) {
       for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
         if (!(statKey in result)) {

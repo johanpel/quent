@@ -4,7 +4,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
-import { cn } from '@quent/utils';
+import { cn, type QuantitySpec } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
   DataHeaderProps,
@@ -248,7 +248,7 @@ interface PivotedStatTableProps<TRow> {
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
   /** Per-stat QuantitySpec for quantity-aware formatting, keyed by stat name. */
-  statQuantitySpecs?: Record<string, import('@quent/utils').QuantitySpec>;
+  statQuantitySpecs?: Record<string, QuantitySpec>;
 }
 
 export function PivotedStatTable<TRow>({
