@@ -12,7 +12,6 @@ import type {
   NodeLabelField,
   DagLayoutDirection,
   StatValue,
-  QuantitySpec,
 } from '@quent/utils';
 import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -142,11 +141,3 @@ export const selectedDagLayoutDirectionAtom = atom<DagLayoutDirection>(
   DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
 );
 
-/** Raw quantity specs from the active QueryBundle, keyed by quantity name. */
-export const quantitySpecsAtom = atom<{ [key in string]?: QuantitySpec } | null>(null);
-
-/**
- * Pre-resolved stat-key → QuantitySpec map derived from the DAG node data.
- * Set by FlowLayout after processing nodes; consumed by DAGLegend and similar.
- */
-export const statQuantitySpecsAtom = atom<Record<string, QuantitySpec>>({});

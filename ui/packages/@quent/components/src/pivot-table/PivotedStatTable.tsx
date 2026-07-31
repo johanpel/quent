@@ -4,7 +4,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
-import { cn, type QuantitySpec } from '@quent/utils';
+import { cn } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
   DataHeaderProps,
@@ -180,7 +180,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
     onMouseEnter: () => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat)),
     onMouseLeave: () => interaction.setHoveredStat(null),
   };
-  const quantitySpec = display.statQuantitySpecs?.[stat];
+  const fmt = display.formatNumericValue;
   if (!display.isAggregating) {
     const val = row.values.get(stat) ?? null;
     return (
@@ -189,7 +189,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
         style={{ backgroundColor: bg, boxShadow: cellHighlight }}
         {...statCellProps}
       >
-        {formatStatValue(val, stat, quantitySpec)}
+        {typeof val === 'number' && fmt ? fmt(val, stat) : formatStatValue(val, stat)}
       </td>
     );
   }
@@ -212,7 +212,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {formatNumericStat(displayVal, stat, quantitySpec)}
+      {fmt && displayVal !== null ? fmt(displayVal, stat) : formatNumericStat(displayVal, stat)}
     </td>
   );
 }
@@ -247,8 +247,8 @@ interface PivotedStatTableProps<TRow> {
   /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
-  /** Per-stat QuantitySpec for quantity-aware formatting, keyed by stat name. */
-  statQuantitySpecs?: Record<string, QuantitySpec>;
+  /** Optional formatter for numeric stat values; falls back to inferFieldFormatter when absent. */
+  formatNumericValue?: (value: number, statName: string) => string;
 }
 
 export function PivotedStatTable<TRow>({
@@ -269,7 +269,7 @@ export function PivotedStatTable<TRow>({
   onReorderStat,
   sorting,
   onSortingChange,
-  statQuantitySpecs,
+  formatNumericValue,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -519,9 +519,9 @@ export function PivotedStatTable<TRow>({
       aggMode,
       colorPalette: nodePalette,
       darkMode: isDark,
-      statQuantitySpecs,
+      formatNumericValue,
     }),
-    [isAggregating, aggMode, nodePalette, isDark, statQuantitySpecs]
+    [isAggregating, aggMode, nodePalette, isDark, formatNumericValue]
   );
   const dndContextValue = useMemo(
     () => ({

@@ -8,7 +8,7 @@ import {
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
-import { getOperationTypeColor, type QuantitySpec } from '@quent/utils';
+import { getOperationTypeColor, formatStatWithQuantity } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -22,7 +22,6 @@ import {
   useHighlightedNodeIds,
   useHoveredStat,
   useStatGroupTableControls,
-  useQuantitySpecs,
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -98,8 +97,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const [hoveredStat, setHoveredStat] = useHoveredStat();
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
-  const { entities } = queryBundle;
-  const quantitySpecs = useQuantitySpecs();
+  const { entities, quantity_specs: quantitySpecs } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
 
@@ -131,18 +129,24 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     [entities, includedPlanIds]
   );
 
-  const statQuantitySpecs = useMemo(() => {
-    const result: Record<string, QuantitySpec> = {};
+  const statQuantityNames = useMemo(() => {
+    const result: Record<string, string> = {};
     for (const row of allRows) {
       for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
-        if (!(statKey in result)) {
-          const spec = quantitySpecs?.[quantityName];
-          if (spec) result[statKey] = spec;
-        }
+        if (!(statKey in result)) result[statKey] = quantityName;
       }
     }
     return result;
-  }, [allRows, quantitySpecs]);
+  }, [allRows]);
+
+  const formatNumericValue = useCallback(
+    (value: number, statName: string) => {
+      const quantityName = statQuantityNames[statName];
+      const spec = quantityName ? quantitySpecs?.[quantityName] : undefined;
+      return formatStatWithQuantity(value, statName, spec);
+    },
+    [statQuantityNames, quantitySpecs]
+  );
 
   // When the DAG has a selection, narrow the table to just the matching
   // operator rows. If the selection is non-empty but matches nothing in the
@@ -374,7 +378,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
-          statQuantitySpecs={statQuantitySpecs}
+          formatNumericValue={formatNumericValue}
         />
       </div>
     </div>

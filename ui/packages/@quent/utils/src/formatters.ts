@@ -362,21 +362,13 @@ export function formatQuantity(
 
 /**
  * Format a numeric statistic value, using a QuantitySpec when one is available.
- *
- * When `quantity` is non-null and `specs` contains a matching entry, formats via
- * `formatQuantity` (Occupancy kind) rather than the name-based `inferFieldFormatter`
- * heuristic. This is necessary because the backend may rescale values (e.g. ns → s)
- * before sending them, making the name suffix heuristic incorrect.
+ * Falls back to the name-based `inferFieldFormatter` heuristic when no spec is provided.
  */
 export function formatStatWithQuantity(
   value: number,
   key: string,
-  quantity: string | undefined,
-  specs: { [key: string]: QuantitySpec | undefined } | undefined
+  quantitySpec: QuantitySpec | undefined
 ): string {
-  if (quantity && specs) {
-    const spec = specs[quantity];
-    if (spec) return formatQuantity(value, spec, 'Occupancy');
-  }
+  if (quantitySpec) return formatQuantity(value, quantitySpec, 'Occupancy');
   return inferFieldFormatter(key)(value);
 }

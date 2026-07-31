@@ -22,8 +22,6 @@ import {
   effectiveHoveredStatAtom,
   hoveredStatAtom,
   dagDisplayedNodeIdsAtom,
-  quantitySpecsAtom,
-  statQuantitySpecsAtom,
 } from '../atoms/dagControls';
 
 export function useSelectedColorField() {
@@ -103,18 +101,4 @@ export function useSetDagDisplayedNodeIds() {
   return useSetAtom(dagDisplayedNodeIdsAtom);
 }
 
-export function useQuantitySpecs() {
-  return useAtomValue(quantitySpecsAtom);
-}
 
-export function useSetQuantitySpecs() {
-  return useSetAtom(quantitySpecsAtom);
-}
-
-export function useStatQuantitySpecs() {
-  return useAtomValue(statQuantitySpecsAtom);
-}
-
-export function useSetStatQuantitySpecs() {
-  return useSetAtom(statQuantitySpecsAtom);
-}

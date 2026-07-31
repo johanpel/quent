@@ -11,7 +11,6 @@ import {
   useSelectedPlanId,
   useSetSelectedPlanId,
   useSetHoveredWorkerId,
-  useSetQuantitySpecs,
 } from '@quent/hooks';
 import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
@@ -49,8 +48,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
-  const setQuantitySpecs = useSetQuantitySpecs();
-
   const {
     data: queryBundle,
     isLoading: queryBundleLoading,
@@ -98,10 +95,6 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
       setPlanId(queryBundle.plan_tree.id);
     }
   }, [queryBundle, planId, setPlanId]);
-
-  useEffect(() => {
-    setQuantitySpecs(queryBundle?.quantity_specs ?? null);
-  }, [queryBundle, setQuantitySpecs]);
 
   // handle loading and error states
   if (queryBundleLoading) {
@@ -224,7 +217,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
               </Suspense>
             </div>
             <DagPlayhead startTimeUnixNs={queryBundle.start_time_unix_ns} />
-            <DAGNodeInfoPanel isDark={isDark} />
+            <DAGNodeInfoPanel isDark={isDark} quantitySpecs={queryBundle.quantity_specs} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

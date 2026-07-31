@@ -42,15 +42,13 @@ import {
   useSelectedDagLayoutDirection,
   useDataFlowEnabled,
   useDataFlowMeta,
-  useQuantitySpecs,
-  useSetStatQuantitySpecs,
 } from '@quent/hooks';
 import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { continuousColor, getOperationTypeColor, buildOperatorColorMap, inferFieldFormatter, type QuantitySpec } from '@quent/utils';
+import { continuousColor, getOperationTypeColor, buildOperatorColorMap, inferFieldFormatter } from '@quent/utils';
 
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
@@ -318,24 +316,6 @@ const FlowLayout = ({
     [data.nodes]
   );
 
-  const quantitySpecs = useQuantitySpecs();
-  const setStatQuantitySpecs = useSetStatQuantitySpecs();
-
-  // Derive and publish a stat-key → QuantitySpec map for quantity-aware legend formatting.
-  useEffect(() => {
-    if (!quantitySpecs) return;
-    const result: Record<string, QuantitySpec> = {};
-    for (const node of data.nodes) {
-      for (const stat of parseCustomStatistics(node.metadata?.rawNode)) {
-        if (stat.quantity && !(stat.key in result)) {
-          const spec = quantitySpecs[stat.quantity];
-          if (spec) result[stat.key] = spec;
-        }
-      }
-    }
-    setStatQuantitySpecs(result);
-  }, [data.nodes, quantitySpecs, setStatQuantitySpecs]);
-
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
     // Determine which nodes have incoming/outgoing edges
@@ -357,6 +337,7 @@ const FlowLayout = ({
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
           flowBarVisible,
+          quantitySpecs: data.quantitySpecs,
         },
         style: {
           width: NODE_LAYOUT_WIDTH,

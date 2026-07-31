@@ -37,7 +37,7 @@ export const useQueryPlanVisualization = (
     try {
       const dag = getPlanDAG(queryBundle, planId);
       return {
-        dagData: { ...dag, queryData: treeData },
+        dagData: { ...dag, queryData: treeData, quantitySpecs: queryBundle.quantity_specs },
         treeData,
         error: null,
       };

@@ -24,9 +24,8 @@ import {
   useEffectiveHighlightedNodeIds,
   useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
-  useQuantitySpecs,
 } from '@quent/hooks';
-import { formatStatWithQuantity } from '@quent/utils';
+import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
@@ -54,6 +53,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    * relayouts exactly once.
    */
   flowBarVisible?: boolean;
+  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }
 
 const nodeVariants = cva(
@@ -109,7 +109,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
-  const quantitySpecs = useQuantitySpecs();
+  const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
@@ -129,8 +129,9 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
         ? formatStatWithQuantity(
             colorFieldValue,
             colorField!,
-            colorFieldStat?.quantity,
-            quantitySpecs ?? undefined
+            colorFieldStat?.quantity && quantitySpecs
+              ? quantitySpecs[colorFieldStat.quantity]
+              : undefined
           )
         : String(colorFieldValue);
 

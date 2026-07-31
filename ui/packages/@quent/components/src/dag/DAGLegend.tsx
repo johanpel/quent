@@ -12,7 +12,6 @@ import {
   useSelectedEdgeColorField,
   useDataFlowEnabled,
   useDataFlowMeta,
-  useStatQuantitySpecs,
 } from '@quent/hooks';
 import {
   cn,
@@ -21,7 +20,7 @@ import {
   getLegendGradientStops,
   type PaletteTheme,
 } from '@quent/utils';
-import { inferFieldFormatter, formatQuantity, type QuantitySpec } from '@quent/utils';
+import { inferFieldFormatter } from '@quent/utils';
 import { DataFlowTierLegend } from './DataFlowTierLegend';
 import type { NodeColoring, EdgeColoring } from '../services/query-plan/types';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -139,38 +138,21 @@ export const CategoricalLegend = ({
   );
 };
 
-function resolveFormatter(
-  field: string,
-  statQuantitySpecs: Record<string, QuantitySpec>
-): ((v: number) => string) | undefined {
-  const spec = statQuantitySpecs[field];
-  return spec ? (v: number) => formatQuantity(v, spec, 'Occupancy') : undefined;
-}
-
 function NodeLegendContent({
   coloring,
   field,
   palette,
   isDark,
-  statQuantitySpecs,
 }: {
   coloring: NodeColoring;
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
     return (
-      <ContinuousLegend
-        field={field}
-        min={coloring.min}
-        max={coloring.max}
-        palette={palette}
-        isDark={isDark}
-        formatValue={resolveFormatter(field, statQuantitySpecs)}
-      />
+      <ContinuousLegend field={field} min={coloring.min} max={coloring.max} palette={palette} isDark={isDark} />
     );
   }
   return <CategoricalLegend field={field} categoryMap={coloring.categoryMap} />;
@@ -181,25 +163,16 @@ function EdgeLegendContent({
   field,
   palette,
   isDark,
-  statQuantitySpecs,
 }: {
   coloring: EdgeColoring;
   field: string | null;
   palette: ContinuousPaletteName;
   isDark: boolean;
-  statQuantitySpecs: Record<string, QuantitySpec>;
 }) {
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
     return (
-      <ContinuousLegend
-        field={field}
-        min={coloring.min}
-        max={coloring.max}
-        palette={palette}
-        isDark={isDark}
-        formatValue={resolveFormatter(field, statQuantitySpecs)}
-      />
+      <ContinuousLegend field={field} min={coloring.min} max={coloring.max} palette={palette} isDark={isDark} />
     );
   }
   return <CategoricalLegend field={field} categoryMap={coloring.categoryMap} />;
@@ -220,7 +193,6 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
   const [edgeField] = useSelectedEdgeColorField();
   const dataFlowEnabled = useDataFlowEnabled();
   const dataFlowMeta = useDataFlowMeta();
-  const statQuantitySpecs = useStatQuantitySpecs();
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
 
   // Data-flow overlay legends: FSM states (colored like the timeline view)
@@ -271,7 +243,6 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
           field={nodeField}
           palette={nodePalette}
           isDark={isDark}
-          statQuantitySpecs={statQuantitySpecs}
         />
         {hasNode && hasEdge && <div className="border-t border-border" />}
         <EdgeLegendContent
@@ -279,7 +250,6 @@ export const DAGLegend = ({ isDark }: DAGLegendProps) => {
           field={edgeField}
           palette={edgePalette}
           isDark={isDark}
-          statQuantitySpecs={statQuantitySpecs}
         />
         {(hasNode || hasEdge) && hasDataFlow && <div className="border-t border-border" />}
         {hasDataFlow && (
