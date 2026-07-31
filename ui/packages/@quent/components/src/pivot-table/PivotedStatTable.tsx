@@ -213,7 +213,9 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {fmt && displayVal !== null ? fmt(displayVal, stat) : formatNumericStat(displayVal, stat)}
+      {fmt && typeof displayVal === 'number'
+        ? fmt(displayVal, stat)
+        : formatNumericStat(displayVal, stat)}
     </td>
   );
 }
