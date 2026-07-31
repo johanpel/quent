@@ -106,31 +106,26 @@ const DIMENSION_NONE: &str = "none";
 const MEMORY_TYPE_NAME: &str = "memory";
 
 fn operator_statistic_quantity(name: &str) -> Option<&'static str> {
-    if BYTE_OPERATOR_STATISTICS.contains(&name) {
-        Some(QUANTITY_BYTES)
-    } else if SECOND_OPERATOR_STATISTICS.contains(&name) {
-        Some(QUANTITY_SECONDS)
-    } else {
-        None
-    }
+    BYTE_OPERATOR_STATISTICS
+        .contains(&name)
+        .then_some(QUANTITY_BYTES)
 }
 
-fn scale_operator_statistic(name: &str, value: &mut Option<DynamicValue>) {
+fn scale_operator_statistic(name: &str, value: &Option<DynamicValue>) -> Option<DynamicValue> {
     if !SECOND_OPERATOR_STATISTICS.contains(&name) {
-        return;
+        return None;
     }
-    if let Some(DynamicValue::U64(nanoseconds)) = value {
-        let seconds = *nanoseconds as f64 / 1_000_000_000.0;
-        *value = Some(DynamicValue::F64(seconds));
+    match value {
+        Some(DynamicValue::U64(nanoseconds)) => {
+            let seconds = *nanoseconds as f64 / 1_000_000_000.0;
+            Some(DynamicValue::F64(seconds))
+        }
+        _ => None,
     }
 }
 
-fn operator_statistic_name(name: String) -> String {
-    if SECOND_OPERATOR_STATISTICS.contains(&name.as_str()) {
-        name.strip_suffix("_ns").unwrap_or(&name).to_owned()
-    } else {
-        name
-    }
+fn scaled_operator_statistic_name(name: String) -> String {
+    name.strip_suffix("_ns").unwrap_or(&name).to_owned()
 }
 
 fn quantity_specs() -> StdHashMap<String, QuantitySpec> {
@@ -271,10 +266,18 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         std::mem::take(&mut statistics.custom_statistics)
                             .into_iter()
                             .map(|(name, mut statistic)| {
-                                scale_operator_statistic(&name, &mut statistic.value);
-                                statistic.quantity =
-                                    operator_statistic_quantity(&name).map(str::to_owned);
-                                (operator_statistic_name(name), statistic)
+                                let name = if let Some(value) =
+                                    scale_operator_statistic(&name, &statistic.value)
+                                {
+                                    statistic.value = Some(value);
+                                    statistic.quantity = Some(QUANTITY_SECONDS.to_owned());
+                                    scaled_operator_statistic_name(name)
+                                } else {
+                                    statistic.quantity =
+                                        operator_statistic_quantity(&name).map(str::to_owned);
+                                    name
+                                };
+                                (name, statistic)
                             })
                             .collect();
                 }
