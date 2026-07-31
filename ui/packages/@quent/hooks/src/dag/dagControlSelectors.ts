@@ -100,5 +100,3 @@ export function useSetHoveredStat() {
 export function useSetDagDisplayedNodeIds() {
   return useSetAtom(dagDisplayedNodeIdsAtom);
 }
-
-

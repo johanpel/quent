@@ -8,11 +8,7 @@ import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
 import { TreeView } from '@quent/components';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
-import {
-  useSelectedPlanId,
-  useSetSelectedPlanId,
-  useSetHoveredWorkerId,
-} from '@quent/hooks';
+import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
 import { DAGControls, DAGNodeInfoPanel, DagPlayhead } from '@quent/components';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@quent/components';
 import {

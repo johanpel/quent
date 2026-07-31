@@ -140,4 +140,3 @@ export const edgeColorPaletteAtom = atom<ContinuousPaletteName>('teal');
 export const selectedDagLayoutDirectionAtom = atom<DagLayoutDirection>(
   DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP
 );
-

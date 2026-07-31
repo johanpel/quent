@@ -144,7 +144,13 @@ function NodeLegendContent({
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
     return (
-      <ContinuousLegend field={field} min={coloring.min} max={coloring.max} palette={palette} isDark={isDark} />
+      <ContinuousLegend
+        field={field}
+        min={coloring.min}
+        max={coloring.max}
+        palette={palette}
+        isDark={isDark}
+      />
     );
   }
   return <CategoricalLegend field={field} categoryMap={coloring.categoryMap} />;
@@ -164,7 +170,13 @@ function EdgeLegendContent({
   if (!coloring || !field) return null;
   if (coloring.type === 'continuous') {
     return (
-      <ContinuousLegend field={field} min={coloring.min} max={coloring.max} palette={palette} isDark={isDark} />
+      <ContinuousLegend
+        field={field}
+        min={coloring.min}
+        max={coloring.max}
+        palette={palette}
+        isDark={isDark}
+      />
     );
   }
   return <CategoricalLegend field={field} categoryMap={coloring.categoryMap} />;
