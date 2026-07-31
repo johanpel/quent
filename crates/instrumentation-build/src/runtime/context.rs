@@ -63,22 +63,18 @@ pub(super) fn observer_storage(
             #field_visibility #field: ::quent_instrumentation::Observer<#entity_ty>
         }
     });
-    let namespace_fields = namespace
-        .children()
-        .iter()
-        .filter(|child| child.has_entities())
-        .map(|child| {
-            let segment = child
-                .path()
-                .last()
-                .expect("child namespaces extend their parent");
-            let field = namespace_observers_field(segment);
-            let module = module_ident(segment);
-            let child_storage = observers_ident(schema, child);
-            quote! {
-                #field_visibility #field: #module::#child_storage
-            }
-        });
+    let namespace_fields = namespace.children_with_entities().map(|child| {
+        let segment = child
+            .path()
+            .last()
+            .expect("child namespaces extend their parent");
+        let field = namespace_observers_field(segment);
+        let module = module_ident(segment);
+        let child_storage = observers_ident(schema, child);
+        quote! {
+            #field_visibility #field: #module::#child_storage
+        }
+    });
 
     Ok(quote! {
         #[doc = #description]
@@ -191,19 +187,15 @@ fn observer_storage_initializer(
             )
         }
     });
-    let namespace_fields = namespace
-        .children()
-        .iter()
-        .filter(|child| child.has_entities())
-        .map(|child| {
-            let segment = child
-                .path()
-                .last()
-                .expect("child namespaces extend their parent");
-            let field = namespace_observers_field(segment);
-            let value = observer_storage_initializer(schema, child, active);
-            quote! { #field: #value }
-        });
+    let namespace_fields = namespace.children_with_entities().map(|child| {
+        let segment = child
+            .path()
+            .last()
+            .expect("child namespaces extend their parent");
+        let field = namespace_observers_field(segment);
+        let value = observer_storage_initializer(schema, child, active);
+        quote! { #field: #value }
+    });
     quote! {
         #storage {
             #(#entity_fields,)*

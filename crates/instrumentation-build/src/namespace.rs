@@ -43,6 +43,11 @@ impl<'schema> Namespace<'schema> {
         &self.children
     }
 
+    /// Returns child namespaces containing entities directly or transitively.
+    pub(crate) fn children_with_entities(&self) -> impl Iterator<Item = &Self> {
+        self.children.iter().filter(|child| child.has_entities())
+    }
+
     pub(crate) fn has_entities(&self) -> bool {
         !self.entities.is_empty() || self.children.iter().any(Self::has_entities)
     }

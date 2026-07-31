@@ -35,9 +35,7 @@ pub(crate) fn generate_any_event(
         })
         .collect();
     let children: Vec<(Ident, Ident)> = namespace
-        .children()
-        .iter()
-        .filter(|child| child.has_entities())
+        .children_with_entities()
         .map(|child| {
             let segment = child
                 .path()
