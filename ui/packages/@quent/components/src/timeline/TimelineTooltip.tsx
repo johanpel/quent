@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -8,7 +8,6 @@ import {
   cn,
   type DynamicAttribute,
 } from '@quent/utils';
-import { nanosToMs } from '../lib/timeline.utils';
 import { DataText } from '../ui/data-text';
 
 /** A timeline mark under the hover cursor, as shown in the tooltip. */
@@ -251,14 +250,12 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
 function OverlayBarTooltip({
   timestamp,
   bars,
-  startTime,
   fmt,
   windowMs,
   activeMarks,
 }: {
   timestamp: number;
   bars: StateBar[];
-  startTime: bigint;
   fmt: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
@@ -275,7 +272,7 @@ function OverlayBarTooltip({
       )}
     >
       <DataText as="div" className="font-semibold mb-1.5 text-muted-foreground">
-        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
+        {formatDurationForWindow(timestamp, windowMs)}
       </DataText>
       <div
         className="grid items-center gap-x-1.5 gap-y-1"
@@ -348,14 +345,12 @@ function OverlayBarTooltip({
 export function TooltipContent({
   timestamp,
   series,
-  startTime,
   fmt = defaultFormatter,
   windowMs,
   activeMarks,
 }: {
   timestamp: number;
   series: TooltipSeries[];
-  startTime: bigint;
   fmt?: ValueFormatter;
   windowMs: number;
   activeMarks?: ActiveMark[];
@@ -385,7 +380,6 @@ export function TooltipContent({
       <OverlayBarTooltip
         timestamp={timestamp}
         bars={bars}
-        startTime={startTime}
         fmt={fmt}
         windowMs={windowMs}
         activeMarks={activeMarks}
@@ -396,7 +390,7 @@ export function TooltipContent({
   return (
     <div className="px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
       <DataText as="div" className="font-semibold mb-1 text-muted-foreground">
-        {formatDurationForWindow(timestamp - nanosToMs(startTime), windowMs)}
+        {formatDurationForWindow(timestamp, windowMs)}
       </DataText>
       <ul>
         {series

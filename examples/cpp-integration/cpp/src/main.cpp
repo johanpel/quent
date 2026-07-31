@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // Example: C++ application using quent model-generated instrumentation API.
 //
 // This exercises the same model as the Rust README example:
@@ -26,8 +31,9 @@ int main() {
   // resource group uses an independent id here.
   auto cluster_id = uuid::now_v7();
   {
-    // Create instrumentation context — events exported to ndjson.
-    auto ctx = quent::create_context("ndjson", "./events");
+    // Create instrumentation context — events exported to NDJSON.
+    auto ctx = quent::create_context(
+        quent::ExporterOptions::ndjson("./events/ndjson"));
 
     auto cluster_obs = quent::cluster::create_observer(*ctx);
     cluster_obs->cluster_declaration(cluster_id,

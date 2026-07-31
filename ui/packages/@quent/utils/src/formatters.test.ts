@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -19,6 +19,7 @@ import {
   unwrapTaggedValue,
   formatAttributeValue,
   isBytesRateStat,
+  isNumericValue,
 } from './formatters';
 import type { QuantitySpec } from './types/index';
 
@@ -160,6 +161,10 @@ describe('formatWithPrefix (None)', () => {
   it('respects decimals', () => {
     expect(formatWithPrefix(3.14159, 'Hz', 'None', 3)).toBe('3.142 Hz');
   });
+
+  it('preserves unprefixed bigint precision above Number.MAX_SAFE_INTEGER', () => {
+    expect(formatWithPrefix(9007199254740993n, 'Hz', 'None', 0)).toBe('9007199254740993 Hz');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -195,6 +200,10 @@ describe('formatWithPrefix (Si, values >= 1)', () => {
 
   it('handles negative values', () => {
     expect(formatWithPrefix(-1500, 'Hz', 'Si')).toBe('-1.5 kHz');
+  });
+
+  it('normalizes a rounded mantissa into the next prefix', () => {
+    expect(formatWithPrefix(999999999999999n, 'Hz', 'Si', 1)).toBe('1.0 PHz');
   });
 });
 
@@ -255,6 +264,36 @@ describe('formatWithPrefix (Iec)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// formatWithPrefix — bigint values
+// ---------------------------------------------------------------------------
+
+describe('formatWithPrefix (bigint)', () => {
+  it('does not throw on a BigInt (reported repro)', () => {
+    expect(() => formatWithPrefix(1024n, 'B', 'Iec')).not.toThrow();
+  });
+
+  it('formats zero bigint', () => {
+    expect(formatWithPrefix(0n, 'B', 'Iec')).toBe('0 B');
+    expect(formatWithPrefix(0n, '', 'None')).toBe('0');
+  });
+
+  it('scales positive bigints like numbers', () => {
+    expect(formatWithPrefix(1500n, 'Hz', 'Si')).toBe('1.5 kHz');
+    expect(formatWithPrefix(1024n, 'B', 'Iec')).toBe('1.0 KiB');
+    expect(formatWithPrefix(1073741824n, 'B', 'Iec')).toBe('1.0 GiB');
+  });
+
+  it('handles negative bigints', () => {
+    expect(formatWithPrefix(-1500n, 'Hz', 'Si')).toBe('-1.5 kHz');
+    expect(formatWithPrefix(-1024n, 'B', 'Iec')).toBe('-1.0 KiB');
+  });
+
+  it('formats bigints with the None prefix system', () => {
+    expect(formatWithPrefix(42n, 'Hz', 'None')).toBe('42.0 Hz');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // formatBytes
 // ---------------------------------------------------------------------------
 
@@ -288,6 +327,11 @@ describe('formatNumber', () => {
     expect(formatNumber(1.23456)).toBe('1.23');
     expect(formatNumber(0.001234)).toBe('0.00123');
     expect(formatNumber(12345.6)).toBe('12,300');
+  });
+
+  it('formats bigints losslessly above Number.MAX_SAFE_INTEGER', () => {
+    // 9007199254740993 is not representable as a JS number (rounds to ...992).
+    expect(formatNumber(9007199254740993n)).toBe('9,007,199,254,740,993');
   });
 });
 
@@ -423,6 +467,12 @@ describe('inferFieldFormatter', () => {
     expect(inferFieldFormatter('custom_stat')(42)).toBe('42');
     expect(inferFieldFormatter('custom_stat')(3.14159)).toBe('3.1416');
   });
+
+  it('accepts bigint values (large U64/I64 stats)', () => {
+    expect(inferFieldFormatter('spill_bytes')(1073741824n)).toBe('1.00 GiB');
+    expect(inferFieldFormatter('output_rows')(1500n)).toBe('1.50 k');
+    expect(inferFieldFormatter('custom_stat')(42n)).toBe('42');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -551,6 +601,21 @@ describe('unwrapTaggedValue', () => {
   });
 });
 
+describe('isNumericValue', () => {
+  it('accepts numbers and bigints', () => {
+    expect(isNumericValue(42)).toBe(true);
+    expect(isNumericValue(0)).toBe(true);
+    expect(isNumericValue(42n)).toBe(true);
+  });
+
+  it('rejects non-numeric StatValue members', () => {
+    expect(isNumericValue('42')).toBe(false);
+    expect(isNumericValue(true)).toBe(false);
+    expect(isNumericValue(null)).toBe(false);
+    expect(isNumericValue(['1', '2'])).toBe(false);
+  });
+});
+
 describe('formatAttributeValue', () => {
   it('byte-formats bytes-like keys', () => {
     expect(formatAttributeValue('input_bytes', { U64: 1073741824 })).toBe('1.00 GiB');
@@ -564,6 +629,11 @@ describe('formatAttributeValue', () => {
 
   it('renders missing values as a dash', () => {
     expect(formatAttributeValue('anything', null)).toBe('—');
+  });
+
+  it('handles bigint entity-attribute values (large U64/I64)', () => {
+    expect(formatAttributeValue('input_bytes', 1073741824n)).toBe('1.00 GiB');
+    expect(formatAttributeValue('current_operator_id', { U64: 42n })).toBe('42');
   });
 });
 

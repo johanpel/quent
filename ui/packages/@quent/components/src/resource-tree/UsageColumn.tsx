@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { EntityTypeKey } from '@quent/utils';
@@ -14,7 +14,6 @@ type UsageColumnProps = {
   queryBundle: QueryBundle<EntityRef>;
   selectedTypes: Map<string, string>;
   selectedFsmTypes?: Map<string, string | null>;
-  startTime: bigint;
   durationSeconds: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
@@ -27,7 +26,6 @@ export function UsageColumn({
   queryBundle,
   selectedTypes,
   selectedFsmTypes,
-  startTime,
   durationSeconds,
   isDark,
 }: UsageColumnProps): React.ReactNode {
@@ -64,7 +62,6 @@ export function UsageColumn({
         queryId={queryBundle.query_id}
         resourceId={item.id}
         resourceType={resourceType}
-        startTime={startTime}
         durationSeconds={durationSeconds}
         fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}

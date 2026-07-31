@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types shared with the UI.
@@ -25,11 +25,11 @@ pub struct QueryFilter {
     pub query_id: Uuid,
 }
 
-/// Per-entry timeline-request parameter; restricts a resource timeline to a
-/// single operator when set.
+/// Per-entry timeline-request parameter; restricts a resource timeline to the
+/// given operators, or all operators when empty.
 #[derive(TS, Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OperatorFilter {
-    pub operator_id: Option<Uuid>,
+    pub operator_ids: Vec<Uuid>,
 }
 
 /// Attributes describing details about the implementation of this Engine

@@ -1,10 +1,5 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
-
-//! Query FSM analysis.
-//!
-//! Uses `FsmEvents<QueryTransition>` for generic trait impls. A newtype
-//! wrapper adds `ResourceGroup` and application-specific methods.
 
 use quent_analyzer::{
     AnalyzerResult, Entity,
@@ -19,10 +14,12 @@ use quent_query_engine_ui as ui;
 use quent_time::{Timestamp, try_to_secs_relative};
 use uuid::Uuid;
 
-/// Builder for Query FSMs.
+use crate::QueryEntity;
+
+/// Builder for event-backed query FSMs.
 pub type QueryBuilder = FsmEventsBuilder<ModelQueryTransition>;
 
-/// A reconstructed Query FSM with resource group support.
+/// An event-backed query FSM.
 #[derive(Debug)]
 pub struct Query {
     inner: FsmEvents<ModelQueryTransition>,
@@ -34,15 +31,17 @@ impl Query {
             inner: builder.try_build()?,
         })
     }
+}
 
-    pub fn query_group_id(&self) -> Option<Uuid> {
+impl QueryEntity for Query {
+    fn query_group_id(&self) -> Option<Uuid> {
         self.inner.first_data().and_then(|t| match t {
             ModelQueryTransition::Init(init) => Some(init.query_group_id.uuid()),
             _ => None,
         })
     }
 
-    pub fn to_ui(&self) -> AnalyzerResult<ui::Query> {
+    fn to_ui(&self) -> AnalyzerResult<ui::Query> {
         let transitions = self.inner.transitions();
         let epoch = transitions.first().map(|t| t.timestamp());
 
@@ -81,33 +80,31 @@ impl Query {
     }
 }
 
-// Delegate Entity (override instance_name for backward compat)
-
 impl Entity for Query {
     fn id(&self) -> Uuid {
         self.inner.id()
     }
+
     fn type_name(&self) -> &str {
         self.inner.type_name()
     }
+
     fn instance_name(&self) -> &str {
         self.inner.instance_name()
     }
 }
 
-// Delegate Fsm
-
 impl Fsm for Query {
     type TransitionType = TransitionEvent<ModelQueryTransition>;
+
     fn len(&self) -> usize {
         self.inner.len()
     }
+
     fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
         Fsm::transition(&self.inner, index)
     }
 }
-
-// Delegate FsmUsages
 
 impl<'a> FsmUsages<'a> for Query {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
@@ -115,15 +112,11 @@ impl<'a> FsmUsages<'a> for Query {
     }
 }
 
-// Delegate Using
-
 impl Using for Query {
     fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
         Using::usages(&self.inner)
     }
 }
-
-// ResourceGroup (application-specific)
 
 impl ResourceGroup for Query {
     fn parent_group_id(&self) -> Option<Uuid> {

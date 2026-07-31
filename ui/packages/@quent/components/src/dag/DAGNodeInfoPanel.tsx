@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useEffect, useState } from 'react';
@@ -92,7 +92,7 @@ export const DAGNodeInfoPanel = ({
                     <div className="ml-2 flex flex-col gap-0.5">
                       {value.map((item, i) => (
                         <DataText key={i} className="text-muted-foreground whitespace-pre-line">
-                          {item}
+                          {String(item)}
                         </DataText>
                       ))}
                     </div>

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::entity::EntityEvents;
@@ -10,12 +10,13 @@ use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
-/// An Operator in a Plan DAG.
+use crate::{OperatorEntity, OperatorEntityMut};
+
+/// An event-backed operator in a plan DAG.
 #[derive(Debug)]
 pub struct Operator {
     inner: EntityEvents<operator::Operator>,
-    /// Computed externally from task spans.
-    pub active_span: Option<SpanUnixNanoSec>,
+    active_span: Option<SpanUnixNanoSec>,
 }
 
 impl Operator {
@@ -29,9 +30,10 @@ impl Operator {
     pub fn push(&mut self, event: Event<operator::OperatorEvent>) {
         self.inner.push(event);
     }
+}
 
-    /// The ID of the plan this operator belongs to.
-    pub fn plan_id(&self) -> Option<Uuid> {
+impl OperatorEntity for Operator {
+    fn plan_id(&self) -> Option<Uuid> {
         self.inner
             .data()
             .declaration
@@ -39,14 +41,11 @@ impl Operator {
             .map(|d| d.plan_id.uuid())
     }
 
-    /// The span of time between the first moment an operator started processing
-    /// an input, and the latest moment at which an operator finished producing
-    /// an output (excluding any potential back-pressure).
-    pub fn active_span(&self) -> Option<SpanUnixNanoSec> {
+    fn active_span(&self) -> Option<SpanUnixNanoSec> {
         self.active_span
     }
 
-    pub fn operator_type_name(&self) -> Option<&str> {
+    fn operator_type_name(&self) -> Option<&str> {
         self.inner
             .data()
             .declaration
@@ -54,7 +53,7 @@ impl Operator {
             .map(|d| d.type_name.as_str())
     }
 
-    pub fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Operator {
+    fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Operator {
         let d = self.inner.data();
 
         let custom_attributes = d
@@ -106,13 +105,24 @@ impl Operator {
     }
 }
 
+impl OperatorEntityMut for Operator {
+    fn extend_active_span(&mut self, span: SpanUnixNanoSec) {
+        self.active_span = Some(match self.active_span {
+            Some(existing) => existing.extend(&span),
+            None => span,
+        });
+    }
+}
+
 impl Entity for Operator {
     fn id(&self) -> Uuid {
         self.inner.id()
     }
+
     fn type_name(&self) -> &str {
         "operator"
     }
+
     fn instance_name(&self) -> &str {
         self.inner
             .data()

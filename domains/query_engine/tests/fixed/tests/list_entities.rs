@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Functional test of `UiAnalyzer::list_entities` over the fixed scenario.
@@ -83,7 +83,7 @@ fn entry(
     scope: Option<EntityScope>,
     min_usage_s: Option<f64>,
     page: Option<PageParams>,
-    operator_id: Option<Uuid>,
+    operator_ids: Vec<Uuid>,
 ) -> EntityListEntry<OperatorFilter> {
     EntityListEntry {
         window: TimeWindow {
@@ -100,7 +100,7 @@ fn entry(
             dir: SortDir::Desc,
         },
         page,
-        application: OperatorFilter { operator_id },
+        application: OperatorFilter { operator_ids },
     }
 }
 
@@ -110,7 +110,7 @@ fn request_scoped(
     page: Option<PageParams>,
 ) -> EntityListRequest<QueryFilter, OperatorFilter> {
     EntityListRequest {
-        entry: entry(scope, min_usage_s, page, None),
+        entry: entry(scope, min_usage_s, page, Vec::new()),
         app_params: QueryFilter {
             query_id: fixed::QUERY,
         },
@@ -212,12 +212,12 @@ fn pagination_slices_the_ranked_set_with_stable_total() {
 }
 
 #[test]
-fn operator_filter_restricts_to_an_operators_tasks() {
+fn operator_filter_restricts_to_one_operator_tasks() {
     let analyzer = fixed_analyzer();
 
     // ScanFilter_W0 runs exactly TASK_0 and TASK_1.
     let request = EntityListRequest {
-        entry: entry(None, None, None, Some(fixed::PHYS_SCAN_FILTER_W0)),
+        entry: entry(None, None, None, vec![fixed::PHYS_SCAN_FILTER_W0]),
         app_params: QueryFilter {
             query_id: fixed::QUERY,
         },
@@ -226,4 +226,28 @@ fn operator_filter_restricts_to_an_operators_tasks() {
 
     assert_eq!(resp.total, 2);
     assert_eq!(ids(&resp), [fixed::TASK_0, fixed::TASK_1]);
+}
+
+#[test]
+fn operator_filter_combines_multiple_operators_tasks() {
+    let analyzer = fixed_analyzer();
+
+    let request = EntityListRequest {
+        entry: entry(
+            None,
+            None,
+            None,
+            vec![fixed::PHYS_SCAN_FILTER_W0, fixed::PHYS_SCAN_FILTER_W1],
+        ),
+        app_params: QueryFilter {
+            query_id: fixed::QUERY,
+        },
+    };
+    let resp = analyzer.list_entities(request).unwrap();
+
+    assert_eq!(resp.total, 4);
+    assert_eq!(
+        ids(&resp),
+        [fixed::TASK_0, fixed::TASK_1, fixed::TASK_2, fixed::TASK_3]
+    );
 }

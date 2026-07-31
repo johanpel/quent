@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Resource tests: a `resource:` block declares capacities (or `true` for a
@@ -24,7 +24,7 @@ fn errors_of(src: &str) -> String {
     }
 }
 
-/// A memory resource used by a one-state task FSM. Memory is bounded, so it
+/// A memory resource used by a task FSM. Memory is bounded, so it
 /// carries a bounds event.
 const MEMORY_AND_TASK: &str = "\
 quent: alpha
@@ -45,7 +45,8 @@ fsms:
         initial: true
         attributes:
           mem: { uses: Memory }
-        to: [exit]
+        to: [done]
+      done: {}
 ";
 
 #[test]
@@ -114,7 +115,8 @@ fsms:
     states:
       running:
         initial: true
-        to: [exit]
+        to: [stopped]
+      stopped: {}
 ",
     );
     let worker = schema.entity(&path("Worker")).unwrap();
@@ -135,16 +137,17 @@ fsms:
     states:
       resizing:
         initial: true
+        to: [resizing, done]
+      done:
         attributes:
           limits: { sets-resource-bounds: true }
-        to: [resizing, exit]
 ",
     );
     let pool = schema.entity(&path("Pool")).unwrap();
     assert!(pool.annotations().has_constraint(FSM));
     assert!(pool.annotations().has_constraint(RESOURCE));
     let field = pool
-        .event(&ident("resizing"))
+        .event(&ident("done"))
         .unwrap()
         .field(&ident("limits"))
         .unwrap();
@@ -172,6 +175,35 @@ fn uses_carries_the_usage_record_on_a_targeted_reference() {
 }
 
 #[test]
+fn an_fsm_final_state_cannot_start_a_resource_usage() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Memory:
+    resource: true
+    events:
+      registered: {}
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        to: [finished]
+      finished:
+        attributes:
+          memory: { uses: Memory }
+",
+    );
+
+    assert!(
+        errors.contains("final state \"finished\"") && errors.contains("uses resource \"Memory\""),
+        "{errors}"
+    );
+}
+
+#[test]
 fn uses_target_must_declare_a_resource() {
     let errors = errors_of(
         "\
@@ -191,7 +223,8 @@ fsms:
         initial: true
         attributes:
           worker: { uses: Worker }
-        to: [exit]
+        to: [done]
+      done: {}
 ",
     );
 
@@ -229,7 +262,8 @@ fsms:
         initial: true
         attributes:
           memory: { uses: Memory }
-        to: [exit]
+        to: [done]
+      done: {}
 ",
     );
 

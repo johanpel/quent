@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Core types for defining Quent application models.
@@ -88,7 +88,7 @@ pub use quent_build_info as build_info;
 pub use quent_collector_client::{CollectorSink, deserialize_event};
 pub use quent_dynamic_attributes as attributes;
 pub use quent_events::{EntityEvent, Event};
-pub use quent_instrumentation::{Context, Observer, write_sidecar};
+pub use quent_instrumentation::{ContextInner, ObserverInner as Observer, write_sidecar};
 pub use quent_io as io;
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]

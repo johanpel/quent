@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Umbrella crate providing unified exporter/importer creation.
@@ -30,7 +30,7 @@ pub use crate::filesystem::{
 #[cfg(feature = "callback")]
 pub use quent_io_callback::EventCallback;
 #[cfg(feature = "collector")]
-pub use quent_io_collector::Options as CollectorExporterOptions;
+pub use quent_io_collector::{CollectorAddressError, Options as CollectorExporterOptions};
 
 // Featue-gated mods.
 #[cfg(feature = "clap")]

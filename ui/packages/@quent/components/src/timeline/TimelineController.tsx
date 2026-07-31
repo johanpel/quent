@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,12 +13,11 @@ import {
   buildBinnedTimelineSeries,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
-  MIN_ZOOM_WINDOW_S,
-  nanosToMs,
   registerAxisPointerSync,
   unregisterAxisPointerSync,
 } from '../lib/timeline.utils';
 import { useChartConnect } from '../lib/useChartConnect';
+import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { TIMELINE_X_AXIS_ANIMATION, TIMELINE_SPACING } from './types';
 import type { SingleTimelineResponse } from '@quent/utils';
 import { useTimelineEchartsTheme } from './timelineEchartsTheme';
@@ -40,7 +39,6 @@ const CONTROLLER_GRID_BOTTOM = 10;
 const DATAZOOM_TOP_OFFSET = 5;
 
 type TimelineControllerProps = {
-  startTime: bigint;
   durationSeconds: number;
   height?: number;
   timelineData?: SingleTimelineResponse | null;
@@ -50,7 +48,6 @@ type TimelineControllerProps = {
 
 /** Zoom controller bar with datazoom slider and optional background timeline data. */
 export function TimelineController({
-  startTime,
   durationSeconds,
   height = CONTROLLER_HEIGHT,
   timelineData,
@@ -60,14 +57,11 @@ export function TimelineController({
   const { themeName, controllerGridBackgroundColor } = useTimelineEchartsTheme(isDark);
   const paletteTheme: PaletteTheme = isDark ? 'dark' : 'light';
 
-  const startTimeMillis = useMemo(() => nanosToMs(startTime), [startTime]);
-
   const { timestamps, seriesData } = useMemo(() => {
     if (timelineData) {
       const { timestamps: ts, series } = buildBinnedTimelineSeries(
         timelineData.data,
         timelineData.config,
-        startTime,
         paletteTheme
       );
       const entries = Object.entries(series);
@@ -76,10 +70,10 @@ export function TimelineController({
     } else {
       const numBins = getAdaptiveNumBins();
       const binDurationMs = (durationSeconds * 1000) / numBins;
-      const ts = Array.from({ length: numBins }, (_, i) => startTimeMillis + i * binDurationMs);
+      const ts = Array.from({ length: numBins }, (_, i) => i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, startTime, startTimeMillis, durationSeconds, paletteTheme]);
+  }, [timelineData, durationSeconds, paletteTheme]);
 
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 
@@ -123,7 +117,7 @@ export function TimelineController({
     return [staticDisplaySeries, zoomControlSeries];
   }, [timestamps, hasSeriesData, seriesData]);
 
-  const endTimeMillis = startTimeMillis + durationSeconds * 1000;
+  const endTimeMillis = durationSeconds * 1000;
 
   // Measured container width drives the label-count budget so narrow viewports don't crowd the axis.
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -148,14 +142,14 @@ export function TimelineController({
       CONTROLLER_MAX_LABELS,
       Math.max(CONTROLLER_MIN_LABELS, labelBudget)
     );
-    const interval = getTimelineXAxisIntervalMs(endTimeMillis - startTimeMillis, targetSplits);
+    const interval = getTimelineXAxisIntervalMs(endTimeMillis, targetSplits);
 
     return {
       boundaryGap: [0, 0] as [number, number],
       type: 'value',
       show: true,
       position: 'top',
-      min: startTimeMillis,
+      min: 0,
       max: endTimeMillis,
       interval,
       // Re-enable ticks the shared theme disables; default `inside: false`
@@ -167,7 +161,7 @@ export function TimelineController({
         alignMinLabel: 'left',
         alignMaxLabel: 'right',
         formatter: (value: number) => {
-          return formatDuration(Number(value) - startTimeMillis);
+          return formatDuration(Number(value));
         },
       },
       splitLine: { show: true, lineStyle: { type: 'solid' } },
@@ -179,14 +173,14 @@ export function TimelineController({
         handle: { show: false },
       },
     };
-  }, [startTimeMillis, endTimeMillis, containerWidth]);
+  }, [endTimeMillis, containerWidth]);
 
   const zoomXAxisOptions = useMemo(
     () => ({
       boundaryGap: [0, 0] as [number, number],
       type: 'value',
       show: false,
-      min: startTimeMillis,
+      min: 0,
       max: endTimeMillis,
       axisLine: { show: false },
       axisTick: { show: false },
@@ -195,7 +189,7 @@ export function TimelineController({
       // Suppress pointer on the dataZoom'd axis — only xAxis[0] draws the crosshair.
       axisPointer: { show: false },
     }),
-    [startTimeMillis, endTimeMillis]
+    [endTimeMillis]
   );
 
   const yAxisOptions = useMemo(() => {
@@ -230,10 +224,7 @@ export function TimelineController({
     [controllerGridBackgroundColor]
   );
 
-  const minZoomSpanPct = useMemo(() => {
-    if (durationSeconds <= 0) return 0;
-    return Math.min(100, (MIN_ZOOM_WINDOW_S / durationSeconds) * 100);
-  }, [durationSeconds]);
+  const minZoomSpanPct = useMinZoomSpanPct(durationSeconds);
 
   const eChartOptions: EChartsOption = useMemo(() => {
     return {

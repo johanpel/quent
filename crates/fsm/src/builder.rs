@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashSet;
@@ -8,7 +8,7 @@ use quent_schema::builder::{AnnotationsBuilder, BuilderError, EntityBuilder, Eve
 use quent_schema::{Annotations, Cardinality, Entity, Field, Identifier, Path};
 use thiserror::Error;
 
-use crate::{ExitStates, Fsm, FsmConstraint, FsmError, Transition, check_entity};
+use crate::{Fsm, FsmConstraint, FsmError, Transition, check_entity};
 
 /// A declared state of an FSM entity.
 pub struct StateDecl {
@@ -16,12 +16,10 @@ pub struct StateDecl {
     pub name: Identifier,
     /// Fields of the state event.
     pub attributes: Vec<Field>,
-    /// States this state transitions to.
+    /// States this state transitions to. An empty list makes this a final state.
     pub to: Vec<Identifier>,
     /// Whether the FSM begins in this state.
     pub initial: bool,
-    /// Whether the FSM may exit from this state.
-    pub exit: bool,
 }
 
 /// Builds an FSM [`Entity`] from its states: each state becomes one event whose
@@ -42,8 +40,6 @@ pub enum FsmEntityBuilderError {
     NoInitialState,
     #[error("more than one state is marked as the initial state")]
     MultipleInitialStates(Vec<Identifier>),
-    #[error("no state is marked as an exit state")]
-    NoExitState,
     #[error("duplicate state `{0}`")]
     DuplicateState(Identifier),
     /// The generated schema element is invalid.
@@ -52,7 +48,7 @@ pub enum FsmEntityBuilderError {
     /// The FSM topology failed to serialize to its constraint payload.
     #[error(transparent)]
     Serialize(#[from] serde_json::Error),
-    /// The FSM topology is invalid (unreachable state, no path to an exit, ...).
+    /// The FSM topology is invalid (unreachable state, no path to a final state, ...).
     #[error(transparent)]
     Invalid(#[from] FsmError),
 }
@@ -94,9 +90,9 @@ impl FsmEntityBuilder {
     /// # Errors
     ///
     /// Returns [`FsmEntityBuilderError`] if a state name is declared twice,
-    /// there is not exactly one initial state, no exit state, a state has a
-    /// duplicate attribute name, the topology fails to serialize, or the
-    /// topology is invalid.
+    /// there is not exactly one initial state, a state has a duplicate
+    /// attribute name, the topology fails to serialize, or the topology is
+    /// invalid.
     pub fn build(self) -> Result<Entity, FsmEntityBuilderError> {
         let Self {
             path,
@@ -124,14 +120,6 @@ impl FsmEntityBuilder {
             _ => return Err(FsmEntityBuilderError::MultipleInitialStates(initials)),
         };
 
-        let exits: Vec<Identifier> = states
-            .iter()
-            .filter(|s| s.exit)
-            .map(|s| s.name.clone())
-            .collect();
-        let Some((first_exit, other_exits)) = exits.split_first() else {
-            return Err(FsmEntityBuilderError::NoExitState);
-        };
         let transitions = states
             .iter()
             .flat_map(|state| {
@@ -142,16 +130,10 @@ impl FsmEntityBuilder {
                     .map(move |target| Transition::new(source.clone(), target.clone()))
             })
             .collect();
-        let fsm = Fsm::new(
-            initial,
-            transitions,
-            ExitStates::new(first_exit.clone(), other_exits.to_vec()),
-        );
+        let fsm = Fsm::new(initial, transitions);
 
         let mut entity = EntityBuilder::new(path);
         for state in states {
-            // An isolated state has no place on the topology; the FSM constraint
-            // reports it, so `Once` here is only a stand-in.
             let cardinality = fsm.cardinality(&state.name).unwrap_or(Cardinality::Once);
             let event = EventBuilder::new(state.name, cardinality)
                 .with_fields(state.attributes)

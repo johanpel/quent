@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! `model!` proc macro implementation.
@@ -331,7 +331,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                     #(#observer_fields: #observer_types::new(
                         quent_model::Observer::<#event_types>::noop(),
                     ),)*
-                    _inner: quent_model::Context::noop(id),
+                    _inner: quent_model::ContextInner::noop(id),
                 }
             }
         }
@@ -470,7 +470,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 #[doc(alias = "context")]
                 pub struct #context_type {
                     #(#observer_field_decls,)*
-                    _inner: quent_model::Context,
+                    _inner: quent_model::ContextInner,
                 }
 
                 impl #context_type {
@@ -482,7 +482,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         id: quent_model::uuid::Uuid,
                         options: quent_model::io::ExporterOptions,
                     ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::Context::try_new(id)?;
+                        let inner = quent_model::ContextInner::try_new(id)?;
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(

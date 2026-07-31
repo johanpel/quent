@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::entity::EntityEvents;
@@ -9,7 +9,9 @@ use quent_query_engine_ui as ui;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
-/// A [`Worker`] is an [`Entity`] that executes `Query` `Plan`s.
+use crate::WorkerEntity;
+
+/// An event-backed worker that executes query plans.
 #[derive(Debug)]
 pub struct Worker(EntityEvents<worker::Worker>);
 
@@ -21,8 +23,10 @@ impl Worker {
     pub fn push(&mut self, event: Event<worker::WorkerEvent>) {
         self.0.push(event);
     }
+}
 
-    pub fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Worker {
+impl WorkerEntity for Worker {
+    fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Worker {
         let d = self.0.data();
         ui::Worker {
             id: self.0.id(),
@@ -38,9 +42,11 @@ impl Entity for Worker {
     fn id(&self) -> Uuid {
         self.0.id()
     }
+
     fn type_name(&self) -> &str {
         "worker"
     }
+
     fn instance_name(&self) -> &str {
         self.0
             .data()

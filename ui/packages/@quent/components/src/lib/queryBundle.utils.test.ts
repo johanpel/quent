@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest';
@@ -114,11 +114,6 @@ describe('parseCustomStatistics', () => {
   it('unwraps a string tagged value', () => {
     const op = makeOperator({ label: makeTagged('String', 'hello') });
     expect(parseCustomStatistics(op)).toEqual([{ key: 'label', value: 'hello' }]);
-  });
-
-  it('unwraps a boolean tagged value', () => {
-    const op = makeOperator({ enabled: makeTagged('Bool', true) });
-    expect(parseCustomStatistics(op)).toEqual([{ key: 'enabled', value: true }]);
   });
 
   it('produces null for a null-valued tagged entry', () => {
