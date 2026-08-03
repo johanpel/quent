@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generates a Rust instrumentation library source from a
+//! Generates Rust event types and an optional instrumentation surface from a
 //! [`quent_schema::Schema`].
 //!
 //! The usual workflow is build-time generation:
@@ -20,13 +20,7 @@
 //! use quent_instrumentation_build::{Options, generate};
 //!
 //! let schema = todo!();
-//! let opts = Options {
-//!     // Exporters serialize events, so a `Serialize` derive is required.
-//!     event_derives: &["Debug", "::serde::Serialize"],
-//!     record_derives: &["Debug", "::serde::Serialize"],
-//!     out_dir: std::env::var("OUT_DIR")?.into(),
-//!     file_name: None, // defaults to `<schema name>.rs`
-//! };
+//! let opts = Options::default();
 //! generate(&schema, &opts)?;
 //! ```
 //!
@@ -40,16 +34,15 @@
 //!
 //! # Restrictions
 //!
-//! The schema does not limit how many events an entity declares, but this
-//! generator caps once-cardinality
+//! The schema does not limit how many events an entity declares, but the
+//! instrumentation surface caps once-cardinality
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
 //! entity; beyond that, generation fails with
 //! [`GenerateError::TooManyOnceEvents`].
 //!
-//! Building an exporter requires the event type to be `Serialize`, so
-//! [`Options::event_derives`] (and [`Options::record_derives`], for events
-//! carrying records or entity refs) must include a `Serialize`-providing
-//! derive; otherwise the generated code will not compile.
+//! Serde derives are opt-in through [`Options::serde`]. The generated crate
+//! must also depend on `serde` with its derive feature and enable the matching
+//! runtime crate's `serde` feature.
 
 mod any_event;
 mod common;
@@ -65,21 +58,29 @@ use quent_constraints::{BaseConstraintsError, Report, validate};
 use quent_schema::{Path, Schema};
 use quote::quote;
 
-/// Options controlling instrumentation library generation.
+/// Options controlling event and instrumentation source generation.
 pub struct Options {
+    /// Add handles, observers, a context, and model integration to the event
+    /// types.
+    pub instrumentation: bool,
+
+    /// Derive [`Debug`](std::fmt::Debug) on generated event and record types.
+    pub debug: bool,
+
+    /// Derive `serde::Serialize` and `serde::Deserialize` on generated event
+    /// and record types.
+    ///
+    /// `AnyEvent` is borrowed, so it derives only `serde::Serialize`.
+    pub serde: bool,
+
     /// Derives applied to every generated event payload enum.
     ///
-    /// Must include a `Serialize`-providing derive (e.g. `"::serde::Serialize"`):
-    /// the generated context builds exporters, which require it.
-    // TODO(johanpel): derives are kept as simple as possible for now, but
-    // eventually some built-in options for built-in exporters (e.g. serde-based
-    // or Narrow) will surface here as simpler type-safe options.
+    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
     pub event_derives: &'static [&'static str],
 
     /// Derives applied to every generated record struct.
     ///
-    /// Records embedded in events must also be `Serialize`, so include a
-    /// `Serialize`-providing derive (e.g. `"::serde::Serialize"`).
+    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
     pub record_derives: &'static [&'static str],
 
     /// Directory the generated file is written into.
@@ -90,7 +91,8 @@ pub struct Options {
     pub file_name: Option<String>,
 
     /// Emit root and namespace-local `AnyEvent` enums that decode type-erased
-    /// events. Each enum carries [`Self::event_derives`].
+    /// events. Each enum carries [`Self::debug`], compatible serde derives, and
+    /// [`Self::event_derives`].
     ///
     /// No aggregate is emitted for a namespace without events.
     pub any_event: bool,
@@ -99,6 +101,9 @@ pub struct Options {
 impl Default for Options {
     fn default() -> Self {
         Self {
+            instrumentation: true,
+            debug: true,
+            serde: false,
             event_derives: Default::default(),
             record_derives: Default::default(),
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
@@ -108,7 +113,17 @@ impl Default for Options {
     }
 }
 
-/// An error from generating instrumentation source.
+impl Options {
+    pub(crate) fn event_runtime(&self) -> proc_macro2::TokenStream {
+        if self.instrumentation {
+            quote! { ::quent_instrumentation }
+        } else {
+            quote! { ::quent_events }
+        }
+    }
+}
+
+/// An error from generating event or instrumentation source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
     #[error("base schema validation failed: {0}")]
@@ -148,7 +163,7 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
-/// Generate the full instrumentation source for `schema` with `opts`.
+/// Generate event source and, when enabled, instrumentation source for `schema`.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
     let Report {
         base_constraints,
@@ -171,7 +186,7 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
     Ok(GenerateInfo { path, warnings })
 }
 
-/// Return the full instrumentation source for `schema`.
+/// Return event source and, when enabled, instrumentation source for `schema`.
 ///
 /// # Errors
 ///
@@ -181,10 +196,16 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     let namespaces = namespace::Namespace::root(schema);
 
-    let reexports = runtime::reexports();
-    let entity_types = runtime::entity_types(schema);
+    let reexports = if opts.instrumentation {
+        runtime::reexports()
+    } else {
+        events::reexports()
+    };
+    let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
     let types = generate_namespace(schema, opts, &namespaces, false)?;
-    let model = runtime::generate_model(schema, &namespaces);
+    let model = opts
+        .instrumentation
+        .then(|| runtime::generate_model(schema, &namespaces));
     let any_event = if opts.any_event {
         any_event::generate_any_event(&namespaces, opts)?
     } else {
@@ -217,11 +238,20 @@ fn generate_namespace(
         .iter()
         .map(|entity| events::entity_event_enum(entity, opts))
         .collect::<Result<Vec<_>, _>>()?;
-    let runtime = namespace
+    let entity_types = namespace
         .entities()
         .iter()
-        .map(|entity| runtime::entity_runtime_types(schema, entity))
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|entity| events::entity_types(entity, opts))
+        .collect::<Vec<_>>();
+    let runtime = if opts.instrumentation {
+        namespace
+            .entities()
+            .iter()
+            .map(|entity| runtime::entity_runtime_types(schema, entity, opts))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        Vec::new()
+    };
     let children = namespace
         .children()
         .iter()
@@ -244,10 +274,15 @@ fn generate_namespace(
     } else {
         quote! {}
     };
-    let observer_storage = runtime::observer_storage(schema, namespace)?;
+    let observer_storage = if opts.instrumentation {
+        runtime::observer_storage(schema, namespace)?
+    } else {
+        quote! {}
+    };
     Ok(quote! {
         #(#records)*
         #(#events)*
+        #(#entity_types)*
         #(#runtime)*
         #(#children)*
         #observer_storage
@@ -264,6 +299,63 @@ mod path_tests {
     use quent_schema::builder::SchemaBuilder;
     use quent_schema::test_utils::{entity, event, field, path, record, record_type};
     use quent_schema::{Annotations, DataType};
+
+    #[test]
+    fn defaults_to_debug_instrumentation_without_serde() {
+        let opts = Options::default();
+        assert!(opts.instrumentation);
+        assert!(opts.debug);
+        assert!(!opts.serde);
+    }
+
+    #[test]
+    fn generates_event_only_source() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("Meta", [field("id", DataType::Uuid)]))
+            .with_entity(entity("Query", [event("created", [])]))
+            .build()
+            .unwrap();
+        let opts = Options {
+            instrumentation: false,
+            ..Options::default()
+        };
+
+        let source = generate_str(&schema, &opts).unwrap();
+
+        assert!(source.contains("pub use ::quent_events"));
+        assert!(source.contains("pub struct Meta"));
+        assert!(source.contains("pub enum QueryEvent"));
+        assert!(source.contains("pub struct Query"));
+        assert!(source.contains("impl ::quent_events::EntityEvent for QueryEvent"));
+        assert!(source.contains("id: ::quent_events::Uuid"));
+        assert!(!source.contains("quent_instrumentation"));
+        assert!(!source.contains("pub struct Handle"));
+        assert!(!source.contains("pub struct Demo"));
+    }
+
+    #[test]
+    fn typed_derives_are_applied_and_deduplicated() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_record(record("Meta", []))
+            .with_entity(entity("Query", [event("created", [])]))
+            .build()
+            .unwrap();
+        let opts = Options {
+            instrumentation: false,
+            debug: true,
+            serde: true,
+            event_derives: &["Debug", "::serde::Serialize"],
+            record_derives: &["Debug", "::serde::Deserialize"],
+            ..Options::default()
+        };
+
+        let source = generate_str(&schema, &opts).unwrap();
+
+        let derives = "#[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]";
+        assert_eq!(source.matches(derives).count(), 2);
+    }
 
     #[test]
     fn places_entity_types_in_path_modules() {

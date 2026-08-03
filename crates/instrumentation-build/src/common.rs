@@ -6,26 +6,46 @@
 use convert_case::{Boundary, Case, Casing};
 use proc_macro2::{Span, TokenStream};
 use quent_schema::{Identifier, Path};
-use quote::quote;
+use quote::{ToTokens, quote};
+use std::collections::HashSet;
 use syn::Ident;
 
 use crate::GenerateError;
 
-/// Build a `#[derive(..)]` attribute from `derives`.
-pub(crate) fn derive_attr(derives: &[&str]) -> Result<TokenStream, GenerateError> {
-    if derives.is_empty() {
+/// Build a deduplicated `#[derive(..)]` attribute.
+pub(crate) fn derive_attr(
+    derives: &[&str],
+    debug: bool,
+    serialize: bool,
+    deserialize: bool,
+) -> Result<TokenStream, GenerateError> {
+    let mut paths = Vec::new();
+    if debug {
+        paths.push(syn::parse_quote!(Debug));
+    }
+    if serialize {
+        paths.push(syn::parse_quote!(::serde::Serialize));
+    }
+    if deserialize {
+        paths.push(syn::parse_quote!(::serde::Deserialize));
+    }
+    paths.extend(
+        derives
+            .iter()
+            .copied()
+            .map(|derive| {
+                syn::parse_str::<syn::Path>(derive).map_err(|source| GenerateError::InvalidDerive {
+                    derive: derive.to_owned(),
+                    source,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    let mut seen = HashSet::new();
+    paths.retain(|path| seen.insert(path.to_token_stream().to_string()));
+    if paths.is_empty() {
         return Ok(quote! {});
     }
-    let paths = derives
-        .iter()
-        .copied()
-        .map(|d| {
-            syn::parse_str::<syn::Path>(d).map_err(|source| GenerateError::InvalidDerive {
-                derive: d.to_owned(),
-                source,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(quote! { #[derive(#(#paths),*)] })
 }
 

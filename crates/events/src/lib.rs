@@ -3,10 +3,15 @@
 
 //! Type definitions of entity events.
 
+mod entity_ref;
+
 use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+
+pub use entity_ref::{AnyEntity, EntityRef};
+pub use quent_dynamic_attributes::DynamicAttributes;
+pub use uuid::Uuid;
 
 /// Trait for the event type of an entity.
 pub trait EntityEvent {

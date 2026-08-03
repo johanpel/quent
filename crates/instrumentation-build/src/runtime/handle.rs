@@ -9,9 +9,9 @@ use quent_schema::{Cardinality, Entity};
 use quote::quote;
 
 use super::{event_ident, marker_ident};
-use crate::GenerateError;
 use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
+use crate::{GenerateError, Options};
 
 /// The maximum once-events an entity may declare: one bit per event in the
 /// handle's `u64` once-flag word.
@@ -23,7 +23,7 @@ pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 ///
 /// Returns [`GenerateError::TooManyOnceEvents`] if the entity declares more
 /// once-cardinality events than fit the once-flag word.
-pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateError> {
+pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
@@ -62,7 +62,7 @@ pub(super) fn entity_handle(entity: &Entity) -> Result<TokenStream, GenerateErro
                 .fields()
                 .map(|f| {
                     let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0, entity.path().namespace());
+                    let ty = map_data_type(f.ty(), 0, entity.path().namespace(), opts);
                     quote! { #name: #ty }
                 })
                 .collect();

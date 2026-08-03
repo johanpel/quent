@@ -12,6 +12,33 @@ use crate::common::{derive_attr, doc_attr, doc_attr_or, path_name_pascal, raw_id
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
+/// Re-export the runtime types used by event-only generated source.
+pub(crate) fn reexports() -> TokenStream {
+    quote! {
+        pub use ::quent_events::{
+            AnyEntity, DynamicAttributes, EntityRef, Event, Uuid,
+        };
+    }
+}
+
+/// Generate the schema entity marker and its event metadata implementation.
+pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
+    let marker = raw_ident(path_name_pascal(entity.path()));
+    let event = raw_ident(format!("{}Event", path_name_pascal(entity.path())));
+    let marker_doc = format!("Marker type for the `{}` entity.", entity.path());
+    let stream_name = entity.path().to_string();
+    let runtime = opts.event_runtime();
+    quote! {
+        #[doc = #marker_doc]
+        #[derive(Debug, Clone, Copy)]
+        pub struct #marker;
+
+        impl #runtime::EntityEvent for #event {
+            const NAME: &'static str = #stream_name;
+        }
+    }
+}
+
 pub(crate) fn entity_event_enum(
     entity: &Entity,
     opts: &Options,
@@ -22,7 +49,7 @@ pub(crate) fn entity_event_enum(
         entity.annotations().docs(),
         &format!("Events emitted by `{}` entities.", entity.path()),
     );
-    let derives = derive_attr(opts.event_derives)?;
+    let derives = derive_attr(opts.event_derives, opts.debug, opts.serde, opts.serde)?;
     let variants: Vec<TokenStream> = entity
         .events()
         .map(|event| {
@@ -35,7 +62,7 @@ pub(crate) fn entity_event_enum(
                 .fields()
                 .map(|field| {
                     let name = raw_ident(to_case(field.name(), Case::Snake));
-                    let ty = map_data_type(field.ty(), 0, entity.path().namespace());
+                    let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts);
                     let field_docs = doc_attr(field.annotations().docs());
                     quote! { #field_docs #name: #ty }
                 })
@@ -65,7 +92,11 @@ mod tests {
     use quent_schema::{Annotations, Cardinality, DataType, Field};
 
     fn event_src(entity: &Entity) -> String {
-        pretty(entity_event_enum(entity, &Options::default()).unwrap())
+        let opts = Options {
+            debug: false,
+            ..Options::default()
+        };
+        pretty(entity_event_enum(entity, &opts).unwrap())
     }
 
     #[test]

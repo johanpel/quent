@@ -8,6 +8,7 @@ use quent_ref_target::RefTarget;
 use quent_schema::{Annotations, DataType};
 use quote::quote;
 
+use crate::Options;
 use crate::common::{relative_root_type, relative_type_path};
 
 /// Maximum nesting depth of `Option`/`List`/`EntityRef` wrappers a single field
@@ -26,6 +27,7 @@ pub(crate) fn map_data_type(
     ty: &DataType,
     depth: usize,
     source_namespace: &[quent_schema::Identifier],
+    opts: &Options,
 ) -> TokenStream {
     assert!(
         depth <= MAX_TYPE_DEPTH,
@@ -33,7 +35,10 @@ pub(crate) fn map_data_type(
     );
     match ty {
         DataType::Bool => quote! { bool },
-        DataType::Uuid => quote! { ::quent_instrumentation::Uuid },
+        DataType::Uuid => {
+            let runtime = opts.event_runtime();
+            quote! { #runtime::Uuid }
+        }
         DataType::String => quote! { String },
         DataType::U8 => quote! { u8 },
         DataType::U16 => quote! { u16 },
@@ -46,23 +51,27 @@ pub(crate) fn map_data_type(
         DataType::F32 => quote! { f32 },
         DataType::F64 => quote! { f64 },
         DataType::Option(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace);
+            let inner = map_data_type(inner, depth + 1, source_namespace, opts);
             quote! { Option<#inner> }
         }
         DataType::List(inner) => {
-            let inner = map_data_type(inner, depth + 1, source_namespace);
+            let inner = map_data_type(inner, depth + 1, source_namespace, opts);
             quote! { Vec<#inner> }
         }
         DataType::Record(path) => relative_type_path(path, source_namespace, ""),
-        DataType::DynamicRecord => quote! { ::quent_instrumentation::DynamicAttributes },
+        DataType::DynamicRecord => {
+            let runtime = opts.event_runtime();
+            quote! { #runtime::DynamicAttributes }
+        }
         DataType::EntityRef { data, annotations } => {
             let target = ref_target_marker(annotations, source_namespace);
+            let runtime = opts.event_runtime();
             match data {
                 Some(inner) => {
-                    let inner = map_data_type(inner, depth + 1, source_namespace);
-                    quote! { ::quent_instrumentation::EntityRef<#target, #inner> }
+                    let inner = map_data_type(inner, depth + 1, source_namespace, opts);
+                    quote! { #runtime::EntityRef<#target, #inner> }
                 }
-                None => quote! { ::quent_instrumentation::EntityRef<#target> },
+                None => quote! { #runtime::EntityRef<#target> },
             }
         }
     }
@@ -95,7 +104,7 @@ mod tests {
         for _ in 0..(MAX_TYPE_DEPTH + 5) {
             ty = DataType::Option(Box::new(ty));
         }
-        let _ = map_data_type(&ty, 0, &[]);
+        let _ = map_data_type(&ty, 0, &[], &Options::default());
     }
 
     #[test]
@@ -108,7 +117,7 @@ mod tests {
             data: Some(Box::new(DataType::U64)),
             annotations: annotations.build().unwrap(),
         };
-        let tokens = map_data_type(&ty, 0, &[]).to_string();
+        let tokens = map_data_type(&ty, 0, &[], &Options::default()).to_string();
         assert!(tokens.contains("EntityRef < Cluster , u64 >"), "{tokens}");
     }
 }
