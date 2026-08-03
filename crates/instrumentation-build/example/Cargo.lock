@@ -415,8 +415,10 @@ name = "quent-io"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "quent-build-info",
  "quent-events",
  "quent-io-types",
+ "thiserror",
  "uuid",
 ]
 
