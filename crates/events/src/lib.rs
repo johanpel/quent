@@ -19,6 +19,12 @@ pub trait EntityEvent {
     const NAME: &'static str;
 }
 
+/// Associates an entity marker with the events emitted for that entity.
+pub trait Entity: Sized {
+    /// Events emitted for this entity.
+    type Event: EntityEvent;
+}
+
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 #[derive(Debug)]
 pub struct Event<T> {

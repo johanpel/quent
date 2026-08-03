@@ -26,6 +26,8 @@ pub use sidecar::write_sidecar;
 // exporter backend through its `io-*` features.
 pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::DynamicAttributes;
+#[doc(hidden)]
+pub use quent_events as events;
 pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event};
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;

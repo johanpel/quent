@@ -91,10 +91,11 @@ pub struct Options {
     pub file_name: Option<String>,
 
     /// Emit root and namespace-local `AnyEvent` enums that decode type-erased
-    /// events. Each enum carries [`Self::debug`], compatible serde derives, and
-    /// [`Self::event_derives`].
+    /// instrumentation events. Each enum carries [`Self::debug`], compatible
+    /// serde derives, and [`Self::event_derives`].
     ///
-    /// No aggregate is emitted for a namespace without events.
+    /// Requires [`Self::instrumentation`]. No aggregate is emitted for a
+    /// namespace without events.
     pub any_event: bool,
 }
 
@@ -154,6 +155,8 @@ pub enum GenerateError {
         /// The schema type whose generated name conflicts.
         schema_path: Path,
     },
+    #[error("`any_event` requires instrumentation generation")]
+    AnyEventRequiresInstrumentation,
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -194,6 +197,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// schema type, a derive entry is not a parseable Rust path, or the generated
 /// code is not a valid Rust file.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.any_event && !opts.instrumentation {
+        return Err(GenerateError::AnyEventRequiresInstrumentation);
+    }
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -340,6 +346,7 @@ mod path_tests {
         ));
         assert!(source.contains("impl super::Handle<Query>"));
         assert!(source.contains("impl ::quent_instrumentation::Entity for Query"));
+        assert!(source.contains("impl ::quent_instrumentation::events::Entity for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
         assert!(source.contains("pub struct DemoObservers"));
         assert!(source.contains("struct FooObservers"));
@@ -481,5 +488,24 @@ mod path_tests {
         assert!(
             source.rfind("pub enum AnyEvent") > source.rfind("impl ::quent_instrumentation::Model")
         );
+    }
+
+    #[test]
+    fn rejects_any_event_without_instrumentation() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Query", [event("created", [])]))
+            .build()
+            .unwrap();
+        let opts = Options {
+            instrumentation: false,
+            any_event: true,
+            ..Options::default()
+        };
+
+        assert!(matches!(
+            generate_str(&schema, &opts),
+            Err(GenerateError::AnyEventRequiresInstrumentation)
+        ));
     }
 }

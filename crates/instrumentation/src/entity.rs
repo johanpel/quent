@@ -5,15 +5,10 @@
 
 use std::sync::Arc;
 
-use quent_events::EntityEvent;
-
 use crate::{HandleInner, ObserverInner};
 
 /// Associates a generated entity marker with its event type and context.
-pub trait Entity: Sized {
-    /// Events emitted for this entity.
-    type Event: EntityEvent;
-
+pub trait Entity: quent_events::Entity {
     /// Instrumentation context containing this entity.
     type Context;
 

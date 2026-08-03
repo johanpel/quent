@@ -106,14 +106,12 @@ pub(super) fn model_ident(schema: &Schema) -> Ident {
 fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
     let namespace = entity.path().namespace();
     let marker = marker_ident(entity);
-    let event = event_ident(entity);
     let context = relative_root_type("Context", namespace);
     let model_name = model_ident(schema).to_string();
     let model = relative_root_type(&model_name, namespace);
     let handle = relative_root_type("Handle", namespace);
     quote! {
         impl ::quent_instrumentation::Entity for #marker {
-            type Event = #event;
             type Context = #context<#model>;
             type Handle = #handle<Self>;
         }
@@ -145,10 +143,12 @@ mod tests {
             .build()
             .unwrap();
         let entity = s.entities().next().unwrap();
+        let event_types = crate::events::entity_types(entity, &Options::default());
         let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
         let model = generate_model(&s, &namespaces);
         let src = pretty(quote! {
+            #event_types
             #entity_types
             #model
         });

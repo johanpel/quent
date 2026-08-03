@@ -28,6 +28,11 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
     let marker_doc = format!("Marker type for the `{}` entity.", entity.path());
     let stream_name = entity.path().to_string();
     let runtime = opts.event_runtime();
+    let events_runtime = if opts.instrumentation {
+        quote! { ::quent_instrumentation::events }
+    } else {
+        quote! { ::quent_events }
+    };
     quote! {
         #[doc = #marker_doc]
         #[derive(Debug, Clone, Copy)]
@@ -35,6 +40,10 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
 
         impl #runtime::EntityEvent for #event {
             const NAME: &'static str = #stream_name;
+        }
+
+        impl #events_runtime::Entity for #marker {
+            type Event = #event;
         }
     }
 }
