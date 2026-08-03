@@ -2871,6 +2871,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-os"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-resource",
+ "quent-schema",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-qe-bridge"
 version = "0.1.0"
 dependencies = [
