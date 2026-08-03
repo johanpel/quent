@@ -31,4 +31,4 @@ jobs:
       - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
-      - run: pixi run rumdl check --diff
+      - run: pixi run --frozen rumdl check --diff
