@@ -20,6 +20,9 @@ ty = ">=0.0.55"
 uv = ">=0.11.25"
 pre-commit = ">=4"
 
+[pypi-dependencies]
+rumdl = "*"
+
 [target.linux-64.dependencies]
 nvtx-c = ">=3.5.0"
 libclang = ">=18"
