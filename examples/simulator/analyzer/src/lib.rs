@@ -7,7 +7,7 @@ pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
     WorkerEntity, entities,
-    ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
+    ui::{QuentViewer, UiAnalyzer},
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -150,12 +150,7 @@ pub struct Viewer;
 
 impl QuentViewer for Viewer {
     type Analyzer = SimulatorUiAnalyzer;
-
-    fn import_events(
-        dir: &std::path::Path,
-    ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
-        Simulator::import_events(dir)
-    }
+    type Model = Simulator;
 }
 
 struct PlainBuilderSlot<'a> {

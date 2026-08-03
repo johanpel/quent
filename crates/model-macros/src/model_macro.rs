@@ -265,23 +265,6 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          Pass `None` for a no-op context that discards events."
     );
 
-    let doc_import = format!(
-        "Reconstruct the [`{event_type}`] stream for a single context directory.\n\
-         \n\
-         Reads each entity's per-stream subdirectory under `dir` in `format`, \
-         deserializes its events, and chains them. The events carry their own \
-         timestamps, so the analyzer orders them; this does not sort.\n\
-         \n\
-         # Assumption\n\
-         \n\
-         Treats one context directory as the complete telemetry of one model \
-         instance: every process of that instance is assumed to build its context \
-         with the same id and export through the collector, which centralizes \
-         their per-entity streams under that one id. This does not cover the \
-         alternative of lazily loading distributed per-node exports on demand \
-         with no collector at capture time."
-    );
-
     // Emit a `ModelSource::analyzer_package()` override only when declared.
     let analyzer_package_method = match &input.analyzer_package {
         Some(lit) => quote! {
@@ -373,7 +356,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         quote! {}
     };
 
-    let import_events_impl = if cfg!(feature = "serde") {
+    let filesystem_model_impl = if cfg!(feature = "serde") {
         let stream_descriptors = event_types.iter().map(|event_type| {
             quote! {
                 quent_model::io::filesystem::EventStream::new(
@@ -392,48 +375,6 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                         #(#stream_descriptors,)*
                     ];
                     STREAMS
-                }
-            }
-
-            impl #name {
-                #[doc = #doc_import]
-                pub fn import_events(
-                    dir: &std::path::Path,
-                ) -> quent_model::io::ImporterResult<
-                    Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-                > {
-                    // Detect the on-disk serialization format from the streams present;
-                    // an empty/unrecognized context yields no events.
-                    let Some(format) = quent_model::io::filesystem::Format::detect(dir) else {
-                        return Ok(Box::new(std::iter::empty()));
-                    };
-                    let mut streams: Vec<
-                        Box<dyn Iterator<Item = quent_model::Event<#event_type>>>,
-                    > = Vec::new();
-                    #(
-                        {
-                            let path =
-                                dir.join(<#event_types as quent_model::EntityEvent>::NAME);
-                            if path.is_dir() {
-                                let importer = <quent_model::io::ImporterOptions as quent_model::io::ImporterProvider<#event_types>>::create_importer(
-                                    &quent_model::io::ImporterOptions::FileSystem(
-                                        quent_model::io::filesystem::importer::Options {
-                                            format,
-                                            path,
-                                        },
-                                    ),
-                                )?;
-                                streams.push(Box::new(importer.map(|e| {
-                                    quent_model::Event::new(
-                                        e.id,
-                                        e.timestamp,
-                                        #event_type::from(e.data),
-                                    )
-                                })));
-                            }
-                        }
-                    )*
-                    Ok(Box::new(streams.into_iter().flatten()))
                 }
             }
         }
@@ -495,7 +436,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             }
         }
 
-        #import_events_impl
+        #filesystem_model_impl
 
         const _: () = {
             assert!(

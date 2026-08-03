@@ -3,7 +3,7 @@
 
 use axum::{http::StatusCode, response::IntoResponse};
 use quent_analyzer::AnalyzerError;
-use quent_io::ImporterError;
+use quent_io::{ImporterError, StoreError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -12,6 +12,8 @@ pub enum ServerError {
     Analyzer(#[from] AnalyzerError),
     #[error("importer error: {0}")]
     Importer(#[from] ImporterError),
+    #[error("event store error: {0}")]
+    Store(#[from] StoreError),
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
     #[error("cache error: {0}")]
@@ -34,6 +36,7 @@ impl From<ServerError> for StatusCode {
                 StatusCode::NOT_IMPLEMENTED
             }
             ServerError::Importer(_)
+            | ServerError::Store(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)
             | ServerError::Cache(_)

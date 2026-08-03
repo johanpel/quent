@@ -2931,6 +2931,7 @@ dependencies = [
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
+ "quent-io",
  "quent-model",
  "quent-query-engine-model",
  "quent-query-engine-ui",

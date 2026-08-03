@@ -1,12 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-use std::path::Path;
-
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},
@@ -19,6 +15,7 @@ use quent_ui::{
         },
     },
 };
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::QueryEngineModel;
@@ -134,12 +131,7 @@ pub trait UiAnalyzer {
     }
 }
 
-/// Boxed owned stream of an analyzer's [`UiAnalyzer::Event`] from
-/// [`QuentViewer::import_events`].
-pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>;
-
-/// Model viewer entry point for `quent-open`: connects the event importer to
-/// the rendering [`UiAnalyzer`].
+/// Model viewer entry point for `quent-open`.
 ///
 /// `quent-open` builds a viewer knowing only the analyzer's *crate name*: it
 /// names `<crate>::Viewer` in the generated wrapper and reaches the analyzer
@@ -150,14 +142,12 @@ pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>:
 ///
 /// Implement it on a local unit type named `Viewer` at the analyzer crate root
 /// (the path `quent-open` requires). The associated [`Analyzer`](Self::Analyzer)
-/// and the model's `import_events` share an event type, so the wiring is checked
-/// at compile time.
+/// and model event type are checked against each other at compile time.
 pub trait QuentViewer {
     /// The analyzer that renders this model's events.
     type Analyzer: UiAnalyzer + Send + Sync + 'static;
 
-    /// Reconstruct the model's event stream from one context directory, yielding
-    /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model
-    /// marker's generated `import_events`.
-    fn import_events(dir: &Path) -> ImporterResult<ViewerEventStream<Self::Analyzer>>;
+    /// The model whose events are rendered by [`Self::Analyzer`].
+    type Model: quent_events::Model<Event = <Self::Analyzer as UiAnalyzer>::Event>
+        + quent_io::FilesystemEventModel;
 }

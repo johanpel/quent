@@ -4,8 +4,8 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
-use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
+use quent_io::{EventStore, ExporterOptions, FilesystemEventStore};
 use quent_query_engine_server::{
     analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
     initialize_tracing,
@@ -86,7 +86,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
 
-    let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
@@ -95,8 +94,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "postcard" => Format::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
-    let exporter_kind =
-        ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
+    let exporter_kind = ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+        format,
+        output_dir.clone(),
+    ));
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
@@ -120,10 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Reconstruct one context's umbrella event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
-    let importer = move |context_id| {
-        let dir = importer_output_dir.join(format!("{context_id}"));
-        Ok(Simulator::import_events(&dir)?)
-    };
+    let store = FilesystemEventStore::<Simulator>::new(output_dir);
+    let importer = move |context_id| Ok(store.import_events(context_id)?);
 
     let analyzer = async {
         axum::serve(

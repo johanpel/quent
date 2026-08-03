@@ -125,20 +125,20 @@ fn main_rs(spec: &ViewerSpec) -> String {
         use quent_query_engine_analyzer::ui::QuentViewer;
         use quent_query_engine_server::analyzer_cache::index_query_engines;
         use quent_query_engine_server::analyzer_service_router;
+        use quent_io::{EventStore, FilesystemEventStore};
         use #analyzer_crate::Viewer;
 
         type Analyzer = <Viewer as QuentViewer>::Analyzer;
+        type Model = <Viewer as QuentViewer>::Model;
 
         #[tokio::main]
         async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let root = PathBuf::from(std::env::var(#root_env)?);
             let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
 
-            let import_root = root.clone();
+            let store = FilesystemEventStore::<Model>::new(root.clone());
             let importer = move |id: uuid::Uuid| {
-                Ok(<Viewer as QuentViewer>::import_events(
-                    &import_root.join(id.to_string()),
-                )?)
+                Ok(store.import_events(id)?)
             };
             let lister_root = root.clone();
             let lister = move || index_query_engines(&lister_root);
@@ -226,7 +226,8 @@ mod tests {
     fn main_rs_wires_the_viewer() {
         let main = main_rs(&spec());
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
-        assert!(main.contains("import_events"));
+        assert!(main.contains("FilesystemEventStore::<Model>::new"));
+        assert!(main.contains("store.import_events(id)"));
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
     }
 }
