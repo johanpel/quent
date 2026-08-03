@@ -26,19 +26,29 @@ pub const IO_PACKAGE: &str = "quent-io";
 /// artifacts pinned to quent revisions that predate the rename.
 pub const LEGACY_IO_PACKAGE: &str = "quent-exporter";
 
+#[derive(Clone, Copy)]
+pub(crate) enum ViewerApi {
+    EventStore,
+    ImportEvents,
+}
+
 /// Wrapper env var for the output root: a directory of `<context-uuid>/`
 /// context directories.
 pub const ROOT_ENV: &str = "QUENT_OPEN_ROOT";
 /// Env var the wrapper reads for the `ip:port` socket address to bind.
 pub const ADDR_ENV: &str = "QUENT_OPEN_ADDR";
 
-/// Write the wrapper crate (`Cargo.toml` + `src/main.rs`) into `crate_dir`.
-/// `io_package` is the name of quent's I/O crate at the pinned revision
-/// ([`IO_PACKAGE`], or [`LEGACY_IO_PACKAGE`] for revisions predating the rename).
-pub fn generate(spec: &ViewerSpec, crate_dir: &Path, io_package: &str) -> Result<()> {
+/// Write the wrapper crate (`Cargo.toml` and `src/main.rs`) into `crate_dir`.
+/// `io_package` and `viewer_api` select the APIs exposed by the pinned revision.
+pub fn generate(
+    spec: &ViewerSpec,
+    crate_dir: &Path,
+    io_package: &str,
+    viewer_api: ViewerApi,
+) -> Result<()> {
     std::fs::create_dir_all(crate_dir.join("src"))?;
     std::fs::write(crate_dir.join("Cargo.toml"), cargo_toml(spec, io_package))?;
-    std::fs::write(crate_dir.join("src/main.rs"), main_rs(spec))?;
+    std::fs::write(crate_dir.join("src/main.rs"), main_rs(spec, viewer_api))?;
     Ok(())
 }
 
@@ -115,9 +125,33 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str) -> String {
 /// Wrapper `src/main.rs`: wire `<analyzer>::Viewer`'s analyzer/importer into
 /// `analyzer_service_router` and serve it. Root (`<context-uuid>/` subdirs) and
 /// bind address come from env so one built binary serves any artifacts.
-fn main_rs(spec: &ViewerSpec) -> String {
+fn main_rs(spec: &ViewerSpec, viewer_api: ViewerApi) -> String {
     let analyzer_crate = format_ident!("{}", spec.analyzer_crate());
     let (root_env, addr_env) = (ROOT_ENV, ADDR_ENV);
+    let (io_import, model_type, importer) = match viewer_api {
+        ViewerApi::EventStore => (
+            quote! { use quent_io::{EventStore, FilesystemEventStore}; },
+            quote! { type Model = <Viewer as QuentViewer>::Model; },
+            quote! {
+                let store = FilesystemEventStore::<Model>::new(root.clone());
+                let importer = move |id: uuid::Uuid| {
+                    Ok(store.import_events(id)?)
+                };
+            },
+        ),
+        ViewerApi::ImportEvents => (
+            quote! {},
+            quote! {},
+            quote! {
+                let import_root = root.clone();
+                let importer = move |id: uuid::Uuid| {
+                    Ok(<Viewer as QuentViewer>::import_events(
+                        &import_root.join(id.to_string()),
+                    )?)
+                };
+            },
+        ),
+    };
     let tokens = quote! {
         use std::net::SocketAddr;
         use std::path::PathBuf;
@@ -125,21 +159,18 @@ fn main_rs(spec: &ViewerSpec) -> String {
         use quent_query_engine_analyzer::ui::QuentViewer;
         use quent_query_engine_server::analyzer_cache::index_query_engines;
         use quent_query_engine_server::analyzer_service_router;
-        use quent_io::{EventStore, FilesystemEventStore};
+        #io_import
         use #analyzer_crate::Viewer;
 
         type Analyzer = <Viewer as QuentViewer>::Analyzer;
-        type Model = <Viewer as QuentViewer>::Model;
+        #model_type
 
         #[tokio::main]
         async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let root = PathBuf::from(std::env::var(#root_env)?);
             let addr: SocketAddr = std::env::var(#addr_env)?.parse()?;
 
-            let store = FilesystemEventStore::<Model>::new(root.clone());
-            let importer = move |id: uuid::Uuid| {
-                Ok(store.import_events(id)?)
-            };
+            #importer
             let lister_root = root.clone();
             let lister = move || index_query_engines(&lister_root);
 
@@ -224,10 +255,18 @@ mod tests {
 
     #[test]
     fn main_rs_wires_the_viewer() {
-        let main = main_rs(&spec());
+        let main = main_rs(&spec(), ViewerApi::EventStore);
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
         assert!(main.contains("FilesystemEventStore::<Model>::new"));
         assert!(main.contains("store.import_events(id)"));
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
+    }
+
+    #[test]
+    fn main_rs_supports_the_legacy_viewer_api() {
+        let main = main_rs(&spec(), ViewerApi::ImportEvents);
+        assert!(main.contains("<Viewer as QuentViewer>::import_events"));
+        assert!(!main.contains("FilesystemEventStore"));
+        assert!(!main.contains("<Viewer as QuentViewer>::Model"));
     }
 }

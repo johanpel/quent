@@ -90,7 +90,12 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
     println!("building: {label}");
 
     let crate_dir = build_dir(&spec)?;
-    wrapper::generate(&spec, &crate_dir, wrapper::IO_PACKAGE)?;
+    wrapper::generate(
+        &spec,
+        &crate_dir,
+        wrapper::IO_PACKAGE,
+        wrapper::ViewerApi::EventStore,
+    )?;
     let bin = match cargo_build(&crate_dir).await {
         // The pinned quent revision predates the `quent-exporter` → `quent-io`
         // rename (cargo found no `quent-io` package there, failing resolution
@@ -102,7 +107,22 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
                 wrapper::IO_PACKAGE,
                 wrapper::LEGACY_IO_PACKAGE
             );
-            wrapper::generate(&spec, &crate_dir, wrapper::LEGACY_IO_PACKAGE)?;
+            wrapper::generate(
+                &spec,
+                &crate_dir,
+                wrapper::LEGACY_IO_PACKAGE,
+                wrapper::ViewerApi::ImportEvents,
+            )?;
+            cargo_build(&crate_dir).await?
+        }
+        Err(error) if missing_event_store_api(&error) => {
+            println!("note: pinned quent uses the legacy viewer import API; retrying");
+            wrapper::generate(
+                &spec,
+                &crate_dir,
+                wrapper::IO_PACKAGE,
+                wrapper::ViewerApi::ImportEvents,
+            )?;
             cargo_build(&crate_dir).await?
         }
         result => result?,
@@ -141,6 +161,20 @@ fn missing_package(error: &OpenError, package: &str) -> bool {
         }
         _ => false,
     }
+}
+
+/// Whether a build failed because the pinned quent revision predates the
+/// event-store-based viewer API.
+fn missing_event_store_api(error: &OpenError) -> bool {
+    let OpenError::Build { status } = error else {
+        return false;
+    };
+    (status.contains("error[E0432]")
+        && status.contains("quent_io::EventStore")
+        && status.contains("quent_io::FilesystemEventStore"))
+        || (status.contains("error[E0576]")
+            && status.contains("associated type `Model`")
+            && status.contains("trait `QuentViewer`"))
 }
 
 /// Cache dir for this viewer's generated crate/build, keyed by
@@ -406,6 +440,28 @@ mod tests {
             &OpenError::NoCacheDir,
             wrapper::IO_PACKAGE
         ));
+    }
+
+    #[test]
+    fn missing_event_store_api_matches_only_the_api_transition() {
+        let missing_imports = OpenError::Build {
+            status: "error[E0432]: unresolved imports `quent_io::EventStore`, \
+                     `quent_io::FilesystemEventStore`"
+                .into(),
+        };
+        assert!(missing_event_store_api(&missing_imports));
+
+        let missing_model = OpenError::Build {
+            status: "error[E0576]: cannot find associated type `Model` in trait `QuentViewer`"
+                .into(),
+        };
+        assert!(missing_event_store_api(&missing_model));
+
+        let unrelated = OpenError::Build {
+            status: "error[E0432]: unresolved import `some_other_crate::EventStore`".into(),
+        };
+        assert!(!missing_event_store_api(&unrelated));
+        assert!(!missing_event_store_api(&OpenError::NoCacheDir));
     }
 
     /// Compatibility gate, run explicitly in CI (the `open-compat` job in
