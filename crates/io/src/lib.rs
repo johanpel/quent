@@ -7,6 +7,10 @@ use quent_events::EntityEvent;
 
 use uuid::Uuid;
 
+mod store;
+
+pub use store::{ContextQuery, EventStore, EventStoreExt, StoreError, StoreResult};
+
 // Re-exports.
 pub use quent_io_types::{
     Exporter, ExporterProvider, ExporterResult, ImporterError, ImporterProvider, ImporterResult,
@@ -15,7 +19,8 @@ pub use quent_io_types::{
 // Feature-gated re-exports for convenience.
 #[cfg(filesystem)]
 pub use crate::filesystem::{
-    Format as FileSystemFormat, exporter::Options as FileSystemExporterOptions,
+    FilesystemEventModel, FilesystemEventStore, Format as FileSystemFormat,
+    exporter::Options as FileSystemExporterOptions,
 };
 #[cfg(feature = "collector")]
 pub use quent_io_collector::{CollectorAddressError, Options as CollectorExporterOptions};

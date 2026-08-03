@@ -27,7 +27,7 @@ pub trait Entity: Sized {
 }
 
 /// Associates a model marker with its umbrella event type and metadata.
-pub trait Model: Sized {
+pub trait Model: Sized + 'static {
     /// Events emitted by entities in this model.
     type Event: Send + 'static;
 

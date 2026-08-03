@@ -3,6 +3,9 @@
 
 pub mod exporter;
 pub mod importer;
+mod store;
+
+pub use store::{EventStream, FilesystemEventModel, FilesystemEventStore, import_event_files};
 
 /// Serialization format for the filesystem exporter and importer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +34,17 @@ impl TryFrom<&str> for Format {
 }
 
 impl Format {
+    pub(crate) fn extension(self) -> &'static str {
+        match self {
+            #[cfg(feature = "ndjson")]
+            Self::Ndjson => "ndjson",
+            #[cfg(feature = "msgpack")]
+            Self::Msgpack => "msgpack",
+            #[cfg(feature = "postcard")]
+            Self::Postcard => "postcard",
+        }
+    }
+
     /// Detect the format of a context directory from the first recognized
     /// `*.<ext>` event stream in any of its per-entity subdirectories. Returns
     /// `None` if no readable stream with a known extension is present.

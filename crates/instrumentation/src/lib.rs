@@ -29,6 +29,8 @@ pub use quent_dynamic_attributes::DynamicAttributes;
 #[doc(hidden)]
 pub use quent_events as events;
 pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model};
+#[doc(hidden)]
+pub use quent_io as io;
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;
 

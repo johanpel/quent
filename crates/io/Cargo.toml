@@ -17,10 +17,16 @@ async-trait.workspace = true
 clap = { version = "4.5.57", features = ["derive", "env"], optional = true }
 http = { workspace = true, optional = true }
 quent-events = { path = "../events" }
+quent-build-info = { path = "../build-info" }
 quent-io-types = { path = "types" }
 quent-io-collector = { path = "collector", optional = true }
 quent-io-msgpack = { path = "msgpack", optional = true }
 quent-io-ndjson = { path = "ndjson", optional = true }
 quent-io-postcard = { path = "postcard", optional = true }
 serde = { workspace = true, optional = true }
+thiserror.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile = "3"

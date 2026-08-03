@@ -2733,6 +2733,7 @@ dependencies = [
  "async-trait",
  "clap",
  "http",
+ "quent-build-info",
  "quent-events",
  "quent-io-collector",
  "quent-io-msgpack",
@@ -2740,6 +2741,9 @@ dependencies = [
  "quent-io-postcard",
  "quent-io-types",
  "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
  "uuid",
 ]
 

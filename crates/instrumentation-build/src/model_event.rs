@@ -102,6 +102,34 @@ pub(crate) fn generate(
             Some(package) => quote! { ::core::option::Option::Some(#package.to_string()) },
             None => quote! { ::core::option::Option::None },
         };
+        let filesystem_model = if opts.filesystem_import {
+            let io = if opts.instrumentation {
+                quote! { ::quent_instrumentation::io }
+            } else {
+                quote! { ::quent_io }
+            };
+            let streams = schema.entities().map(|entity| {
+                let entity_event = relative_type_path(entity.path(), &[], "Event");
+                quote! {
+                    #io::filesystem::EventStream::new(
+                        <#entity_event as #runtime::EntityEvent>::NAME,
+                        #io::filesystem::import_event_files::<#model, #entity_event>,
+                    )
+                }
+            });
+            quote! {
+                impl #io::filesystem::FilesystemEventModel for #model {
+                    fn event_streams() -> &'static [#io::filesystem::EventStream<Self>] {
+                        static STREAMS: &[#io::filesystem::EventStream<#model>] = &[
+                            #(#streams,)*
+                        ];
+                        STREAMS
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
         quote! {
             #[doc = #model_docs]
             pub struct #model;
@@ -128,6 +156,8 @@ pub(crate) fn generate(
                     }
                 }
             }
+
+            #filesystem_model
         }
     } else {
         quote! {}

@@ -84,8 +84,11 @@ fn define_model_from_impls() {
 #[test]
 fn model_marker_implements_core_model() {
     fn assert_model<M: quent_model::events::Model<Event = TestEvent>>() {}
+    fn assert_filesystem_model<M: quent_model::io::filesystem::FilesystemEventModel>() {}
     assert_model::<Test>();
+    assert_filesystem_model::<Test>();
 
     let info = <Test as quent_model::events::Model>::model_info();
     assert_eq!(info.name, "Test");
+    assert!(info.type_path.ends_with("::TestEvent"));
 }

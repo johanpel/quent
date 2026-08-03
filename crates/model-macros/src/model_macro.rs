@@ -374,7 +374,27 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
     };
 
     let import_events_impl = if cfg!(feature = "serde") {
+        let stream_descriptors = event_types.iter().map(|event_type| {
+            quote! {
+                quent_model::io::filesystem::EventStream::new(
+                    <#event_type as quent_model::EntityEvent>::NAME,
+                    quent_model::io::filesystem::import_event_files::<#name, #event_type>,
+                )
+            }
+        });
         quote! {
+            impl quent_model::io::filesystem::FilesystemEventModel for #name {
+                fn event_streams(
+                ) -> &'static [quent_model::io::filesystem::EventStream<Self>] {
+                    static STREAMS: &[
+                        quent_model::io::filesystem::EventStream<#name>
+                    ] = &[
+                        #(#stream_descriptors,)*
+                    ];
+                    STREAMS
+                }
+            }
+
             impl #name {
                 #[doc = #doc_import]
                 pub fn import_events(
@@ -469,7 +489,9 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             type Event = #event_type;
 
             fn model_info() -> quent_model::build_info::ModelInfo {
-                <Self as quent_model::build_info::ModelSource>::model_info()
+                let mut info = <Self as quent_model::build_info::ModelSource>::model_info();
+                info.type_path = ::core::any::type_name::<#event_type>().to_string();
+                info
             }
         }
 

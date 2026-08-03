@@ -91,6 +91,11 @@ pub struct Options {
 
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<&'static str>,
+
+    /// Generate filesystem event-store descriptors for the model.
+    ///
+    /// Requires [`Self::serde`].
+    pub filesystem_import: bool,
 }
 
 impl Default for Options {
@@ -104,6 +109,7 @@ impl Default for Options {
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
             analyzer_package: None,
+            filesystem_import: false,
         }
     }
 }
@@ -156,6 +162,8 @@ pub enum GenerateError {
         /// The generated variant name.
         variant: String,
     },
+    #[error("`filesystem_import` requires serde generation")]
+    FilesystemImportRequiresSerde,
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
@@ -198,6 +206,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// schema type, a field type exceeds the supported nesting depth, a derive
 /// entry is not a parseable Rust path, or the generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    if opts.filesystem_import && !opts.serde {
+        return Err(GenerateError::FilesystemImportRequiresSerde);
+    }
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -463,5 +474,44 @@ mod path_tests {
         assert!(
             source.contains("any: ::quent_instrumentation::EntityRef<super::super::AnyEntity>")
         );
+    }
+
+    #[test]
+    fn generates_filesystem_event_descriptors() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Foo::Query", [event("created", [])]))
+            .build()
+            .unwrap();
+        let opts = Options {
+            instrumentation: false,
+            serde: true,
+            filesystem_import: true,
+            analyzer_package: Some("demo-analyzer"),
+            ..Options::default()
+        };
+
+        let source = generate_str(&schema, &opts).unwrap();
+
+        assert!(source.contains("impl ::quent_io::filesystem::FilesystemEventModel for Demo"));
+        assert!(
+            source.contains("::quent_io::filesystem::import_event_files::<Demo, foo::QueryEvent>")
+        );
+        assert!(source.contains("analyzer_package: ::core::option::Option::Some"));
+        assert!(source.contains("\"demo-analyzer\".to_string()"));
+    }
+
+    #[test]
+    fn rejects_filesystem_import_without_serde() {
+        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
+        let opts = Options {
+            filesystem_import: true,
+            ..Options::default()
+        };
+
+        assert!(matches!(
+            generate_str(&schema, &opts),
+            Err(GenerateError::FilesystemImportRequiresSerde)
+        ));
     }
 }
