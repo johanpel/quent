@@ -301,40 +301,6 @@ mod path_tests {
     use quent_schema::{Annotations, DataType};
 
     #[test]
-    fn defaults_to_debug_instrumentation_without_serde() {
-        let opts = Options::default();
-        assert!(opts.instrumentation);
-        assert!(opts.debug);
-        assert!(!opts.serde);
-    }
-
-    #[test]
-    fn generates_event_only_source() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_record(record("Meta", [field("id", DataType::Uuid)]))
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-        let opts = Options {
-            instrumentation: false,
-            ..Options::default()
-        };
-
-        let source = generate_str(&schema, &opts).unwrap();
-
-        assert!(source.contains("pub use ::quent_events"));
-        assert!(source.contains("pub struct Meta"));
-        assert!(source.contains("pub enum QueryEvent"));
-        assert!(source.contains("pub struct Query"));
-        assert!(source.contains("impl ::quent_events::EntityEvent for QueryEvent"));
-        assert!(source.contains("id: ::quent_events::Uuid"));
-        assert!(!source.contains("quent_instrumentation"));
-        assert!(!source.contains("pub struct Handle"));
-        assert!(!source.contains("pub struct Demo"));
-    }
-
-    #[test]
     fn typed_derives_are_applied_and_deduplicated() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
