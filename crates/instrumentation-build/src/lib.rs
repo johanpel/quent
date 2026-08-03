@@ -44,7 +44,6 @@
 //! must also depend on `serde` with its derive feature and enable the matching
 //! runtime crate's `serde` feature.
 
-mod any_event;
 mod common;
 mod data_type;
 mod events;
@@ -71,7 +70,6 @@ pub struct Options {
     /// Derive `serde::Serialize` and `serde::Deserialize` on generated event
     /// and record types.
     ///
-    /// `AnyEvent` is borrowed, so it derives only `serde::Serialize`.
     pub serde: bool,
 
     /// Derives applied to every generated event payload enum.
@@ -91,13 +89,6 @@ pub struct Options {
     /// `None`.
     pub file_name: Option<String>,
 
-    /// Emit root and namespace-local `AnyEvent` enums that decode type-erased
-    /// events. Each enum carries [`Self::debug`], compatible serde derives, and
-    /// [`Self::event_derives`].
-    ///
-    /// No aggregate is emitted for a namespace without events.
-    pub any_event: bool,
-
     /// Cargo package providing the analyzer for this model.
     pub analyzer_package: Option<&'static str>,
 }
@@ -112,7 +103,6 @@ impl Default for Options {
             record_derives: Default::default(),
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
-            any_event: false,
             analyzer_package: None,
         }
     }
@@ -216,21 +206,15 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         events::reexports()
     };
     let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
-    let types = generate_namespace(schema, opts, &namespaces, false)?;
+    let types = generate_namespace(schema, opts, &namespaces)?;
     let observable = opts
         .instrumentation
         .then(|| runtime::generate_model(schema, &namespaces));
-    let any_event = if opts.any_event {
-        any_event::generate_any_event(&namespaces, opts)?
-    } else {
-        quote! {}
-    };
     let file = syn::parse2::<syn::File>(quote! {
         #reexports
         #entity_types
         #types
         #observable
-        #any_event
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
     Ok(prettyplease::unparse(&file))
@@ -240,7 +224,6 @@ fn generate_namespace(
     schema: &Schema,
     opts: &Options,
     namespace: &namespace::Namespace<'_>,
-    include_any_event: bool,
 ) -> Result<proc_macro2::TokenStream, GenerateError> {
     let records = namespace
         .records()
@@ -275,7 +258,7 @@ fn generate_namespace(
                 .last()
                 .expect("child namespaces extend their parent");
             let module = common::module_ident(segment);
-            let contents = generate_namespace(schema, opts, child, true)?;
+            let contents = generate_namespace(schema, opts, child)?;
             Ok::<_, GenerateError>(quote! {
                 pub mod #module {
                     #contents
@@ -283,11 +266,6 @@ fn generate_namespace(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let any_event = if include_any_event && opts.any_event && namespace.has_entities() {
-        any_event::generate_any_event(namespace, opts)?
-    } else {
-        quote! {}
-    };
     let observer_storage = if opts.instrumentation {
         runtime::observer_storage(schema, namespace)?
     } else {
@@ -302,7 +280,6 @@ fn generate_namespace(
         #(#children)*
         #model_event
         #observer_storage
-        #any_event
     })
 }
 
@@ -486,54 +463,5 @@ mod path_tests {
         assert!(
             source.contains("any: ::quent_instrumentation::EntityRef<super::super::AnyEntity>")
         );
-    }
-
-    #[test]
-    fn generates_any_event_per_entity_namespace() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Root", [event("created", [])]))
-            .with_entity(entity("Foo::Query", [event("created", [])]))
-            .with_entity(entity("Foo::Nested::Task", [event("created", [])]))
-            .build()
-            .unwrap();
-        let opts = Options {
-            any_event: true,
-            ..Options::default()
-        };
-
-        let source = generate_str(&schema, &opts).unwrap();
-        assert!(source.contains("Root(&'a ::quent_instrumentation::Event<RootEvent>)"));
-        assert!(source.contains("Foo(foo::AnyEvent<'a>)"));
-        assert!(source.contains("Query(&'a ::quent_instrumentation::Event<QueryEvent>)"));
-        assert!(source.contains("Nested(nested::AnyEvent<'a>)"));
-        assert!(source.contains("Task(&'a ::quent_instrumentation::Event<TaskEvent>)"));
-        assert!(source.contains("foo::AnyEvent::from_any(any)"));
-        assert!(source.contains("nested::AnyEvent::from_any(any)"));
-        assert!(
-            source.rfind("pub enum AnyEvent")
-                > source.rfind("impl ::quent_instrumentation::Observable")
-        );
-    }
-
-    #[test]
-    fn generates_any_event_without_instrumentation() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-        let opts = Options {
-            instrumentation: false,
-            any_event: true,
-            ..Options::default()
-        };
-
-        let source = generate_str(&schema, &opts).unwrap();
-        assert!(source.contains("Query(&'a ::quent_events::Event<QueryEvent>)"));
-        assert!(!source.contains("quent_instrumentation"));
-        assert!(!source.contains("pub struct Handle"));
-        assert!(!source.contains("Observers"));
-        assert!(!source.contains("impl ::quent_instrumentation::Model"));
     }
 }

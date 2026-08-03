@@ -27,7 +27,7 @@ use uuid::Uuid;
 /// drops the pipeline to flush.
 pub fn run_capture(
     session: Uuid,
-    exporter: EventCallback,
+    exporter: EventCallback<NvtxEventEntity>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     run_capture_n_threads(1, session, exporter)
 }
@@ -40,7 +40,7 @@ pub fn run_capture(
 pub fn run_capture_n_threads(
     n: usize,
     session: Uuid,
-    exporter: EventCallback,
+    exporter: EventCallback<NvtxEventEntity>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let context = ContextInner::try_new(session)?;
     let pipeline =

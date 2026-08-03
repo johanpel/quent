@@ -32,9 +32,7 @@ pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model};
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;
 
-/// A caller-supplied event sink, selected via the `io-callback` feature.
-#[cfg(feature = "io-callback")]
-pub use quent_io::EventCallback;
+pub use quent_io_callback::EventCallback;
 
 #[cfg(test)]
 mod tests {

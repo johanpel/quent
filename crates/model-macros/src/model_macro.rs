@@ -325,6 +325,21 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 }
             }
 
+            /// Create a context that forwards every event to `callback`.
+            pub fn try_new_callback(
+                callback: quent_model::EventCallback<#event_type>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                Self::try_with_id_callback(quent_model::uuid::Uuid::now_v7(), callback)
+            }
+
+            /// Create a callback context that adopts an existing `id`.
+            pub fn try_with_id_callback(
+                id: quent_model::uuid::Uuid,
+                callback: quent_model::EventCallback<#event_type>,
+            ) -> Result<Self, Box<dyn std::error::Error>> {
+                Self::build_callback(id, callback)
+            }
+
             /// A no-op context adopting `id`: every observer discards its events.
             fn noop(id: quent_model::uuid::Uuid) -> Self {
                 Self {
@@ -495,6 +510,25 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(
                                     inner.observer::<#event_types>(options.clone()),
+                                )*
+                            )?;
+                            Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))
+                        })?;
+                        Ok(Self {
+                            #(#observer_fields: #observer_types::new(#observer_fields),)*
+                            _inner: inner,
+                        })
+                    }
+
+                    fn build_callback(
+                        id: quent_model::uuid::Uuid,
+                        callback: quent_model::EventCallback<#event_type>,
+                    ) -> Result<Self, Box<dyn std::error::Error>> {
+                        let inner = quent_model::ContextInner::try_new(id)?;
+                        let ( #(#observer_fields,)* ) = inner.block_on(async {
+                            let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
+                                #(
+                                    inner.observer::<#event_types>(callback.clone()),
                                 )*
                             )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))

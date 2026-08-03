@@ -4,7 +4,7 @@
 //! Instrumentation models and their contexts.
 
 use crate::{
-    ContextInner, ExporterOptions, InstrumentedEntity, Observer, Uuid, write_sidecar,
+    ContextInner, EventCallback, ExporterOptions, InstrumentedEntity, Observer, Uuid, write_sidecar,
 };
 
 /// Provides typed access to an entity observer in a generated model.
@@ -39,6 +39,13 @@ pub trait Observable: quent_events::Model {
         context: &ContextInner,
         exporter: Option<&ExporterOptions>,
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
+
+    /// Builds observers that forward all entity events to `callback`.
+    #[doc(hidden)]
+    fn build_callback_observers(
+        context: &ContextInner,
+        callback: EventCallback<Self::Event>,
+    ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
 }
 
 /// Instrumentation context for a generated model.
@@ -69,6 +76,23 @@ impl<M: Observable> Context<M> {
             write_sidecar(options, id, M::model_info());
         }
         let observers = M::build_observers(&inner, exporter.as_ref())?;
+        Ok(Self { observers, inner })
+    }
+
+    /// Creates a context that forwards all events to `callback`.
+    pub fn try_new_callback(
+        callback: EventCallback<M::Event>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_with_id_callback(Uuid::now_v7(), callback)
+    }
+
+    /// Creates a callback context with the supplied ID.
+    pub fn try_with_id_callback(
+        id: Uuid,
+        callback: EventCallback<M::Event>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        let inner = ContextInner::try_new(id)?;
+        let observers = M::build_callback_observers(&inner, callback)?;
         Ok(Self { observers, inner })
     }
 

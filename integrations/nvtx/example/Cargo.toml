@@ -14,11 +14,7 @@ path = "src/main.rs"
 [dependencies]
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
 nvtx-bridge = { path = "../bridge" }
-# `io-callback` selects the callback exporter used to print (bin) and collect
-# (test) captured events.
-quent-instrumentation = { path = "../../../crates/instrumentation", features = [
-    "io-callback",
-] }
+quent-instrumentation = { path = "../../../crates/instrumentation" }
 uuid = { workspace = true }
 # The NVTX producer: a header-only Rust binding that makes the NVTX calls the
 # injection layer captures. Self-contained (vendors the NVTX v3 headers).

@@ -94,6 +94,7 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
     let observers = observers_ident(schema, namespaces);
     let active_observers = observer_storage_initializer(schema, namespaces, true);
     let noop_observers = observer_storage_initializer(schema, namespaces, false);
+    let callback_observers = callback_observer_storage_initializer(schema, namespaces);
     let options_binding = if schema.entities().next().is_some() {
         raw_ident("options".to_owned())
     } else {
@@ -131,6 +132,57 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
                 }
             }
 
+            fn build_callback_observers(
+                context: &::quent_instrumentation::ContextInner,
+                callback: ::quent_instrumentation::EventCallback<Self::Event>,
+            ) -> ::core::result::Result<
+                Self::Observers,
+                ::std::boxed::Box<dyn ::std::error::Error>,
+            > {
+                context.block_on(async {
+                    ::core::result::Result::<
+                        _,
+                        ::std::boxed::Box<dyn ::std::error::Error>,
+                    >::Ok(#callback_observers)
+                })
+            }
+
+        }
+    }
+}
+
+fn callback_observer_storage_initializer(
+    schema: &Schema,
+    namespace: &Namespace<'_>,
+) -> TokenStream {
+    let storage = observers_path(schema, namespace);
+    let entity_fields = namespace.entities().iter().map(|entity| {
+        let field = entity_observer_field(entity);
+        let entity_ty = relative_type_path(entity.path(), &[], "");
+        let event_ty = relative_type_path(entity.path(), &[], "Event");
+        quote! {
+            #field: ::quent_instrumentation::Observer::<#entity_ty>::new(
+                ::std::sync::Arc::new(
+                    context
+                        .observer::<#event_ty>(::core::clone::Clone::clone(&callback))
+                        .await?,
+                ),
+            )
+        }
+    });
+    let namespace_fields = namespace.children_with_entities().map(|child| {
+        let segment = child
+            .path()
+            .last()
+            .expect("child namespaces extend their parent");
+        let field = namespace_observers_field(segment);
+        let value = callback_observer_storage_initializer(schema, child);
+        quote! { #field: #value }
+    });
+    quote! {
+        #storage {
+            #(#entity_fields,)*
+            #(#namespace_fields,)*
         }
     }
 }
