@@ -450,6 +450,14 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             #analyzer_package_method
         }
 
+        impl quent_model::events::Model for #name {
+            type Event = #event_type;
+
+            fn model_info() -> quent_model::build_info::ModelInfo {
+                <Self as quent_model::build_info::ModelSource>::model_info()
+            }
+        }
+
         #import_events_impl
 
         const _: () = {

@@ -691,6 +691,10 @@ fn expand_self_event(
             type Event = #event_enum;
         }
 
+        impl quent_model::events::Entity for #name {
+            type Event = #event_enum;
+        }
+
         impl quent_model::EntityData for #name {
             type Data = #data_struct;
             fn push(data: &mut Self::Data, event: Self::Event) {
@@ -769,6 +773,10 @@ fn expand_multi_event(
         impl quent_model::Entity for #name {}
 
         impl quent_model::HasEventType for #name {
+            type Event = #event_enum;
+        }
+
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 
@@ -961,6 +969,10 @@ fn expand_rg_attrs(
             type Event = #event_enum;
         }
 
+        impl quent_model::events::Entity for #name {
+            type Event = #event_enum;
+        }
+
         impl quent_model::EntityData for #name {
             type Data = #data_struct;
             fn push(data: &mut Self::Data, event: Self::Event) {
@@ -1065,6 +1077,10 @@ fn expand_rg_events(
         }
 
         impl quent_model::HasEventType for #name {
+            type Event = #event_enum;
+        }
+
+        impl quent_model::events::Entity for #name {
             type Event = #event_enum;
         }
 

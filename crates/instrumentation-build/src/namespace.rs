@@ -52,6 +52,14 @@ impl<'schema> Namespace<'schema> {
         !self.entities.is_empty() || self.children.iter().any(Self::has_entities)
     }
 
+    pub(crate) fn all_entities(&self) -> Vec<&'schema Entity> {
+        let mut entities = self.entities.clone();
+        for child in &self.children {
+            entities.extend(child.all_entities());
+        }
+        entities
+    }
+
     fn new(path: Vec<Identifier>) -> Self {
         Self {
             path,

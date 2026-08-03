@@ -48,6 +48,7 @@ mod any_event;
 mod common;
 mod data_type;
 mod events;
+mod model_event;
 mod namespace;
 mod records;
 mod runtime;
@@ -96,6 +97,9 @@ pub struct Options {
     ///
     /// No aggregate is emitted for a namespace without events.
     pub any_event: bool,
+
+    /// Cargo package providing the analyzer for this model.
+    pub analyzer_package: Option<&'static str>,
 }
 
 impl Default for Options {
@@ -109,6 +113,7 @@ impl Default for Options {
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
             any_event: false,
+            analyzer_package: None,
         }
     }
 }
@@ -153,6 +158,13 @@ pub enum GenerateError {
         generated: String,
         /// The schema type whose generated name conflicts.
         schema_path: Path,
+    },
+    #[error("model event variant `{variant}` is duplicated in namespace `{namespace}`")]
+    ModelEventVariantCollision {
+        /// The schema namespace containing the collision.
+        namespace: String,
+        /// The generated variant name.
+        variant: String,
     },
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
@@ -205,7 +217,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     };
     let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
     let types = generate_namespace(schema, opts, &namespaces, false)?;
-    let model = opts
+    let observable = opts
         .instrumentation
         .then(|| runtime::generate_model(schema, &namespaces));
     let any_event = if opts.any_event {
@@ -217,7 +229,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         #reexports
         #entity_types
         #types
-        #model
+        #observable
         #any_event
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
@@ -281,12 +293,14 @@ fn generate_namespace(
     } else {
         quote! {}
     };
+    let model_event = model_event::generate(schema, namespace, opts)?;
     Ok(quote! {
         #(#records)*
         #(#events)*
         #(#entity_types)*
         #(#runtime)*
         #(#children)*
+        #model_event
         #observer_storage
         #any_event
     })
@@ -334,7 +348,7 @@ mod path_tests {
         let source = generate_str(&schema, &opts).unwrap();
 
         let derives = "#[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]";
-        assert_eq!(source.matches(derives).count(), 2);
+        assert_eq!(source.matches(derives).count(), 3);
     }
 
     #[test]
@@ -497,7 +511,8 @@ mod path_tests {
         assert!(source.contains("foo::AnyEvent::from_any(any)"));
         assert!(source.contains("nested::AnyEvent::from_any(any)"));
         assert!(
-            source.rfind("pub enum AnyEvent") > source.rfind("impl ::quent_instrumentation::Model")
+            source.rfind("pub enum AnyEvent")
+                > source.rfind("impl ::quent_instrumentation::Observable")
         );
     }
 

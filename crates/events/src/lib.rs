@@ -10,6 +10,7 @@ use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
 use serde::{Deserialize, Serialize};
 
 pub use entity_ref::{AnyEntity, EntityRef};
+pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::DynamicAttributes;
 pub use uuid::Uuid;
 
@@ -23,6 +24,15 @@ pub trait EntityEvent {
 pub trait Entity: Sized {
     /// Events emitted for this entity.
     type Event: EntityEvent;
+}
+
+/// Associates a model marker with its umbrella event type and metadata.
+pub trait Model: Sized {
+    /// Events emitted by entities in this model.
+    type Event: Send + 'static;
+
+    /// Returns metadata describing this model.
+    fn model_info() -> build_info::ModelInfo;
 }
 
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]

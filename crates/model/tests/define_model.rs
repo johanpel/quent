@@ -80,3 +80,12 @@ fn define_model_from_impls() {
     let entity_event: SimpleEntityEvent = SimpleEntityEvent::Ping(Ping { value: 42 });
     let _: TestEvent = entity_event.into();
 }
+
+#[test]
+fn model_marker_implements_core_model() {
+    fn assert_model<M: quent_model::events::Model<Event = TestEvent>>() {}
+    assert_model::<Test>();
+
+    let info = <Test as quent_model::events::Model>::model_info();
+    assert_eq!(info.name, "Test");
+}

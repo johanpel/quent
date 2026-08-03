@@ -87,6 +87,8 @@ pub use quent_build_info as build_info;
 #[cfg(feature = "collector")]
 pub use quent_collector_client::{CollectorSink, deserialize_event};
 pub use quent_dynamic_attributes as attributes;
+#[doc(hidden)]
+pub use quent_events as events;
 pub use quent_events::{EntityEvent, Event};
 pub use quent_instrumentation::{ContextInner, ObserverInner as Observer, write_sidecar};
 pub use quent_io as io;
