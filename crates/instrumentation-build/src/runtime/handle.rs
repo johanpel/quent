@@ -42,7 +42,7 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
     // Once-events claim successive bits of the handle's flag word, in
     // declaration order; multi-events route straight through `emit`.
     let mut once_bit = 0u32;
-    let methods: Vec<TokenStream> = entity
+    let methods = entity
         .events()
         .map(|event| {
             let method = raw_ident(to_case(event.name(), Case::Snake));
@@ -58,14 +58,14 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
-            let params: Vec<TokenStream> = event
+            let params = event
                 .fields()
                 .map(|f| {
                     let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0, entity.path().namespace(), opts);
-                    quote! { #name: #ty }
+                    let ty = map_data_type(f.ty(), 0, entity.path().namespace(), opts)?;
+                    Ok::<_, GenerateError>(quote! { #name: #ty })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
             let field_names: Vec<TokenStream> = event
                 .fields()
                 .map(|f| {
@@ -79,7 +79,7 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
                 quote! { #event_ty::#variant { #(#field_names),* } }
             };
 
-            match event.cardinality() {
+            Ok(match event.cardinality() {
                 Cardinality::Once => {
                     let bit = Literal::u32_unsuffixed(once_bit);
                     once_bit += 1;
@@ -116,9 +116,9 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
                         ::core::result::Result::Ok(())
                     }
                 },
-            }
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, GenerateError>>()?;
 
     Ok(quote! {
         impl #handle_ty<#marker_ty> {

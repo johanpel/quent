@@ -91,11 +91,10 @@ pub struct Options {
     pub file_name: Option<String>,
 
     /// Emit root and namespace-local `AnyEvent` enums that decode type-erased
-    /// instrumentation events. Each enum carries [`Self::debug`], compatible
-    /// serde derives, and [`Self::event_derives`].
+    /// events. Each enum carries [`Self::debug`], compatible serde derives, and
+    /// [`Self::event_derives`].
     ///
-    /// Requires [`Self::instrumentation`]. No aggregate is emitted for a
-    /// namespace without events.
+    /// No aggregate is emitted for a namespace without events.
     pub any_event: bool,
 }
 
@@ -155,8 +154,8 @@ pub enum GenerateError {
         /// The schema type whose generated name conflicts.
         schema_path: Path,
     },
-    #[error("`any_event` requires instrumentation generation")]
-    AnyEventRequiresInstrumentation,
+    #[error("field type nesting exceeds the maximum depth of {max}")]
+    TypeNestingTooDeep { max: usize },
     #[error("failed to write generated file")]
     Io(#[from] std::io::Error),
 }
@@ -194,12 +193,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// # Errors
 ///
 /// Returns [`GenerateError`] if a generated observer type conflicts with a
-/// schema type, a derive entry is not a parseable Rust path, or the generated
-/// code is not a valid Rust file.
+/// schema type, a field type exceeds the supported nesting depth, a derive
+/// entry is not a parseable Rust path, or the generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    if opts.any_event && !opts.instrumentation {
-        return Err(GenerateError::AnyEventRequiresInstrumentation);
-    }
     let namespaces = namespace::Namespace::root(schema);
 
     let reexports = if opts.instrumentation {
@@ -307,7 +303,7 @@ mod path_tests {
     use quent_schema::{Annotations, DataType};
 
     #[test]
-    fn typed_derives_are_applied_and_deduplicated() {
+    fn serde_derive_path_spellings_are_deduplicated() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
             .with_record(record("Meta", []))
@@ -318,8 +314,8 @@ mod path_tests {
             instrumentation: false,
             debug: true,
             serde: true,
-            event_derives: &["Debug", "::serde::Serialize"],
-            record_derives: &["Debug", "::serde::Deserialize"],
+            event_derives: &["Debug", "serde::Serialize", "::serde::Serialize"],
+            record_derives: &["Debug", "serde::Deserialize", "::serde::Deserialize"],
             ..Options::default()
         };
 
@@ -491,7 +487,7 @@ mod path_tests {
     }
 
     #[test]
-    fn rejects_any_event_without_instrumentation() {
+    fn generates_any_event_without_instrumentation() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
             .with_entity(entity("Query", [event("created", [])]))
@@ -503,9 +499,11 @@ mod path_tests {
             ..Options::default()
         };
 
-        assert!(matches!(
-            generate_str(&schema, &opts),
-            Err(GenerateError::AnyEventRequiresInstrumentation)
-        ));
+        let source = generate_str(&schema, &opts).unwrap();
+        assert!(source.contains("Query(&'a ::quent_events::Event<QueryEvent>)"));
+        assert!(!source.contains("quent_instrumentation"));
+        assert!(!source.contains("pub struct Handle"));
+        assert!(!source.contains("Observers"));
+        assert!(!source.contains("impl ::quent_instrumentation::Model"));
     }
 }

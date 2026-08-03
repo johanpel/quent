@@ -59,7 +59,7 @@ pub(crate) fn entity_event_enum(
         &format!("Events emitted by `{}` entities.", entity.path()),
     );
     let derives = derive_attr(opts.event_derives, opts.debug, opts.serde, opts.serde)?;
-    let variants: Vec<TokenStream> = entity
+    let variants = entity
         .events()
         .map(|event| {
             let variant = raw_ident(to_case(event.name(), Case::Pascal));
@@ -67,22 +67,22 @@ pub(crate) fn entity_event_enum(
                 event.annotations().docs(),
                 &format!("The `{}` event.", event.name()),
             );
-            let fields: Vec<TokenStream> = event
+            let fields = event
                 .fields()
                 .map(|field| {
                     let name = raw_ident(to_case(field.name(), Case::Snake));
-                    let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts);
+                    let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts)?;
                     let field_docs = doc_attr(field.annotations().docs());
-                    quote! { #field_docs #name: #ty }
+                    Ok::<_, GenerateError>(quote! { #field_docs #name: #ty })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
             if fields.is_empty() {
-                quote! { #variant_docs #variant }
+                Ok(quote! { #variant_docs #variant })
             } else {
-                quote! { #variant_docs #variant { #(#fields),* } }
+                Ok(quote! { #variant_docs #variant { #(#fields),* } })
             }
         })
-        .collect();
+        .collect::<Result<Vec<_>, GenerateError>>()?;
     Ok(quote! {
         #docs
         #derives
