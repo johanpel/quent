@@ -2721,6 +2721,7 @@ dependencies = [
  "petgraph",
  "quent-schema",
  "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -2979,11 +2980,8 @@ name = "quent-os"
 version = "0.1.0"
 dependencies = [
  "quent-constraints",
- "quent-resource",
  "quent-schema",
  "rustc-hash",
- "serde",
- "serde_json",
  "thiserror",
 ]
 
