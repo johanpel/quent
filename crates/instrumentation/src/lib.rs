@@ -15,7 +15,7 @@ mod observer;
 mod sidecar;
 
 pub use context::ContextInner;
-pub use entity::{Entity, Observer};
+pub use entity::{InstrumentedEntity, Observer};
 pub use handle::{HandleError, HandleInner};
 pub use model::{Context, Model, ObserverProvider};
 pub use observer::{EventSender, ObserverInner};

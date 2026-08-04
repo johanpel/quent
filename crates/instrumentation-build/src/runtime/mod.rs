@@ -53,11 +53,11 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
         format!("Handle to one entity instance in the `{model_name}` instrumentation model.");
     quote! {
         #[doc = #handle_docs]
-        pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<#model>>> {
+        pub struct Handle<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> {
             inner: ::quent_instrumentation::HandleInner<E>,
         }
 
-        impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>>
+        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>>
             ::core::convert::From<::quent_instrumentation::HandleInner<E>> for Handle<E>
         {
             fn from(inner: ::quent_instrumentation::HandleInner<E>) -> Self {
@@ -65,7 +65,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
             }
         }
 
-        impl<E: ::quent_instrumentation::Entity<Context = Context<#model>>> ::core::ops::Deref
+        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> ::core::ops::Deref
             for Handle<E>
         {
             type Target = ::quent_instrumentation::HandleInner<E>;
@@ -111,7 +111,7 @@ fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
     let model = relative_root_type(&model_name, namespace);
     let handle = relative_root_type("Handle", namespace);
     quote! {
-        impl ::quent_instrumentation::Entity for #marker {
+        impl ::quent_instrumentation::InstrumentedEntity for #marker {
             type Context = #context<#model>;
             type Handle = #handle<Self>;
         }

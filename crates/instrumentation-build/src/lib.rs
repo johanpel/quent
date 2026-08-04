@@ -337,11 +337,14 @@ mod path_tests {
         assert!(source.contains("pub mod foo"));
         assert!(source.contains("pub enum QueryEvent"));
         assert!(!source.contains("pub type Observer"));
-        assert!(source.contains(
-            "pub struct Handle<E: ::quent_instrumentation::Entity<Context = Context<Demo>>>"
-        ));
+        assert!(source.contains("pub struct Handle<"));
+        assert!(
+            source.contains(
+                "E: ::quent_instrumentation::InstrumentedEntity<Context = Context<Demo>>"
+            )
+        );
         assert!(source.contains("impl super::Handle<Query>"));
-        assert!(source.contains("impl ::quent_instrumentation::Entity for Query"));
+        assert!(source.contains("impl ::quent_instrumentation::InstrumentedEntity for Query"));
         assert!(source.contains("impl ::quent_instrumentation::events::Entity for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
         assert!(source.contains("pub struct DemoObservers"));

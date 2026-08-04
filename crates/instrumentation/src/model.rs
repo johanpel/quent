@@ -3,14 +3,16 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{ContextInner, Entity, ExporterOptions, Observer, Uuid, build_info, write_sidecar};
+use crate::{
+    ContextInner, ExporterOptions, InstrumentedEntity, Observer, Uuid, build_info, write_sidecar,
+};
 
 /// Provides typed access to an entity observer in a generated model.
 ///
 /// Hidden because generated observer collections implement it; callers use
 /// [`Context::observer`].
 #[doc(hidden)]
-pub trait ObserverProvider<E: Entity> {
+pub trait ObserverProvider<E: InstrumentedEntity> {
     /// Returns the observer stored for `E`.
     fn observer(&self) -> Observer<E>;
 }
@@ -81,7 +83,7 @@ impl<M: Model> Context<M> {
     /// Returns the observer associated with entity marker `E`.
     pub fn observer<E>(&self) -> Observer<E>
     where
-        E: Entity<Context = Self>,
+        E: InstrumentedEntity<Context = Self>,
         M::Observers: ObserverProvider<E>,
     {
         self.observers.observer()
