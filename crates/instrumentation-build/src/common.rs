@@ -42,7 +42,7 @@ pub(crate) fn derive_attr(
             .collect::<Result<Vec<_>, _>>()?,
     );
     for path in &mut paths {
-        canonicalize_external_derive_path(path, "serde", &["Serialize", "Deserialize"]);
+        canonicalize_known_derive_path(path);
     }
     let mut seen = HashSet::new();
     paths.retain(|path| seen.insert(path.to_token_stream().to_string()));
@@ -50,6 +50,22 @@ pub(crate) fn derive_attr(
         return Ok(quote! {});
     }
     Ok(quote! { #[derive(#(#paths),*)] })
+}
+
+fn canonicalize_known_derive_path(path: &mut syn::Path) {
+    canonicalize_external_derive_path(path, "serde", &["Serialize", "Deserialize"]);
+    if path_has_segments(path, &["std", "fmt", "Debug"])
+        || path_has_segments(path, &["core", "fmt", "Debug"])
+    {
+        *path = syn::parse_quote!(Debug);
+    }
+}
+
+fn path_has_segments(path: &syn::Path, names: &[&str]) -> bool {
+    path.segments.len() == names.len()
+        && path.segments.iter().zip(names).all(|(segment, name)| {
+            segment.ident == *name && matches!(segment.arguments, syn::PathArguments::None)
+        })
 }
 
 fn canonicalize_external_derive_path(

@@ -303,7 +303,7 @@ mod path_tests {
     use quent_schema::{Annotations, DataType};
 
     #[test]
-    fn serde_derive_path_spellings_are_deduplicated() {
+    fn built_in_derive_path_spellings_are_deduplicated() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
             .with_record(record("Meta", []))
@@ -314,8 +314,20 @@ mod path_tests {
             instrumentation: false,
             debug: true,
             serde: true,
-            event_derives: &["Debug", "serde::Serialize", "::serde::Serialize"],
-            record_derives: &["Debug", "serde::Deserialize", "::serde::Deserialize"],
+            event_derives: &[
+                "Debug",
+                "std::fmt::Debug",
+                "::core::fmt::Debug",
+                "serde::Serialize",
+                "::serde::Serialize",
+            ],
+            record_derives: &[
+                "Debug",
+                "core::fmt::Debug",
+                "::std::fmt::Debug",
+                "serde::Deserialize",
+                "::serde::Deserialize",
+            ],
             ..Options::default()
         };
 
