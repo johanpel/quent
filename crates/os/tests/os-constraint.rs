@@ -1,62 +1,37 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_constraints::Constraint as _;
-use quent_os::{
-    Os, OsBuilder, OsConstraint, OsError, OsParts, PROCESS_ID_PATH, THREAD_ID_PATH,
-    process_id_path, thread_id_path,
-};
-use quent_resource::{Resource, ResourceConstraint};
+use quent_constraints::utils::RecordValidationError;
+use quent_os::{OsConstraint, OsError, process_path, process_record, thread_path, thread_record};
 use quent_schema::{
     Annotations, Cardinality, DataType, Entity, Field, Record, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
+    builder::{EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
     test_utils::{field, ident, path},
 };
 
-fn annotations(os: Os, resource: Option<serde_json::Value>) -> Annotations {
-    let mut builder = AnnotationsBuilder::new()
-        .with_constraint(OsConstraint::NAME, Some(os.constraint_data().unwrap()));
-    if let Some(resource) = resource {
-        builder = builder.with_constraint(Resource::NAME, Some(resource.to_string()));
-    }
-    builder.build().unwrap()
-}
-
-fn id_record(path: &str, fields: impl IntoIterator<Item = Field>) -> Record {
-    RecordBuilder::new(path.parse::<quent_schema::Path>().unwrap())
+fn os_record(path: quent_schema::Path, fields: impl IntoIterator<Item = Field>) -> Record {
+    RecordBuilder::new(path)
         .with_fields(fields)
         .build()
         .unwrap()
 }
 
-fn entity_from_parts(
+fn event(
     name: &str,
-    parts: OsParts,
-    resource: Option<serde_json::Value>,
-) -> (Entity, Record) {
-    let entity = EntityBuilder::new(path(name))
-        .with_event(
-            EventBuilder::new(ident("created"), Cardinality::Once)
-                .with_field(field("os_id", DataType::Record(parts.id.path().clone())))
-                .build()
-                .unwrap(),
-        )
-        .with_annotations(annotations(parts.definition, resource))
+    cardinality: Cardinality,
+    fields: impl IntoIterator<Item = Field>,
+) -> quent_schema::Event {
+    EventBuilder::new(ident(name), cardinality)
+        .with_fields(fields)
         .build()
-        .unwrap();
-    (entity, parts.id)
+        .unwrap()
 }
 
-fn process_entity() -> (Entity, Record) {
-    entity_from_parts("Process", OsBuilder::process().build().unwrap(), None)
-}
-
-fn thread_entity(resource: Option<serde_json::Value>) -> (Entity, Record) {
-    entity_from_parts("Thread", OsBuilder::thread().build().unwrap(), resource)
-}
-
-fn unit_resource() -> Option<serde_json::Value> {
-    Some(serde_json::json!({ "definition": {} }))
+fn entity(name: &str, events: impl IntoIterator<Item = quent_schema::Event>) -> Entity {
+    EntityBuilder::new(path(name))
+        .with_events(events)
+        .build()
+        .unwrap()
 }
 
 fn schema(
@@ -71,7 +46,7 @@ fn schema(
 }
 
 fn validate(schema: &Schema) -> Vec<OsError> {
-    let report = quent_constraints::validate::<(OsConstraint, ResourceConstraint)>(schema);
+    let report = quent_constraints::validate::<(OsConstraint,)>(schema);
     assert!(report.base_constraints.is_ok());
     assert!(report.unregistered_constraints.is_empty());
     match report.results.0 {
@@ -82,143 +57,138 @@ fn validate(schema: &Schema) -> Vec<OsError> {
 }
 
 #[test]
-fn valid_optional_platform_ids_pass() {
-    let (process, process_id) = process_entity();
-    let (thread, thread_id) = thread_entity(unit_resource());
-
-    assert_eq!(process_id.path().to_string(), PROCESS_ID_PATH);
-    assert_eq!(thread_id.path().to_string(), THREAD_ID_PATH);
-    assert_eq!(
-        process_id.field(&ident("linux_id")).unwrap().ty(),
-        &DataType::Option(Box::new(DataType::I32))
-    );
-    assert_eq!(
-        thread_id.field(&ident("macos_id")).unwrap().ty(),
-        &DataType::Option(Box::new(DataType::U64))
-    );
-    assert!(validate(&schema([process, thread], [process_id, thread_id])).is_empty());
-}
-
-#[test]
-fn canonical_id_record_shapes_are_validated() {
-    let invalid_process_id = id_record(
-        PROCESS_ID_PATH,
+fn once_events_with_os_records_mark_processes_and_threads() {
+    let process = process_record();
+    let thread = thread_record();
+    let process_entity = entity(
+        "MyProcess",
         [
-            field("linux_id", DataType::Option(Box::new(DataType::U32))),
-            field("macos_id", DataType::Option(Box::new(DataType::I32))),
-            field("windows_id", DataType::Option(Box::new(DataType::U32))),
+            event(
+                "Init",
+                Cardinality::Once,
+                [field("process", DataType::Record(process_path()))],
+            ),
+            event(
+                "Sample",
+                Cardinality::Multi,
+                [field("value", DataType::U64)],
+            ),
         ],
     );
-    let invalid_thread_id = id_record(
-        THREAD_ID_PATH,
+    let thread_entity = entity(
+        "MyThread",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("thread", DataType::Record(thread_path()))],
+        )],
+    );
+
+    assert_eq!(process.path(), &process_path());
+    assert_eq!(thread.path(), &thread_path());
+    assert!(validate(&schema([process_entity, thread_entity], [process, thread])).is_empty());
+}
+
+#[test]
+fn canonical_record_shapes_are_validated() {
+    let invalid_process = os_record(process_path(), [field("id", DataType::I32)]);
+    let invalid_thread = os_record(thread_path(), [field("id", DataType::U64)]);
+    let errors = validate(&schema([], [invalid_process, invalid_thread]));
+
+    assert!(errors.iter().any(|error| matches!(
+        error,
+        OsError::InvalidOsRecord(RecordValidationError::InvalidFieldType { .. })
+    )));
+    assert!(errors.iter().any(|error| matches!(
+        error,
+        OsError::InvalidOsRecord(RecordValidationError::MissingField { field, .. })
+            if field == "process"
+    )));
+}
+
+#[test]
+fn os_record_event_must_be_once() {
+    let process = process_record();
+    let process_entity = entity(
+        "MyProcess",
+        [event(
+            "Init",
+            Cardinality::Multi,
+            [field("process", DataType::Record(process_path()))],
+        )],
+    );
+
+    assert!(
+        validate(&schema([process_entity], [process]))
+            .iter()
+            .any(|error| matches!(error, OsError::OsRecordEventNotOnce { .. }))
+    );
+}
+
+#[test]
+fn os_record_may_be_carried_by_only_one_event() {
+    let process = process_record();
+    let process_entity = entity(
+        "MyProcess",
         [
-            field("linux_id", DataType::Option(Box::new(DataType::I32))),
-            field("macos_id", DataType::Option(Box::new(DataType::U64))),
-            field("windows_id", DataType::Option(Box::new(DataType::U32))),
+            event(
+                "Started",
+                Cardinality::Once,
+                [field("process", DataType::Record(process_path()))],
+            ),
+            event(
+                "Observed",
+                Cardinality::Once,
+                [field("process", DataType::Record(process_path()))],
+            ),
         ],
     );
-    let errors = validate(&schema([], [invalid_process_id, invalid_thread_id]));
 
     assert!(
-        errors
+        validate(&schema([process_entity], [process]))
             .iter()
-            .any(|error| matches!(error, OsError::InvalidRecordFieldType { .. }))
-    );
-    assert!(errors.iter().any(
-        |error| matches!(error, OsError::MissingRecordField { field, .. } if field == "process")
-    ));
-}
-
-#[test]
-fn id_records_must_be_used_by_matching_entities() {
-    let process_id = OsBuilder::process().build().unwrap().id;
-    let thread_id = OsBuilder::thread().build().unwrap().id;
-    let process = EntityBuilder::new(path("Process"))
-        .with_event(
-            EventBuilder::new(ident("created"), Cardinality::Once)
-                .with_field(field("wrong_id", DataType::Record(thread_id_path())))
-                .build()
-                .unwrap(),
-        )
-        .with_annotations(annotations(Os::Process, None))
-        .build()
-        .unwrap();
-    let thread = EntityBuilder::new(path("Thread"))
-        .with_event(
-            EventBuilder::new(ident("created"), Cardinality::Once)
-                .with_field(field("wrong_id", DataType::Record(process_id_path())))
-                .build()
-                .unwrap(),
-        )
-        .with_annotations(annotations(Os::Thread, unit_resource()))
-        .build()
-        .unwrap();
-    let errors = validate(&schema([process, thread], [process_id, thread_id]));
-
-    assert_eq!(
-        errors
-            .iter()
-            .filter(|error| matches!(error, OsError::WrongNativeIdRecordOwner { .. }))
-            .count(),
-        2
+            .any(|error| matches!(error, OsError::OsRecordUsedByMultipleEvents { .. }))
     );
 }
 
 #[test]
-fn thread_process_field_must_be_an_entity_reference() {
-    let mut fields = OsBuilder::thread()
-        .build()
-        .unwrap()
-        .id
-        .fields()
-        .filter(|field| field.name() != "process")
-        .cloned()
-        .collect::<Vec<_>>();
-    fields.push(field("process", DataType::Uuid));
-    let bad_id = id_record(THREAD_ID_PATH, fields);
-    let thread = EntityBuilder::new(path("Thread"))
-        .with_event(
-            EventBuilder::new(ident("created"), Cardinality::Once)
-                .with_field(field("os_id", DataType::Record(thread_id_path())))
-                .build()
-                .unwrap(),
-        )
-        .with_annotations(annotations(Os::Thread, unit_resource()))
-        .build()
-        .unwrap();
+fn entity_cannot_represent_both_process_and_thread() {
+    let process = process_record();
+    let thread = thread_record();
+    let entity = entity(
+        "Ambiguous",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [
+                field("process", DataType::Record(process_path())),
+                field("thread", DataType::Record(thread_path())),
+            ],
+        )],
+    );
 
     assert!(
-        validate(&schema([thread], [bad_id]))
+        validate(&schema([entity], [process, thread]))
             .iter()
-            .any(|error| matches!(error, OsError::InvalidRecordFieldType { .. }))
+            .any(|error| matches!(error, OsError::ConflictingEntityRoles { .. }))
     );
 }
 
 #[test]
-fn thread_must_be_a_unit_resource() {
-    let (thread, thread_id) = thread_entity(None);
-    assert!(
-        validate(&schema([thread], [thread_id]))
-            .iter()
-            .any(|error| matches!(error, OsError::ThreadNotUnitResource { .. }))
-    );
-}
-
-#[test]
-fn os_annotation_on_an_event_is_rejected() {
-    let entity = EntityBuilder::new(path("Unmarked"))
-        .with_event(
-            EventBuilder::new(ident("created"), Cardinality::Once)
-                .with_annotations(annotations(Os::Process, None))
-                .build()
-                .unwrap(),
-        )
+fn os_record_may_only_be_used_by_an_entity_event() {
+    let process = process_record();
+    let wrapper = RecordBuilder::new(path("Wrapper"))
+        .with_field(Field::new(
+            ident("process"),
+            DataType::Record(process_path()),
+            Annotations::default(),
+        ))
         .build()
         .unwrap();
 
     assert!(
-        validate(&schema([entity], []))
+        validate(&schema([], [process, wrapper]))
             .iter()
-            .any(|error| matches!(error, OsError::MisplacedAnnotation { .. }))
+            .any(|error| matches!(error, OsError::OsRecordOutsideEvent { .. }))
     );
 }
