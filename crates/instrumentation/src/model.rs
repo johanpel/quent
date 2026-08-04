@@ -3,9 +3,7 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{
-    ContextInner, ExporterOptions, InstrumentedEntity, Observer, Uuid, build_info, write_sidecar,
-};
+use crate::{ContextInner, ExporterOptions, InstrumentedEntity, Observer, Uuid, write_sidecar};
 
 /// Provides typed access to an entity observer in a generated model.
 ///
@@ -17,8 +15,8 @@ pub trait ObserverProvider<E: InstrumentedEntity> {
     fn observer(&self) -> Observer<E>;
 }
 
-/// Supplies schema-specific observers and metadata to an instrumentation context.
-pub trait Model: Sized {
+/// Supplies schema-specific observers to an instrumentation context.
+pub trait Observable: quent_events::Model {
     /// Generated observers for this model.
     ///
     /// Hidden because callers access observers through [`Context::observer`].
@@ -39,18 +37,15 @@ pub trait Model: Sized {
         context: &ContextInner,
         exporter: Option<&ExporterOptions>,
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
-
-    /// Returns metadata describing this instrumentation model.
-    fn model_info() -> build_info::ModelInfo;
 }
 
 /// Instrumentation context for a generated model.
-pub struct Context<M: Model> {
+pub struct Context<M: Observable> {
     observers: M::Observers,
     inner: ContextInner,
 }
 
-impl<M: Model> Context<M> {
+impl<M: Observable> Context<M> {
     /// Creates a context and builds every entity's exporter pipeline.
     ///
     /// Passing `None` creates a no-op context that discards events.

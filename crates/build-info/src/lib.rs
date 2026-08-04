@@ -12,10 +12,8 @@
 //!   by this crate's `build.rs`; a downstream crate captures its own by calling
 //!   [`emit_source`] from its `build.rs`. Each field is optional so absent
 //!   provenance stays distinguishable from a real value.
-//! * [`ModelInfo`] — the model's identity. The Rust type path and name come from
-//!   [`std::any::type_name`]; the cargo package and source git come from a
-//!   per-model [`ModelSource`] impl that `model!` generates (so out-of-repo
-//!   crates record their own package and git without any provenance threading).
+//! * [`ModelInfo`] — the model's identity and source provenance. A per-model
+//!   [`ModelSource`] impl records the defining package and git source.
 //!
 //! Keeping the provenance in a sidecar (rather than embedded in the artifacts)
 //! means a single, format-agnostic implementation for all exporters and clean
@@ -63,9 +61,6 @@ pub struct ModelInfo {
     pub name: String,
     /// Cargo package defining the model (e.g. `"quent-simulator-instrumentation"`).
     pub package: String,
-    /// Rust type path of the model's event enum
-    /// (e.g. `"quent_simulator_instrumentation::SimulatorEvent"`).
-    pub type_path: String,
     /// Git provenance of the crate defining the model.
     pub source: BuildInfo,
     /// Cargo package providing this model's `QuentViewer` entry (shares the
@@ -122,7 +117,6 @@ impl ModelInfo {
         Self {
             name: "unknown".to_string(),
             package: "unknown".to_string(),
-            type_path: "unknown".to_string(),
             source: BuildInfo::unknown(),
             analyzer_package: None,
         }
@@ -231,21 +225,15 @@ pub trait ModelSource {
     fn analyzer_package() -> Option<&'static str> {
         None
     }
+}
 
-    /// Assemble the [`ModelInfo`] for this model: the Rust type path and name
-    /// from [`std::any::type_name`], the cargo package and source git from the
-    /// [`package`](Self::package) / [`source`](Self::source) impls above.
-    fn model_info() -> ModelInfo {
-        let type_path = std::any::type_name::<Self>();
-        let event_name = type_path.rsplit("::").next().unwrap_or(type_path);
-        let name = event_name.strip_suffix("Event").unwrap_or(event_name);
-        ModelInfo {
-            name: name.to_string(),
-            package: Self::package().to_string(),
-            type_path: type_path.to_string(),
-            source: Self::source(),
-            analyzer_package: Self::analyzer_package().map(str::to_string),
-        }
+/// Assemble model identity and source provenance.
+pub fn model_info<M: ModelSource>(name: &str) -> ModelInfo {
+    ModelInfo {
+        name: name.to_string(),
+        package: M::package().to_string(),
+        source: M::source(),
+        analyzer_package: M::analyzer_package().map(str::to_string),
     }
 }
 
@@ -287,10 +275,23 @@ mod tests {
 
     #[test]
     fn artifact_info_roundtrips() {
-        let info = ArtifactInfo::new(TestModel::model_info());
+        let info = ArtifactInfo::new(model_info::<TestModel>("Test"));
         let bytes = serde_json::to_vec(&info).unwrap();
         let back: ArtifactInfo = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(info, back);
+    }
+
+    #[test]
+    fn model_info_accepts_legacy_type_path() {
+        let info: ModelInfo = serde_json::from_value(serde_json::json!({
+            "name": "Test",
+            "package": "quent-test",
+            "type_path": "quent_test::TestEvent",
+            "source": { "version": "0.1.0" }
+        }))
+        .unwrap();
+        assert_eq!(info.name, "Test");
+        assert_eq!(info.package, "quent-test");
     }
 
     #[test]
@@ -309,7 +310,7 @@ mod tests {
         }
 
         // `model_info()` carries the declared analyzer package...
-        let info = WithAnalyzer::model_info();
+        let info = model_info::<WithAnalyzer>("WithAnalyzer");
         assert_eq!(
             info.analyzer_package.as_deref(),
             Some("quent-simulator-analyzer")
@@ -318,7 +319,7 @@ mod tests {
         assert_eq!(info, back);
 
         // ...and absent by default, omitted from the serialized form.
-        let none = TestModel::model_info();
+        let none = model_info::<TestModel>("Test");
         assert_eq!(none.analyzer_package, None);
         assert!(
             !serde_json::to_string(&none)
@@ -333,7 +334,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let info = ArtifactInfo::new(TestModel::model_info());
+        let info = ArtifactInfo::new(model_info::<TestModel>("Test"));
         info.write_sidecar(&dir).unwrap();
 
         assert!(dir.join(SIDECAR_FILE_NAME).is_file());
