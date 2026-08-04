@@ -404,10 +404,8 @@ dependencies = [
 name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
- "quent-events",
  "quent-instrumentation",
  "quent-instrumentation-build",
- "quent-schema",
  "quent-yaml",
 ]
 

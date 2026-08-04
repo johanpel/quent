@@ -10,10 +10,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-quent-events = { path = "../../events" }
 quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
 
 [build-dependencies]
 quent-instrumentation-build = { path = ".." }
-quent-schema = { path = "../../schema", features = ["test-utils"] }
 quent-yaml = { path = "../../yaml" }
