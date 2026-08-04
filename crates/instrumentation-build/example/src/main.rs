@@ -10,6 +10,23 @@ mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
 
+#[allow(unused)]
+mod umbrella_fixture {
+    include!(concat!(env!("OUT_DIR"), "/umbrella_fixture.rs"));
+
+    fn entity_into_namespace(event: foo::nested::TaskEvent) -> foo::nested::NestedEvent {
+        event.into()
+    }
+
+    fn namespace_into_root(event: foo::nested::NestedEvent) -> UmbrellaFixtureEvent {
+        event.into()
+    }
+
+    fn entity_into_root(event: foo::nested::TaskEvent) -> UmbrellaFixtureEvent {
+        event.into()
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The context owns the exporter and exposes one observer per entity type.
     let context: Context<Demo> = Context::try_new(Some(debug_printing_exporter()))?;

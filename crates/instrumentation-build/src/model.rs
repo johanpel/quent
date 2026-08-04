@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of schema-wide model event enums and metadata.
+//! Generation of model markers and optional umbrella event enums.
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
@@ -20,8 +20,25 @@ pub(crate) fn generate(
     namespace: &Namespace<'_>,
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
-    validate_variants(namespace)?;
+    let model = generate_model(schema, namespace, opts);
+    let umbrella =
+        if opts.umbrella_event && (namespace.path().is_empty() || namespace.has_entities()) {
+            generate_umbrella(schema, namespace, opts)?
+        } else {
+            quote! {}
+        };
 
+    Ok(quote! {
+        #umbrella
+        #model
+    })
+}
+
+fn generate_umbrella(
+    schema: &Schema,
+    namespace: &Namespace<'_>,
+    opts: &Options,
+) -> Result<TokenStream, GenerateError> {
     let event = event_ident(schema, namespace);
     let docs = if namespace.path().is_empty() {
         format!("Events emitted by the `{}` model.", schema.name())
@@ -91,46 +108,23 @@ pub(crate) fn generate(
                 }
             });
         }
+        for descendant in child.descendants_with_entities() {
+            let source = relative_event_path(schema, descendant, namespace);
+            child_conversions.push(quote! {
+                impl ::core::convert::From<#source> for #event {
+                    fn from(event: #source) -> Self {
+                        Self::#variant(#child_event_path::from(event))
+                    }
+                }
+            });
+        }
     }
 
-    let model = if namespace.path().is_empty() {
+    let model_umbrella = if namespace.path().is_empty() {
         let model = raw_ident(to_case(schema.name(), Case::Pascal));
-        let model_name = schema.name().to_string();
-        let model_docs = format!("The `{model_name}` model.");
         let runtime = opts.event_runtime();
-        let analyzer_package = match opts.analyzer_package {
-            Some(package) => quote! {
-                fn analyzer_package() -> ::core::option::Option<&'static str> {
-                    ::core::option::Option::Some(#package)
-                }
-            },
-            None => quote! {},
-        };
         quote! {
-            #[doc = #model_docs]
-            pub struct #model;
-
-            impl #runtime::build_info::ModelSource for #model {
-                fn package() -> &'static str {
-                    env!("CARGO_PKG_NAME")
-                }
-
-                fn source() -> #runtime::build_info::BuildInfo {
-                    #runtime::build_info::source_or_quent(
-                        env!("CARGO_PKG_VERSION"),
-                        option_env!("QUENT_SOURCE_REMOTE"),
-                        option_env!("QUENT_SOURCE_COMMIT"),
-                        option_env!("QUENT_SOURCE_BRANCH"),
-                        option_env!("QUENT_SOURCE_DIRTY"),
-                        option_env!("QUENT_SOURCE_BUILT_AT"),
-                    )
-                }
-
-                #analyzer_package
-            }
-
-            impl #runtime::Model for #model {
-                const NAME: &'static str = #model_name;
+            impl #runtime::Umbrella for #model {
                 type Event = #event;
             }
         }
@@ -148,8 +142,54 @@ pub(crate) fn generate(
 
         #(#entity_conversions)*
         #(#child_conversions)*
-        #model
+        #model_umbrella
     })
+}
+
+fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) -> TokenStream {
+    if !namespace.path().is_empty() {
+        return quote! {};
+    }
+
+    let model = raw_ident(to_case(schema.name(), Case::Pascal));
+    let model_name = schema.name().to_string();
+    let model_docs = format!("The `{model_name}` model.");
+    let runtime = opts.event_runtime();
+    let analyzer_package = match opts.analyzer_package.as_deref() {
+        Some(package) => quote! {
+            fn analyzer_package() -> ::core::option::Option<&'static str> {
+                ::core::option::Option::Some(#package)
+            }
+        },
+        None => quote! {},
+    };
+    quote! {
+        #[doc = #model_docs]
+        pub struct #model;
+
+        impl #runtime::build_info::ModelSource for #model {
+            fn package() -> &'static str {
+                env!("CARGO_PKG_NAME")
+            }
+
+            fn source() -> #runtime::build_info::BuildInfo {
+                #runtime::build_info::source_or_quent(
+                    env!("CARGO_PKG_VERSION"),
+                    option_env!("QUENT_SOURCE_REMOTE"),
+                    option_env!("QUENT_SOURCE_COMMIT"),
+                    option_env!("QUENT_SOURCE_BRANCH"),
+                    option_env!("QUENT_SOURCE_DIRTY"),
+                    option_env!("QUENT_SOURCE_BUILT_AT"),
+                )
+            }
+
+            #analyzer_package
+        }
+
+        impl #runtime::Model for #model {
+            const NAME: &'static str = #model_name;
+        }
+    }
 }
 
 fn event_ident(schema: &Schema, namespace: &Namespace<'_>) -> Ident {
@@ -157,36 +197,16 @@ fn event_ident(schema: &Schema, namespace: &Namespace<'_>) -> Ident {
     raw_ident(format!("{}Event", to_case(name, Case::Pascal)))
 }
 
-fn validate_variants(namespace: &Namespace<'_>) -> Result<(), GenerateError> {
-    let mut variants = std::collections::BTreeSet::new();
-    for variant in namespace
-        .entities()
+fn relative_event_path(
+    schema: &Schema,
+    namespace: &Namespace<'_>,
+    ancestor: &Namespace<'_>,
+) -> TokenStream {
+    let modules = namespace.path()[ancestor.path().len()..]
         .iter()
-        .map(|entity| path_name_pascal(entity.path()))
-        .chain(namespace.children_with_entities().map(|child| {
-            to_case(
-                child
-                    .path()
-                    .last()
-                    .expect("child namespaces extend their parent"),
-                Case::Pascal,
-            )
-        }))
-    {
-        if !variants.insert(variant.clone()) {
-            let path = namespace
-                .path()
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("::");
-            return Err(GenerateError::ModelEventVariantCollision {
-                namespace: path,
-                variant,
-            });
-        }
-    }
-    Ok(())
+        .map(module_ident);
+    let event = event_ident(schema, namespace);
+    quote! { #(#modules::)* #event }
 }
 
 #[cfg(test)]
@@ -194,7 +214,14 @@ mod tests {
     use super::*;
     use crate::common::pretty;
     use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event};
+    use quent_schema::test_utils::{entity, event, record};
+
+    fn options() -> Options {
+        Options {
+            umbrella_event: true,
+            ..Options::default()
+        }
+    }
 
     #[test]
     fn generates_namespace_events_and_transitive_conversions() {
@@ -207,32 +234,61 @@ mod tests {
             .unwrap();
         let namespaces = Namespace::root(&schema);
 
-        let root = pretty(generate(&schema, &namespaces, &Options::default()).unwrap());
-        let foo =
-            pretty(generate(&schema, &namespaces.children()[0], &Options::default()).unwrap());
+        let root = pretty(generate(&schema, &namespaces, &options()).unwrap());
+        let foo = pretty(generate(&schema, &namespaces.children()[0], &options()).unwrap());
 
         assert!(root.contains("pub enum DemoEvent"));
         assert!(root.contains("Foo(foo::FooEvent)"));
         assert!(root.contains("impl ::core::convert::From<foo::QueryEvent> for DemoEvent"));
         assert!(root.contains("impl ::core::convert::From<foo::nested::TaskEvent> for DemoEvent"));
+        assert!(
+            root.contains("impl ::core::convert::From<foo::nested::NestedEvent> for DemoEvent")
+        );
         assert!(foo.contains("pub enum FooEvent"));
         assert!(foo.contains("Query(QueryEvent)"));
         assert!(foo.contains("Nested(nested::NestedEvent)"));
     }
 
     #[test]
-    fn rejects_entity_and_namespace_variant_collisions() {
+    fn skips_record_only_child_namespaces() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
-            .with_entity(entity("Foo", [event("created", [])]))
-            .with_entity(entity("Foo::Query", [event("created", [])]))
+            .with_record(record("Metadata::Entry", []))
             .build()
             .unwrap();
         let namespaces = Namespace::root(&schema);
 
-        assert!(matches!(
-            generate(&schema, &namespaces, &Options::default()),
-            Err(GenerateError::ModelEventVariantCollision { variant, .. }) if variant == "Foo"
-        ));
+        let root = pretty(generate(&schema, &namespaces, &options()).unwrap());
+        let metadata = pretty(generate(&schema, &namespaces.children()[0], &options()).unwrap());
+
+        assert!(root.contains("pub enum DemoEvent"));
+        assert!(!metadata.contains("MetadataEvent"));
+    }
+
+    #[test]
+    fn generates_model_without_umbrella_by_default() {
+        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
+        let namespaces = Namespace::root(&schema);
+
+        let root = pretty(generate(&schema, &namespaces, &Options::default()).unwrap());
+
+        assert!(root.contains("pub struct Demo"));
+        assert!(root.contains("impl ::quent_instrumentation::Model for Demo"));
+        assert!(!root.contains("DemoEvent"));
+        assert!(!root.contains("impl ::quent_instrumentation::Umbrella for Demo"));
+    }
+
+    #[test]
+    fn generates_analyzer_package_override() {
+        let schema = SchemaBuilder::try_new("Demo").unwrap().build().unwrap();
+        let namespaces = Namespace::root(&schema);
+        let opts = Options {
+            analyzer_package: Some("demo-analyzer".to_owned()),
+            ..Options::default()
+        };
+
+        let root = pretty(generate(&schema, &namespaces, &opts).unwrap());
+
+        assert!(root.contains("::core::option::Option::Some(\"demo-analyzer\")"));
     }
 }

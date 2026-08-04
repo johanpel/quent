@@ -82,9 +82,12 @@ fn define_model_from_impls() {
 }
 
 #[test]
-fn model_marker_implements_core_model() {
-    fn assert_model<M: quent_model::events::Model<Event = TestEvent>>() {}
+fn model_marker_implements_core_model_traits() {
+    fn assert_model<M: quent_model::events::Model>() {}
+    fn assert_umbrella<M: quent_model::events::Umbrella<Event = TestEvent>>() {}
+
     assert_model::<Test>();
+    assert_umbrella::<Test>();
 
     let info = <Test as quent_model::events::Model>::model_info();
     assert_eq!(info.name, "Test");

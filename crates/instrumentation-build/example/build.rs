@@ -6,6 +6,8 @@
 use std::path::Path;
 
 use quent_instrumentation_build::{GenerateInfo, Options, generate};
+use quent_schema::builder::SchemaBuilder;
+use quent_schema::test_utils::{entity, event};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("model.yaml");
@@ -38,6 +40,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "cargo:warning=instrumentation library written to {}",
         path.display()
     );
+
+    // Compile a nested event-only model so rustc checks umbrella conversions.
+    let fixture = SchemaBuilder::try_new("UmbrellaFixture")?
+        .with_entity(entity("Foo::Query", [event("created", [])]))
+        .with_entity(entity("Foo::Nested::Task", [event("created", [])]))
+        .build()?;
+    generate(
+        &fixture,
+        &Options {
+            instrumentation: false,
+            umbrella_event: true,
+            file_name: Some("umbrella_fixture.rs".to_owned()),
+            ..Options::default()
+        },
+    )?;
 
     Ok(())
 }

@@ -60,6 +60,15 @@ impl<'schema> Namespace<'schema> {
         entities
     }
 
+    pub(crate) fn descendants_with_entities(&self) -> Vec<&Self> {
+        let mut descendants = Vec::new();
+        for child in self.children_with_entities() {
+            descendants.push(child);
+            descendants.extend(child.descendants_with_entities());
+        }
+        descendants
+    }
+
     fn new(path: Vec<Identifier>) -> Self {
         Self {
             path,

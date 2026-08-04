@@ -28,7 +28,7 @@ pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::DynamicAttributes;
 #[doc(hidden)]
 pub use quent_events as events;
-pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model};
+pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, Umbrella};
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;
 
@@ -64,7 +64,6 @@ mod tests {
 
     impl Model for TestModel {
         const NAME: &'static str = "Test";
-        type Event = TestEvent;
     }
 
     #[test]

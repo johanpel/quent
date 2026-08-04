@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::{HandleInner, ObserverInner};
 
 /// Adds instrumentation context and handle types to an entity marker.
-pub trait InstrumentedEntity: quent_events::Entity {
+pub trait InstrumentedEntity: quent_events::Entity + Sized {
     /// Instrumentation context containing this entity.
     type Context;
 

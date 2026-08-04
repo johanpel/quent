@@ -146,13 +146,12 @@ mod tests {
         let event_types = crate::events::entity_types(entity, &Options::default());
         let entity_types = entity_runtime_types(&s, entity, &Options::default()).unwrap();
         let namespaces = crate::namespace::Namespace::root(&s);
-        let model_event =
-            crate::model_event::generate(&s, &namespaces, &Options::default()).unwrap();
+        let generated_model = crate::model::generate(&s, &namespaces, &Options::default()).unwrap();
         let model = generate_model(&s, &namespaces);
         let src = pretty(quote! {
             #event_types
             #entity_types
-            #model_event
+            #generated_model
             #model
         });
         assert!(src.contains("type Event = ConnectionEvent"));

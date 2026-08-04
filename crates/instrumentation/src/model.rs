@@ -49,7 +49,10 @@ impl<M: Observable> Context<M> {
     /// Creates a context and builds every entity's exporter pipeline.
     ///
     /// Passing `None` creates a no-op context that discards events.
-    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_new(exporter: Option<ExporterOptions>) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource,
+    {
         Self::try_with_id(Uuid::now_v7(), exporter)
     }
 
@@ -57,7 +60,10 @@ impl<M: Observable> Context<M> {
     pub fn try_with_id(
         id: Uuid,
         exporter: Option<ExporterOptions>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource,
+    {
         let inner = if exporter.is_some() {
             ContextInner::try_new(id)?
         } else {

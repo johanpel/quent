@@ -9,7 +9,7 @@ default = []
 serde = ["dep:serde", "quent-dynamic-attributes/serde", "uuid/serde"]
 
 [dependencies]
-quent-build-info = { path = "../build-info" }
+quent-build-info = { path = "../build-info", default-features = false }
 quent-dynamic-attributes.workspace = true
 quent-time = { path = "../time" }
 uuid.workspace = true

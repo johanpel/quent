@@ -48,7 +48,7 @@ mod any_event;
 mod common;
 mod data_type;
 mod events;
-mod model_event;
+mod model;
 mod namespace;
 mod records;
 mod runtime;
@@ -61,8 +61,7 @@ use quote::quote;
 
 /// Options controlling event and instrumentation source generation.
 pub struct Options {
-    /// Add handles, observers, a context, and model integration to the event
-    /// types.
+    /// Add handles, observers, and context integration to the event types.
     pub instrumentation: bool,
 
     /// Derive [`Debug`](std::fmt::Debug) on generated event and record types.
@@ -98,8 +97,14 @@ pub struct Options {
     /// No aggregate is emitted for a namespace without events.
     pub any_event: bool,
 
+    /// Emit model-wide umbrella event enums and implement the umbrella
+    /// capability for the generated model.
+    ///
+    /// No namespace enum is emitted without entity events, except at the root.
+    pub umbrella_event: bool,
+
     /// Cargo package providing the analyzer for this model.
-    pub analyzer_package: Option<&'static str>,
+    pub analyzer_package: Option<String>,
 }
 
 impl Default for Options {
@@ -113,6 +118,7 @@ impl Default for Options {
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
             any_event: false,
+            umbrella_event: false,
             analyzer_package: None,
         }
     }
@@ -158,13 +164,6 @@ pub enum GenerateError {
         generated: String,
         /// The schema type whose generated name conflicts.
         schema_path: Path,
-    },
-    #[error("model event variant `{variant}` is duplicated in namespace `{namespace}`")]
-    ModelEventVariantCollision {
-        /// The schema namespace containing the collision.
-        namespace: String,
-        /// The generated variant name.
-        variant: String,
     },
     #[error("field type nesting exceeds the maximum depth of {max}")]
     TypeNestingTooDeep { max: usize },
@@ -293,14 +292,14 @@ fn generate_namespace(
     } else {
         quote! {}
     };
-    let model_event = model_event::generate(schema, namespace, opts)?;
+    let model = model::generate(schema, namespace, opts)?;
     Ok(quote! {
         #(#records)*
         #(#events)*
         #(#entity_types)*
         #(#runtime)*
         #(#children)*
-        #model_event
+        #model
         #observer_storage
         #any_event
     })
@@ -348,7 +347,7 @@ mod path_tests {
         let source = generate_str(&schema, &opts).unwrap();
 
         let derives = "#[derive(Debug, ::serde::Serialize, ::serde::Deserialize)]";
-        assert_eq!(source.matches(derives).count(), 3);
+        assert_eq!(source.matches(derives).count(), 2);
     }
 
     #[test]
