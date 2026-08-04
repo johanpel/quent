@@ -16,7 +16,7 @@ pub trait ObserverProvider<E: InstrumentedEntity> {
 }
 
 /// Supplies schema-specific observers to an instrumentation context.
-pub trait Observable: quent_events::Model {
+pub trait InstrumentedModel {
     /// Generated observers for this model.
     ///
     /// Hidden because callers access observers through [`Context::observer`].
@@ -40,12 +40,12 @@ pub trait Observable: quent_events::Model {
 }
 
 /// Instrumentation context for a generated model.
-pub struct Context<M: Observable> {
+pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,
 }
 
-impl<M: Observable> Context<M> {
+impl<M: quent_events::Model + InstrumentedModel> Context<M> {
     /// Creates a context and builds every entity's exporter pipeline.
     ///
     /// Passing `None` creates a no-op context that discards events.

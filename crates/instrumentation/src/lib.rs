@@ -17,7 +17,7 @@ mod sidecar;
 pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use handle::{HandleError, HandleInner};
-pub use model::{Context, Observable, ObserverProvider};
+pub use model::{Context, InstrumentedModel, ObserverProvider};
 pub use observer::{EventSender, ObserverInner};
 pub use sidecar::write_sidecar;
 
@@ -28,7 +28,7 @@ pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::DynamicAttributes;
 #[doc(hidden)]
 pub use quent_events as events;
-pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, Umbrella};
+pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
 pub use quent_io::ExporterOptions;
 pub use uuid::Uuid;
 

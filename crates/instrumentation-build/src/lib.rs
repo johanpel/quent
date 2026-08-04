@@ -511,7 +511,7 @@ mod path_tests {
         assert!(source.contains("nested::AnyEvent::from_any(any)"));
         assert!(
             source.rfind("pub enum AnyEvent")
-                > source.rfind("impl ::quent_instrumentation::Observable")
+                > source.rfind("impl ::quent_instrumentation::InstrumentedModel")
         );
     }
 

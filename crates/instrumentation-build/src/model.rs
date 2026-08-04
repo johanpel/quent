@@ -124,8 +124,8 @@ fn generate_umbrella(
         let model = raw_ident(to_case(schema.name(), Case::Pascal));
         let runtime = opts.event_runtime();
         quote! {
-            impl #runtime::Umbrella for #model {
-                type Event = #event;
+            impl #runtime::ModelEvents for #model {
+                type UmbrellaEvent = #event;
             }
         }
     } else {
@@ -275,7 +275,7 @@ mod tests {
         assert!(root.contains("pub struct Demo"));
         assert!(root.contains("impl ::quent_instrumentation::Model for Demo"));
         assert!(!root.contains("DemoEvent"));
-        assert!(!root.contains("impl ::quent_instrumentation::Umbrella for Demo"));
+        assert!(!root.contains("impl ::quent_instrumentation::ModelEvents for Demo"));
     }
 
     #[test]

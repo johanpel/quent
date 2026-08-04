@@ -245,8 +245,8 @@ pub trait ModelSource {
     fn package() -> &'static str;
     /// Git provenance of the crate defining the model.
     fn source() -> BuildInfo;
-    /// Cargo package providing this model's `QuentViewer` entry, if declared via
-    /// `analyzer_package` in `model!` (shares the model's [`source`](Self::source) git).
+    /// Cargo package providing this model's `QuentViewer` entry, if any.
+    /// It shares the model's [`source`](Self::source) git provenance.
     fn analyzer_package() -> Option<&'static str> {
         None
     }

@@ -106,7 +106,7 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
     quote! {
         #(#observer_impls)*
 
-        impl ::quent_instrumentation::Observable for #model {
+        impl ::quent_instrumentation::InstrumentedModel for #model {
             type Observers = #observers;
 
             fn build_observers(
