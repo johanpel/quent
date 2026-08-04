@@ -6,11 +6,8 @@ publish.workspace = true
 
 [dependencies]
 quent-constraints = { path = "../constraints" }
-quent-resource = { path = "../resource" }
 quent-schema = { path = "../schema", features = ["serde", "visitor"] }
 rustc-hash.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
