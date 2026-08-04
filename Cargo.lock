@@ -2980,6 +2980,8 @@ name = "quent-os"
 version = "0.1.0"
 dependencies = [
  "quent-constraints",
+ "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "rustc-hash",
  "thiserror",
@@ -3368,6 +3370,7 @@ dependencies = [
  "indexmap",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
  "quent-resource",

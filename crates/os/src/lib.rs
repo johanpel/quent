@@ -5,21 +5,23 @@
 //!
 //! An entity represents an OS process or thread when one of its `Once` events
 //! carries the canonical [`process_path`] or [`thread_path`] record. Each record
-//! provides a normalized native ID; the thread record also references its
-//! process.
+//! provides a normalized native ID. The scope tree relates each thread to its
+//! containing process.
 //!
-//! Event producers must enforce that reported IDs and process references are
+//! Event producers must enforce that reported IDs and scope references are
 //! correct for the captured runtime.
 
 use quent_constraints::{
     Constraint,
     utils::{RecordValidationError, RecordValidator, bullet_list},
 };
+use quent_ref_target::RefTarget;
+use quent_ref_tree::RefTreeConstraint;
 use quent_schema::{
-    Cardinality, DataType, Identifier, Path, Record,
+    Cardinality, DataType, Identifier, Path, Record, Schema,
     visitor::{Cursor, Element, Visitor},
 };
-use rustc_hash::FxHashMap as Map;
+use rustc_hash::{FxHashMap as Map, FxHashSet as Set};
 use thiserror::Error;
 
 mod record;
@@ -29,7 +31,9 @@ pub use record::{process_record, thread_record};
 /// Validates the canonical process and thread records and their event usage.
 ///
 /// The canonical record definitions are documented by [`process_record`] and
-/// [`thread_record`].
+/// [`thread_record`]. They are intentionally limited to correlation-critical
+/// identity; descriptive or mutable OS properties belong in ordinary event or
+/// resource attributes.
 ///
 /// ## Requirements
 ///
@@ -37,9 +41,12 @@ pub use record::{process_record, thread_record};
 /// 2. An entity may carry a canonical record in only one event, whose
 ///    cardinality must be [`Cardinality::Once`].
 /// 3. An entity may not carry both canonical records.
+/// 4. A thread entity must be transitively scoped under a process entity by
+///    tree-forming entity references.
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
+    schema: Option<Schema>,
     process_record: Option<Record>,
     thread_record: Option<Record>,
     os_record_uses: Vec<OsRecordUse>,
@@ -107,6 +114,7 @@ impl Visitor for OsConstraint {
 
     fn visit(&mut self, cursor: &Cursor) {
         match cursor.current() {
+            Element::Schema(schema) => self.schema = Some((*schema).clone()),
             Element::Record(record) => {
                 if let Some(role) = entity_role_for_record(record.path()) {
                     match role {
@@ -192,13 +200,13 @@ impl OsConstraint {
         }
 
         let mut roles_by_entity: Map<Path, Vec<OsEntityRole>> = Map::default();
-        for ((entity, role), events) in events_by_entity_and_role {
+        for ((entity, role), events) in &events_by_entity_and_role {
             roles_by_entity
                 .entry(entity.clone())
                 .or_default()
-                .push(role);
+                .push(*role);
 
-            for event in &events {
+            for event in events {
                 if event.cardinality != Cardinality::Once {
                     self.errors.push(OsError::OsRecordEventNotOnce {
                         location: event.location.clone(),
@@ -210,19 +218,111 @@ impl OsConstraint {
 
             if events.len() > 1 {
                 self.errors.push(OsError::OsRecordUsedByMultipleEvents {
-                    entity,
+                    entity: entity.clone(),
                     record: role.record_path(),
-                    events: events.into_iter().map(|use_| use_.event).collect(),
+                    events: events.iter().map(|use_| use_.event.clone()).collect(),
                 });
             }
         }
 
-        for (entity, roles) in roles_by_entity {
+        for (entity, roles) in &roles_by_entity {
             if roles.len() > 1 {
-                self.errors.push(OsError::ConflictingEntityRoles { entity });
+                self.errors.push(OsError::ConflictingEntityRoles {
+                    entity: entity.clone(),
+                });
             }
         }
+
+        self.validate_thread_scopes(&roles_by_entity);
     }
+
+    fn validate_thread_scopes(&mut self, roles_by_entity: &Map<Path, Vec<OsEntityRole>>) {
+        let Some(schema) = &self.schema else {
+            return;
+        };
+        let process_entities: Set<_> = roles_by_entity
+            .iter()
+            .filter(|(_, roles)| roles.contains(&OsEntityRole::Process))
+            .map(|(entity, _)| entity.clone())
+            .collect();
+        let parents = scope_parents(schema);
+        let invalid_threads: Vec<_> = roles_by_entity
+            .iter()
+            .filter(|(_, roles)| roles.contains(&OsEntityRole::Thread))
+            .filter(|(entity, _)| !has_ancestor_in(entity, &parents, &process_entities))
+            .map(|(entity, _)| entity.clone())
+            .collect();
+        self.errors.extend(
+            invalid_threads
+                .into_iter()
+                .map(|entity| OsError::ThreadOutsideProcessScope { entity }),
+        );
+    }
+}
+
+fn scope_parents(schema: &Schema) -> Map<Path, Vec<Path>> {
+    let mut parents = Map::default();
+    for entity in schema.entities() {
+        let mut targets = Vec::new();
+        let mut records_seen = Set::default();
+        for ty in entity
+            .events()
+            .flat_map(|event| event.fields().map(|field| field.ty()))
+        {
+            collect_scope_targets(ty, schema, &mut records_seen, &mut targets);
+        }
+        targets.sort();
+        targets.dedup();
+        parents.insert(entity.path().clone(), targets);
+    }
+    parents
+}
+
+fn collect_scope_targets(
+    ty: &DataType,
+    schema: &Schema,
+    records_seen: &mut Set<Path>,
+    targets: &mut Vec<Path>,
+) {
+    match ty {
+        DataType::EntityRef { data, annotations } => {
+            if annotations.has_constraint(RefTreeConstraint::NAME)
+                && let Some(target) = RefTarget::from_annotations(annotations)
+            {
+                targets.push(target.into());
+            }
+            if let Some(data) = data {
+                collect_scope_targets(data, schema, records_seen, targets);
+            }
+        }
+        DataType::Record(path) if records_seen.insert(path.clone()) => {
+            if let Some(record) = schema.record(path) {
+                for field in record.fields() {
+                    collect_scope_targets(field.ty(), schema, records_seen, targets);
+                }
+            }
+        }
+        DataType::Option(inner) | DataType::List(inner) => {
+            collect_scope_targets(inner, schema, records_seen, targets);
+        }
+        _ => {}
+    }
+}
+
+fn has_ancestor_in(entity: &Path, parents: &Map<Path, Vec<Path>>, ancestors: &Set<Path>) -> bool {
+    let mut pending = parents.get(entity).cloned().unwrap_or_default();
+    let mut seen = Set::default();
+    while let Some(parent) = pending.pop() {
+        if ancestors.contains(&parent) {
+            return true;
+        }
+        if seen.insert(parent.clone())
+            && let Some(grandparents) = parents.get(&parent)
+        {
+            pending.extend(grandparents.iter().cloned());
+        }
+    }
+    false
 }
 
 fn entity_role_for_record(path: &Path) -> Option<OsEntityRole> {
@@ -254,6 +354,8 @@ pub enum OsError {
     },
     #[error("{entity}: an entity cannot represent both an OS process and an OS thread")]
     ConflictingEntityRoles { entity: Path },
+    #[error("{entity}: OS thread entity must be scoped under an OS process entity")]
+    ThreadOutsideProcessScope { entity: Path },
     #[error(transparent)]
     InvalidOsRecord(#[from] RecordValidationError),
     #[error("multiple OS constraint violations:\n{}", bullet_list(.0))]
