@@ -454,8 +454,8 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
             const NAME: &'static str = stringify!(#name);
         }
 
-        impl quent_model::events::Umbrella for #name {
-            type Event = #event_type;
+        impl quent_model::events::ModelEvents for #name {
+            type UmbrellaEvent = #event_type;
         }
 
         #import_events_impl
