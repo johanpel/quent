@@ -17,7 +17,9 @@ use indexmap::IndexMap;
 use quent_schema::builder::{
     AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder,
 };
-use quent_schema::{Annotations, Cardinality, DataType, Entity, Field, Identifier, Record, Schema};
+use quent_schema::{
+    Annotations, Cardinality, DataType, Entity, Field, Identifier, Path, Record, Schema,
+};
 use serde::Deserialize;
 
 use crate::ast::{self, AnnotationMap, Model, TypeExpr};
@@ -75,6 +77,9 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
     let model_elaboration = extensions.elaborate_model(model, sink);
     entities.extend(model_elaboration.entities);
     records.extend(model_elaboration.records);
+
+    let extension_records = extensions.elaborate_schema_records(&records, &entities);
+    records.extend(extension_records);
 
     let schema = SchemaBuilder::new(name?)
         .with_records(records)
@@ -329,8 +334,8 @@ pub(crate) fn type_of(
 
 /// A bare name that is not a core type keyword, lowered as a record reference.
 fn record_ref(name: &str, path: &str, sink: &mut Diagnostics) -> Option<DataType> {
-    match Identifier::try_new(name) {
-        Ok(id) => Some(DataType::Record(id.into())),
+    match name.parse::<Path>() {
+        Ok(record) => Some(DataType::Record(record)),
         Err(e) => {
             sink.error(path, format!("invalid type `{name}`: {e}"), None);
             None

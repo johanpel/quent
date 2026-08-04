@@ -19,7 +19,7 @@ use crate::{process_path, thread_path};
 pub fn process_record() -> Record {
     RecordBuilder::new(process_path())
         .with_field(Field::new(
-            Identifier::try_new("id").expect("canonical field name is valid"),
+            Identifier::try_new("native_id").expect("canonical field name is valid"),
             DataType::U32,
             Annotations::default(),
         ))
@@ -41,21 +41,11 @@ pub fn process_record() -> Record {
 /// [`GetCurrentThreadId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid
 pub fn thread_record() -> Record {
     RecordBuilder::new(thread_path())
-        .with_fields([
-            Field::new(
-                Identifier::try_new("id").expect("canonical field name is valid"),
-                DataType::U64,
-                Annotations::default(),
-            ),
-            Field::new(
-                Identifier::try_new("process").expect("canonical field name is valid"),
-                DataType::EntityRef {
-                    data: None,
-                    annotations: Annotations::default(),
-                },
-                Annotations::default(),
-            ),
-        ])
+        .with_field(Field::new(
+            Identifier::try_new("native_id").expect("canonical field name is valid"),
+            DataType::U64,
+            Annotations::default(),
+        ))
         .build()
         .expect("canonical thread record is valid")
 }
