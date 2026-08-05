@@ -52,7 +52,7 @@ pub trait Exporter<T>: Send {
 /// context whose events it exports). Backends that do not scope by context, such
 /// as a callback, ignore it.
 #[async_trait::async_trait]
-pub trait ExporterProvider<T> {
+pub trait ExporterProvider<T>: Send + Sync {
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>>;
 }
 

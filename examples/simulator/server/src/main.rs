@@ -100,8 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
-            SimulatorContext::try_with_id(id, Some(exporter_kind.clone()))
-                .map_err(|e| e.to_string())
+            SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
         })?
         .serve(collector_addr)
         .await

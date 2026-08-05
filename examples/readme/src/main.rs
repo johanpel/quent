@@ -12,7 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             root.clone(),
         ),
     );
-    let context = AppContext::try_new(Some(exporter))?;
+    let context = AppContext::try_new(exporter)?;
 
     // The context generates its own id and writes events under `root/<id>/`.
     // Reuse it as the root resource group id.

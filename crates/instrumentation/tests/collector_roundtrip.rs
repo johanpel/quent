@@ -85,7 +85,7 @@ fn collector_client_flushes_all_events_on_drop() {
     let options = ExporterOptions::Collector(CollectorExporterOptions::new(address));
     {
         let observer = ctx
-            .block_on(async { ctx.observer::<TestEvent>(options).await })
+            .block_on(async { ctx.observer::<TestEvent>(&options).await })
             .unwrap();
         for _ in 0..EVENTS {
             observer.emit(Uuid::now_v7(), TestEvent);

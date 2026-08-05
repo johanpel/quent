@@ -261,8 +261,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
          current-thread runtime).\n\
          \n\
          # Arguments\n\
-         * `exporter` — optional exporter configuration (e.g., ndjson, msgpack). \
-         Pass `None` for a no-op context that discards events."
+         * `provider` — exporter provider used for every entity event type."
     );
 
     let doc_import = format!(
@@ -292,48 +291,37 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         None => quote! {},
     };
 
-    // The options-driven constructors. In a serde build the exporter provider
-    // impl bounds each event type by `Serialize`; in a callback-only build it
-    // does not, so these are `Serialize`-free there.
     let constructor_api = quote! {
         impl #context_type {
             #[doc = #doc_try_new]
-            pub fn try_new(
-                exporter: Option<quent_model::io::ExporterOptions>,
-            ) -> Result<Self, Box<dyn std::error::Error>> {
-                Self::try_with_id(quent_model::uuid::Uuid::now_v7(), exporter)
+            pub fn try_new<P>(provider: P) -> Result<Self, Box<dyn std::error::Error>>
+            where
+                #(P: quent_model::io::ExporterProvider<#event_types>,)*
+                P: quent_model::ContextExporter,
+            {
+                Self::try_with_id(quent_model::uuid::Uuid::now_v7(), provider)
             }
 
             /// Build a context that adopts an existing `id` instead of
             /// generating one — e.g. the collector reproducing a remote
             /// source's output under that source's id. Same blocking and
             /// runtime restriction as [`Self::try_new`].
-            pub fn try_with_id(
+            pub fn try_with_id<P>(
                 id: quent_model::uuid::Uuid,
-                exporter: Option<quent_model::io::ExporterOptions>,
-            ) -> Result<Self, Box<dyn std::error::Error>> {
-                match exporter {
-                    None => Ok(Self::noop(id)),
-                    Some(options) => {
-                        quent_model::write_sidecar(
-                            &options,
-                            id,
-                            <#name as quent_model::events::Model>::model_info(),
-                        );
-                        Self::build(id, options)
-                    }
-                }
+                provider: P,
+            ) -> Result<Self, Box<dyn std::error::Error>>
+            where
+                #(P: quent_model::io::ExporterProvider<#event_types>,)*
+                P: quent_model::ContextExporter,
+            {
+                quent_model::ContextExporter::prepare_context(
+                    &provider,
+                    id,
+                    <#name as quent_model::events::Model>::model_info(),
+                );
+                Self::build(id, provider)
             }
 
-            /// A no-op context adopting `id`: every observer discards its events.
-            fn noop(id: quent_model::uuid::Uuid) -> Self {
-                Self {
-                    #(#observer_fields: #observer_types::new(
-                        quent_model::Observer::<#event_types>::noop(),
-                    ),)*
-                    _inner: quent_model::ContextInner::noop(id),
-                }
-            }
         }
     };
 
@@ -484,17 +472,25 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
                 impl #context_type {
                     // The single sync/async bridge: on an active context, build
                     // every entity's observer (each constructing its exporter from
-                    // the options, bound to the context id) concurrently on the
+                    // the provider, bound to the context id) concurrently on the
                     // runtime, block until all complete, and assemble.
-                    fn build(
+                    fn build<P>(
                         id: quent_model::uuid::Uuid,
-                        options: quent_model::io::ExporterOptions,
-                    ) -> Result<Self, Box<dyn std::error::Error>> {
-                        let inner = quent_model::ContextInner::try_new(id)?;
+                        provider: P,
+                    ) -> Result<Self, Box<dyn std::error::Error>>
+                    where
+                        #(P: quent_model::io::ExporterProvider<#event_types>,)*
+                        P: quent_model::ContextExporter,
+                    {
+                        let inner = if quent_model::ContextExporter::is_noop(&provider) {
+                            quent_model::ContextInner::noop(id)
+                        } else {
+                            quent_model::ContextInner::try_new(id)?
+                        };
                         let ( #(#observer_fields,)* ) = inner.block_on(async {
                             let ( #(#observer_fields,)* ) = quent_model::tokio::try_join!(
                                 #(
-                                    inner.observer::<#event_types>(options.clone()),
+                                    inner.observer::<#event_types>(&provider),
                                 )*
                             )?;
                             Ok::<_, Box<dyn std::error::Error>>(( #(#observer_fields,)* ))

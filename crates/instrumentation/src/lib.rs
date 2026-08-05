@@ -11,15 +11,17 @@ mod context;
 mod entity;
 mod handle;
 mod model;
+mod noop;
 mod observer;
 mod sidecar;
 
 pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use handle::{HandleError, HandleInner};
-pub use model::{Context, InstrumentedModel, ObserverProvider};
+pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
+pub use noop::Noop;
 pub use observer::{EventSender, ObserverInner};
-pub use sidecar::write_sidecar;
+pub use sidecar::{ContextExporter, write_sidecar};
 
 // Re-export everything the generated instrumentation code references, so a
 // consumer needs only the `quent-instrumentation` dependency, selecting an
@@ -29,12 +31,12 @@ pub use quent_dynamic_attributes::DynamicAttributes;
 #[doc(hidden)]
 pub use quent_events as events;
 pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
-pub use quent_io::ExporterOptions;
+pub use quent_io::{ExporterOptions, ExporterProvider};
 pub use uuid::Uuid;
 
-/// A caller-supplied event sink, selected via the `io-callback` feature.
+/// A caller-supplied typed event sink, selected via the `io-callback` feature.
 #[cfg(feature = "io-callback")]
-pub use quent_io::EventCallback;
+pub use quent_io_callback::EventCallback;
 
 #[cfg(test)]
 mod tests {
@@ -81,7 +83,7 @@ mod tests {
 
         {
             let observer = ctx
-                .block_on(async { ctx.observer::<TestEvent>(options).await })
+                .block_on(async { ctx.observer::<TestEvent>(&options).await })
                 .unwrap();
             observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.

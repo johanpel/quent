@@ -92,13 +92,22 @@ pub(super) fn observer_storage(
 pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> TokenStream {
     let model = model_ident(schema);
     let observers = observers_ident(schema, namespaces);
-    let active_observers = observer_storage_initializer(schema, namespaces, true);
-    let noop_observers = observer_storage_initializer(schema, namespaces, false);
-    let options_binding = if schema.entities().next().is_some() {
-        raw_ident("options".to_owned())
+    let observers_initializer = observer_storage_initializer(schema, namespaces);
+    let provider_binding = if schema.entities().next().is_some() {
+        raw_ident("provider".to_owned())
     } else {
-        raw_ident("_options".to_owned())
+        raw_ident("_provider".to_owned())
     };
+    let provider_event_types = schema
+        .entities()
+        .map(|entity| relative_type_path(entity.path(), &[], "Event"))
+        .collect::<Vec<_>>();
+    let provider_bounds = (!provider_event_types.is_empty()).then(|| {
+        quote! {
+            where
+                #(P: ::quent_instrumentation::ExporterProvider<#provider_event_types>,)*
+        }
+    });
     let observer_impls = schema
         .entities()
         .map(|entity| observer_storage_impl(schema, entity));
@@ -108,53 +117,39 @@ pub(super) fn schema_model(schema: &Schema, namespaces: &Namespace<'_>) -> Token
 
         impl ::quent_instrumentation::InstrumentedModel for #model {
             type Observers = #observers;
+        }
 
+        impl<P> ::quent_instrumentation::ObserverBuilder<P> for #model
+        #provider_bounds
+        {
             fn build_observers(
                 context: &::quent_instrumentation::ContextInner,
-                exporter: ::core::option::Option<&::quent_instrumentation::ExporterOptions>,
+                #provider_binding: &P,
             ) -> ::core::result::Result<
                 Self::Observers,
                 ::std::boxed::Box<dyn ::std::error::Error>,
             > {
-                match exporter {
-                    ::core::option::Option::Some(#options_binding) => {
-                        context.block_on(async {
-                            ::core::result::Result::<
-                                _,
-                                ::std::boxed::Box<dyn ::std::error::Error>,
-                            >::Ok(#active_observers)
-                        })
-                    }
-                    ::core::option::Option::None => {
-                        ::core::result::Result::Ok(#noop_observers)
-                    }
-                }
+                context.block_on(async {
+                    ::core::result::Result::<
+                        _,
+                        ::std::boxed::Box<dyn ::std::error::Error>,
+                    >::Ok(#observers_initializer)
+                })
             }
-
         }
     }
 }
 
-fn observer_storage_initializer(
-    schema: &Schema,
-    namespace: &Namespace<'_>,
-    active: bool,
-) -> TokenStream {
+fn observer_storage_initializer(schema: &Schema, namespace: &Namespace<'_>) -> TokenStream {
     let storage = observers_path(schema, namespace);
     let entity_fields = namespace.entities().iter().map(|entity| {
         let field = entity_observer_field(entity);
         let entity_ty = relative_type_path(entity.path(), &[], "");
         let event_ty = relative_type_path(entity.path(), &[], "Event");
-        let observer = if active {
-            quote! {
-                context
-                    .observer::<#event_ty>(::core::clone::Clone::clone(options))
-                    .await?
-            }
-        } else {
-            quote! {
-                ::quent_instrumentation::ObserverInner::<#event_ty>::noop()
-            }
+        let observer = quote! {
+            context
+                .observer::<#event_ty>(provider)
+                .await?
         };
         quote! {
             #field: ::quent_instrumentation::Observer::<#entity_ty>::new(
@@ -168,7 +163,7 @@ fn observer_storage_initializer(
             .last()
             .expect("child namespaces extend their parent");
         let field = namespace_observers_field(segment);
-        let value = observer_storage_initializer(schema, child, active);
+        let value = observer_storage_initializer(schema, child);
         quote! { #field: #value }
     });
     quote! {

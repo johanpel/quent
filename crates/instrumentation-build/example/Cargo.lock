@@ -374,10 +374,12 @@ dependencies = [
 name = "quent-instrumentation"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "quent-build-info",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
+ "quent-io-callback",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -415,7 +417,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "quent-events",
- "quent-io-callback",
  "quent-io-types",
  "uuid",
 ]

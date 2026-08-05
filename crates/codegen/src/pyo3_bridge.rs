@@ -766,7 +766,7 @@ fn emit_context(
                         );
                         inner.block_on(async {
                             let (#(#build_fields,)*) = #q::tokio::try_join!(
-                                #(inner.observer::<#build_event_tys>(options.clone()),)*
+                                #(inner.observer::<#build_event_tys>(&options),)*
                             )
                             .map_err(|err| pyo3::exceptions::PyRuntimeError::new_err(err.to_string()))?;
                             Ok::<_, pyo3::PyErr>((#(#build_wraps(#build_fields),)*))

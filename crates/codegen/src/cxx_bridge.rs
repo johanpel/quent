@@ -583,7 +583,7 @@ fn emit_context_bridge(
                     );
                     inner.block_on(async {
                         let (#(#build_fields,)*) = #q::tokio::try_join!(
-                            #(inner.observer::<#build_event_tys>(options.clone()),)*
+                            #(inner.observer::<#build_event_tys>(&options),)*
                         )
                         .map_err(|e| e.to_string())?;
                         Ok::<_, String>((#(#build_wraps(#build_fields),)*))

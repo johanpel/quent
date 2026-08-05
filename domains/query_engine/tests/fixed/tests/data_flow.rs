@@ -10,13 +10,13 @@
 //! `sending` state from +500ms. Computing holds 256 bytes of the worker's
 //! "memory" resource; allocating and sending hold no memory.
 
-use quent_io::{EventCallback, ExporterOptions};
+use quent_model::EventCallback;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_fixed as fixed;
 use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::QueryFilter;
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::{SimulatorContext, test_utils::events_from_recorded};
+use quent_simulator_instrumentation::SimulatorContext;
 use quent_ui::timeline::{categorical::CategoricalTimelineRequest, request::TimelineConfig};
 use std::sync::{Arc, Mutex};
 
@@ -26,15 +26,15 @@ fn fixed_analyzer() -> SimulatorUiAnalyzer {
     let recorded = Arc::new(Mutex::new(Vec::new()));
     {
         let captured = Arc::clone(&recorded);
-        let ctx = SimulatorContext::try_new(Some(ExporterOptions::Callback(EventCallback::new(
-            move |event| captured.lock().unwrap().push(event),
-        ))))
+        let ctx = SimulatorContext::try_new(EventCallback::new(move |event| {
+            captured.lock().unwrap().push(event);
+        }))
         .unwrap();
         fixed::emit(&ctx);
         // ctx dropped here, flushing all events to the callback.
     }
 
-    let events = events_from_recorded(std::mem::take(&mut *recorded.lock().unwrap()));
+    let events = std::mem::take(&mut *recorded.lock().unwrap());
     SimulatorUiAnalyzer::try_new(fixed::ENGINE, events.into_iter()).unwrap()
 }
 

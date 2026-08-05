@@ -138,7 +138,7 @@ impl ContextInner {
     /// context builds no exporter.
     pub async fn observer<T>(
         &self,
-        provider: impl ExporterProvider<T>,
+        provider: &impl ExporterProvider<T>,
     ) -> Result<ObserverInner<T>, Box<dyn std::error::Error>>
     where
         T: Send + EntityEvent + 'static,

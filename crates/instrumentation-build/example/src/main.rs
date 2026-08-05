@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_instrumentation::{EventCallback, ExporterOptions};
+use quent_instrumentation::EventCallback;
 
-use crate::demo::{Connection, Context, Demo, Handle, Observer, Query, Server, Uuid};
+use crate::demo::{Connection, Context, Demo, DemoEvent, Handle, Observer, Query, Server, Uuid};
 
 #[allow(unused)]
 mod demo {
@@ -11,8 +11,9 @@ mod demo {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // The context owns the exporter and exposes one observer per entity type.
-    let context: Context<Demo> = Context::try_new(Some(debug_printing_exporter()))?;
+    // The context builds one exporter pipeline per entity event type and
+    // exposes the corresponding typed observers.
+    let context: Context<Demo> = Context::try_new(println_exporter())?;
 
     // `observer.handle()` creates a fresh entity instance to events emit for.
     let mut server = context.observer::<Server>().handle();
@@ -71,11 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Return an exporter that debug-prints each emitted event's payload.
-fn debug_printing_exporter() -> ExporterOptions {
-    ExporterOptions::Callback(EventCallback::new(|recorded| {
-        if let Some(event) = demo::AnyEvent::from_any(recorded.event.as_ref()) {
-            println!("{event:?}");
-        }
-    }))
+/// Return a callback that debug-prints each emitted event.
+fn println_exporter() -> EventCallback<DemoEvent> {
+    EventCallback::new(|event| println!("{event:?}"))
 }

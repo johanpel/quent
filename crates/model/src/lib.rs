@@ -85,7 +85,9 @@ pub use quent_dynamic_attributes as attributes;
 #[doc(hidden)]
 pub use quent_events as events;
 pub use quent_events::{EntityEvent, Event};
-pub use quent_instrumentation::{ContextInner, ObserverInner as Observer, write_sidecar};
+pub use quent_instrumentation::{
+    ContextExporter, ContextInner, EventCallback, Noop, ObserverInner as Observer, write_sidecar,
+};
 pub use quent_io as io;
 pub use quent_time::timestamp;
 #[cfg(feature = "serde")]

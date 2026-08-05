@@ -40,5 +40,3 @@ model! {
 }
 
 instrumentation!(Simulator);
-
-pub mod test_utils;

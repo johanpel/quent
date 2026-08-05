@@ -19,7 +19,10 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let ctx = SimulatorContext::try_new(args.exporter.into_options())?;
+    let ctx = match args.exporter.into_options() {
+        Some(provider) => SimulatorContext::try_new(provider)?,
+        None => SimulatorContext::try_new(quent_model::Noop)?,
+    };
     emit(&ctx);
     Ok(())
 }

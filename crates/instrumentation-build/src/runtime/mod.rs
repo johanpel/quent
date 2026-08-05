@@ -84,7 +84,8 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Observer, Uuid,
+            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Noop, Observer,
+            Uuid,
         };
     }
 }
@@ -125,7 +126,7 @@ mod tests {
     use quent_schema::Cardinality;
     use quent_schema::DataType;
     use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
-    use quent_schema::test_utils::{field, ident};
+    use quent_schema::test_utils::{entity, event, field, ident};
 
     #[test]
     fn generate_assembles_event_impl_observer_handle_and_context() {
@@ -157,5 +158,29 @@ mod tests {
         assert!(src.contains("type Event = ConnectionEvent"));
         assert!(src.contains("impl Handle<Connection>"));
         assert!(src.contains("pub struct Demo"));
+        assert!(src.contains("impl<P> ::quent_instrumentation::ObserverBuilder<P> for Demo"));
+        assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<ConnectionEvent>"));
+    }
+
+    #[test]
+    fn generates_provider_observers_for_nested_namespaces() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Foo::Query", [event("created", [])]))
+            .with_entity(entity("Foo::Nested::Task", [event("created", [])]))
+            .build()
+            .unwrap();
+        let namespaces = crate::namespace::Namespace::root(&schema);
+
+        let src = pretty(generate_model(&schema, &namespaces));
+
+        assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<foo::QueryEvent>"));
+        assert!(
+            src.contains("P: ::quent_instrumentation::ExporterProvider<foo::nested::TaskEvent>")
+        );
+        assert!(src.contains("context.observer::<foo::QueryEvent>(provider)"));
+        assert!(src.contains("context.observer::<foo::nested::TaskEvent>(provider)"));
+        assert!(src.contains("foo::FooObservers"));
+        assert!(src.contains("foo::nested::NestedObservers"));
     }
 }

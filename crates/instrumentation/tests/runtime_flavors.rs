@@ -34,7 +34,7 @@ fn active(root: &Path) -> (ContextInner, ExporterOptions, Uuid) {
 /// Build an observer through the one bridge: the context builds the exporter
 /// from the options (bound to its id) and hosts it on its runtime.
 fn build(ctx: &ContextInner, exporter_opts: &ExporterOptions) -> ObserverInner<TestEvent> {
-    ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts.clone()).await })
+    ctx.block_on(async { ctx.observer::<TestEvent>(exporter_opts).await })
         .unwrap()
 }
 

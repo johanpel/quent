@@ -89,7 +89,7 @@ fn build_observer(
         return Ok((ContextInner::noop(id), ObserverInner::noop()));
     };
     let ctx = ContextInner::try_new(id)?;
-    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(options).await })?;
+    let observer = ctx.block_on(async { ctx.observer::<BenchEvent>(&options).await })?;
     Ok((ctx, observer))
 }
 
