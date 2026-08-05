@@ -218,8 +218,10 @@ fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
 mod tests {
     use std::fs;
 
-    use quent_build_info::{ArtifactInfo, BuildInfo, ModelSource};
+    use quent_build_info::{BuildInfo, ModelSource};
     use quent_events::{Entity, EntityEvent, Event, Model as EventModel, ModelEvents};
+    use quent_instrumentation::{ContextExporter, ContextInner};
+    use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -280,6 +282,22 @@ mod tests {
         }
     }
 
+    struct OtherModel;
+
+    impl EventModel for OtherModel {
+        const NAME: &'static str = "Other";
+    }
+
+    impl ModelSource for OtherModel {
+        fn package() -> &'static str {
+            "quent-store"
+        }
+
+        fn source() -> BuildInfo {
+            BuildInfo::unknown()
+        }
+    }
+
     impl ModelEvents for TestModel {
         type UmbrellaEvent = TestEvent;
     }
@@ -297,67 +315,55 @@ mod tests {
         }
     }
 
-    fn context(root: &Path, id: Uuid) -> PathBuf {
-        let path = root.join(id.to_string());
-        fs::create_dir_all(&path).unwrap();
-        ArtifactInfo::new(TestModel::model_info())
-            .write_sidecar(&path)
-            .unwrap();
-        path
+    fn context<M>(root: &Path, id: Uuid) -> (ContextInner, ExporterOptions)
+    where
+        M: EventModel + ModelSource,
+    {
+        let context = ContextInner::try_new(id).unwrap();
+        let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            root.to_path_buf(),
+        ));
+        options.prepare_context(id, M::model_info());
+        (context, options)
     }
 
-    fn write_event<T: Serialize>(path: &Path, event: Event<T>) {
-        fs::write(
-            path,
-            format!("{}\n", serde_json::to_string(&event).unwrap()),
-        )
-        .unwrap();
+    fn export_events(root: &Path, id: Uuid) {
+        let (context, options) = context::<TestModel>(root, id);
+        let alpha = context
+            .block_on(context.observer::<AlphaEvent>(&options))
+            .unwrap();
+        let beta = context
+            .block_on(context.observer::<BetaEvent>(&options))
+            .unwrap();
+
+        alpha.send(Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)));
+        beta.send(Event::new(Uuid::from_u128(12), 1, BetaEvent(2)));
     }
 
     #[test]
     fn loads_all_model_events_without_relying_on_order() {
         let root = tempfile::tempdir().unwrap();
         let id = Uuid::from_u128(2);
-        let context = context(root.path(), id);
-        fs::create_dir(context.join(AlphaEvent::NAME)).unwrap();
-        fs::create_dir(context.join(BetaEvent::NAME)).unwrap();
-        write_event(
-            &context.join(AlphaEvent::NAME).join("alpha.ndjson"),
-            Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)),
-        );
-        write_event(
-            &context.join(BetaEvent::NAME).join("beta.ndjson"),
-            Event::new(Uuid::from_u128(12), 1, BetaEvent(2)),
-        );
+        export_events(root.path(), id);
 
         let store = Store::<TestModel>::new(root.path());
-        let mut values = store
+        let events = store
             .events(id)
             .unwrap()
-            .map(|event| match event.data {
-                TestEvent::Alpha(AlphaEvent(value)) | TestEvent::Beta(BetaEvent(value)) => value,
-            })
+            .map(|event| event.data)
             .collect::<Vec<_>>();
-        values.sort_unstable();
 
-        assert_eq!(values, [1, 2]);
+        assert_eq!(events.len(), 2);
+        assert!(events.contains(&TestEvent::Alpha(AlphaEvent(1))));
+        assert!(events.contains(&TestEvent::Beta(BetaEvent(2))));
     }
 
     #[test]
     fn loads_one_entity_type_as_concrete_events() {
         let root = tempfile::tempdir().unwrap();
         let id = Uuid::from_u128(2);
-        let context = context(root.path(), id);
-        fs::create_dir(context.join(AlphaEvent::NAME)).unwrap();
-        fs::create_dir(context.join(BetaEvent::NAME)).unwrap();
-        write_event(
-            &context.join(AlphaEvent::NAME).join("alpha.ndjson"),
-            Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)),
-        );
-        write_event(
-            &context.join(BetaEvent::NAME).join("beta.ndjson"),
-            Event::new(Uuid::from_u128(12), 1, BetaEvent(2)),
-        );
+        export_events(root.path(), id);
 
         let store = Store::<TestModel>::new(root.path());
         let events = store
@@ -381,8 +387,8 @@ mod tests {
         ));
 
         let unsupported = Uuid::from_u128(2);
-        let unsupported_path = context(root.path(), unsupported);
-        fs::create_dir(unsupported_path.join(AlphaEvent::NAME)).unwrap();
+        export_events(root.path(), unsupported);
+        let unsupported_path = root.path().join(unsupported.to_string());
         fs::write(
             unsupported_path.join(AlphaEvent::NAME).join("events.csv"),
             b"event",
@@ -394,12 +400,7 @@ mod tests {
         ));
 
         let mismatch = Uuid::from_u128(3);
-        let mismatch_path = context(root.path(), mismatch);
-        let mut info = TestModel::model_info();
-        info.name = "Other".to_owned();
-        ArtifactInfo::new(info)
-            .write_sidecar(&mismatch_path)
-            .unwrap();
+        context::<OtherModel>(root.path(), mismatch);
         assert!(matches!(
             store.events(mismatch),
             Err(Error::ModelMismatch { actual, .. }) if actual == "Other"
