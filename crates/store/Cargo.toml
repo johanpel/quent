@@ -1,0 +1,17 @@
+[package]
+name = "quent-store"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+quent-build-info = { path = "../build-info" }
+quent-events = { path = "../events" }
+quent-io = { path = "../io", default-features = false, features = ["ndjson", "msgpack", "postcard"] }
+serde.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile = "3"

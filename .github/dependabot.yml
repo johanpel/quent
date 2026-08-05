@@ -22,6 +22,7 @@ updates:
     directories: 
       - "/"
       - "/crates/instrumentation-build/example"
+      - "/crates/store-build/example"
     open-pull-requests-limit: 5
     package-ecosystem: "cargo"
     schedule:
