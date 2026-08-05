@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_model::io::ImporterResult;
+use quent_io_types::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},

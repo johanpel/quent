@@ -1141,7 +1141,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let context = match args.exporter.into_options() {
         Some(provider) => SimulatorContext::try_new(provider)?,
-        None => SimulatorContext::try_new(quent_model::Noop)?,
+        None => SimulatorContext::try_new(instr::Noop)?,
     };
     let mut engine = Engine::new(&context);
 

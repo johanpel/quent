@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{
@@ -11,11 +11,15 @@ use quent_analyzer::{
 };
 use quent_query_engine_analyzer::{
     QueryEngineModel,
-    plain::legacy::{
-        Engine, InMemoryQueryEngineModelView, Operator, Plan, Port, Query,
-        QueryEngineEntityId as QeEntityRef, QueryGroup, Worker,
-    },
-    plan_tree::PlanTree,
+    engine::Engine,
+    model::QueryEngineEntityId as QeEntityRef,
+    operator::Operator,
+    plan::{Plan, tree::PlanTree},
+    port::Port,
+    query::Query,
+    query_group::QueryGroup,
+    view::InMemoryQueryEngineModelView,
+    worker::Worker,
 };
 use quent_simulator_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;

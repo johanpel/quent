@@ -5,8 +5,7 @@ use quent_dynamic_attributes::DynamicValue;
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::{
-    EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities,
+    entities,
     ui::{QuentViewer, UiAnalyzer, ViewerEventStream},
 };
 use quent_query_engine_ui::{
@@ -157,9 +156,9 @@ impl QuentViewer for Viewer {
 
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+    ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
         let invalid_path = || {
-            quent_model::io::ImporterError::IoError(std::io::Error::new(
+            quent_io::ImporterError::IoError(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!("context directory must end in a UUID: {}", dir.display()),
             ))
@@ -172,7 +171,7 @@ impl QuentViewer for Viewer {
         let root = dir.parent().ok_or_else(invalid_path)?;
         Store::<Simulator>::new(root)
             .events(context_id)
-            .map_err(|error| quent_model::io::ImporterError::IoError(std::io::Error::other(error)))
+            .map_err(|error| quent_io::ImporterError::IoError(std::io::Error::other(error)))
     }
 }
 

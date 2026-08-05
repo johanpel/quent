@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Analyzes raw events to produce useful performance insights.
@@ -18,81 +18,43 @@
 
 use std::collections::HashSet;
 
-use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    fsm::Fsm,
-    resource::{ResourceGroup, Using},
-};
-use quent_query_engine_model::plan::{Edge, PlanParent};
-use quent_query_engine_ui as qe_ui;
-use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
+use quent_analyzer::{AnalyzerError, AnalyzerResult, Entity, Model, fsm::Fsm};
+use quent_time::{TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
-// Storage implementations
-pub mod plain;
-pub mod plan_tree;
+use crate::{
+    api::{Operator, Plan, Port},
+    plan::tree::PlanTree,
+};
+
+pub mod api;
+mod event_store;
+
+// Entity mods
+pub mod engine;
+pub mod operator;
+pub mod plan;
+pub mod port;
+pub mod query;
+pub mod query_group;
+pub mod worker;
+
+// Full model mods
+pub mod model;
+pub mod view;
 
 // UI related mods
 pub mod entities;
 pub mod ui;
 
-/// Read-only analyzer API for an engine entity.
-pub trait EngineEntity: Entity + Span + ResourceGroup {
-    fn to_ui(&self) -> AnalyzerResult<qe_ui::Engine>;
-}
-
-/// Read-only analyzer API for a worker entity.
-pub trait WorkerEntity: Entity + Span + ResourceGroup {
-    fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Worker;
-}
-
-/// Read-only analyzer API for a query-group entity.
-pub trait QueryGroupEntity: Entity + ResourceGroup {
-    fn to_ui(&self) -> qe_ui::QueryGroup;
-}
-
-/// Read-only analyzer API for a query entity.
-pub trait QueryEntity: Fsm + Using + ResourceGroup {
-    fn query_group_id(&self) -> Option<Uuid>;
-    fn to_ui(&self) -> AnalyzerResult<qe_ui::Query>;
-}
-
-/// Read-only analyzer API for a plan entity.
-pub trait PlanEntity: Entity + ResourceGroup {
-    fn parent(&self) -> Option<&PlanParent>;
-    fn worker_id(&self) -> Option<Uuid>;
-    fn edges(&self) -> &[Edge];
-    fn to_ui(&self) -> qe_ui::Plan;
-}
-
-/// Read-only analyzer API for an operator entity.
-pub trait OperatorEntity: Entity + ResourceGroup {
-    fn plan_id(&self) -> Option<Uuid>;
-    fn active_span(&self) -> Option<SpanUnixNanoSec>;
-    fn operator_type_name(&self) -> Option<&str>;
-    fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Operator;
-}
-
-/// Mutable analyzer API for an operator entity.
-pub trait OperatorEntityMut: OperatorEntity {
-    /// Extends the active span to include `span`.
-    fn extend_active_span(&mut self, span: SpanUnixNanoSec);
-}
-
-/// Read-only analyzer API for a port entity.
-pub trait PortEntity: Entity + ResourceGroup {
-    fn operator_id(&self) -> Option<Uuid>;
-    fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Port;
-}
-
 pub trait QueryEngineModel: Model {
-    type Engine: EngineEntity;
-    type Query: QueryEntity;
-    type QueryGroup: QueryGroupEntity;
-    type Worker: WorkerEntity;
-    type Plan: PlanEntity;
-    type Operator: OperatorEntity;
-    type Port: PortEntity;
+    type Engine: api::Engine;
+    type Query: api::Query;
+    type QueryGroup: api::QueryGroup;
+    type Worker: api::Worker;
+    type Plan: api::Plan;
+    type Operator: api::Operator;
+    type Port: api::Port;
 
     // Lookup functions.
 
@@ -144,7 +106,7 @@ pub trait QueryEngineModel: Model {
     // Plan-related functions.
 
     /// Return the tree of plans that processed a query.
-    fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<plan_tree::PlanTree>;
+    fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree>;
 
     /// Return all operators that worked on any of the supplied plans.
     fn plans_operators<'a>(
@@ -171,12 +133,4 @@ pub trait QueryEngineModel: Model {
                 .is_some_and(|op_id| operator_ids.contains(&op_id))
         }))
     }
-}
-
-/// Mutable analyzer API for a query-engine model.
-pub trait QueryEngineModelMut: QueryEngineModel
-where
-    Self::Operator: OperatorEntityMut,
-{
-    fn operator_mut(&mut self, operator_id: Uuid) -> AnalyzerResult<&mut Self::Operator>;
 }

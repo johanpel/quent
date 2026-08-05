@@ -9,7 +9,9 @@ use axum::{
 
 use quent_analyzer::AnalyzerResult;
 use quent_query_engine_analyzer::{
-    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
+    QueryEngineModel,
+    api::{Engine, Query as QueryEntity, QueryGroup},
+    ui::UiAnalyzer,
 };
 use quent_query_engine_ui as ui;
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};

@@ -1,30 +1,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Port entity: input or output of an operator.
+use quent_dynamic_attributes::DynamicAttributes;
+use quent_events::EntityRef;
 
-use quent_model::{Attributes, Ref, entity};
-use serde::{Deserialize, Serialize};
+use crate::operator::Operator;
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Declaration {
-    /// The ID of the operator this port belongs to.
-    pub operator_id: Ref<super::operator::Operator>,
-    /// The name of this port.
-    pub instance_name: String,
+#[derive(Debug)]
+pub struct Port;
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub enum PortEvent {
+    Declaration {
+        operator_id: EntityRef<Operator>,
+        instance_name: String,
+    },
+    Statistics {
+        custom_attributes: DynamicAttributes,
+    },
 }
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Statistics {
-    pub custom_attributes: quent_model::attributes::DynamicAttributes,
+impl quent_events::EntityEvent for PortEvent {
+    const NAME: &'static str = "Port";
 }
 
-entity! {
-    Port: ResourceGroup {
-        declaration: declaration,
-        events: {
-            declaration: Declaration,
-            statistics: Statistics,
-        },
-    }
+impl quent_events::Entity for Port {
+    type Event = PortEvent;
 }

@@ -1,31 +1,32 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Operator entity: sinks, sources, or transforms data within a plan.
+use quent_dynamic_attributes::DynamicAttributes;
+use quent_events::EntityRef;
 
-use quent_model::{Attributes, Ref, entity};
-use serde::{Deserialize, Serialize};
+use crate::plan::Plan;
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Declaration {
-    pub plan_id: Ref<super::plan::Plan>,
-    pub parent_operator_ids: Vec<Ref<super::operator::Operator>>,
-    pub instance_name: String,
-    pub type_name: String,
-    pub custom_attributes: quent_model::attributes::DynamicAttributes,
+#[derive(Debug)]
+pub struct Operator;
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub enum OperatorEvent {
+    Declaration {
+        plan_id: EntityRef<Plan>,
+        parent_operator_ids: Vec<EntityRef<Operator>>,
+        instance_name: String,
+        type_name: String,
+        custom_attributes: DynamicAttributes,
+    },
+    Statistics {
+        custom_attributes: DynamicAttributes,
+    },
 }
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Statistics {
-    pub custom_attributes: quent_model::attributes::DynamicAttributes,
+impl quent_events::EntityEvent for OperatorEvent {
+    const NAME: &'static str = "Operator";
 }
 
-entity! {
-    Operator: ResourceGroup {
-        declaration: declaration,
-        events: {
-            declaration: Declaration,
-            statistics: Statistics,
-        },
-    }
+impl quent_events::Entity for Operator {
+    type Event = OperatorEvent;
 }

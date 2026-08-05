@@ -8,13 +8,12 @@ publish.workspace = true
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../crates/events" }
+quent-io = { path = "../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
 quent-query-engine-model = { path = "../../../domains/query_engine/model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
-quent-model = { path = "../../../crates/model" }
 quent-simulator-instrumentation = { path = "../instrumentation" }
 quent-simulator-ui = { path = "../ui" }
-quent-stdlib = { path = "../../../crates/stdlib" }
 quent-store = { path = "../../../crates/store" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
@@ -24,4 +23,4 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-quent-instrumentation = { path = "../../../crates/instrumentation" }
+quent-instrumentation = { path = "../../../crates/instrumentation", features = ["io-callback"] }

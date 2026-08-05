@@ -1,26 +1,26 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Worker entity: responsible for executing plans.
+use quent_events::EntityRef;
 
-use quent_model::{Attributes, Ref, entity};
-use serde::{Deserialize, Serialize};
+use crate::engine::Engine;
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Init {
-    pub parent_engine_id: Ref<super::engine::Engine>,
-    pub instance_name: String,
+#[derive(Debug)]
+pub struct Worker;
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub enum WorkerEvent {
+    Init {
+        parent_engine_id: EntityRef<Engine>,
+        instance_name: String,
+    },
+    Exit,
 }
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Exit;
+impl quent_events::EntityEvent for WorkerEvent {
+    const NAME: &'static str = "Worker";
+}
 
-entity! {
-    Worker: ResourceGroup {
-        declaration: init,
-        events: {
-            init: Init,
-            exit: Exit,
-        },
-    }
+impl quent_events::Entity for Worker {
+    type Event = WorkerEvent;
 }

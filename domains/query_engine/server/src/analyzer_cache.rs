@@ -167,10 +167,12 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
             )?;
             let mut seen = HashSet::new();
             for event in importer {
-                if let WorkerEvent::Init(init) = &event.data
+                if let WorkerEvent::Init {
+                    parent_engine_id, ..
+                } = &event.data
                     && seen.insert(event.id)
                 {
-                    index.add_worker(init.parent_engine_id.uuid(), event.id, context_id);
+                    index.add_worker(parent_engine_id.target, event.id, context_id);
                 }
             }
         }

@@ -812,11 +812,9 @@ mod tests {
     use quent_analyzer::AnalyzerResult;
     use quent_events::Event;
     use quent_query_engine_analyzer::{
-        QueryEngineModel,
-        plain::legacy::{Engine, InMemoryQueryEngineModel},
-        ui::UiAnalyzer,
+        QueryEngineModel, engine::Engine, model::InMemoryQueryEngineModel, ui::UiAnalyzer,
     };
-    use quent_query_engine_model::engine::{EngineEvent, Exit, Init};
+    use quent_query_engine_model::{EngineEvent, EngineImplementationAttributes};
     use quent_ui::{
         FiniteStateMachine, FsmTransition,
         timeline::{
@@ -862,12 +860,19 @@ mod tests {
         fn with_series_offsets(series_offsets: HashMap<String, u32>) -> Self {
             let engine_id = Uuid::from_u128(1);
             let mut engine = Engine::new(engine_id).unwrap();
-            engine.push(Event::new(engine_id, 0, EngineEvent::Init(Init::default())));
             engine.push(Event::new(
                 engine_id,
-                100_000_000_000,
-                EngineEvent::Exit(Exit),
+                0,
+                EngineEvent::Init {
+                    implementation: EngineImplementationAttributes {
+                        name: None,
+                        version: None,
+                        custom_attributes: Default::default(),
+                    },
+                    instance_name: None,
+                },
             ));
+            engine.push(Event::new(engine_id, 100_000_000_000, EngineEvent::Exit));
 
             Self {
                 engine_id,

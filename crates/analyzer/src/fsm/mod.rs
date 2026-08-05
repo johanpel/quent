@@ -13,7 +13,6 @@ use ts_rs::TS;
 use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError, resource::Usage};
 
 pub mod collection;
-pub mod events;
 pub mod runtime;
 
 /// Trait for types that represent an [`Fsm`] `State` transition.

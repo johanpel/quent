@@ -1,38 +1,28 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Query FSM: the top-level unit of work executed by an engine.
+use quent_events::EntityRef;
 
-use quent_model::{Ref, fsm, state};
+use crate::query_group::QueryGroup;
 
-// States
+#[derive(Debug)]
+pub struct Query;
 
-state! {
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub enum QueryEvent {
     Init {
-        attributes: {
-            query_group_id: Ref<super::query_group::QueryGroup>,
-        },
-    }
+        query_group_id: EntityRef<QueryGroup>,
+        instance_name: String,
+    },
+    Planning,
+    Executing,
+    Exit,
 }
 
-state! { Planning {} }
+impl quent_events::EntityEvent for QueryEvent {
+    const NAME: &'static str = "Query";
+}
 
-state! { Executing {} }
-
-// FSM: entry -> Init -> Planning -> Executing -> exit
-
-fsm! {
-    Query: ResourceGroup {
-        states: {
-            init: Init,
-            planning: Planning,
-            executing: Executing,
-        },
-        entry: init,
-        exit_from: { executing },
-        transitions: {
-            init => planning,
-            planning => executing,
-        },
-    }
+impl quent_events::Entity for Query {
+    type Event = QueryEvent;
 }

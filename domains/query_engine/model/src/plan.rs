@@ -1,42 +1,39 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Plan entity: a DAG of operators representing a query execution plan.
+use quent_events::EntityRef;
 
-use quent_model::{Attributes, Ref, entity};
-use serde::{Deserialize, Serialize};
+use crate::{port::Port, query::Query, worker::Worker};
 
-/// A directed edge of a Plan DAG.
-#[derive(Debug, Attributes, Deserialize, Serialize)]
+#[derive(Debug)]
+pub struct Plan;
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct Edge {
-    /// The ID of the port sourcing data.
-    pub source: Ref<super::port::Port>,
-    /// The ID of the port sinking data.
-    pub target: Ref<super::port::Port>,
+    pub source: EntityRef<Port>,
+    pub target: EntityRef<Port>,
 }
 
-/// A reference to the parent of a Plan. Exactly one field should be set.
-/// If `query_id` is set, this is a root plan under a query.
-/// If `plan_id` is set, this is a nested plan (e.g. logical → physical).
-#[derive(Debug, Default, Attributes, Deserialize, Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct PlanParent {
-    pub query_id: Option<Ref<super::query::Query>>,
-    pub plan_id: Option<Ref<super::plan::Plan>>,
+    pub query_id: EntityRef<Query>,
+    pub plan_id: Option<EntityRef<Plan>>,
 }
 
-#[derive(Debug, Attributes, Deserialize, Serialize)]
-pub struct Declaration {
-    pub parent: PlanParent,
-    pub instance_name: String,
-    pub edges: Vec<Edge>,
-    pub worker_id: Option<Ref<super::worker::Worker>>,
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub enum PlanEvent {
+    Declaration {
+        parent: PlanParent,
+        instance_name: String,
+        edges: Vec<Edge>,
+        worker_id: Option<EntityRef<Worker>>,
+    },
 }
 
-entity! {
-    Plan: ResourceGroup {
-        declaration: declaration,
-        events: {
-            declaration: Declaration,
-        },
-    }
+impl quent_events::EntityEvent for PlanEvent {
+    const NAME: &'static str = "Plan";
+}
+
+impl quent_events::Entity for Plan {
+    type Event = PlanEvent;
 }

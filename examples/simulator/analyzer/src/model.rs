@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use rustc_hash::FxHashMap as HashMap;
@@ -17,17 +17,23 @@ use quent_analyzer::{
     },
 };
 use quent_events::Event;
-use quent_model::{FsmEvent, Ref};
 use quent_query_engine_analyzer::{
-    OperatorEntityMut, QueryEngineModel, QueryEngineModelMut,
-    plain::legacy::{
-        Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder, Operator, Plan, Port,
-        Query, QueryEngineEntityId, QueryGroup, Worker,
-    },
-    plan_tree::PlanTree,
+    QueryEngineModel,
+    engine::Engine,
+    model::{InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder, QueryEngineEntityId},
+    operator::Operator,
+    plan::{Plan, tree::PlanTree},
+    port::Port,
+    query::Query,
+    query_group::QueryGroup,
+    worker::Worker,
 };
-use quent_query_engine_model::{self as qe, QueryEngineEvent};
-use quent_simulator_instrumentation::{self as instr, SimulatorEvent};
+use quent_query_engine_model as qe;
+use quent_query_engine_model::QueryEngineEvent;
+use quent_simulator_instrumentation::{
+    self as sim, MemoryEvent, NetworkChannelEvent, ProcessorEvent, SimulatorEvent,
+    StorageChannelEvent,
+};
 use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
@@ -35,6 +41,127 @@ use crate::{
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
+
+fn qe_engine_event(event: sim::EngineEvent) -> qe::EngineEvent {
+    match event {
+        sim::EngineEvent::Init {
+            implementation,
+            instance_name,
+        } => qe::EngineEvent::Init {
+            implementation: qe::EngineImplementationAttributes {
+                name: implementation.name,
+                version: implementation.version,
+                custom_attributes: implementation.custom_attributes,
+            },
+            instance_name,
+        },
+        sim::EngineEvent::Exit => qe::EngineEvent::Exit,
+    }
+}
+
+fn qe_query_group_event(event: sim::QueryGroupEvent) -> qe::QueryGroupEvent {
+    match event {
+        sim::QueryGroupEvent::Declaration {
+            instance_name,
+            engine_id,
+        } => qe::QueryGroupEvent::Declaration {
+            instance_name,
+            engine_id: qe::EntityRef::new(engine_id.target, ()),
+        },
+    }
+}
+
+fn qe_worker_event(event: sim::WorkerEvent) -> qe::WorkerEvent {
+    match event {
+        sim::WorkerEvent::Init {
+            parent_engine_id,
+            instance_name,
+        } => qe::WorkerEvent::Init {
+            parent_engine_id: qe::EntityRef::new(parent_engine_id.target, ()),
+            instance_name,
+        },
+        sim::WorkerEvent::Exit => qe::WorkerEvent::Exit,
+    }
+}
+
+fn qe_query_event(event: sim::QueryEvent) -> qe::QueryEvent {
+    match event {
+        sim::QueryEvent::Init {
+            query_group_id,
+            instance_name,
+        } => qe::QueryEvent::Init {
+            query_group_id: qe::EntityRef::new(query_group_id.target, ()),
+            instance_name,
+        },
+        sim::QueryEvent::Planning => qe::QueryEvent::Planning,
+        sim::QueryEvent::Executing => qe::QueryEvent::Executing,
+        sim::QueryEvent::Exit => qe::QueryEvent::Exit,
+    }
+}
+
+fn qe_plan_event(event: sim::PlanEvent) -> qe::PlanEvent {
+    match event {
+        sim::PlanEvent::Declaration {
+            parent,
+            instance_name,
+            edges,
+            worker_id,
+        } => qe::PlanEvent::Declaration {
+            parent: qe::PlanParent {
+                query_id: qe::EntityRef::new(parent.query_id.target, ()),
+                plan_id: parent.plan_id.map(|id| qe::EntityRef::new(id.target, ())),
+            },
+            instance_name,
+            edges: edges
+                .into_iter()
+                .map(|edge| qe::Edge {
+                    source: qe::EntityRef::new(edge.source.target, ()),
+                    target: qe::EntityRef::new(edge.target.target, ()),
+                })
+                .collect(),
+            worker_id: worker_id.map(|id| qe::EntityRef::new(id.target, ())),
+        },
+    }
+}
+
+fn qe_operator_event(event: sim::OperatorEvent) -> qe::OperatorEvent {
+    match event {
+        sim::OperatorEvent::Declaration {
+            plan_id,
+            parent_operator_ids,
+            instance_name,
+            type_name,
+            custom_attributes,
+        } => qe::OperatorEvent::Declaration {
+            plan_id: qe::EntityRef::new(plan_id.target, ()),
+            parent_operator_ids: parent_operator_ids
+                .into_iter()
+                .map(|id| qe::EntityRef::new(id.target, ()))
+                .collect(),
+            instance_name,
+            type_name,
+            custom_attributes,
+        },
+        sim::OperatorEvent::Statistics { custom_attributes } => {
+            qe::OperatorEvent::Statistics { custom_attributes }
+        }
+    }
+}
+
+fn qe_port_event(event: sim::PortEvent) -> qe::PortEvent {
+    match event {
+        sim::PortEvent::Declaration {
+            operator_id,
+            instance_name,
+        } => qe::PortEvent::Declaration {
+            operator_id: qe::EntityRef::new(operator_id.target, ()),
+            instance_name,
+        },
+        sim::PortEvent::Statistics { custom_attributes } => {
+            qe::PortEvent::Statistics { custom_attributes }
+        }
+    }
+}
 
 /// A model of the simulator engine
 pub struct SimulatorModel {
@@ -129,12 +256,6 @@ impl QueryEngineModel for SimulatorModel {
     }
     fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree> {
         self.query_engine.plan_tree(query_id)
-    }
-}
-
-impl QueryEngineModelMut for SimulatorModel {
-    fn operator_mut(&mut self, operator_id: Uuid) -> AnalyzerResult<&mut Operator> {
-        self.query_engine.operator_mut(operator_id)
     }
 }
 
@@ -234,133 +355,6 @@ impl Using for SimulatorModel {
     }
 }
 
-fn engine_event(event: instr::EngineEvent) -> qe::engine::EngineEvent {
-    match event {
-        instr::EngineEvent::Init {
-            implementation,
-            instance_name,
-        } => qe::engine::EngineEvent::Init(qe::engine::Init {
-            implementation: qe::engine::EngineImplementationAttributes {
-                name: implementation.name,
-                version: implementation.version,
-                custom_attributes: implementation.custom_attributes,
-            },
-            instance_name,
-        }),
-        instr::EngineEvent::Exit => qe::engine::EngineEvent::Exit(qe::engine::Exit),
-    }
-}
-
-fn worker_event(event: instr::WorkerEvent) -> qe::worker::WorkerEvent {
-    match event {
-        instr::WorkerEvent::Init {
-            parent_engine_id,
-            instance_name,
-        } => qe::worker::WorkerEvent::Init(qe::worker::Init {
-            parent_engine_id: Ref::new(parent_engine_id.target),
-            instance_name,
-        }),
-        instr::WorkerEvent::Exit => qe::worker::WorkerEvent::Exit(qe::worker::Exit),
-    }
-}
-
-fn query_group_event(event: instr::QueryGroupEvent) -> qe::query_group::QueryGroupEvent {
-    match event {
-        instr::QueryGroupEvent::Declaration {
-            instance_name,
-            engine_id,
-        } => qe::query_group::QueryGroupEvent::Declaration(qe::query_group::Declaration {
-            instance_name,
-            engine_id: engine_id.target,
-        }),
-    }
-}
-
-fn query_event(event: instr::QueryEvent) -> qe::query::QueryEvent {
-    let state = match event {
-        instr::QueryEvent::Init {
-            instance_name,
-            query_group_id,
-        } => qe::query::QueryTransition::Init(qe::query::Init {
-            query_group_id: Ref::new(query_group_id.target),
-            instance_name,
-        }),
-        instr::QueryEvent::Planning => qe::query::QueryTransition::Planning(qe::query::Planning {}),
-        instr::QueryEvent::Executing => {
-            qe::query::QueryTransition::Executing(qe::query::Executing {})
-        }
-        instr::QueryEvent::Exit => qe::query::QueryTransition::Exit,
-    };
-    FsmEvent { seq: 0, state }
-}
-
-fn plan_event(event: instr::PlanEvent) -> qe::plan::PlanEvent {
-    match event {
-        instr::PlanEvent::Declaration {
-            parent,
-            instance_name,
-            edges,
-            worker_id,
-        } => qe::plan::PlanEvent::Declaration(qe::plan::Declaration {
-            parent: qe::plan::PlanParent {
-                query_id: parent
-                    .plan_id
-                    .is_none()
-                    .then(|| Ref::new(parent.query_id.target)),
-                plan_id: parent.plan_id.map(|plan| Ref::new(plan.target)),
-            },
-            instance_name,
-            edges: edges
-                .into_iter()
-                .map(|edge| qe::plan::Edge {
-                    source: Ref::new(edge.source.target),
-                    target: Ref::new(edge.target.target),
-                })
-                .collect(),
-            worker_id: worker_id.map(|worker| Ref::new(worker.target)),
-        }),
-    }
-}
-
-fn operator_event(event: instr::OperatorEvent) -> qe::operator::OperatorEvent {
-    match event {
-        instr::OperatorEvent::Declaration {
-            plan_id,
-            parent_operator_ids,
-            instance_name,
-            type_name,
-            custom_attributes,
-        } => qe::operator::OperatorEvent::Declaration(qe::operator::Declaration {
-            plan_id: Ref::new(plan_id.target),
-            parent_operator_ids: parent_operator_ids
-                .into_iter()
-                .map(|operator| Ref::new(operator.target))
-                .collect(),
-            instance_name,
-            type_name,
-            custom_attributes,
-        }),
-        instr::OperatorEvent::Statistics { custom_attributes } => {
-            qe::operator::OperatorEvent::Statistics(qe::operator::Statistics { custom_attributes })
-        }
-    }
-}
-
-fn port_event(event: instr::PortEvent) -> qe::port::PortEvent {
-    match event {
-        instr::PortEvent::Declaration {
-            operator_id,
-            instance_name,
-        } => qe::port::PortEvent::Declaration(qe::port::Declaration {
-            operator_id: Ref::new(operator_id.target),
-            instance_name,
-        }),
-        instr::PortEvent::Statistics { custom_attributes } => {
-            qe::port::PortEvent::Statistics(qe::port::Statistics { custom_attributes })
-        }
-    }
-}
-
 pub struct SimulatorModelBuilder {
     query_engine: InMemoryQueryEngineModelBuilder,
     arbitrary_resources: InMemoryResourcesBuilder,
@@ -388,56 +382,49 @@ impl SimulatorModelBuilder {
                     .tasks
                     .entry(id)
                     .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
-                task_builder.push(Event::new(
-                    id,
-                    timestamp,
-                    FsmEvent {
-                        seq: 0,
-                        state: t.into(),
-                    },
-                ));
+                task_builder.push(Event::new(id, timestamp, t));
                 Ok(())
             }
             SimulatorEvent::Engine(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Engine(engine_event(e)),
+                QueryEngineEvent::Engine(qe_engine_event(e)),
             )),
             SimulatorEvent::Worker(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Worker(worker_event(e)),
+                QueryEngineEvent::Worker(qe_worker_event(e)),
             )),
             SimulatorEvent::QueryGroup(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::QueryGroup(query_group_event(e)),
+                QueryEngineEvent::QueryGroup(qe_query_group_event(e)),
             )),
             SimulatorEvent::Query(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Query(query_event(e)),
+                QueryEngineEvent::Query(qe_query_event(e)),
             )),
             SimulatorEvent::Plan(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Plan(plan_event(e)),
+                QueryEngineEvent::Plan(qe_plan_event(e)),
             )),
             SimulatorEvent::Operator(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Operator(operator_event(e)),
+                QueryEngineEvent::Operator(qe_operator_event(e)),
             )),
             SimulatorEvent::Port(e) => self.query_engine.try_push(Event::new(
                 id,
                 timestamp,
-                QueryEngineEvent::Port(port_event(e)),
+                QueryEngineEvent::Port(qe_port_event(e)),
             )),
             SimulatorEvent::Memory(m) => self.push_memory(id, timestamp, m),
             SimulatorEvent::Processor(p) => self.push_processor(id, timestamp, p),
             SimulatorEvent::StorageChannel(c) => self.push_storage_channel(id, timestamp, c),
             SimulatorEvent::NetworkChannel(c) => self.push_network_channel(id, timestamp, c),
-            SimulatorEvent::ThreadPool(instr::ThreadPoolEvent::Declaration {
+            SimulatorEvent::ThreadPool(sim::ThreadPoolEvent::Declaration {
                 instance_name,
                 worker_id,
             }) => {
@@ -449,7 +436,7 @@ impl SimulatorModelBuilder {
                 );
                 Ok(())
             }
-            SimulatorEvent::Network(instr::NetworkEvent::Declaration {
+            SimulatorEvent::Network(sim::NetworkEvent::Declaration {
                 instance_name,
                 engine_id,
             }) => {
@@ -468,32 +455,32 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: instr::MemoryEvent,
+        event: MemoryEvent,
     ) -> AnalyzerResult<()> {
         match event {
-            instr::MemoryEvent::Initializing {
+            MemoryEvent::Initializing {
                 instance_name,
                 worker_id,
             } => {
                 self.arbitrary_resources.insert_memory_resource("memory");
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name("memory".to_owned());
+                bld.set_type_name("memory".to_string());
                 bld.set_instance_name(Some(instance_name));
                 bld.set_parent_group_id(worker_id.target);
             }
-            instr::MemoryEvent::Operating { limits } => {
+            MemoryEvent::Operating { limits } => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Operating(
                     timestamp,
                     ResourceCapacities(vec![CapacityValue::new("capacity_bytes", limits.bytes)]),
                 ));
             }
-            instr::MemoryEvent::Finalizing => {
+            MemoryEvent::Finalizing => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Finalizing(timestamp));
             }
-            instr::MemoryEvent::Exit => {
+            MemoryEvent::Exit => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Exit(timestamp));
             }
@@ -505,10 +492,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: instr::ProcessorEvent,
+        event: ProcessorEvent,
     ) -> AnalyzerResult<()> {
         match event {
-            instr::ProcessorEvent::Initializing {
+            ProcessorEvent::Initializing {
                 instance_name,
                 thread_pool_id,
             } => {
@@ -516,22 +503,22 @@ impl SimulatorModelBuilder {
                     .insert_processor_resource("processor");
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name("processor".to_owned());
+                bld.set_type_name("processor".to_string());
                 bld.set_instance_name(Some(instance_name));
                 bld.set_parent_group_id(thread_pool_id.target);
             }
-            instr::ProcessorEvent::Operating => {
+            ProcessorEvent::Operating => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Operating(
                     timestamp,
                     ResourceCapacities(vec![]),
                 ));
             }
-            instr::ProcessorEvent::Finalizing => {
+            ProcessorEvent::Finalizing => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Finalizing(timestamp));
             }
-            instr::ProcessorEvent::Exit => {
+            ProcessorEvent::Exit => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Exit(timestamp));
             }
@@ -543,10 +530,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: instr::StorageChannelEvent,
+        event: StorageChannelEvent,
     ) -> AnalyzerResult<()> {
         match event {
-            instr::StorageChannelEvent::Initializing {
+            StorageChannelEvent::Initializing {
                 instance_name,
                 worker_id,
                 ..
@@ -554,22 +541,22 @@ impl SimulatorModelBuilder {
                 self.arbitrary_resources.insert_channel_resource("channel");
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name("channel".to_owned());
+                bld.set_type_name("channel".to_string());
                 bld.set_instance_name(Some(instance_name));
                 bld.set_parent_group_id(worker_id.target);
             }
-            instr::StorageChannelEvent::Operating { .. } => {
+            StorageChannelEvent::Operating { .. } => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Operating(
                     timestamp,
                     ResourceCapacities(vec![]),
                 ));
             }
-            instr::StorageChannelEvent::Finalizing => {
+            StorageChannelEvent::Finalizing => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Finalizing(timestamp));
             }
-            instr::StorageChannelEvent::Exit => {
+            StorageChannelEvent::Exit => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Exit(timestamp));
             }
@@ -581,10 +568,10 @@ impl SimulatorModelBuilder {
         &mut self,
         id: Uuid,
         timestamp: quent_time::TimeUnixNanoSec,
-        event: instr::NetworkChannelEvent,
+        event: NetworkChannelEvent,
     ) -> AnalyzerResult<()> {
         match event {
-            instr::NetworkChannelEvent::Initializing {
+            NetworkChannelEvent::Initializing {
                 instance_name,
                 network_id,
                 ..
@@ -592,24 +579,26 @@ impl SimulatorModelBuilder {
                 self.arbitrary_resources.insert_channel_resource("channel");
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Init(timestamp));
-                bld.set_type_name("channel".to_owned());
+                bld.set_type_name("channel".to_string());
                 bld.set_instance_name(Some(instance_name));
                 bld.set_parent_group_id(network_id.target);
             }
-            instr::NetworkChannelEvent::Operating { .. } => {
+            NetworkChannelEvent::Operating { .. } => {
                 let bld = self.arbitrary_resources.try_builder(id)?;
                 bld.push(RtResourceTransition::Operating(
                     timestamp,
                     ResourceCapacities(vec![]),
                 ));
             }
-            instr::NetworkChannelEvent::Finalizing => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Finalizing(timestamp));
+            NetworkChannelEvent::Finalizing => {
+                self.arbitrary_resources
+                    .try_builder(id)?
+                    .push(RtResourceTransition::Finalizing(timestamp));
             }
-            instr::NetworkChannelEvent::Exit => {
-                let bld = self.arbitrary_resources.try_builder(id)?;
-                bld.push(RtResourceTransition::Exit(timestamp));
+            NetworkChannelEvent::Exit => {
+                self.arbitrary_resources
+                    .try_builder(id)?
+                    .push(RtResourceTransition::Exit(timestamp));
             }
         }
         Ok(())
@@ -641,9 +630,12 @@ impl SimulatorModelBuilder {
             }
             if let Some(operator_id) = task.operator_id()
                 && let Some(task_span) = task.active_span()
-                && let Ok(operator) = query_engine.operator_mut(operator_id)
+                && let Some(operator) = query_engine.operators.get_mut(&operator_id)
             {
-                operator.extend_active_span(task_span);
+                operator.active_span = Some(match operator.active_span() {
+                    None => task_span,
+                    Some(existing) => existing.extend(&task_span),
+                });
             }
 
             tasks.insert(task_id, task);
