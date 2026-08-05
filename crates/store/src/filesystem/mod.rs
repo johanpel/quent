@@ -1,0 +1,408 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Filesystem-backed event storage.
+
+use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
+
+use quent_build_info::ArtifactInfo;
+use quent_events::{EntityEvent, Event, Model as EventModel, ModelEvents};
+use quent_io::ImporterProvider;
+use quent_io::filesystem::{Format, importer};
+use serde::de::DeserializeOwned;
+use uuid::Uuid;
+
+use crate::EventIterator;
+use crate::{EntityEventLoader, EntityEventStore, ModelEventLoader, ModelEventStore, StoredEntity};
+
+/// Result returned by filesystem event stores.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// An error encountered while loading filesystem events.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("context `{0}` was not found")]
+    ContextNotFound(Uuid),
+    #[error("context model `{actual}` does not match expected model `{expected}`")]
+    ModelMismatch { expected: String, actual: String },
+    #[error("context contains an unsupported event format `{0}`")]
+    UnsupportedFormat(String),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Importer(#[from] quent_io::ImporterError),
+}
+
+/// Associates a generated model with its filesystem entity-event streams.
+#[doc(hidden)]
+pub trait Model: ModelEvents {
+    /// Returns the streams generated from the model schema.
+    fn event_streams() -> &'static [EventStream<Self>]
+    where
+        Self: Sized;
+}
+
+type ImportFn<M> = fn(
+    Vec<EventFile>,
+)
+    -> Result<Box<dyn Iterator<Item = Event<<M as ModelEvents>::UmbrellaEvent>>>>;
+
+/// Describes one entity-event stream in a generated analysis model.
+pub struct EventStream<M: ModelEvents> {
+    entity: &'static str,
+    import: ImportFn<M>,
+}
+
+impl<M: ModelEvents> EventStream<M> {
+    /// Creates a generated entity-event stream descriptor.
+    #[doc(hidden)]
+    pub const fn new(entity: &'static str, import: ImportFn<M>) -> Self {
+        Self { entity, import }
+    }
+}
+
+/// Identifies an event file and the importer required to decode it.
+#[doc(hidden)]
+pub struct EventFile {
+    format: Format,
+    path: PathBuf,
+}
+
+/// Imports files containing entity events and converts them to the model umbrella type.
+#[doc(hidden)]
+pub fn import_event_files<M, E>(
+    files: Vec<EventFile>,
+) -> Result<Box<dyn Iterator<Item = Event<M::UmbrellaEvent>>>>
+where
+    M: ModelEvents,
+    E: DeserializeOwned + Into<M::UmbrellaEvent> + 'static,
+    M::UmbrellaEvent: 'static,
+{
+    let streams = import_files::<E>(files)?
+        .map(|stream| {
+            Box::new(stream.map(|event| Event::new(event.id, event.timestamp, event.data.into())))
+                as Box<dyn Iterator<Item = Event<M::UmbrellaEvent>>>
+        })
+        .collect::<Vec<_>>();
+    Ok(Box::new(streams.into_iter().flatten()))
+}
+
+/// Loads model events from filesystem exporter output.
+pub struct Store<M> {
+    root: PathBuf,
+    model: PhantomData<fn() -> M>,
+}
+
+impl<M> Store<M> {
+    /// Creates a store rooted at an exporter output directory.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: root.into(),
+            model: PhantomData,
+        }
+    }
+
+    /// Returns the exporter output directory.
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+}
+
+impl<M> EntityEventStore<M> for Store<M> {
+    type Error = Error;
+}
+
+impl<M, E> EntityEventLoader<E> for Store<M>
+where
+    M: EventModel,
+    E: StoredEntity<M>,
+    E::Event: DeserializeOwned + 'static,
+{
+    type Error = Error;
+
+    fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Event>> {
+        let context = self.context(context_id)?;
+        let streams = import_files::<E::Event>(event_files(&context, E::Event::NAME)?)?;
+        Ok(Box::new(streams.flatten()))
+    }
+}
+
+impl<M: Model> ModelEventStore<M> for Store<M> {}
+
+impl<M> ModelEventLoader<M> for Store<M>
+where
+    M: EventModel + Model + 'static,
+{
+    type Error = Error;
+
+    fn load_model_events(&self, context_id: Uuid) -> Result<EventIterator<M::UmbrellaEvent>> {
+        let context = self.context(context_id)?;
+        let mut streams = Vec::new();
+        for descriptor in M::event_streams() {
+            let files = event_files(&context, descriptor.entity)?;
+            streams.push((descriptor.import)(files)?);
+        }
+        Ok(Box::new(streams.into_iter().flatten()))
+    }
+}
+
+impl<M> Store<M>
+where
+    M: EventModel,
+{
+    fn context(&self, context_id: Uuid) -> Result<PathBuf> {
+        let context = self.root.join(context_id.to_string());
+        if !context.is_dir() {
+            return Err(Error::ContextNotFound(context_id));
+        }
+        let artifact = ArtifactInfo::read_sidecar(&context)?;
+        if artifact.model.name != M::NAME {
+            return Err(Error::ModelMismatch {
+                expected: M::NAME.to_owned(),
+                actual: artifact.model.name,
+            });
+        }
+        Ok(context)
+    }
+}
+
+fn import_files<T>(
+    files: Vec<EventFile>,
+) -> Result<impl Iterator<Item = Box<dyn Iterator<Item = Event<T>>>>>
+where
+    T: DeserializeOwned + 'static,
+{
+    files
+        .into_iter()
+        .map(|file| {
+            let importer = importer::Options {
+                format: file.format,
+                path: file.path,
+            }
+            .create_importer()?;
+            Ok(Box::new(importer) as Box<dyn Iterator<Item = Event<T>>>)
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(Vec::into_iter)
+}
+
+fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
+    let directory = context.join(entity);
+    if !directory.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    std::fs::read_dir(directory)?
+        .filter_map(|entry| match entry {
+            Ok(entry) => match entry.file_type() {
+                Ok(file_type) if file_type.is_file() => Some(Ok(entry.path())),
+                Ok(_) => None,
+                Err(error) => Some(Err(Error::Io(error))),
+            },
+            Err(error) => Some(Err(Error::Io(error))),
+        })
+        .map(|path| {
+            let path = path?;
+            let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+                return Err(Error::UnsupportedFormat(String::new()));
+            };
+            let format = Format::try_from(extension)
+                .map_err(|_| Error::UnsupportedFormat(extension.to_owned()))?;
+            Ok(EventFile { format, path })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use quent_build_info::{ArtifactInfo, BuildInfo, ModelSource};
+    use quent_events::{Entity, EntityEvent, Event, Model as EventModel, ModelEvents};
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+
+    struct TestModel;
+
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct AlphaEvent(u8);
+
+    impl EntityEvent for AlphaEvent {
+        const NAME: &'static str = "Alpha";
+    }
+
+    struct Alpha;
+
+    impl Entity for Alpha {
+        type Event = AlphaEvent;
+    }
+
+    impl StoredEntity<TestModel> for Alpha {}
+
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct BetaEvent(u8);
+
+    impl EntityEvent for BetaEvent {
+        const NAME: &'static str = "Beta";
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum TestEvent {
+        Alpha(AlphaEvent),
+        Beta(BetaEvent),
+    }
+
+    impl From<AlphaEvent> for TestEvent {
+        fn from(event: AlphaEvent) -> Self {
+            Self::Alpha(event)
+        }
+    }
+
+    impl From<BetaEvent> for TestEvent {
+        fn from(event: BetaEvent) -> Self {
+            Self::Beta(event)
+        }
+    }
+
+    impl EventModel for TestModel {
+        const NAME: &'static str = "Test";
+    }
+
+    impl ModelSource for TestModel {
+        fn package() -> &'static str {
+            "quent-store"
+        }
+
+        fn source() -> BuildInfo {
+            BuildInfo::unknown()
+        }
+    }
+
+    impl ModelEvents for TestModel {
+        type UmbrellaEvent = TestEvent;
+    }
+
+    impl Model for TestModel {
+        fn event_streams() -> &'static [EventStream<Self>] {
+            static STREAMS: &[EventStream<TestModel>] = &[
+                EventStream::new(
+                    AlphaEvent::NAME,
+                    import_event_files::<TestModel, AlphaEvent>,
+                ),
+                EventStream::new(BetaEvent::NAME, import_event_files::<TestModel, BetaEvent>),
+            ];
+            STREAMS
+        }
+    }
+
+    fn context(root: &Path, id: Uuid) -> PathBuf {
+        let path = root.join(id.to_string());
+        fs::create_dir_all(&path).unwrap();
+        ArtifactInfo::new(TestModel::model_info())
+            .write_sidecar(&path)
+            .unwrap();
+        path
+    }
+
+    fn write_event<T: Serialize>(path: &Path, event: Event<T>) {
+        fs::write(
+            path,
+            format!("{}\n", serde_json::to_string(&event).unwrap()),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn loads_all_model_events_without_relying_on_order() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        let context = context(root.path(), id);
+        fs::create_dir(context.join(AlphaEvent::NAME)).unwrap();
+        fs::create_dir(context.join(BetaEvent::NAME)).unwrap();
+        write_event(
+            &context.join(AlphaEvent::NAME).join("alpha.ndjson"),
+            Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)),
+        );
+        write_event(
+            &context.join(BetaEvent::NAME).join("beta.ndjson"),
+            Event::new(Uuid::from_u128(12), 1, BetaEvent(2)),
+        );
+
+        let store = Store::<TestModel>::new(root.path());
+        let mut values = store
+            .events(id)
+            .unwrap()
+            .map(|event| match event.data {
+                TestEvent::Alpha(AlphaEvent(value)) | TestEvent::Beta(BetaEvent(value)) => value,
+            })
+            .collect::<Vec<_>>();
+        values.sort_unstable();
+
+        assert_eq!(values, [1, 2]);
+    }
+
+    #[test]
+    fn loads_one_entity_type_as_concrete_events() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        let context = context(root.path(), id);
+        fs::create_dir(context.join(AlphaEvent::NAME)).unwrap();
+        fs::create_dir(context.join(BetaEvent::NAME)).unwrap();
+        write_event(
+            &context.join(AlphaEvent::NAME).join("alpha.ndjson"),
+            Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)),
+        );
+        write_event(
+            &context.join(BetaEvent::NAME).join("beta.ndjson"),
+            Event::new(Uuid::from_u128(12), 1, BetaEvent(2)),
+        );
+
+        let store = Store::<TestModel>::new(root.path());
+        let events = store
+            .entity_events::<Alpha>(id)
+            .unwrap()
+            .collect::<Vec<_>>();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, AlphaEvent(1));
+    }
+
+    #[test]
+    fn validates_context_and_supported_formats() {
+        let root = tempfile::tempdir().unwrap();
+        let store = Store::<TestModel>::new(root.path());
+
+        let missing = Uuid::from_u128(1);
+        assert!(matches!(
+            store.events(missing),
+            Err(Error::ContextNotFound(id)) if id == missing
+        ));
+
+        let unsupported = Uuid::from_u128(2);
+        let unsupported_path = context(root.path(), unsupported);
+        fs::create_dir(unsupported_path.join(AlphaEvent::NAME)).unwrap();
+        fs::write(
+            unsupported_path.join(AlphaEvent::NAME).join("events.csv"),
+            b"event",
+        )
+        .unwrap();
+        assert!(matches!(
+            store.events(unsupported),
+            Err(Error::UnsupportedFormat(format)) if format == "csv"
+        ));
+
+        let mismatch = Uuid::from_u128(3);
+        let mismatch_path = context(root.path(), mismatch);
+        let mut info = TestModel::model_info();
+        info.name = "Other".to_owned();
+        ArtifactInfo::new(info)
+            .write_sidecar(&mismatch_path)
+            .unwrap();
+        assert!(matches!(
+            store.events(mismatch),
+            Err(Error::ModelMismatch { actual, .. }) if actual == "Other"
+        ));
+    }
+}

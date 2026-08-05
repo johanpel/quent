@@ -3171,6 +3171,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-store"
+version = "0.1.0"
+dependencies = [
+ "quent-build-info",
+ "quent-events",
+ "quent-io",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "uuid",
+]
+
+[[package]]
+name = "quent-store-build"
+version = "0.1.0"
+dependencies = [
+ "prettyplease 0.3.0",
+ "quent-instrumentation-build",
+ "quent-schema",
+ "quote",
+ "syn 3.0.3",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-time"
 version = "0.1.0"
 dependencies = [

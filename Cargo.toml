@@ -22,6 +22,8 @@ members = [
     "crates/model-macros",
     "crates/open",
     "crates/stdlib",
+    "crates/store",
+    "crates/store-build",
     "crates/time",
     "crates/ui",
     # NVTX integration crates
@@ -98,6 +100,8 @@ default-members = [
     "crates/model-macros",
     "crates/open",
     "crates/stdlib",
+    "crates/store",
+    "crates/store-build",
     "crates/time",
     "crates/ui",
     "domains/query_engine/analyzer",

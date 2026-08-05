@@ -63,6 +63,7 @@ jobs:
       # covered.
       - run: pixi run cargo clippy --manifest-path crates/instrumentation-build/example/Cargo.toml --all-targets --locked -- -D warnings
       - run: pixi run cargo run --manifest-path crates/instrumentation-build/example/Cargo.toml --locked
+      - run: pixi run cargo clippy --manifest-path crates/store-build/example/Cargo.toml --all-targets --locked -- -D warnings
 
   # Regression gate for `quent-open` backward compatibility: build a viewer for
   # a sidecar pinning the previous quent commit (the PR's base commit, or the

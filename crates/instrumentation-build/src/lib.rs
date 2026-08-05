@@ -54,8 +54,9 @@ mod runtime;
 
 use std::path::PathBuf;
 
+use convert_case::Case;
 use quent_constraints::{BaseConstraintsError, Report, validate};
-use quent_schema::{Path, Schema};
+use quent_schema::{Entity, Path, Schema};
 use quote::quote;
 
 /// Options controlling event and instrumentation source generation.
@@ -164,6 +165,22 @@ pub enum GenerateError {
 pub struct GenerateInfo {
     pub path: PathBuf,
     pub warnings: Vec<String>,
+}
+
+/// Returns the model path generated for `schema` relative to the generated module root.
+pub fn generated_model_path(schema: &Schema) -> proc_macro2::TokenStream {
+    let model = common::raw_ident(common::to_case(schema.name(), Case::Pascal));
+    quote! { #model }
+}
+
+/// Returns the entity marker path generated relative to the generated module root.
+pub fn generated_entity_path(entity: &Entity) -> proc_macro2::TokenStream {
+    common::relative_type_path(entity.path(), &[], "")
+}
+
+/// Returns the entity event path generated relative to the generated module root.
+pub fn generated_entity_event_path(entity: &Entity) -> proc_macro2::TokenStream {
+    common::relative_type_path(entity.path(), &[], "Event")
 }
 
 /// Generate event source and, when enabled, instrumentation source for `schema`.
