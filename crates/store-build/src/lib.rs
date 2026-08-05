@@ -98,16 +98,19 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         let streams = schema.entities().map(|entity| {
             let event = quent_instrumentation_build::generated_entity_event_path(entity);
             quote! {
-                ::quent_store::filesystem::EventStream::new(
+                ::quent_store::event::filesystem::EventStream::new(
                     <#event as ::quent_events::EntityEvent>::NAME,
-                    ::quent_store::filesystem::import_event_files::<#model, #event>,
+                    ::quent_store::event::filesystem::import_event_files::<#model, #event>,
                 )
             }
         });
         quote! {
-            impl ::quent_store::filesystem::Model for #model {
-                fn event_streams() -> &'static [::quent_store::filesystem::EventStream<Self>] {
-                    static STREAMS: &[::quent_store::filesystem::EventStream<#model>] = &[
+            impl ::quent_store::event::filesystem::Model for #model {
+                fn event_streams(
+                ) -> &'static [::quent_store::event::filesystem::EventStream<Self>] {
+                    static STREAMS: &[
+                        ::quent_store::event::filesystem::EventStream<#model>
+                    ] = &[
                         #(#streams,)*
                     ];
                     STREAMS
@@ -120,7 +123,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let entities = schema.entities().map(|entity| {
         let marker = quent_instrumentation_build::generated_entity_path(entity);
         quote! {
-            impl ::quent_store::StoredEntity<#model> for #marker {}
+            impl ::quent_store::event::StoredEntity<#model> for #marker {}
         }
     });
 
@@ -158,12 +161,12 @@ mod tests {
         };
         let source = generate_str(&schema, &opts).unwrap();
 
-        assert!(source.contains("impl ::quent_store::filesystem::Model for Demo"));
+        assert!(source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
         assert_eq!(source.matches("import_event_files::<").count(), 2);
         assert!(source.contains("foo::QueryEvent"));
         assert!(source.contains("foo::nested::TaskEvent"));
-        assert!(source.contains("StoredEntity<Demo> for foo::Query"));
-        assert!(source.contains("StoredEntity<Demo> for foo::nested::Task"));
+        assert!(source.contains("event::StoredEntity<Demo> for foo::Query"));
+        assert!(source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
         assert!(!source.contains("quent_instrumentation"));
     }
 
@@ -177,7 +180,7 @@ mod tests {
 
         let source = generate_str(&schema, &Options::default()).unwrap();
 
-        assert!(source.contains("StoredEntity<Demo> for Query"));
+        assert!(source.contains("event::StoredEntity<Demo> for Query"));
         assert!(!source.contains("filesystem::Model for Demo"));
         assert!(!source.contains("pub enum DemoEvent"));
     }

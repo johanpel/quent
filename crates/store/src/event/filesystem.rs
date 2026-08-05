@@ -13,8 +13,10 @@ use quent_io::filesystem::{Format, importer};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use crate::EventIterator;
-use crate::{EntityEventLoader, EntityEventStore, ModelEventLoader, ModelEventStore, StoredEntity};
+use super::{
+    EntityEventLoader, EntityEventStore, EventIterator, ModelEventLoader, ModelEventStore,
+    StoredEntity,
+};
 
 /// Result returned by filesystem event stores.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -193,7 +195,7 @@ fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
         return Ok(Vec::new());
     }
 
-    std::fs::read_dir(directory)?
+    let mut paths = std::fs::read_dir(directory)?
         .filter_map(|entry| match entry {
             Ok(entry) => match entry.file_type() {
                 Ok(file_type) if file_type.is_file() => Some(Ok(entry.path())),
@@ -202,8 +204,12 @@ fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
             },
             Err(error) => Some(Err(Error::Io(error))),
         })
+        .collect::<Result<Vec<_>>>()?;
+    paths.sort();
+
+    paths
+        .into_iter()
         .map(|path| {
-            let path = path?;
             let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
                 return Err(Error::UnsupportedFormat(String::new()));
             };
@@ -405,5 +411,23 @@ mod tests {
             store.events(mismatch),
             Err(Error::ModelMismatch { actual, .. }) if actual == "Other"
         ));
+    }
+
+    #[test]
+    fn returns_event_files_in_path_order() {
+        let root = tempfile::tempdir().unwrap();
+        let entity = root.path().join(AlphaEvent::NAME);
+        fs::create_dir(&entity).unwrap();
+        for name in ["charlie.ndjson", "alpha.ndjson", "bravo.ndjson"] {
+            fs::write(entity.join(name), b"").unwrap();
+        }
+
+        let paths = event_files(root.path(), AlphaEvent::NAME)
+            .unwrap()
+            .into_iter()
+            .map(|file| file.path.file_name().unwrap().to_owned())
+            .collect::<Vec<_>>();
+
+        assert_eq!(paths, ["alpha.ndjson", "bravo.ndjson", "charlie.ndjson"]);
     }
 }

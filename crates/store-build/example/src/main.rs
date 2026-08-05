@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Loads one recorded context produced by the instrumentation-build example.
+//! Loads an existing filesystem-exported context matching the shared example schema.
 
 use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
 use demo::{Demo, Query, Uuid};
-use quent_store::filesystem::Store;
-use quent_store::{EntityEventStore, ModelEventStore};
+use quent_store::event::{EntityEventStore, ModelEventStore};
+use quent_store::event::filesystem::Store;
 
 #[allow(unused)]
 mod demo {
