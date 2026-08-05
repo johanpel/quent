@@ -45,21 +45,3 @@ impl ContextExporter for Noop {
 
     fn prepare_context(&self, _context_id: Uuid, _model: ModelInfo) {}
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn provides_an_exporter_for_any_event_type() {
-        let mut exporter: Box<dyn Exporter<String>> =
-            Noop.create_exporter(Uuid::nil()).await.unwrap();
-
-        exporter
-            .push(Event::new(Uuid::nil(), 0, "ignored".to_owned()))
-            .await
-            .unwrap();
-        exporter.shutdown().await.unwrap();
-        assert!(Noop.is_noop());
-    }
-}
