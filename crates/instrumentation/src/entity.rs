@@ -48,4 +48,10 @@ impl<E: InstrumentedEntity> Observer<E> {
     pub fn handle_with_id(&self, id: crate::Uuid) -> E::Handle {
         HandleInner::with_id(id, Arc::clone(&self.inner)).into()
     }
+
+    /// Sends a pre-built event through this observer.
+    #[doc(hidden)]
+    pub fn send(&self, event: crate::Event<E::Event>) {
+        self.inner.send(event);
+    }
 }

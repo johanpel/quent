@@ -18,6 +18,9 @@ mod sidecar;
 pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use handle::{HandleError, HandleInner};
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub use model::Collectible;
 pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
 pub use noop::Noop;
 pub use observer::{EventSender, ObserverInner};
@@ -37,6 +40,10 @@ pub use uuid::Uuid;
 /// A caller-supplied typed event sink, selected via the `io-callback` feature.
 #[cfg(feature = "io-callback")]
 pub use quent_io_callback::EventCallback;
+
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub use quent_collector_client::{CollectorSink, deserialize_event, serialize_event};
 
 #[cfg(test)]
 mod tests {

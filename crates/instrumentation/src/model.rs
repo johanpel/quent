@@ -42,6 +42,17 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
 }
 
+/// Routes serialized collector events into a generated model context.
+#[cfg(feature = "io-collector")]
+#[doc(hidden)]
+pub trait Collectible: quent_events::Model + InstrumentedModel + Sized {
+    fn ingest(
+        context: &Context<Self>,
+        entity: &str,
+        event: &[u8],
+    ) -> Result<(), Box<dyn std::error::Error>>;
+}
+
 /// Instrumentation context for a generated model.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
@@ -86,5 +97,12 @@ impl<M: quent_events::Model + InstrumentedModel> Context<M> {
         M::Observers: ObserverProvider<E>,
     {
         self.observers.observer()
+    }
+}
+
+#[cfg(feature = "io-collector")]
+impl<M: Collectible> crate::CollectorSink for Context<M> {
+    fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        M::ingest(self, entity, event)
     }
 }

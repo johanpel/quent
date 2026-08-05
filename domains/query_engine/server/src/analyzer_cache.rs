@@ -6,12 +6,13 @@ use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use quent_events::{EntityEvent, Event};
+use quent_events::{EntityEvent, Event, ModelEvents};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_model::{engine::EngineEvent, worker::WorkerEvent};
 use quent_query_engine_ui as ui;
+use quent_store::{ModelEventStore, filesystem::Store};
 use tracing::info_span;
 use uuid::Uuid;
 
@@ -44,7 +45,42 @@ pub struct EngineIndex {
     workers: HashMap<Uuid, Vec<(Uuid, Uuid)>>,
 }
 
+/// Query-engine identity discovered in a model event stream.
+pub enum EngineIndexEntry {
+    /// A query-engine root entity.
+    Engine { engine_id: Uuid },
+    /// A worker and its parent query engine.
+    Worker { engine_id: Uuid, worker_id: Uuid },
+}
+
 impl EngineIndex {
+    /// Builds an index by classifying every event in an event store.
+    pub fn from_event_store<M>(
+        store: &Store<M>,
+        classify: impl Fn(Uuid, &M::UmbrellaEvent) -> Option<EngineIndexEntry>,
+    ) -> ServerResult<Self>
+    where
+        M: quent_events::Model + ModelEvents + quent_store::filesystem::Model + 'static,
+        M::UmbrellaEvent: 'static,
+    {
+        let mut index = Self::default();
+        for context_id in store.context_ids()? {
+            for event in store.events(context_id)? {
+                match classify(event.id, &event.data) {
+                    Some(EngineIndexEntry::Engine { engine_id }) => {
+                        index.attribute_context(engine_id, context_id);
+                    }
+                    Some(EngineIndexEntry::Worker {
+                        engine_id,
+                        worker_id,
+                    }) => index.add_worker(engine_id, worker_id, context_id),
+                    None => {}
+                }
+            }
+        }
+        Ok(index)
+    }
+
     fn attribute_context(&mut self, engine_id: Uuid, context_id: Uuid) {
         self.contexts
             .entry(engine_id)

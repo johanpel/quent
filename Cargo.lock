@@ -2696,6 +2696,7 @@ dependencies = [
  "pprof",
  "quent-build-info",
  "quent-collector",
+ "quent-collector-client",
  "quent-collector-proto",
  "quent-dynamic-attributes",
  "quent-events",
@@ -2981,6 +2982,7 @@ dependencies = [
  "quent-query-engine-model",
  "quent-query-engine-ui",
  "quent-simulator-ui-bindings",
+ "quent-store",
  "quent-time",
  "quent-ui",
  "rust-embed",
@@ -3084,10 +3086,7 @@ dependencies = [
  "petgraph",
  "quent-dynamic-attributes",
  "quent-io",
- "quent-model",
- "quent-query-engine-model",
  "quent-simulator-instrumentation",
- "quent-stdlib",
  "rand 0.10.2",
  "tracing",
  "tracing-subscriber",
@@ -3101,6 +3100,7 @@ dependencies = [
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
+ "quent-instrumentation",
  "quent-model",
  "quent-query-engine-analyzer",
  "quent-query-engine-model",
@@ -3108,6 +3108,7 @@ dependencies = [
  "quent-simulator-instrumentation",
  "quent-simulator-ui",
  "quent-stdlib",
+ "quent-store",
  "quent-time",
  "quent-ui",
  "rustc-hash",
@@ -3120,11 +3121,14 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
- "quent-model",
- "quent-query-engine-model",
- "quent-stdlib",
+ "quent-collector-client",
+ "quent-events",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
  "serde",
- "uuid",
 ]
 
 [[package]]
@@ -3137,6 +3141,8 @@ dependencies = [
  "quent-query-engine-server",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
+ "quent-store",
+ "tempfile",
  "tokio",
  "tracing",
  "uuid",
@@ -3189,6 +3195,7 @@ name = "quent-store-build"
 version = "0.1.0"
 dependencies = [
  "prettyplease 0.3.0",
+ "proc-macro2",
  "quent-instrumentation-build",
  "quent-schema",
  "quote",

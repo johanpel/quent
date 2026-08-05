@@ -12,15 +12,12 @@ use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
 use quent_dynamic_attributes::{DynamicAttribute, DynamicList, DynamicStruct};
 use quent_io::clap::ExporterArgs;
-use quent_model::{Ref, usage};
-use quent_query_engine_model::{
-    engine::{self, EngineImplementationAttributes},
-    operator, plan, port, query_group, worker,
-};
-use quent_simulator_instrumentation::SimulatorContext;
+use quent_simulator_instrumentation as instr;
 use rand::{RngExt, distr::slice::Choose, rng};
 use tracing::{debug, info};
 use uuid::Uuid;
+
+type SimulatorContext = instr::Context<instr::Simulator>;
 
 #[derive(Parser, Debug)]
 #[command(name = "simulator")]
@@ -93,8 +90,8 @@ fn sleep_sometimes_really_long() {
 }
 
 struct Operator<T: Debug> {
-    id: Uuid,
-    parents: Vec<Uuid>,
+    handle: instr::Handle<instr::Operator>,
+    parents: Vec<instr::EntityRef<instr::Operator>>,
     kind: T,
     tasks_processed: AtomicU64,
 }
@@ -107,9 +104,13 @@ where
         format!("{:?}", self.kind)
     }
 
-    fn new(kind: T, parents: Vec<Uuid>) -> Self {
+    fn new(
+        context: &SimulatorContext,
+        kind: T,
+        parents: Vec<instr::EntityRef<instr::Operator>>,
+    ) -> Self {
         Self {
-            id: Uuid::now_v7(),
+            handle: context.observer::<instr::Operator>().handle(),
             parents,
             kind,
             tasks_processed: AtomicU64::new(0),
@@ -126,15 +127,13 @@ where
     }
 }
 
-#[derive(Debug)]
 struct Port {
-    id: Uuid,
+    handle: instr::Handle<instr::Port>,
     name: &'static str,
     num_bytes: AtomicU64,
     num_rows: AtomicU64,
 }
 
-#[derive(Debug)]
 struct Edge {
     source: Port,
     target: Port,
@@ -142,21 +141,22 @@ struct Edge {
 
 impl Display for Edge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{} -> {}", self.source.name, self.target.name)
     }
 }
 
 impl Edge {
-    fn new(source: &'static str, target: &'static str) -> Edge {
+    fn new(context: &SimulatorContext, source: &'static str, target: &'static str) -> Edge {
+        let port_obs = context.observer::<instr::Port>();
         Edge {
             source: Port {
-                id: Uuid::now_v7(),
+                handle: port_obs.handle(),
                 name: source,
                 num_bytes: AtomicU64::new(0),
                 num_rows: AtomicU64::new(0),
             },
             target: Port {
-                id: Uuid::now_v7(),
+                handle: port_obs.handle(),
                 name: target,
                 num_bytes: AtomicU64::new(0),
                 num_rows: AtomicU64::new(0),
@@ -189,88 +189,60 @@ struct Plan<T>
 where
     T: Debug,
 {
-    id: Uuid,
+    handle: instr::Handle<instr::Plan>,
     name: String,
-    query_id: Uuid,
-    parent_plan_id: Option<Uuid>,
+    query: instr::EntityRef<instr::Query>,
+    parent_plan: Option<instr::EntityRef<instr::Plan>>,
     dag: Graph<Operator<T>, Edge, Directed>,
     execute: bool,
 }
 
 impl<T: Debug> Plan<T> {
-    pub fn declare(&self, context: &SimulatorContext, worker_id: Option<Uuid>) {
-        let plan_obs = context.plan_observer();
-        let operator_obs = context.operator_observer();
-        let port_obs = context.port_observer();
-
-        plan_obs.declaration(
-            self.id,
-            plan::Declaration {
-                instance_name: self.name.clone(),
-                parent: match self.parent_plan_id {
-                    None => plan::PlanParent {
-                        query_id: Some(Ref::new(self.query_id)),
-                        plan_id: None,
-                    },
-                    Some(parent_id) => plan::PlanParent {
-                        query_id: None,
-                        plan_id: Some(Ref::new(parent_id)),
-                    },
+    pub fn declare(&mut self, worker: Option<instr::EntityRef<instr::Worker>>) {
+        self.handle
+            .declaration(
+                instr::PlanParent {
+                    query_id: self.query.clone(),
+                    plan_id: self.parent_plan.clone(),
                 },
-                worker_id: worker_id.map(Ref::new),
-                edges: self
-                    .dag
+                self.name.clone(),
+                self.dag
                     .edge_references()
-                    .map(|edge| plan::Edge {
-                        source: Ref::new(edge.weight().source.id),
-                        target: Ref::new(edge.weight().target.id),
+                    .map(|edge| instr::Edge {
+                        source: edge.weight().source.handle.as_entity_ref(),
+                        target: edge.weight().target.handle.as_entity_ref(),
                     })
                     .collect(),
-            },
-        );
+                worker,
+            )
+            .unwrap();
 
-        // Declare all operators
-        for node_idx in self.dag.node_indices() {
-            let op = &self.dag[node_idx];
-            let op_handle = operator_obs.create(op.id);
-            op_handle.declaration(operator::Declaration {
-                plan_id: Ref::new(self.id),
-                parent_operator_ids: op.parents.iter().map(|&id| Ref::new(id)).collect(),
-                instance_name: format!("{}-{node_idx:?}", op.name()),
-                type_name: op.name(),
-                custom_attributes: Default::default(),
-            });
-
-            // Declare operator ports
-            for (id, event) in self
-                .dag
-                .edges_directed(node_idx, petgraph::Direction::Incoming)
-                .map(|edge| {
-                    (
-                        edge.weight().target.id,
-                        port::Declaration {
-                            operator_id: Ref::new(op.id),
-                            instance_name: edge.weight().target.name.to_string(),
-                        },
-                    )
-                })
-                .chain(
-                    self.dag
-                        .edges_directed(node_idx, petgraph::Direction::Outgoing)
-                        .map(|edge| {
-                            (
-                                edge.weight().source.id,
-                                port::Declaration {
-                                    operator_id: Ref::new(op.id),
-                                    instance_name: edge.weight().source.name.to_string(),
-                                },
-                            )
-                        }),
+        for node_idx in self.dag.node_indices().collect::<Vec<_>>() {
+            let op = &mut self.dag[node_idx];
+            op.handle
+                .declaration(
+                    self.handle.as_entity_ref(),
+                    op.parents.clone(),
+                    format!("{}-{node_idx:?}", op.name()),
+                    op.name(),
+                    Default::default(),
                 )
-            {
-                let port_handle = port_obs.create(id);
-                port_handle.declaration(event);
-            }
+                .unwrap();
+        }
+
+        for edge_idx in self.dag.edge_indices().collect::<Vec<_>>() {
+            let (source_idx, target_idx) = self.dag.edge_endpoints(edge_idx).unwrap();
+            let source_operator = self.dag[source_idx].handle.as_entity_ref();
+            let target_operator = self.dag[target_idx].handle.as_entity_ref();
+            let edge = &mut self.dag[edge_idx];
+            edge.source
+                .handle
+                .declaration(source_operator, edge.source.name.to_string())
+                .unwrap();
+            edge.target
+                .handle
+                .declaration(target_operator, edge.target.name.to_string())
+                .unwrap();
         }
     }
 }
@@ -279,45 +251,52 @@ impl<T: Debug> Plan<T> {
 // Scan -> Project \
 //                  -> Join -> Sort -> Limit -> Output
 // Scan -> Project /
-fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
+fn make_logical_plan(
+    context: &SimulatorContext,
+    query: instr::EntityRef<instr::Query>,
+    name: String,
+) -> Plan<Logical> {
     // Add a scan --> project branch and return the (project, project output port) Uuids.
-    fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
-        let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
-        let project = plan.add_node(Operator::new(Logical::Project, vec![]));
-        plan.add_edge(scan, project, Edge::new("out", "in"));
+    fn add_scan_project_branch(
+        context: &SimulatorContext,
+        plan: &mut Graph<Operator<Logical>, Edge, Directed>,
+    ) -> NodeIndex {
+        let scan = plan.add_node(Operator::new(context, Logical::Scan, vec![]));
+        let project = plan.add_node(Operator::new(context, Logical::Project, vec![]));
+        plan.add_edge(scan, project, Edge::new(context, "out", "in"));
 
         project
     }
 
     let mut dag = Graph::new();
 
-    let project_a = add_scan_project_branch(&mut dag);
-    let project_b = add_scan_project_branch(&mut dag);
+    let project_a = add_scan_project_branch(context, &mut dag);
+    let project_b = add_scan_project_branch(context, &mut dag);
 
-    let join = dag.add_node(Operator::new(Logical::Join, vec![]));
-    dag.add_edge(project_a, join, Edge::new("out", "left"));
-    dag.add_edge(project_b, join, Edge::new("out", "right"));
+    let join = dag.add_node(Operator::new(context, Logical::Join, vec![]));
+    dag.add_edge(project_a, join, Edge::new(context, "out", "left"));
+    dag.add_edge(project_b, join, Edge::new(context, "out", "right"));
 
-    let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(join, sort, Edge::new("out", "in"));
+    let sort = dag.add_node(Operator::new(context, Logical::Sort, vec![]));
+    dag.add_edge(join, sort, Edge::new(context, "out", "in"));
 
-    let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
-    dag.add_edge(sort, limit, Edge::new("out", "in"));
+    let limit = dag.add_node(Operator::new(context, Logical::Limit, vec![]));
+    dag.add_edge(sort, limit, Edge::new(context, "out", "in"));
 
-    let output = dag.add_node(Operator::new(Logical::Output, vec![]));
-    dag.add_edge(limit, output, Edge::new("out", "in"));
+    let output = dag.add_node(Operator::new(context, Logical::Output, vec![]));
+    dag.add_edge(limit, output, Edge::new(context, "out", "in"));
 
     Plan {
-        id: Uuid::now_v7(),
+        handle: context.observer::<instr::Plan>().handle(),
         name,
-        query_id,
-        parent_plan_id: None,
+        query,
+        parent_plan: None,
         dag,
         execute: false,
     }
 }
 
-fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
+fn simulate_planning(context: &SimulatorContext, logical: &Plan<Logical>) -> Plan<Physical> {
     // Find the output node
     let output = logical
         .dag
@@ -329,20 +308,21 @@ fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
 
     // Build a physical plan
     let mut physical = Plan {
-        id: Uuid::now_v7(),
+        handle: context.observer::<instr::Plan>().handle(),
         name: "physical".into(),
-        query_id: logical.query_id,
-        parent_plan_id: Some(logical.id),
+        query: logical.query.clone(),
+        parent_plan: Some(logical.handle.as_entity_ref()),
         dag: Graph::new(),
         execute: true,
     };
 
-    lower_logical(logical, &mut physical, output, None);
+    lower_logical(context, logical, &mut physical, output, None);
 
     physical
 }
 
 fn lower_logical(
+    context: &SimulatorContext,
     logical: &Plan<Logical>,
     physical: &mut Plan<Physical>,
     logical_current_idx: NodeIndex,
@@ -363,13 +343,19 @@ fn lower_logical(
             {
                 let scan_op = &logical.dag[scan_edge.source()];
                 let source = physical.dag.add_node(Operator::new(
+                    context,
                     Physical::FileSystemScan,
-                    vec![current_logical_op.id, scan_op.id],
+                    vec![
+                        current_logical_op.handle.as_entity_ref(),
+                        scan_op.handle.as_entity_ref(),
+                    ],
                 ));
                 if let Some((target_node, target_port)) = physical_target_idx_port {
-                    physical
-                        .dag
-                        .add_edge(source, target_node, Edge::new(target_port, "in"));
+                    physical.dag.add_edge(
+                        source,
+                        target_node,
+                        Edge::new(context, target_port, "in"),
+                    );
                 }
             } else {
                 unimplemented!("this shouldn't happen in this simulator, yet");
@@ -378,24 +364,30 @@ fn lower_logical(
         Logical::Join => {
             // split up in a partition stage and join stage
             let partition = physical.dag.add_node(Operator::new(
+                context,
                 Physical::JoinPartition,
-                vec![current_logical_op.id],
+                vec![current_logical_op.handle.as_entity_ref()],
             ));
             let local = physical.dag.add_node(Operator::new(
+                context,
                 Physical::JoinLocal,
-                vec![current_logical_op.id],
+                vec![current_logical_op.handle.as_entity_ref()],
             ));
-            physical
-                .dag
-                .add_edge(partition, local, Edge::new("build_out", "build_in"));
-            physical
-                .dag
-                .add_edge(partition, local, Edge::new("probe_out", "probe_in"));
+            physical.dag.add_edge(
+                partition,
+                local,
+                Edge::new(context, "build_out", "build_in"),
+            );
+            physical.dag.add_edge(
+                partition,
+                local,
+                Edge::new(context, "probe_out", "probe_in"),
+            );
 
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(local, target_node, Edge::new("out", target_port));
+                    .add_edge(local, target_node, Edge::new(context, "out", target_port));
             }
 
             // Recurse up both branches
@@ -404,6 +396,7 @@ fn lower_logical(
                 .edges_directed(logical_current_idx, Direction::Incoming)
             {
                 lower_logical(
+                    context,
                     logical,
                     physical,
                     input_edge.source(),
@@ -412,13 +405,15 @@ fn lower_logical(
             }
         }
         Logical::Sort => {
-            let sort = physical
-                .dag
-                .add_node(Operator::new(Physical::Sort, vec![current_logical_op.id]));
+            let sort = physical.dag.add_node(Operator::new(
+                context,
+                Physical::Sort,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(sort, target_node, Edge::new("out", target_port));
+                    .add_edge(sort, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -426,6 +421,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -433,13 +429,15 @@ fn lower_logical(
             );
         }
         Logical::Limit => {
-            let limit = physical
-                .dag
-                .add_node(Operator::new(Physical::Limit, vec![current_logical_op.id]));
+            let limit = physical.dag.add_node(Operator::new(
+                context,
+                Physical::Limit,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(limit, target_node, Edge::new("out", target_port));
+                    .add_edge(limit, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -447,6 +445,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -454,13 +453,15 @@ fn lower_logical(
             );
         }
         Logical::Output => {
-            let output = physical
-                .dag
-                .add_node(Operator::new(Physical::Output, vec![current_logical_op.id]));
+            let output = physical.dag.add_node(Operator::new(
+                context,
+                Physical::Output,
+                vec![current_logical_op.handle.as_entity_ref()],
+            ));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(output, target_node, Edge::new("out", target_port));
+                    .add_edge(output, target_node, Edge::new(context, "out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -468,6 +469,7 @@ fn lower_logical(
                 .next()
                 .unwrap();
             lower_logical(
+                context,
                 logical,
                 physical,
                 input_edge.source(),
@@ -478,113 +480,115 @@ fn lower_logical(
 }
 
 struct Worker {
-    id: Uuid,
-    memory: Uuid,
-    filesystem: Uuid,
-    fs_to_mem: Uuid,
-    mem_to_fs: Uuid,
-    thread_pool: Uuid,
-    threads: Vec<Uuid>,
-    // Resource handles — kept alive until shut_down().
-    memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
-    channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
-    processor_handles: Vec<quent_stdlib::processor::ProcessorHandle>,
+    handle: instr::Handle<instr::Worker>,
+    memory: instr::Handle<instr::Memory>,
+    filesystem: instr::Handle<instr::Memory>,
+    fs_to_mem: instr::Handle<instr::StorageChannel>,
+    mem_to_fs: instr::Handle<instr::StorageChannel>,
+    thread_pool: instr::Handle<instr::ThreadPool>,
+    threads: Vec<instr::Handle<instr::Processor>>,
 }
 
 impl Worker {
     fn new(
-        id: Uuid,
         name: String,
         context: &SimulatorContext,
-        parent_engine_id: Uuid,
+        parent_engine: instr::EntityRef<instr::Engine>,
         num_threads: usize,
     ) -> Self {
-        let worker_obs = context.worker_observer();
+        let worker_obs = context.observer::<instr::Worker>();
 
         info!("Spawning worker {name}");
-        let worker_handle = worker_obs.create(id);
-        worker_handle.init(worker::Init {
-            parent_engine_id: Ref::new(parent_engine_id),
-            instance_name: name.clone(),
-        });
+        let mut handle = worker_obs.handle();
+        handle.init(parent_engine, name.clone()).unwrap();
 
-        let mut memory_handles = Vec::new();
-        let mut channel_handles = Vec::new();
-        let mut processor_handles = Vec::new();
-
-        let mem_obs = context.memory_observer();
-        let ch_obs = context.channel_observer();
-        let proc_obs = context.processor_observer();
+        let mem_obs = context.observer::<instr::Memory>();
+        let ch_obs = context.observer::<instr::StorageChannel>();
+        let proc_obs = context.observer::<instr::Processor>();
 
         // Filesystem
-        let filesystem = Uuid::now_v7();
-        let mut fs_handle = mem_obs.initializing(filesystem, "Filesystem", id);
-        fs_handle.operating(Some(0));
-        memory_handles.push(fs_handle);
+        let mut filesystem = mem_obs.handle();
+        filesystem
+            .initializing("Filesystem".to_string(), handle.as_entity_ref())
+            .unwrap();
+        filesystem
+            .operating(instr::MemoryBounds { bytes: 0 })
+            .unwrap();
 
         // Memory pool
-        let memory = Uuid::now_v7();
-        let mut mem_handle = mem_obs.initializing(memory, "Memory", id);
-        mem_handle.operating(Some(0));
-        memory_handles.push(mem_handle);
+        let mut memory = mem_obs.handle();
+        memory
+            .initializing("Memory".to_string(), handle.as_entity_ref())
+            .unwrap();
+        memory.operating(instr::MemoryBounds { bytes: 0 }).unwrap();
 
         // Filesystem -> Memory channel
-        let fs_to_mem = Uuid::now_v7();
-        let mut fs_to_mem_handle =
-            ch_obs.initializing(fs_to_mem, "Filesystem -> Memory", id, filesystem, memory);
-        fs_to_mem_handle.operating(None);
-        channel_handles.push(fs_to_mem_handle);
+        let mut fs_to_mem = ch_obs.handle();
+        fs_to_mem
+            .initializing(
+                "Filesystem -> Memory".to_string(),
+                handle.as_entity_ref(),
+                filesystem.as_entity_ref(),
+                memory.as_entity_ref(),
+            )
+            .unwrap();
+        fs_to_mem
+            .operating(instr::StorageChannelBounds { bytes: 0 })
+            .unwrap();
 
         // Memory -> Filesystem channel
-        let mem_to_fs = Uuid::now_v7();
-        let mut mem_to_fs_handle =
-            ch_obs.initializing(mem_to_fs, "Memory -> Filesystem", id, memory, filesystem);
-        mem_to_fs_handle.operating(None);
-        channel_handles.push(mem_to_fs_handle);
+        let mut mem_to_fs = ch_obs.handle();
+        mem_to_fs
+            .initializing(
+                "Memory -> Filesystem".to_string(),
+                handle.as_entity_ref(),
+                memory.as_entity_ref(),
+                filesystem.as_entity_ref(),
+            )
+            .unwrap();
+        mem_to_fs
+            .operating(instr::StorageChannelBounds { bytes: 0 })
+            .unwrap();
 
         // Thread pool
-        let tp_obs = context.thread_pool_observer();
-        let thread_pool = Uuid::now_v7();
-        tp_obs.thread_pool(thread_pool, "Thread Pool", id);
+        let tp_obs = context.observer::<instr::ThreadPool>();
+        let mut thread_pool = tp_obs.handle();
+        thread_pool
+            .declaration("Thread Pool".to_string(), handle.as_entity_ref())
+            .unwrap();
 
         let mut threads = Vec::new();
         for index in 0..num_threads {
-            let thread_id = Uuid::now_v7();
-            let mut thread_handle =
-                proc_obs.initializing(thread_id, &format!("Thread {index}"), thread_pool);
-            threads.push(thread_id);
-            thread_handle.operating();
-            processor_handles.push(thread_handle);
+            let mut thread = proc_obs.handle();
+            thread
+                .initializing(format!("Thread {index}"), thread_pool.as_entity_ref())
+                .unwrap();
+            thread.operating().unwrap();
+            threads.push(thread);
         }
 
         Self {
-            id,
+            handle,
             memory,
             filesystem,
             fs_to_mem,
             mem_to_fs,
             thread_pool,
             threads,
-            memory_handles,
-            channel_handles,
-            processor_handles,
         }
     }
 
     fn execute_physical_operator_task(
         &self,
         context: &SimulatorContext,
-        index: usize,
+        _index: usize,
         engine: &Engine,
         operator: &Operator<Physical>,
-        thread: Uuid,
+        thread: &instr::Handle<instr::Processor>,
     ) {
-        let thread_ref = Ref::new(thread);
-        let mem_ref = Ref::new(self.memory);
-
-        // Create task — emits entry -> Queueing
-        let task_obs = context.task_observer();
-        let mut task = task_obs.queueing(Uuid::now_v7(), &format!("task-{index}"), operator.id);
+        let task_obs = context.observer::<instr::Task>();
+        let mut task = task_obs.handle();
+        task.queueing(operator.handle.as_entity_ref()).unwrap();
 
         sleep_long();
         let (spill, load, send) = match operator.kind {
@@ -598,50 +602,62 @@ impl Worker {
 
         let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
 
-        task.allocating(Some(usage(thread_ref)));
+        task.allocating(thread.as_entity_ref_with(instr::ProcessorUsage))
+            .unwrap();
         sleep_short();
 
         if spill {
             task.spilling(
-                Some(usage(thread_ref)),
-                Some(usage((Ref::new(self.mem_to_fs), num_bytes))),
-            );
+                thread.as_entity_ref_with(instr::ProcessorUsage),
+                self.mem_to_fs
+                    .as_entity_ref_with(instr::StorageChannelUsage { bytes: num_bytes }),
+            )
+            .unwrap();
             sleep_sometimes_really_long();
-            task.allocating(Some(usage(thread_ref)));
+            task.allocating(thread.as_entity_ref_with(instr::ProcessorUsage))
+                .unwrap();
             sleep_short();
         }
 
         if load {
             task.loading(
-                Some(usage(thread_ref)),
-                Some(usage((Ref::new(self.fs_to_mem), num_bytes))),
-                Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
-            );
+                thread.as_entity_ref_with(instr::ProcessorUsage),
+                self.fs_to_mem
+                    .as_entity_ref_with(instr::StorageChannelUsage { bytes: num_bytes }),
+                self.memory.as_entity_ref_with(instr::MemoryUsage {
+                    bytes: rng().random_range(0..4) * num_bytes,
+                }),
+            )
+            .unwrap();
             sleep_sometimes_really_long();
         }
 
         task.computing(
-            /* instance_name */ "",
-            /* input_bytes */ num_bytes,
-            Some(usage(thread_ref)),
-            Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
-        );
+            num_bytes,
+            thread.as_entity_ref_with(instr::ProcessorUsage),
+            self.memory.as_entity_ref_with(instr::MemoryUsage {
+                bytes: rng().random_range(0..4) * num_bytes,
+            }),
+        )
+        .unwrap();
 
         if send {
-            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
+            let worker_id = self.handle.uuid();
+            let other_workers = engine.workers.keys().filter(|w| **w != worker_id);
 
             for other in other_workers {
-                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
+                let link = engine.network_links.get(&(worker_id, *other)).unwrap();
 
                 task.sending(
-                    Some(usage(thread_ref)),
-                    Some(usage((Ref::new(link), num_bytes))),
-                );
+                    thread.as_entity_ref_with(instr::ProcessorUsage),
+                    link.as_entity_ref_with(instr::NetworkChannelUsage { bytes: num_bytes }),
+                )
+                .unwrap();
                 sleep_long();
             }
         }
 
-        task.exit();
+        task.exit().unwrap();
     }
 
     fn execute_logical_plan(
@@ -651,40 +667,32 @@ impl Worker {
         l_plan: &Plan<Logical>,
         num_tasks: usize,
     ) {
-        let physical_plan = simulate_planning(l_plan);
-        physical_plan.declare(context, Some(self.id));
+        let mut physical_plan = simulate_planning(context, l_plan);
+        physical_plan.declare(Some(self.handle.as_entity_ref()));
 
         // Log analyzer debug links:
-        log_resource_links(engine.id, physical_plan.query_id, self.memory, "Memory");
+        let engine_id = engine.handle.uuid();
+        let query_id = physical_plan.query.target;
+        log_resource_links(engine_id, query_id, self.memory.uuid(), "Memory");
+        log_resource_links(engine_id, query_id, self.filesystem.uuid(), "Filesystem");
         log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.filesystem,
-            "Filesystem",
-        );
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.fs_to_mem,
+            engine_id,
+            query_id,
+            self.fs_to_mem.uuid(),
             "Filesystem -> Memory",
         );
         log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.mem_to_fs,
+            engine_id,
+            query_id,
+            self.mem_to_fs.uuid(),
             "Memory -> Filesystem",
         );
-        log_resource_group_links(
-            engine.id,
-            physical_plan.query_id,
-            self.thread_pool,
-            "Thread Pool",
-        );
-        for (index, thread_id) in self.threads.iter().enumerate() {
+        log_resource_group_links(engine_id, query_id, self.thread_pool.uuid(), "Thread Pool");
+        for (index, thread) in self.threads.iter().enumerate() {
             log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                *thread_id,
+                engine_id,
+                query_id,
+                thread.uuid(),
                 format!("Thread {index}").as_str(),
             );
         }
@@ -704,9 +712,8 @@ impl Worker {
             let plan = &physical_plan;
             let nodes = &nodes;
             std::thread::scope(|s| {
-                for (thread_index, thread_id) in self.threads.iter().enumerate() {
+                for (thread_index, thread) in self.threads.iter().enumerate() {
                     s.spawn({
-                        let thread_id = *thread_id;
                         move || {
                             for task_index in thread_index * tasks_per_thread_per_op
                                 ..(thread_index + 1) * tasks_per_thread_per_op
@@ -714,7 +721,7 @@ impl Worker {
                                 for node_idx in nodes {
                                     let op = &plan.dag[*node_idx];
                                     self.execute_physical_operator_task(
-                                        context, task_index, engine, op, thread_id,
+                                        context, task_index, engine, op, thread,
                                     );
                                     op.tasks_processed.fetch_add(1, Ordering::Relaxed);
                                     let edges =
@@ -756,8 +763,6 @@ impl Worker {
             };
         }
 
-        let op_obs = context.operator_observer();
-        let port_obs = context.port_observer();
         for node_idx in nodes.iter() {
             let op = &physical_plan.dag[*node_idx];
             let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
@@ -963,159 +968,166 @@ impl Worker {
                     ]);
                 }
             }
-            let op_handle = op_obs.create(op.id);
-            op_handle.statistics(operator::Statistics {
-                custom_attributes: attributes.into(),
-            });
+            physical_plan.dag[*node_idx]
+                .handle
+                .statistics(attributes.into())
+                .unwrap();
 
             let edges = physical_plan
                 .dag
-                .edges_directed(*node_idx, Direction::Incoming);
-            for edge in edges {
-                let port = &edge.weight().target;
-                let port_handle = port_obs.create(port.id);
-                port_handle.statistics(port::Statistics {
-                    custom_attributes: vec![
-                        DynamicAttribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
-                        DynamicAttribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
-                    ]
-                    .into(),
-                });
+                .edges_directed(*node_idx, Direction::Incoming)
+                .map(|edge| edge.id())
+                .collect::<Vec<_>>();
+            for edge_idx in edges {
+                let port = &mut physical_plan.dag[edge_idx].target;
+                port.handle
+                    .statistics(
+                        vec![
+                            DynamicAttribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
+                            DynamicAttribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
+                        ]
+                        .into(),
+                    )
+                    .unwrap();
             }
         }
     }
 
-    fn shut_down(&mut self, context: &SimulatorContext) {
-        let worker_obs = context.worker_observer();
-
-        for handle in &mut self.memory_handles {
-            handle.finalizing();
-            handle.exit();
+    fn shut_down(&mut self) {
+        for memory in [&mut self.filesystem, &mut self.memory] {
+            memory.finalizing().unwrap();
+            memory.exit().unwrap();
             sleep_long();
         }
-        for handle in &mut self.channel_handles {
-            handle.finalizing();
-            handle.exit();
+        for channel in [&mut self.fs_to_mem, &mut self.mem_to_fs] {
+            channel.finalizing().unwrap();
+            channel.exit().unwrap();
             sleep_long();
         }
-        for handle in &mut self.processor_handles {
-            handle.finalizing();
-            handle.exit();
+        for thread in &mut self.threads {
+            thread.finalizing().unwrap();
+            thread.exit().unwrap();
         }
         sleep_long();
-        let worker_handle = worker_obs.create(self.id);
-        worker_handle.exit(worker::Exit);
+        self.handle.exit().unwrap();
     }
 }
 
 struct Engine {
-    id: Uuid,
+    handle: instr::Handle<instr::Engine>,
     workers: HashMap<Uuid, Worker>,
-    network: Uuid,
-    network_links: HashMap<(Uuid, Uuid), Uuid>,
-    network_link_handles: Vec<quent_stdlib::channel::ChannelHandle>,
+    network: instr::Handle<instr::Network>,
+    network_links: HashMap<(Uuid, Uuid), instr::Handle<instr::NetworkChannel>>,
 }
 
 impl Engine {
-    fn new() -> Self {
+    fn new(context: &SimulatorContext) -> Self {
         Self {
-            id: Uuid::now_v7(),
+            handle: context.observer::<instr::Engine>().handle(),
             workers: Default::default(),
-            network: Uuid::now_v7(),
+            network: context.observer::<instr::Network>().handle(),
             network_links: Default::default(),
-            network_link_handles: Vec::new(),
         }
     }
 
     fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
         info!("Simulating Engine:");
-        info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
-        let engine_obs = context.engine_observer();
+        info!(
+            "\thttp://localhost:8080/analyzer/engine/{}",
+            self.handle.uuid()
+        );
 
         let instance_name = format!("holodeck-{:04x}", rng().random::<u32>());
-        let engine_handle = engine_obs.create(self.id);
-        engine_handle.init(engine::Init {
-            instance_name: Some(instance_name),
-            implementation: EngineImplementationAttributes {
-                name: Some("Simulator".into()),
-                version: Some("0.0.0-PoC".into()),
-                custom_attributes: Default::default(),
-            },
-        });
+        self.handle
+            .init(
+                instr::EngineImplementationAttributes {
+                    name: Some("Simulator".into()),
+                    version: Some("0.0.0-PoC".into()),
+                    custom_attributes: Default::default(),
+                },
+                Some(instance_name),
+            )
+            .unwrap();
 
         // Workers
-        let worker_ids = std::iter::repeat_with(Uuid::now_v7)
-            .take(num_workers)
-            .collect::<Vec<_>>();
-
-        for (worker_index, worker_id) in worker_ids.iter().enumerate() {
+        let mut worker_ids = Vec::with_capacity(num_workers);
+        for worker_index in 0..num_workers {
             let worker = Worker::new(
-                *worker_id,
                 format!("drone-{worker_index}"),
                 context,
-                self.id,
+                self.handle.as_entity_ref(),
                 num_threads,
             );
-            self.workers.insert(*worker_id, worker);
+            let worker_id = worker.handle.uuid();
+            worker_ids.push(worker_id);
+            self.workers.insert(worker_id, worker);
         }
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        let net_obs = context.network_observer();
-        self.network = Uuid::now_v7();
-        net_obs.network(self.network, "network", self.id);
-        let ch_obs = context.channel_observer();
+        self.network
+            .declaration("network".to_string(), self.handle.as_entity_ref())
+            .unwrap();
+        let ch_obs = context.observer::<instr::NetworkChannel>();
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
 
-                let up_link_id = Uuid::now_v7();
-                let mut up_handle = ch_obs.initializing(
-                    up_link_id,
-                    &format!("worker {worker_index} -> {other_worker_index}"),
-                    self.network,
-                    self.workers.get(&worker_id).unwrap().memory,
-                    self.workers.get(&other_worker_id).unwrap().memory,
-                );
-                up_handle.operating(None);
-                self.network_link_handles.push(up_handle);
-
-                let down_link_id = Uuid::now_v7();
-                let mut down_handle = ch_obs.initializing(
-                    down_link_id,
-                    &format!("worker {other_worker_index} -> {worker_index}"),
-                    self.network,
-                    self.workers.get(&other_worker_id).unwrap().memory,
-                    self.workers.get(&worker_id).unwrap().memory,
-                );
-                down_handle.operating(None);
-                self.network_link_handles.push(down_handle);
-
+                let mut up_handle = ch_obs.handle();
+                up_handle
+                    .initializing(
+                        format!("worker {worker_index} -> {other_worker_index}"),
+                        self.network.as_entity_ref(),
+                        self.workers.get(&worker_id).unwrap().memory.as_entity_ref(),
+                        self.workers
+                            .get(&other_worker_id)
+                            .unwrap()
+                            .memory
+                            .as_entity_ref(),
+                    )
+                    .unwrap();
+                up_handle
+                    .operating(instr::NetworkChannelBounds { bytes: 0 })
+                    .unwrap();
                 self.network_links
-                    .insert((worker_id, other_worker_id), up_link_id);
+                    .insert((worker_id, other_worker_id), up_handle);
+
+                let mut down_handle = ch_obs.handle();
+                down_handle
+                    .initializing(
+                        format!("worker {other_worker_index} -> {worker_index}"),
+                        self.network.as_entity_ref(),
+                        self.workers
+                            .get(&other_worker_id)
+                            .unwrap()
+                            .memory
+                            .as_entity_ref(),
+                        self.workers.get(&worker_id).unwrap().memory.as_entity_ref(),
+                    )
+                    .unwrap();
+                down_handle
+                    .operating(instr::NetworkChannelBounds { bytes: 0 })
+                    .unwrap();
                 self.network_links
-                    .insert((other_worker_id, worker_id), down_link_id);
+                    .insert((other_worker_id, worker_id), down_handle);
             }
         }
     }
 
-    fn shut_down(&mut self, context: &SimulatorContext) {
-        let engine_obs = context.engine_observer();
-
+    fn shut_down(&mut self) {
         // Tear down network
-        for handle in &mut self.network_link_handles {
-            handle.finalizing();
-            handle.exit();
+        for handle in self.network_links.values_mut() {
+            handle.finalizing().unwrap();
+            handle.exit().unwrap();
         }
 
         // Tear down workers
         for worker in self.workers.values_mut() {
-            worker.shut_down(context);
+            worker.shut_down();
         }
 
-        let engine_handle = engine_obs.create(self.id);
-        engine_handle.exit(engine::Exit);
+        self.handle.exit().unwrap();
         info!("Simulated engine shut down.")
     }
 }
@@ -1127,53 +1139,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Simulating with: {args:?}");
 
-    let mut engine = Engine::new();
-
     let context = match args.exporter.into_options() {
         Some(provider) => SimulatorContext::try_new(provider)?,
         None => SimulatorContext::try_new(quent_model::Noop)?,
     };
+    let mut engine = Engine::new(&context);
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 
-    for (query_group_index, query_group_id) in std::iter::repeat_with(Uuid::now_v7)
-        .take(args.num_query_groups)
-        .enumerate()
-    {
+    for query_group_index in 0..args.num_query_groups {
+        let query_group_obs = context.observer::<instr::QueryGroup>();
+        let mut query_group = query_group_obs.handle();
+        let query_group_id = query_group.uuid();
+
         info!("Simulating Query Group:");
         info!(
             "\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}/list_queries",
-            engine.id
+            engine.handle.uuid()
         );
 
-        let query_group_obs = context.query_group_observer();
-
-        query_group_obs.declaration(
-            query_group_id,
-            query_group::Declaration {
-                engine_id: engine.id,
-                instance_name: format!("TPC-H (iteration {query_group_index})"),
-            },
-        );
+        query_group
+            .declaration(
+                format!("TPC-H (iteration {query_group_index})"),
+                engine.handle.as_entity_ref(),
+            )
+            .unwrap();
 
         // "Run" the specified number of queries, sequentially for now.
         for query_index in 0..args.num_queries {
-            let query_obs = context.query_observer();
-            let query_id = Uuid::now_v7();
-            let mut query_handle = query_obs.init(
-                query_id,
-                &format!("Q{query_index}"),
-                Ref::new(query_group_id),
-            );
+            let query_obs = context.observer::<instr::Query>();
+            let mut query = query_obs.handle();
+            query
+                .init(format!("Q{query_index}"), query_group.as_entity_ref())
+                .unwrap();
             info!("Simulating Query:");
             info!(
-                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
-                engine.id
+                "\thttp://localhost:8080/analyzer/engine/{}/query/{}",
+                engine.handle.uuid(),
+                query.uuid()
             );
-            query_handle.planning();
-            let l_plan = make_logical_plan(query_id, "logical".into());
-            l_plan.declare(&context, None);
-            query_handle.executing();
+            query.planning().unwrap();
+            let mut l_plan = make_logical_plan(&context, query.as_entity_ref(), "logical".into());
+            l_plan.declare(None);
+            query.executing().unwrap();
 
             let workers: Vec<_> = engine.workers.values().collect();
             std::thread::scope(|s| {
@@ -1184,11 +1192,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
 
-            query_handle.exit();
+            query.exit().unwrap();
         }
     }
 
-    engine.shut_down(&context);
+    engine.shut_down();
 
     // Each entity stream flushes only when its last observer clone is released.
     // `engine` co-owns those clones through its worker and network-link handles,

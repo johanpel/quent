@@ -50,8 +50,9 @@ use quent_analyzer::{
         },
     },
 };
-use quent_simulator_instrumentation::{Simulator, SimulatorEvent};
+use quent_simulator_instrumentation::{self as instr, Simulator, SimulatorEvent};
 use quent_simulator_ui::EntityRef;
+use quent_store::{ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
 
@@ -63,6 +64,9 @@ use crate::{
 pub mod model;
 pub mod task;
 pub mod view;
+
+#[cfg(test)]
+mod tests;
 
 /// Data-flow measure counting tasks residing in each (state, location) cell.
 const MEASURE_TASKS: &str = "tasks";
@@ -154,7 +158,21 @@ impl QuentViewer for Viewer {
     fn import_events(
         dir: &std::path::Path,
     ) -> quent_model::io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
-        Simulator::import_events(dir)
+        let invalid_path = || {
+            quent_model::io::ImporterError::IoError(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("context directory must end in a UUID: {}", dir.display()),
+            ))
+        };
+        let context_id = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| Uuid::parse_str(name).ok())
+            .ok_or_else(invalid_path)?;
+        let root = dir.parent().ok_or_else(invalid_path)?;
+        Store::<Simulator>::new(root)
+            .events(context_id)
+            .map_err(|error| quent_model::io::ImporterError::IoError(std::io::Error::other(error)))
     }
 }
 
@@ -196,19 +214,22 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<quent_query_engine_ui::Engine> {
-        use quent_query_engine_model::engine::EngineEvent;
         for event in events {
-            if let SimulatorEvent::Engine(EngineEvent::Init(init)) = event.data {
+            if let SimulatorEvent::Engine(instr::EngineEvent::Init {
+                implementation,
+                instance_name,
+            }) = event.data
+            {
                 return Ok(quent_query_engine_ui::Engine {
                     id: engine_id,
                     start_time_unix_ns: Some(event.timestamp),
                     duration_s: None,
-                    instance_name: init.instance_name,
-                    implementation: Some(
-                        quent_query_engine_ui::EngineImplementationAttributes::from(
-                            &init.implementation,
-                        ),
-                    ),
+                    instance_name,
+                    implementation: Some(quent_query_engine_ui::EngineImplementationAttributes {
+                        name: implementation.name,
+                        version: implementation.version,
+                        custom_attributes: implementation.custom_attributes.0,
+                    }),
                 });
             }
         }

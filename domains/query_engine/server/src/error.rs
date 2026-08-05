@@ -14,6 +14,8 @@ pub enum ServerError {
     Importer(#[from] ImporterError),
     #[error("i/o error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("event store error: {0}")]
+    Store(#[from] quent_store::filesystem::Error),
     #[error("cache error: {0}")]
     Cache(String),
     #[error("task join error: {0}")]
@@ -36,6 +38,7 @@ impl From<ServerError> for StatusCode {
             ServerError::Importer(_)
             | ServerError::Analyzer(_)
             | ServerError::Io(_)
+            | ServerError::Store(_)
             | ServerError::Cache(_)
             | ServerError::Join(_)
             | ServerError::Time(_) => StatusCode::INTERNAL_SERVER_ERROR,

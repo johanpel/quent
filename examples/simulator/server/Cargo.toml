@@ -14,6 +14,10 @@ quent-io = { path = "../../../crates/io" }
 quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-instrumentation = { path = "../instrumentation", features = ["collector"] }
+quent-store = { path = "../../../crates/store" }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"]}
 tracing.workspace = true
 uuid.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

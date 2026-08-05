@@ -18,6 +18,7 @@ quent-io = { path = "../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
 quent-query-engine-model = { path = "../model" }
 quent-query-engine-ui = { path = "../../../domains/query_engine/ui" }
+quent-store = { path = "../../../crates/store" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui" }
 serde.workspace = true

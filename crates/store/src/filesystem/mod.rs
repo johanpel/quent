@@ -107,6 +107,23 @@ impl<M> Store<M> {
     pub fn root(&self) -> &Path {
         &self.root
     }
+
+    /// Returns context IDs represented by UUID-named directories in this store.
+    pub fn context_ids(&self) -> Result<Vec<Uuid>> {
+        let mut context_ids = std::fs::read_dir(&self.root)?
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                entry
+                    .file_type()
+                    .ok()?
+                    .is_dir()
+                    .then_some(entry.file_name())
+            })
+            .filter_map(|name| name.to_str().and_then(|name| Uuid::parse_str(name).ok()))
+            .collect::<Vec<_>>();
+        context_ids.sort_unstable();
+        Ok(context_ids)
+    }
 }
 
 impl<M> EntityEventStore<M> for Store<M> {

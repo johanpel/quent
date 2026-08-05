@@ -7,12 +7,32 @@ use clap::Parser;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_server::{
-    analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
-    initialize_tracing,
+    analyzer_cache::{EngineIndex, EngineIndexEntry},
+    analyzer_service_router, collector_service, initialize_tracing,
 };
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::{Simulator, SimulatorContext};
+use quent_simulator_instrumentation::{
+    Context, EngineEvent, Simulator, SimulatorEvent, WorkerEvent,
+};
+use quent_store::{ModelEventStore, filesystem::Store};
 use tokio::net::TcpListener;
+
+type SimulatorContext = Context<Simulator>;
+
+fn classify_index_event(entity_id: uuid::Uuid, event: &SimulatorEvent) -> Option<EngineIndexEntry> {
+    match event {
+        SimulatorEvent::Engine(EngineEvent::Init { .. }) => Some(EngineIndexEntry::Engine {
+            engine_id: entity_id,
+        }),
+        SimulatorEvent::Worker(WorkerEvent::Init {
+            parent_engine_id, ..
+        }) => Some(EngineIndexEntry::Worker {
+            engine_id: parent_engine_id.target,
+            worker_id: entity_id,
+        }),
+        _ => None,
+    }
+}
 
 mod defaults {
     /// Default collector socket address to listen on.
@@ -87,16 +107,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok_or_else(|| format!("unable to resolve socket address: {collector_address}"))?;
 
     let importer_output_dir = output_dir.clone();
-    let lister_output_dir = output_dir.clone();
-
     let format = match exporter.as_str() {
         "ndjson" => Format::Ndjson,
         "msgpack" => Format::Msgpack,
         "postcard" => Format::Postcard,
         other => return Err(format!("unknown exporter: {other}").into()),
     };
-    let exporter_kind =
-        ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
+    let exporter_kind = ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+        format,
+        output_dir.clone(),
+    ));
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
@@ -114,15 +134,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Index the exported contexts by engine instance: each engine's telemetry is
     // the engine's own context plus its workers' contexts.
-    let lister = move || index_query_engines(&lister_output_dir);
+    let lister_store = Store::<Simulator>::new(output_dir.clone());
+    let lister = move || EngineIndex::from_event_store(&lister_store, classify_index_event);
 
     // Reconstruct one context's umbrella event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
-    let importer = move |context_id| {
-        let dir = importer_output_dir.join(format!("{context_id}"));
-        Ok(Simulator::import_events(&dir)?)
-    };
+    let importer_store = Store::<Simulator>::new(importer_output_dir);
+    let importer = move |context_id| Ok(importer_store.events(context_id)?);
 
     let analyzer = async {
         axum::serve(
@@ -143,4 +162,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::try_join!(collector, analyzer)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quent_simulator_instrumentation::{
+        DynamicAttributes, Engine, EngineImplementationAttributes, Worker,
+    };
+    use uuid::Uuid;
+
+    #[test]
+    fn indexes_schema_events_from_filesystem_store() {
+        let output = tempfile::tempdir().unwrap();
+        let context_id = Uuid::now_v7();
+        let engine_id = Uuid::now_v7();
+        let worker_id = Uuid::now_v7();
+        {
+            let context = SimulatorContext::try_with_id(
+                context_id,
+                ExporterOptions::FileSystem(filesystem::exporter::Options::new(
+                    Format::Ndjson,
+                    output.path().to_owned(),
+                )),
+            )
+            .unwrap();
+            let mut engine = context.observer::<Engine>().handle_with_id(engine_id);
+            engine
+                .init(
+                    EngineImplementationAttributes {
+                        name: Some("test".to_owned()),
+                        version: None,
+                        custom_attributes: DynamicAttributes::default(),
+                    },
+                    Some("engine".to_owned()),
+                )
+                .unwrap();
+            let mut worker = context.observer::<Worker>().handle_with_id(worker_id);
+            worker
+                .init(engine.as_entity_ref(), "worker".to_owned())
+                .unwrap();
+        }
+
+        let store = Store::<Simulator>::new(output.path());
+        let index = EngineIndex::from_event_store(&store, classify_index_event).unwrap();
+
+        assert_eq!(index.contexts_of(engine_id), vec![context_id]);
+        assert_eq!(index.workers_of(engine_id), &[(worker_id, context_id)]);
+    }
 }

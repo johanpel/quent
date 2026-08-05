@@ -93,8 +93,32 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
 
+    let store_impls = store_impls(schema, opts.umbrella_event);
+
+    let file = syn::parse2::<syn::File>(quote! {
+        #events
+
+        #store_impls
+    })
+    .map_err(GenerateError::InvalidGeneratedCode)?;
+
+    Ok(prettyplease::unparse(&file))
+}
+
+/// Returns event-store implementations for event types generated elsewhere.
+///
+/// # Errors
+///
+/// Returns an error when the generated implementations are not valid Rust.
+pub fn generate_impls_str(schema: &Schema, umbrella_event: bool) -> Result<String, GenerateError> {
+    let impls = store_impls(schema, umbrella_event);
+    let file = syn::parse2::<syn::File>(impls).map_err(GenerateError::InvalidGeneratedCode)?;
+    Ok(prettyplease::unparse(&file))
+}
+
+fn store_impls(schema: &Schema, umbrella_event: bool) -> proc_macro2::TokenStream {
     let model = quent_instrumentation_build::generated_model_path(schema);
-    let stored_model = if opts.umbrella_event {
+    let stored_model = if umbrella_event {
         let streams = schema.entities().map(|entity| {
             let event = quent_instrumentation_build::generated_entity_event_path(entity);
             quote! {
@@ -124,16 +148,11 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         }
     });
 
-    let file = syn::parse2::<syn::File>(quote! {
-        #events
-
+    quote! {
         #stored_model
 
         #(#entities)*
-    })
-    .map_err(GenerateError::InvalidGeneratedCode)?;
-
-    Ok(prettyplease::unparse(&file))
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +199,20 @@ mod tests {
         assert!(source.contains("StoredEntity<Demo> for Query"));
         assert!(!source.contains("filesystem::Model for Demo"));
         assert!(!source.contains("pub enum DemoEvent"));
+    }
+
+    #[test]
+    fn generates_store_impls_for_existing_event_types() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Query", [event("created", [])]))
+            .build()
+            .unwrap();
+
+        let source = generate_impls_str(&schema, true).unwrap();
+
+        assert!(source.contains("impl ::quent_store::filesystem::Model for Demo"));
+        assert!(source.contains("impl ::quent_store::StoredEntity<Demo> for Query"));
+        assert!(!source.contains("pub struct Demo"));
     }
 }
