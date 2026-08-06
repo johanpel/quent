@@ -33,11 +33,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load events for one entity type.
     for event in store.entity_events::<Query>(context_id)? {
+        let event = event?;
         println!("{event:?}");
     }
 
     // Load all model events as `DemoEvent`.
     for event in store.events(context_id)? {
+        let event = event?;
         println!("{event:?}");
     }
 

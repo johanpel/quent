@@ -45,10 +45,8 @@ pub trait Model: ModelEvents {
         Self: Sized;
 }
 
-type ImportFn<M> = fn(
-    Vec<EventFile>,
-)
-    -> Result<Box<dyn Iterator<Item = Event<<M as ModelEvents>::UmbrellaEvent>>>>;
+type ImportFn<M> =
+    fn(Vec<EventFile>) -> Result<EventIterator<<M as ModelEvents>::UmbrellaEvent, Error>>;
 
 /// Describes one entity-event stream in a generated analysis model.
 pub struct EventStream<M: ModelEvents> {
@@ -75,7 +73,7 @@ pub struct EventFile {
 #[doc(hidden)]
 pub fn import_event_files<M, E>(
     files: Vec<EventFile>,
-) -> Result<Box<dyn Iterator<Item = Event<M::UmbrellaEvent>>>>
+) -> Result<EventIterator<M::UmbrellaEvent, Error>>
 where
     M: ModelEvents,
     E: DeserializeOwned + Into<M::UmbrellaEvent> + 'static,
@@ -83,8 +81,11 @@ where
 {
     let streams = import_files::<E>(files)?
         .map(|stream| {
-            Box::new(stream.map(|event| Event::new(event.id, event.timestamp, event.data.into())))
-                as Box<dyn Iterator<Item = Event<M::UmbrellaEvent>>>
+            Box::new(stream.map(|event| {
+                event
+                    .map(|event| Event::new(event.id, event.timestamp, event.data.into()))
+                    .map_err(Error::from)
+            })) as EventIterator<M::UmbrellaEvent, Error>
         })
         .collect::<Vec<_>>();
     Ok(Box::new(streams.into_iter().flatten()))
@@ -123,10 +124,12 @@ where
 {
     type Error = Error;
 
-    fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Event>> {
+    fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Event, Error>> {
         let context = self.context(context_id)?;
         let streams = import_files::<E::Event>(event_files(&context, E::Event::NAME)?)?;
-        Ok(Box::new(streams.flatten()))
+        Ok(Box::new(
+            streams.flatten().map(|event| event.map_err(Error::from)),
+        ))
     }
 }
 
@@ -138,7 +141,10 @@ where
 {
     type Error = Error;
 
-    fn load_model_events(&self, context_id: Uuid) -> Result<EventIterator<M::UmbrellaEvent>> {
+    fn load_model_events(
+        &self,
+        context_id: Uuid,
+    ) -> Result<EventIterator<M::UmbrellaEvent, Error>> {
         let context = self.context(context_id)?;
         let mut streams = Vec::new();
         for descriptor in M::event_streams() {
@@ -171,7 +177,7 @@ where
 
 fn import_files<T>(
     files: Vec<EventFile>,
-) -> Result<impl Iterator<Item = Box<dyn Iterator<Item = Event<T>>>>>
+) -> Result<impl Iterator<Item = Box<dyn quent_io::Importer<T>>>>
 where
     T: DeserializeOwned + 'static,
 {
@@ -183,7 +189,7 @@ where
                 path: file.path,
             }
             .create_importer()?;
-            Ok(Box::new(importer) as Box<dyn Iterator<Item = Event<T>>>)
+            Ok(importer)
         })
         .collect::<Result<Vec<_>>>()
         .map(Vec::into_iter)
@@ -357,8 +363,9 @@ mod tests {
         let events = store
             .events(id)
             .unwrap()
-            .map(|event| event.data)
-            .collect::<Vec<_>>();
+            .map(|event| event.map(|event| event.data))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(events.len(), 2);
         assert!(events.contains(&TestEvent::Alpha(AlphaEvent(1))));
@@ -375,7 +382,8 @@ mod tests {
         let events = store
             .entity_events::<Alpha>(id)
             .unwrap()
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
 
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].data, AlphaEvent(1));
@@ -429,5 +437,22 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(paths, ["alpha.ndjson", "bravo.ndjson", "charlie.ndjson"]);
+    }
+
+    #[test]
+    fn reports_import_failures_during_iteration() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        let context_path = root.path().join(id.to_string());
+        context::<TestModel>(root.path(), id);
+        let entity = context_path.join(AlphaEvent::NAME);
+        fs::create_dir(&entity).unwrap();
+        fs::write(entity.join("events.ndjson"), b"not json\n").unwrap();
+
+        let store = Store::<TestModel>::new(root.path());
+        let mut events = store.entity_events::<Alpha>(id).unwrap();
+
+        assert!(matches!(events.next(), Some(Err(Error::Importer(_)))));
+        assert!(events.next().is_none());
     }
 }
