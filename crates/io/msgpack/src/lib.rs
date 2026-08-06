@@ -5,7 +5,11 @@
 //!
 //! File format: sequence of length-prefixed records.
 //! Each record: `[4 bytes: payload length as u32 BE][payload: msgpack-encoded Event<T>]`
-use std::{io::BufReader, marker::PhantomData, path::PathBuf};
+use std::{
+    io::{BufReader, Read},
+    marker::PhantomData,
+    path::PathBuf,
+};
 
 use quent_events::{EntityEvent, Event};
 use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
@@ -14,7 +18,7 @@ use tokio::{
     fs::{File, OpenOptions},
     io::{AsyncWriteExt, BufWriter},
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 /// File extension for MessagePack event files.
@@ -113,6 +117,7 @@ pub struct MsgpackImporterOptions {
 
 pub struct MsgpackImporter<T> {
     reader: BufReader<std::fs::File>,
+    terminated: bool,
     _phantom: PhantomData<T>,
 }
 
@@ -122,6 +127,7 @@ impl<T> MsgpackImporter<T> {
         let file = std::fs::File::open(&path)?;
         Ok(Self {
             reader: BufReader::new(file),
+            terminated: false,
             _phantom: Default::default(),
         })
     }
@@ -133,31 +139,40 @@ impl<T> Iterator for MsgpackImporter<T>
 where
     T: for<'de> Deserialize<'de>,
 {
-    type Item = Event<T>;
+    type Item = ImporterResult<Event<T>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        use std::io::Read;
+        if self.terminated {
+            return None;
+        }
+
         let mut len_buf = [0u8; 4];
-        match self.reader.read_exact(&mut len_buf) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return None,
-            Err(e) => {
-                error!("failed to read msgpack length: {e}");
-                return None;
-            }
+        match self.reader.read(&mut len_buf[..1]) {
+            Ok(0) => return None,
+            Ok(_) => {}
+            // The reader position after an I/O failure may not be a frame boundary.
+            Err(error) => return self.fail(error.into()),
+        }
+        if let Err(error) = self.reader.read_exact(&mut len_buf[1..]) {
+            // An incomplete length prefix does not identify the next frame boundary.
+            return self.fail(error.into());
         }
         let len = u32::from_be_bytes(len_buf) as usize;
         let mut payload = vec![0u8; len];
-        if let Err(e) = self.reader.read_exact(&mut payload) {
-            error!("failed to read msgpack payload: {e}");
-            return None;
+        if let Err(error) = self.reader.read_exact(&mut payload) {
+            // An incomplete payload leaves the reader before the next frame boundary.
+            return self.fail(error.into());
         }
         match rmp_serde::from_slice::<Event<T>>(&payload) {
-            Ok(event) => Some(event),
-            Err(e) => {
-                error!("failed to deserialize msgpack event: {e}");
-                None
-            }
+            Ok(event) => Some(Ok(event)),
+            Err(error) => Some(Err(Box::new(error))),
         }
+    }
+}
+
+impl<T> MsgpackImporter<T> {
+    fn fail(&mut self, error: quent_io_types::ImporterError) -> Option<ImporterResult<Event<T>>> {
+        self.terminated = true;
+        Some(Err(error))
     }
 }
