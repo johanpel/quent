@@ -6,14 +6,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   cacheDir: new URL(
-    '../../../../ui/node_modules/.vite/schema-viewer-test',
+    '../node_modules/.vite/schema-viewer-test',
     import.meta.url,
   ).pathname,
-  server: {
-    fs: {
-      allow: [new URL('../../../../ui/public', import.meta.url).pathname],
-    },
-  },
   resolve: {
     conditions: ['browser'],
     dedupe: ['svelte'],

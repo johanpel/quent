@@ -215,23 +215,28 @@ export function parseFsm(entity: Entity): FsmTopology | null {
     if (!isFsmPayload(value)) {
       return null;
     }
-    const exitStates = [
-      value.exit_from_states.state,
-      ...value.exit_from_states.others,
-    ];
-    const states = Array.from(
-      new Set([
-        value.initial_state,
-        ...value.transitions.flatMap((transition) => [
-          transition.source,
-          transition.target,
-        ]),
-        ...exitStates,
-      ]),
+    const explicitExit = Object.hasOwn(entity.events, 'exit') &&
+      value.transitions.some((transition) => transition.target === 'exit');
+    const transitions = explicitExit
+      ? value.transitions.filter((transition) => transition.target !== 'exit')
+      : value.transitions;
+    const states = Object.keys(entity.events).filter(
+      (state) => !explicitExit || state !== 'exit',
     );
+    const transitionSources = new Set(
+      transitions.map((transition) => transition.source),
+    );
+    const exitStates = Array.from(new Set([
+      ...(explicitExit
+        ? value.transitions
+            .filter((transition) => transition.target === 'exit')
+            .map((transition) => transition.source)
+        : []),
+      ...states.filter((state) => !transitionSources.has(state)),
+    ]));
     return {
       initialState: value.initial_state,
-      transitions: value.transitions,
+      transitions,
       exitStates,
       states,
     };
@@ -455,7 +460,6 @@ function collectResourceConsumerFromType(
 interface FsmPayload {
   initial_state: string;
   transitions: Array<{ source: string; target: string }>;
-  exit_from_states: { state: string; others: string[] };
 }
 
 function isFsmPayload(value: unknown): value is FsmPayload {
@@ -473,13 +477,7 @@ function isFsmPayload(value: unknown): value is FsmPayload {
   ) {
     return false;
   }
-  const exits = value.exit_from_states;
-  return (
-    isObject(exits) &&
-    typeof exits.state === 'string' &&
-    Array.isArray(exits.others) &&
-    exits.others.every((state) => typeof state === 'string')
-  );
+  return true;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

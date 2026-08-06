@@ -74,7 +74,6 @@
   let layoutVersion = $state(0);
   let fitVersion = $state(0);
   let layoutMetrics = $state<EntityGraphLayoutComplete | null>(null);
-  let hoveredEdgeId = $state<string | null>(null);
   let lastFittedModel: EntityGraphModel | null = null;
   let viewportActions = $state<{
     zoomIn: () => Promise<boolean>;
@@ -94,7 +93,6 @@
     const currentModel = model;
     const currentConfig = config;
     let active = true;
-    hoveredEdgeId = null;
     const referenceCount = currentModel.references.filter(
       (reference) =>
         reference.target &&
@@ -118,7 +116,6 @@
           classes,
           selection,
           nodeComponent,
-          hoveredEdgeId,
         });
         layout = result;
         nodes = elements.nodes;
@@ -166,7 +163,6 @@
       classes,
       selection,
       nodeComponent,
-      hoveredEdgeId,
     });
     nodes = elements.nodes;
     edges = elements.edges;
@@ -199,12 +195,10 @@
   function hoverEdge(
     { edge }: { edge: EntityFlowEdge; event: PointerEvent },
   ): void {
-    hoveredEdgeId = edge.id;
     onHover(referenceSelectionFromFlowEdge(edge));
   }
 
   function endEdgeHover(): void {
-    hoveredEdgeId = null;
     onHoverEnd();
   }
 </script>

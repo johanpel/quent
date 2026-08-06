@@ -22,8 +22,9 @@ import {
 } from '../src/lib/xyflow';
 
 describe('XYFlow adapter', () => {
-  test('uses network-simplex layering and linear-segment placement by default', () => {
+  test('uses orthogonal routing and compact layered defaults', () => {
     expect(resolveEntityGraphConfig(undefined)).toMatchObject({
+      edgeRouting: 'orthogonal',
       layeringStrategy: 'network-simplex',
       nodePlacementStrategy: 'linear-segments',
     });
@@ -123,6 +124,17 @@ describe('XYFlow adapter', () => {
     });
     expect(cycle).toHaveLength(2);
     expect(cycle.every((edge) => edge.deletable === false)).toBe(true);
+    expect(
+      flow.edges.every((edge) => {
+        const reference = edge.data!.reference;
+        return (
+          edge.source === pathKey(reference.source) &&
+          edge.target === (
+            reference.target ? pathKey(reference.target) : ''
+          )
+        );
+      }),
+    ).toBe(true);
     expect(flow.edges.every((edge) => edge.type === 'quent-elk')).toBe(true);
     expect(
       flow.edges.every((edge) => edge.data?.path?.startsWith('M ')),
@@ -135,6 +147,15 @@ describe('XYFlow adapter', () => {
           edge.markerEnd.height === 24 &&
           edge.markerEnd.markerUnits === 'userSpaceOnUse',
       ),
+    ).toBe(true);
+    expect(
+      flow.edges
+        .filter((edge) => !edge.data?.reference.tree)
+        .every(
+          (edge) =>
+            typeof edge.markerEnd === 'object' &&
+            edge.markerEnd.color === 'var(--quent-viewer-muted)',
+        ),
     ).toBe(true);
   });
 
@@ -239,7 +260,7 @@ describe('XYFlow adapter', () => {
         (reference) => reference.labelPosition === null,
       ),
     ).toBe(true);
-    expect(flow.edges.every((edge) => edge.label === undefined)).toBe(true);
+    expect(flow.edges.every((edge) => edge.label !== undefined)).toBe(true);
     expect(
       flow.edges.every(
         (edge) =>
@@ -247,23 +268,12 @@ describe('XYFlow adapter', () => {
           Number.isFinite(edge.data?.labelY),
       ),
     ).toBe(true);
-
-    const hoveredEdgeId = flow.edges[0]!.id;
-    const hoveredFlow = toEntityFlowElements({
-      schema: sampleSchema,
-      layout,
-      config,
-      classes: {},
-      selection: null,
-      nodeComponent: null,
-      hoveredEdgeId,
-    });
     expect(
-      hoveredFlow.edges.filter((edge) => edge.label !== undefined),
-    ).toHaveLength(1);
-    expect(
-      hoveredFlow.edges.find((edge) => edge.id === hoveredEdgeId)?.label,
-    ).toBeTypeOf('string');
+      flow.edges.every((edge) =>
+        edge.class?.includes(
+          'quent-entity-graph__edge--interaction-label',
+        )),
+    ).toBe(true);
   });
 
   test('exports the read-only interaction contract', () => {

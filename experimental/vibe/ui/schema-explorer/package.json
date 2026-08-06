@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "check": "svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
-    "lint": "eslint --config ../../../../ui/eslint.config.js --rule \"prettier/prettier: off\" \"src/**/*.ts\" vite.config.ts",
-    "wasm:build": "rustup run 1.97.0 cargo build --manifest-path ../../../../Cargo.toml -p quent-yaml --features wasm --target wasm32-unknown-unknown --release && wasm-bindgen ../../../../target/wasm32-unknown-unknown/release/quent_yaml.wasm --target web --out-dir wasm --out-name quent_yaml",
+    "lint": "eslint --config ../eslint.config.js \"src/**/*.ts\" vite.config.ts",
+    "wasm:build": "sh scripts/build-yaml-wasm.sh",
     "wasm:test": "node scripts/verify-yaml-wasm.mjs"
   },
   "dependencies": {

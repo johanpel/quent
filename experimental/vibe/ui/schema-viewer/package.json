@@ -18,16 +18,16 @@
     "**/*.css"
   ],
   "scripts": {
-    "schema:build": "pnpm --dir ../../../../ui --filter @quent/schema build",
+    "schema:build": "pnpm --dir ../../../../crates/schema/ts build",
     "prebuild": "pnpm schema:build",
     "build": "vite build && tsc -p tsconfig.build.json",
     "precheck": "pnpm schema:build",
     "check": "svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
-    "lint": "eslint --config ../../../../ui/eslint.config.js --rule \"prettier/prettier: off\" \"src/**/*.{ts,tsx}\" \"tests/**/*.ts\"",
+    "lint": "eslint --config ../eslint.config.js \"src/**/*.{ts,tsx}\" \"tests/**/*.ts\"",
     "test": "vitest run"
   },
   "dependencies": {
-    "@quent/schema": "workspace:*",
+    "@quent/schema": "link:../../../../crates/schema/ts",
     "@xyflow/svelte": "catalog:",
     "elkjs": "catalog:"
   },

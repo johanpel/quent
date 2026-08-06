@@ -462,6 +462,7 @@ fsms:
         attributes:
           error: string
         to: [exit]
+      exit: {}
 
   Deployment::DeploymentRollout:
     doc: Reconciles a desired inference graph into ready worker pools.
@@ -533,6 +534,7 @@ fsms:
         attributes:
           error: string
         to: [exit]
+      exit: {}
 
   Cache::KvBlockTransfer:
     doc: Moves a reusable KV block through device, host, and disk tiers.
@@ -606,6 +608,7 @@ fsms:
         attributes:
           error: string
         to: [exit]
+      exit: {}
 
   Control::ScalingCycle:
     doc: Repeatedly observes demand and adjusts prefill and decode independently.
@@ -654,3 +657,4 @@ fsms:
         attributes:
           error: string
         to: [exit]
+      exit: {}

@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest';
 import type { DataType } from '@quent/schema';
 
 import { sampleSchema } from './fixtures/sample-schema';
+import { FSM_CONSTRAINT } from '../src/lib/constants';
 import { layoutEntityGraph } from '../src/lib/layout';
 import {
   buildEntityGraph,
@@ -300,6 +301,40 @@ describe('schema adapters', () => {
     expect(worker.events.idle.cardinality).toBe('Multi');
     expect(worker.events.busy.cardinality).toBe('Multi');
     expect(worker.events.starting.cardinality).toBe('Once');
+  });
+
+  test('adapts an explicit exit state to the topology exit marker', () => {
+    const worker = structuredClone(sampleSchema.entities.find(
+      ([path]) => pathKey(path) === 'Service::Worker',
+    )![1]);
+    const exit = structuredClone(worker.events.stopped!);
+    delete worker.events.stopped;
+    worker.events.exit = {
+      ...exit,
+      name: 'exit',
+    };
+    worker.annotations.constraints[FSM_CONSTRAINT]!.data = JSON.stringify({
+      initial_state: 'starting',
+      transitions: [
+        { source: 'starting', target: 'idle' },
+        { source: 'idle', target: 'busy' },
+        { source: 'busy', target: 'idle' },
+        { source: 'idle', target: 'draining' },
+        { source: 'draining', target: 'exit' },
+      ],
+    });
+
+    expect(parseFsm(worker)).toEqual({
+      initialState: 'starting',
+      transitions: [
+        { source: 'starting', target: 'idle' },
+        { source: 'idle', target: 'busy' },
+        { source: 'busy', target: 'idle' },
+        { source: 'idle', target: 'draining' },
+      ],
+      exitStates: ['draining'],
+      states: ['starting', 'idle', 'busy', 'draining'],
+    });
   });
 
   test('joins resource definitions, role records, and consumers', () => {

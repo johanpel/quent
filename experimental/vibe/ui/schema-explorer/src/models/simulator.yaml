@@ -166,6 +166,7 @@ fsms:
       cancelled:
         attributes: { reason: { option: string } }
         to: [exit]
+      exit: {}
 
   Task:
     doc: Simulator task lifecycle based on the existing simulator model.
@@ -203,3 +204,4 @@ fsms:
       finished:
         attributes: { rows: u64 }
         to: [exit]
+      exit: {}

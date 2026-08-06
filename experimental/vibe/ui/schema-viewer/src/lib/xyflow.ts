@@ -63,7 +63,6 @@ export interface EntityFlowAdapterInput {
   classes: EntityGraphClasses;
   selection: SchemaSelection | null;
   nodeComponent: EntityNodeComponent | null;
-  hoveredEdgeId?: string | null;
 }
 
 export interface FsmFlowAdapterInput {
@@ -84,7 +83,6 @@ export function toEntityFlowElements(
     classes,
     selection,
     nodeComponent,
-    hoveredEdgeId = null,
   } = input;
   const groups = new Map(layout.groups.map((group) => [group.id, group]));
   const positions = flowPositions(config.direction);
@@ -184,12 +182,9 @@ export function toEntityFlowElements(
           labelX: labelPosition?.x ?? geometry?.label.x ?? null,
           labelY: labelPosition?.y ?? geometry?.label.y ?? null,
         },
-        label:
-          config.referenceLabels === 'always' ||
-          (config.referenceLabels === 'interaction' &&
-            (selected || hoveredEdgeId === id))
-            ? referenceLabel(reference)
-            : undefined,
+        label: config.referenceLabels === 'never'
+          ? undefined
+          : referenceLabel(reference),
         selected,
         selectable: true,
         deletable: false,
@@ -202,7 +197,7 @@ export function toEntityFlowElements(
             ? 'var(--quent-viewer-accent)'
             : reference.tree
               ? 'var(--quent-viewer-tree)'
-              : undefined,
+              : 'var(--quent-viewer-muted)',
         },
         style: selected
           ? '--xy-edge-stroke-width:4.5'

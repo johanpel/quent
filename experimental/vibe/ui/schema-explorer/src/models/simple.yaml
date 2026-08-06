@@ -68,3 +68,4 @@ fsms:
         attributes:
           error: string
         to: [exit]
+      exit: {}

@@ -258,4 +258,50 @@
       >Hide</button>
     </div>
   </fieldset>
+  <fieldset class="grid shrink-0 gap-1">
+    <legend class="text-[0.65rem] font-medium">Edges</legend>
+    <div
+      class="flex h-6 items-center gap-3 px-1 text-[0.65rem]"
+      aria-label="Edge legend"
+    >
+      <span class="flex items-center gap-1">
+        <svg
+          class="h-3 w-8"
+          viewBox="0 0 32 12"
+          aria-hidden="true"
+        >
+          <path
+            d="M 1 6 H 25"
+            fill="none"
+            stroke="var(--quent-viewer-muted)"
+            stroke-width="2"
+          />
+          <path
+            d="M 25 2 L 31 6 L 25 10 Z"
+            fill="var(--quent-viewer-muted)"
+          />
+        </svg>
+        <span>Reference</span>
+      </span>
+      <span class="flex items-center gap-1">
+        <svg
+          class="h-3 w-8"
+          viewBox="0 0 32 12"
+          aria-hidden="true"
+        >
+          <path
+            d="M 1 6 H 25"
+            fill="none"
+            stroke="var(--quent-viewer-tree)"
+            stroke-width="4"
+          />
+          <path
+            d="M 25 1 L 31 6 L 25 11 Z"
+            fill="var(--quent-viewer-tree)"
+          />
+        </svg>
+        <span>Tree-forming</span>
+      </span>
+    </div>
+  </fieldset>
 </div>

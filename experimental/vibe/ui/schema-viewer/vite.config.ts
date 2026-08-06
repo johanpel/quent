@@ -7,14 +7,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: './',
   cacheDir: new URL(
-    '../../../../ui/node_modules/.vite/schema-viewer',
+    '../node_modules/.vite/schema-viewer',
     import.meta.url,
   ).pathname,
-  server: {
-    fs: {
-      allow: [new URL('../../../../ui/public', import.meta.url).pathname],
-    },
-  },
   resolve: {
     dedupe: ['svelte'],
   },

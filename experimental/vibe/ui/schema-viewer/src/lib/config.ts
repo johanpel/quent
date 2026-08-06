@@ -8,7 +8,7 @@ import type {
 
 export const DEFAULT_ENTITY_GRAPH_CONFIG: Readonly<ResolvedEntityGraphConfig> = {
   direction: 'down',
-  edgeRouting: 'polyline',
+  edgeRouting: 'orthogonal',
   density: 'compact',
   layeringStrategy: 'network-simplex',
   nodePlacementStrategy: 'linear-segments',

@@ -8,13 +8,18 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig(({ command }) => ({
   cacheDir: fileURLToPath(
-    new URL('../../../../ui/node_modules/.vite/schema-explorer', import.meta.url),
+    new URL('../node_modules/.vite/schema-explorer', import.meta.url),
   ),
   plugins: [tailwindcss(), svelte()],
-  publicDir: fileURLToPath(new URL('../../../../ui/public', import.meta.url)),
+  publicDir: false,
   server: {
     fs: {
-      allow: [fileURLToPath(new URL('../../../..', import.meta.url))],
+      allow: [
+        fileURLToPath(new URL('..', import.meta.url)),
+        fileURLToPath(
+          new URL('../../../../crates/schema/ts', import.meta.url),
+        ),
+      ],
     },
   },
   resolve: {

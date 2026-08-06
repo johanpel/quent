@@ -280,6 +280,24 @@
   font-weight: 400;
 }
 
+:where(
+  .quent-entity-graph__edge--interaction-label
+    .svelte-flow__edge-textwrapper
+) {
+  visibility: hidden;
+}
+
+:where(
+  .quent-entity-graph__edge--interaction-label:hover
+    .svelte-flow__edge-textwrapper
+),
+:where(
+  .quent-entity-graph__edge--interaction-label.quent-entity-graph__edge--selected
+    .svelte-flow__edge-textwrapper
+) {
+  visibility: visible;
+}
+
 :where(.quent-schema-viewer__badges) {
   position: absolute;
   top: 0.7rem;

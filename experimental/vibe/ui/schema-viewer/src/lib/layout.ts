@@ -198,16 +198,22 @@ export async function layoutEntityGraph(
     nodes: flattened.nodes,
     references: layoutEdges.flatMap(({ edge, reference }) => {
       const resultEdge = resultEdges.get(edge.id);
-      return resultEdge
-        ? [{
-            id: edge.id,
-            reference,
-            source: edge.sources[0]!,
-            target: edge.targets[0]!,
-            sections: positionEdgeSections(resultEdge, groups),
-            labelPosition: positionEdgeLabel(resultEdge, groups),
-          }]
-        : [];
+      if (!resultEdge || !reference.target) {
+        return [];
+      }
+      const source = pathKey(reference.source);
+      const target = pathKey(reference.target);
+      const sections = positionEdgeSections(resultEdge, groups);
+      return [{
+        id: edge.id,
+        reference,
+        source,
+        target,
+        sections: edge.sources[0] === source
+          ? sections
+          : reverseEdgeSections(sections),
+        labelPosition: positionEdgeLabel(resultEdge, groups),
+      }];
     }),
   };
 }
@@ -246,6 +252,16 @@ function positionEdgeSections(
     startPoint: position(section.startPoint),
     bendPoints: (section.bendPoints ?? []).map(position),
     endPoint: position(section.endPoint),
+  }));
+}
+
+function reverseEdgeSections(
+  sections: PositionedEdgeSection[],
+): PositionedEdgeSection[] {
+  return [...sections].reverse().map((section) => ({
+    startPoint: section.endPoint,
+    bendPoints: [...section.bendPoints].reverse(),
+    endPoint: section.startPoint,
   }));
 }
 
@@ -408,6 +424,8 @@ function createLayoutEdges(
       return [];
     }
 
+    // Parent-first edges guide ELK's layering; rendered paths are restored to
+    // the source-to-target direction declared by the schema after layout.
     const reverseTreeReference = reference.tree && source !== target;
     const label = referenceLabel(reference);
     return [{

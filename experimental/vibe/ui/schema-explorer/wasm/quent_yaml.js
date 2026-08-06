@@ -3,8 +3,7 @@
 /**
  * Parse YAML and return the validated schema as JSON.
  *
- * The browser-facing function reports parser and validation diagnostics as a
- * rejected JavaScript value.
+ * Parser and validation diagnostics are returned as a rejected JavaScript value.
  * @param {string} source
  * @returns {string}
  */
