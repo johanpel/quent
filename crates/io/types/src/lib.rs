@@ -82,8 +82,28 @@ impl From<std::io::Error> for ExporterError {
 /// Result of exporters.
 pub type ExporterResult<T> = std::result::Result<T, ExporterError>;
 
-/// Any failure originating in an importer implementation.
-pub type ImporterError = Box<dyn std::error::Error + Send + Sync>;
+#[derive(Debug, Error)]
+pub enum ImporterError {
+    /// Any failure originating in the importer implementation.
+    #[error(transparent)]
+    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl ImporterError {
+    /// Wrap an implementation-specific error as [`ImporterError::Other`].
+    pub fn other<E: std::error::Error + Send + Sync + 'static>(error: E) -> Self {
+        Self::Other(Box::new(error))
+    }
+}
+
+impl From<std::io::Error> for ImporterError {
+    fn from(error: std::io::Error) -> Self {
+        Self::other(error)
+    }
+}
+
+/// Maximum supported payload size for length-prefixed importer frames.
+pub const MAX_FRAME_SIZE_BYTES: usize = 64 * 1024 * 1024;
 
 /// Result type for importers.
 pub type ImporterResult<T> = std::result::Result<T, ImporterError>;

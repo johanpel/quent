@@ -9,7 +9,9 @@ use std::{
 };
 
 use quent_events::{EntityEvent, Event};
-use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{
+    Exporter, ExporterError, ExporterResult, Importer, ImporterError, ImporterResult,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -150,7 +152,7 @@ where
             Ok(0) => None,
             Ok(_) => match serde_json::from_str::<Event<T>>(line.trim_end()) {
                 Ok(event) => Some(Ok(event)),
-                Err(error) => Some(Err(Box::new(error))),
+                Err(error) => Some(Err(ImporterError::other(error))),
             },
             Err(e) => {
                 // The failed read may have consumed a partial line without its delimiter.

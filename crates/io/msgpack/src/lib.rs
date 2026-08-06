@@ -12,7 +12,10 @@ use std::{
 };
 
 use quent_events::{EntityEvent, Event};
-use quent_io_types::{Exporter, ExporterError, ExporterResult, Importer, ImporterResult};
+use quent_io_types::{
+    Exporter, ExporterError, ExporterResult, Importer, ImporterError, ImporterResult,
+    MAX_FRAME_SIZE_BYTES,
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::{File, OpenOptions},
@@ -158,14 +161,28 @@ where
             return self.fail(error.into());
         }
         let len = u32::from_be_bytes(len_buf) as usize;
-        let mut payload = vec![0u8; len];
+        if len > MAX_FRAME_SIZE_BYTES {
+            // Consuming an unsupported payload could require unbounded I/O before resuming.
+            return self.fail(ImporterError::other(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "frame size {len} exceeds the supported maximum of {MAX_FRAME_SIZE_BYTES} bytes"
+                ),
+            )));
+        }
+        let mut payload = Vec::new();
+        if let Err(error) = payload.try_reserve_exact(len) {
+            // Without a payload buffer, this importer cannot decode the current frame.
+            return self.fail(ImporterError::other(error));
+        }
+        payload.resize(len, 0);
         if let Err(error) = self.reader.read_exact(&mut payload) {
             // An incomplete payload leaves the reader before the next frame boundary.
             return self.fail(error.into());
         }
         match rmp_serde::from_slice::<Event<T>>(&payload) {
             Ok(event) => Some(Ok(event)),
-            Err(error) => Some(Err(Box::new(error))),
+            Err(error) => Some(Err(ImporterError::other(error))),
         }
     }
 }
