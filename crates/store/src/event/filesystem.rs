@@ -17,6 +17,7 @@ use super::{
     EntityEventLoader, EntityEventStore, EventIterator, ModelEventLoader, ModelEventStore,
     StoredEntity,
 };
+use crate::entity::{EntityStore, ModelEntityStore};
 
 /// Result returned by filesystem event stores.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -125,6 +126,8 @@ impl<M> EntityEventStore<M> for Store<M> {
     type Error = Error;
 }
 
+impl<M> EntityStore<M> for Store<M> {}
+
 impl<M, E> EntityEventLoader<E> for Store<M>
 where
     M: EventModel,
@@ -143,6 +146,8 @@ where
 }
 
 impl<M: Model> ModelEventStore<M> for Store<M> {}
+
+impl<M: Model> ModelEntityStore<M> for Store<M> {}
 
 impl<M> ModelEventLoader<M> for Store<M>
 where
@@ -310,17 +315,245 @@ fn format_feature(extension: &str) -> Option<&'static str> {
 mod tests {
     use std::fs;
 
-    use quent_build_info::ModelInfo;
-    use quent_events::Model as EventModel;
-    #[cfg(feature = "io-ndjson")]
-    use serde::Deserialize;
+    use crate::entity::ContextSet;
+    use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
+    use quent_events::{Entity, EntityEvent, Event, Model as EventModel, ModelEvents};
+    use quent_instrumentation::{ContextExporter, ContextInner};
+    use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+    use serde::{Deserialize, Serialize};
 
     use super::*;
 
     struct TestModel;
 
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct AlphaEvent(u8);
+
+    impl EntityEvent for AlphaEvent {
+        const NAME: &'static str = "Alpha";
+    }
+
+    struct Alpha;
+
+    impl Entity for Alpha {
+        type Event = AlphaEvent;
+    }
+
+    impl StoredEntity<TestModel> for Alpha {}
+
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct BetaEvent(u8);
+
+    impl EntityEvent for BetaEvent {
+        const NAME: &'static str = "Beta";
+    }
+
+    #[derive(Debug, PartialEq)]
+    enum TestEvent {
+        Alpha(AlphaEvent),
+        Beta(BetaEvent),
+    }
+
+    impl From<AlphaEvent> for TestEvent {
+        fn from(event: AlphaEvent) -> Self {
+            Self::Alpha(event)
+        }
+    }
+
+    impl From<BetaEvent> for TestEvent {
+        fn from(event: BetaEvent) -> Self {
+            Self::Beta(event)
+        }
+    }
+
     impl EventModel for TestModel {
         const NAME: &'static str = "Test";
+    }
+
+    impl ModelSource for TestModel {
+        fn package() -> &'static str {
+            "quent-store"
+        }
+
+        fn source() -> BuildInfo {
+            BuildInfo::unknown()
+        }
+    }
+
+    impl ModelEvents for TestModel {
+        type UmbrellaEvent = TestEvent;
+    }
+
+    impl Model for TestModel {
+        fn event_streams() -> &'static [EventStream<Self>] {
+            static STREAMS: &[EventStream<TestModel>] = &[
+                EventStream::new(
+                    AlphaEvent::NAME,
+                    import_event_files::<TestModel, AlphaEvent>,
+                ),
+                EventStream::new(BetaEvent::NAME, import_event_files::<TestModel, BetaEvent>),
+            ];
+            STREAMS
+        }
+    }
+
+    fn context<M>(root: &Path, id: Uuid) -> (ContextInner, ExporterOptions)
+    where
+        M: EventModel + ModelSource,
+    {
+        let context = ContextInner::try_new(id).unwrap();
+        let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+            FileSystemFormat::Ndjson,
+            root.to_path_buf(),
+        ));
+        options.prepare_context(id, M::model_info());
+        (context, options)
+    }
+
+    fn export_events(root: &Path, id: Uuid) {
+        export_context_events(
+            root,
+            id,
+            [Event::new(Uuid::from_u128(11), 11, AlphaEvent(1))],
+            [Event::new(Uuid::from_u128(12), 1, BetaEvent(2))],
+        );
+    }
+
+    fn export_context_events(
+        root: &Path,
+        id: Uuid,
+        alpha_events: impl IntoIterator<Item = Event<AlphaEvent>>,
+        beta_events: impl IntoIterator<Item = Event<BetaEvent>>,
+    ) {
+        let (context, options) = context::<TestModel>(root, id);
+        let alpha = context
+            .block_on(context.observer::<AlphaEvent>(&options))
+            .unwrap();
+        let beta = context
+            .block_on(context.observer::<BetaEvent>(&options))
+            .unwrap();
+
+        for event in alpha_events {
+            alpha.send(event);
+        }
+        for event in beta_events {
+            beta.send(event);
+        }
+    }
+
+    #[test]
+    fn loads_all_model_events_without_relying_on_order() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        export_events(root.path(), id);
+
+        let store = Store::<TestModel>::new(root.path());
+        let events = store
+            .events(id)
+            .unwrap()
+            .map(|event| event.map(|event| event.data))
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(events.len(), 2);
+        assert!(events.contains(&TestEvent::Alpha(AlphaEvent(1))));
+        assert!(events.contains(&TestEvent::Beta(BetaEvent(2))));
+    }
+
+    #[test]
+    fn loads_one_entity_type_as_concrete_events() {
+        let root = tempfile::tempdir().unwrap();
+        let id = Uuid::from_u128(2);
+        export_events(root.path(), id);
+
+        let store = Store::<TestModel>::new(root.path());
+        let events = store
+            .entity_events::<Alpha>(id)
+            .unwrap()
+            .collect::<Result<Vec<_>>>()
+            .unwrap();
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].data, AlphaEvent(1));
+    }
+
+    #[test]
+    fn discovers_and_loads_filesystem_entities_across_contexts() {
+        let root = tempfile::tempdir().unwrap();
+        let first_context = Uuid::from_u128(1);
+        let second_context = Uuid::from_u128(2);
+        let first_entity = Uuid::from_u128(11);
+        let second_entity = Uuid::from_u128(12);
+        export_context_events(
+            root.path(),
+            first_context,
+            [
+                Event::new(first_entity, 20, AlphaEvent(1)),
+                Event::new(second_entity, 5, AlphaEvent(3)),
+            ],
+            [Event::new(first_entity, 30, BetaEvent(4))],
+        );
+        export_context_events(
+            root.path(),
+            second_context,
+            [Event::new(first_entity, 10, AlphaEvent(2))],
+            [],
+        );
+        let contexts = ContextSet::try_new([second_context, first_context]).unwrap();
+        let store = Store::<TestModel>::new(root.path());
+
+        let handles = store
+            .entities::<Alpha>(&contexts)
+            .unwrap()
+            .collect::<Vec<_>>();
+        let any_handles = store.any_entities(&contexts).unwrap().collect::<Vec<_>>();
+
+        assert_eq!(handles.len(), 2);
+        assert_eq!(handles[0].id(), first_entity);
+        assert_eq!(handles[0].contexts(), [second_context, first_context]);
+        assert_eq!(handles[1].id(), second_entity);
+        assert_eq!(handles[1].contexts(), [first_context]);
+        assert_eq!(
+            handles[0]
+                .load_events(&store)
+                .unwrap()
+                .into_inner()
+                .into_iter()
+                .map(|event| event.data.0)
+                .collect::<Vec<_>>(),
+            [2, 1]
+        );
+        assert_eq!(any_handles.len(), 2);
+        assert_eq!(any_handles[0].id(), first_entity);
+        assert_eq!(any_handles[0].contexts(), [second_context, first_context]);
+        assert_eq!(
+            any_handles[0]
+                .load_events(&store)
+                .unwrap()
+                .into_inner()
+                .into_iter()
+                .map(|event| event.data)
+                .collect::<Vec<_>>(),
+            [
+                TestEvent::Alpha(AlphaEvent(2)),
+                TestEvent::Alpha(AlphaEvent(1)),
+                TestEvent::Beta(BetaEvent(4)),
+            ]
+        );
+        assert_eq!(
+            store
+                .entity::<Alpha>(&contexts, first_entity)
+                .unwrap()
+                .unwrap()
+                .contexts(),
+            [second_context, first_context]
+        );
+        assert!(
+            store
+                .any_entity(&contexts, Uuid::from_u128(99))
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

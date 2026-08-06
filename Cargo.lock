@@ -3239,8 +3239,11 @@ version = "0.1.0"
 dependencies = [
  "quent-build-info",
  "quent-events",
+ "quent-instrumentation",
  "quent-io",
+ "quent-time",
  "serde",
+ "smallvec",
  "tempfile",
  "thiserror",
  "tracing",

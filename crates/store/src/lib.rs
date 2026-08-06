@@ -3,4 +3,9 @@
 
 //! Typed access to stored data.
 
+pub mod entity;
 pub mod event;
+
+pub use entity::{
+    AnyEntityHandle, ContextSet, ContextSetError, EntityHandle, EntityStore, ModelEntityStore,
+};
