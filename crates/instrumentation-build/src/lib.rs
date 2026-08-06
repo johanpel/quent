@@ -55,7 +55,7 @@ mod runtime;
 use std::path::PathBuf;
 
 use convert_case::Case;
-use quent_constraints::{BaseConstraintsError, Report, validate};
+use quent_constraints::{BaseConstraintsError, Report};
 use quent_schema::{Entity, Path, Schema};
 use quote::quote;
 
@@ -167,6 +167,20 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
+/// Validates the schema requirements shared by generated event models.
+///
+/// Returns constraint names without registered validators as warnings.
+pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
+    let Report {
+        base_constraints,
+        unregistered_constraints,
+        results: _,
+    } = quent_constraints::validate::<()>(schema);
+
+    base_constraints?;
+    Ok(unregistered_constraints)
+}
+
 /// Returns the model path generated for `schema` relative to the generated module root.
 pub fn generated_model_path(schema: &Schema) -> proc_macro2::TokenStream {
     let model = common::raw_ident(common::to_case(schema.name(), Case::Pascal));
@@ -185,17 +199,7 @@ pub fn generated_entity_event_path(entity: &Entity) -> proc_macro2::TokenStream 
 
 /// Generate event source and, when enabled, instrumentation source for `schema`.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
-    let Report {
-        base_constraints,
-        unregistered_constraints,
-        results: _, // unused for now, but built-in constraints go here later
-                    // and will add to either errors or warnings.
-    } = validate::<()>(schema);
-
-    let warnings = unregistered_constraints;
-
-    // Fail if base constraints aren't met.
-    base_constraints?;
+    let warnings = validate_schema(schema)?;
 
     let file_name = opts
         .file_name

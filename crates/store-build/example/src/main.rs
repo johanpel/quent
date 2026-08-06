@@ -7,8 +7,8 @@ use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
 
 use demo::{Demo, Query, Uuid};
-use quent_store::event::{EntityEventStore, ModelEventStore};
 use quent_store::event::filesystem::Store;
+use quent_store::event::{EntityEventStore, ModelEventStore};
 
 #[allow(unused)]
 mod demo {

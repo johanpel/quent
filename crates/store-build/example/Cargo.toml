@@ -1,7 +1,3 @@
-# Keep this example independent so it exercises the dependencies an external
-# analysis crate must declare.
-[workspace]
-
 [package]
 name = "quent-store-build-example"
 version = "0.1.0"

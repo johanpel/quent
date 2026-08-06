@@ -2728,6 +2728,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-instrumentation-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
+]
+
+[[package]]
 name = "quent-io"
 version = "0.1.0"
 dependencies = [
@@ -3181,6 +3190,7 @@ dependencies = [
  "serde",
  "tempfile",
  "thiserror",
+ "tracing",
  "uuid",
 ]
 
@@ -3193,7 +3203,19 @@ dependencies = [
  "quent-schema",
  "quote",
  "syn 3.0.3",
+ "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "quent-store-build-example"
+version = "0.1.0"
+dependencies = [
+ "quent-events",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
+ "serde",
 ]
 
 [[package]]

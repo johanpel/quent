@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
-use quent_build_info::ArtifactInfo;
+use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 use quent_events::{EntityEvent, Event, Model as EventModel, ModelEvents};
 use quent_io::ImporterProvider;
 use quent_io::filesystem::{Format, importer};
@@ -26,14 +26,29 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     #[error("context `{0}` was not found")]
     ContextNotFound(Uuid),
+    #[error("context path `{0}` is not a directory")]
+    ContextNotDirectory(PathBuf),
     #[error("context model `{actual}` does not match expected model `{expected}`")]
     ModelMismatch { expected: String, actual: String },
-    #[error("context contains an unsupported event format `{0}`")]
-    UnsupportedFormat(String),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    Importer(#[from] quent_io::ImporterError),
+    #[error("event file `{path}` requires the `{feature}` feature for `{format}` data")]
+    DisabledFormat {
+        path: PathBuf,
+        format: String,
+        feature: &'static str,
+    },
+    #[error("failed to {operation} `{path}`: {source}")]
+    Io {
+        operation: &'static str,
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("failed to import events from `{path}`: {source}")]
+    Importer {
+        path: PathBuf,
+        #[source]
+        source: quent_io::ImporterError,
+    },
 }
 
 /// Associates a generated model with its filesystem entity-event streams.
@@ -49,6 +64,7 @@ type ImportFn<M> =
     fn(Vec<EventFile>) -> Result<EventIterator<<M as ModelEvents>::UmbrellaEvent, Error>>;
 
 /// Describes one entity-event stream in a generated analysis model.
+#[doc(hidden)]
 pub struct EventStream<M: ModelEvents> {
     entity: &'static str,
     import: ImportFn<M>,
@@ -79,16 +95,9 @@ where
     E: DeserializeOwned + Into<M::UmbrellaEvent> + 'static,
     M::UmbrellaEvent: 'static,
 {
-    let streams = import_files::<E>(files)?
-        .map(|stream| {
-            Box::new(stream.map(|event| {
-                event
-                    .map(|event| Event::new(event.id, event.timestamp, event.data.into()))
-                    .map_err(Error::from)
-            })) as EventIterator<M::UmbrellaEvent, Error>
-        })
-        .collect::<Vec<_>>();
-    Ok(Box::new(streams.into_iter().flatten()))
+    Ok(Box::new(import_files::<E>(files).map(|event| {
+        event.map(|event| Event::new(event.id, event.timestamp, event.data.into()))
+    })))
 }
 
 /// Loads model events from filesystem exporter output.
@@ -126,10 +135,10 @@ where
 
     fn load_entity_events(&self, context_id: Uuid) -> Result<EventIterator<E::Event, Error>> {
         let context = self.context(context_id)?;
-        let streams = import_files::<E::Event>(event_files(&context, E::Event::NAME)?)?;
-        Ok(Box::new(
-            streams.flatten().map(|event| event.map_err(Error::from)),
-        ))
+        Ok(import_files::<E::Event>(event_files(
+            &context,
+            E::Event::NAME,
+        )?))
     }
 }
 
@@ -161,10 +170,25 @@ where
 {
     fn context(&self, context_id: Uuid) -> Result<PathBuf> {
         let context = self.root.join(context_id.to_string());
-        if !context.is_dir() {
-            return Err(Error::ContextNotFound(context_id));
+        match std::fs::metadata(&context) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(Error::ContextNotDirectory(context)),
+            Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+                return Err(Error::ContextNotFound(context_id));
+            }
+            Err(source) => {
+                return Err(Error::Io {
+                    operation: "inspect context path",
+                    path: context,
+                    source,
+                });
+            }
         }
-        let artifact = ArtifactInfo::read_sidecar(&context)?;
+        let artifact = ArtifactInfo::read_sidecar(&context).map_err(|source| Error::Io {
+            operation: "read context metadata from",
+            path: context.join(SIDECAR_FILE_NAME),
+            source,
+        })?;
         if artifact.model.name != M::NAME {
             return Err(Error::ModelMismatch {
                 expected: M::NAME.to_owned(),
@@ -175,55 +199,111 @@ where
     }
 }
 
-fn import_files<T>(
-    files: Vec<EventFile>,
-) -> Result<impl Iterator<Item = Box<dyn quent_io::Importer<T>>>>
+fn import_files<T>(files: Vec<EventFile>) -> EventIterator<T, Error>
 where
     T: DeserializeOwned + 'static,
 {
-    files
-        .into_iter()
-        .map(|file| {
+    Box::new(files.into_iter().flat_map(|file| {
+        let stream = || {
+            let path = file.path;
             let importer = importer::Options {
                 format: file.format,
-                path: file.path,
+                path: path.clone(),
             }
-            .create_importer()?;
-            Ok(importer)
-        })
-        .collect::<Result<Vec<_>>>()
-        .map(Vec::into_iter)
+            .create_importer()
+            .map_err(|source| Error::Importer {
+                path: path.clone(),
+                source,
+            })?;
+            Ok::<_, Error>(Box::new(importer.map(move |event| {
+                event.map_err(|source| Error::Importer {
+                    path: path.clone(),
+                    source,
+                })
+            })) as EventIterator<T, Error>)
+        };
+
+        stream().unwrap_or_else(|error| Box::new(std::iter::once(Err(error))))
+    }))
 }
 
 fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
     let directory = context.join(entity);
-    if !directory.is_dir() {
-        return Ok(Vec::new());
+    match std::fs::metadata(&directory) {
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => return Ok(Vec::new()),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(source) => {
+            return Err(Error::Io {
+                operation: "inspect event directory",
+                path: directory,
+                source,
+            });
+        }
     }
 
-    let mut paths = std::fs::read_dir(directory)?
-        .filter_map(|entry| match entry {
-            Ok(entry) => match entry.file_type() {
-                Ok(file_type) if file_type.is_file() => Some(Ok(entry.path())),
-                Ok(_) => None,
-                Err(error) => Some(Err(Error::Io(error))),
-            },
-            Err(error) => Some(Err(Error::Io(error))),
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let entries = std::fs::read_dir(&directory).map_err(|source| Error::Io {
+        operation: "read event directory",
+        path: directory.clone(),
+        source,
+    })?;
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|source| Error::Io {
+            operation: "read entry in event directory",
+            path: directory.clone(),
+            source,
+        })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|source| Error::Io {
+            operation: "inspect event file",
+            path: path.clone(),
+            source,
+        })?;
+        if file_type.is_file() {
+            paths.push(path);
+        }
+    }
     paths.sort();
 
-    paths
-        .into_iter()
-        .map(|path| {
-            let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
-                return Err(Error::UnsupportedFormat(String::new()));
-            };
-            let format = Format::try_from(extension)
-                .map_err(|_| Error::UnsupportedFormat(extension.to_owned()))?;
-            Ok(EventFile { format, path })
-        })
-        .collect()
+    let mut files = Vec::new();
+    for path in paths {
+        let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
+            tracing::debug!(
+                path = %path.display(),
+                "ignoring file with unsupported event format"
+            );
+            continue;
+        };
+        match Format::try_from(extension) {
+            Ok(format) => files.push(EventFile { format, path }),
+            Err(_) => {
+                let normalized = extension.to_ascii_lowercase();
+                let Some(feature) = format_feature(&normalized) else {
+                    tracing::debug!(
+                        path = %path.display(),
+                        "ignoring file with unsupported event format"
+                    );
+                    continue;
+                };
+                return Err(Error::DisabledFormat {
+                    path,
+                    format: normalized,
+                    feature,
+                });
+            }
+        }
+    }
+    Ok(files)
+}
+
+fn format_feature(extension: &str) -> Option<&'static str> {
+    match extension {
+        "ndjson" => Some("io-ndjson"),
+        "msgpack" => Some("io-msgpack"),
+        "postcard" => Some("io-postcard"),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -390,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn validates_context_and_supported_formats() {
+    fn validates_context_and_model() {
         let root = tempfile::tempdir().unwrap();
         let store = Store::<TestModel>::new(root.path());
 
@@ -400,17 +480,17 @@ mod tests {
             Err(Error::ContextNotFound(id)) if id == missing
         ));
 
-        let unsupported = Uuid::from_u128(2);
-        export_events(root.path(), unsupported);
-        let unsupported_path = root.path().join(unsupported.to_string());
-        fs::write(
-            unsupported_path.join(AlphaEvent::NAME).join("events.csv"),
-            b"event",
-        )
-        .unwrap();
+        let missing_sidecar = Uuid::from_u128(2);
+        let missing_sidecar_path = root.path().join(missing_sidecar.to_string());
+        fs::create_dir(&missing_sidecar_path).unwrap();
         assert!(matches!(
-            store.events(unsupported),
-            Err(Error::UnsupportedFormat(format)) if format == "csv"
+            store.events(missing_sidecar),
+            Err(Error::Io {
+                operation: "read context metadata from",
+                path,
+                source,
+            }) if path == missing_sidecar_path.join(SIDECAR_FILE_NAME)
+                && source.kind() == std::io::ErrorKind::NotFound
         ));
 
         let mismatch = Uuid::from_u128(3);
@@ -439,6 +519,25 @@ mod tests {
         assert_eq!(paths, ["alpha.ndjson", "bravo.ndjson", "charlie.ndjson"]);
     }
 
+    #[cfg(not(feature = "io-msgpack"))]
+    #[test]
+    fn rejects_event_files_for_disabled_formats() {
+        let root = tempfile::tempdir().unwrap();
+        let entity = root.path().join(AlphaEvent::NAME);
+        fs::create_dir(&entity).unwrap();
+        let path = entity.join("events.msgpack");
+        fs::write(&path, b"").unwrap();
+
+        assert!(matches!(
+            event_files(root.path(), AlphaEvent::NAME),
+            Err(Error::DisabledFormat {
+                path: error_path,
+                format,
+                feature: "io-msgpack",
+            }) if error_path == path && format == "msgpack"
+        ));
+    }
+
     #[test]
     fn reports_import_failures_during_iteration() {
         let root = tempfile::tempdir().unwrap();
@@ -452,7 +551,11 @@ mod tests {
         let store = Store::<TestModel>::new(root.path());
         let mut events = store.entity_events::<Alpha>(id).unwrap();
 
-        assert!(matches!(events.next(), Some(Err(Error::Importer(_)))));
+        assert!(matches!(
+            events.next(),
+            Some(Err(Error::Importer { path, .. }))
+                if path == entity.join("events.ndjson")
+        ));
         assert!(events.next().is_none());
     }
 }

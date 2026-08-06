@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Generates event-store models from schemas.
+//!
+//! Add `quent-store-build` to `[build-dependencies]`, call [`generate`] from
+//! `build.rs`, and include the generated file from Cargo's `OUT_DIR`. The
+//! consuming crate requires normal dependencies on `quent-store`,
+//! serde-enabled `quent-events`, and derive-enabled `serde`.
 
 use std::path::PathBuf;
 
@@ -57,6 +62,8 @@ pub enum GenerateError {
 pub struct GenerateInfo {
     /// Path of the generated Rust source file.
     pub path: PathBuf,
+    /// Constraint names without registered validators.
+    pub warnings: Vec<String>,
 }
 
 /// Generates an event model and its event-store descriptors.
@@ -65,13 +72,14 @@ pub struct GenerateInfo {
 ///
 /// Returns an error when the schema cannot be generated or the output cannot be written.
 pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, GenerateError> {
+    let warnings = quent_instrumentation_build::validate_schema(schema)?;
     let file_name = opts
         .file_name
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
     std::fs::write(&path, generate_str(schema, opts)?)?;
-    Ok(GenerateInfo { path })
+    Ok(GenerateInfo { path, warnings })
 }
 
 /// Returns event-store model source for `schema`.
@@ -141,8 +149,8 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
 #[cfg(test)]
 mod tests {
-    use quent_schema::builder::SchemaBuilder;
-    use quent_schema::test_utils::{entity, event};
+    use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder};
+    use quent_schema::test_utils::{entity, event, eventless_entity, unchecked_schema};
 
     use super::*;
 
@@ -183,5 +191,50 @@ mod tests {
         assert!(source.contains("event::StoredEntity<Demo> for Query"));
         assert!(!source.contains("filesystem::Model for Demo"));
         assert!(!source.contains("pub enum DemoEvent"));
+    }
+
+    #[test]
+    fn generate_rejects_invalid_schemas() {
+        let schema = unchecked_schema("Demo", [eventless_entity("Query")], []);
+        let output = tempfile::tempdir().unwrap();
+        let options = Options {
+            out_dir: output.path().to_owned(),
+            ..Options::default()
+        };
+
+        assert!(matches!(
+            generate(&schema, &options),
+            Err(GenerateError::EventModel(
+                quent_instrumentation_build::GenerateError::InvalidSchema(_)
+            ))
+        ));
+    }
+
+    #[test]
+    fn generate_returns_unregistered_constraint_warnings() {
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint("example.unknown.v0.1.0", None)
+            .build()
+            .unwrap();
+        let query = EntityBuilder::try_new("Query")
+            .unwrap()
+            .with_event(event("created", []))
+            .with_annotations(annotations)
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(query)
+            .build()
+            .unwrap();
+        let output = tempfile::tempdir().unwrap();
+        let options = Options {
+            out_dir: output.path().to_owned(),
+            ..Options::default()
+        };
+
+        let generated = generate(&schema, &options).unwrap();
+
+        assert_eq!(generated.warnings, ["example.unknown.v0.1.0"]);
     }
 }

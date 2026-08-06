@@ -25,6 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..Options::default()
     };
     let generated = generate(&parsed.schema, &options)?;
+    if !generated.warnings.is_empty() {
+        println!("cargo:warning= {}", generated.warnings.join("\n"));
+    }
     println!(
         "cargo:warning=store model written to {}",
         generated.path.display()

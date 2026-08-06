@@ -14,3 +14,4 @@ thiserror.workspace = true
 
 [dev-dependencies]
 quent-schema = { path = "../schema", features = ["test-utils"] }
+tempfile = "3"

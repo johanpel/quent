@@ -6,6 +6,7 @@
 use quent_events::{Entity, Event, ModelEvents};
 use uuid::Uuid;
 
+#[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub mod filesystem;
 
 /// An iterator yielding owned [`Event<T>`](Event) values or read failures.
