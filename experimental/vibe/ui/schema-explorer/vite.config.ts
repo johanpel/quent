@@ -7,6 +7,7 @@ import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig(({ command }) => ({
+  base: process.env.SCHEMA_EXPLORER_BASE ?? '/',
   cacheDir: fileURLToPath(
     new URL('../node_modules/.vite/schema-explorer', import.meta.url),
   ),
