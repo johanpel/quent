@@ -29,6 +29,9 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
       cssFileName: 'schema-viewer',
     },
+    rolldownOptions: {
+      external: (id) => id === 'svelte' || id.startsWith('svelte/'),
+    },
   },
 });
 
