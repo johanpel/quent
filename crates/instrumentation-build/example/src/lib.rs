@@ -6,8 +6,7 @@
 use std::path::PathBuf;
 
 use quent_instrumentation::{
-    ContextExporter, EventCallback, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
-    ObserverBuilder,
+    EventCallback, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 
 use demo::{Connection, Context, Demo, DemoEvent, Handle, Observer, Query, Server, Uuid};
@@ -18,28 +17,27 @@ mod demo {
 }
 
 /// Emits the demo events through a debug-printing callback.
-pub fn run_callback() -> Result<Uuid, Box<dyn std::error::Error>> {
-    emit(EventCallback::<DemoEvent>::new(|event| {
+pub fn run_with_debug_print() -> Result<Uuid, Box<dyn std::error::Error>> {
+    let context = Context::try_new(EventCallback::<DemoEvent>::new(|event| {
         println!("{event:?}")
-    }))
+    }))?;
+    emit_events(context)
 }
 
 /// Exports the demo events as NDJSON and returns their context ID.
-pub fn export_ndjson(root: impl Into<PathBuf>) -> Result<Uuid, Box<dyn std::error::Error>> {
-    emit(ExporterOptions::FileSystem(FileSystemExporterOptions::new(
+pub fn run_with_ndjson(
+    root_export_path: impl Into<PathBuf>,
+) -> Result<Uuid, Box<dyn std::error::Error>> {
+    let context = Context::try_new(ExporterOptions::FileSystem(FileSystemExporterOptions::new(
         FileSystemFormat::Ndjson,
-        root.into(),
-    )))
+        root_export_path.into(),
+    )))?;
+    emit_events(context)
 }
 
-fn emit<P>(provider: P) -> Result<Uuid, Box<dyn std::error::Error>>
-where
-    P: ContextExporter,
-    Demo: ObserverBuilder<P>,
-{
+fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error>> {
     // The context builds one exporter pipeline per entity event type and
     // exposes the corresponding typed observers.
-    let context: Context<Demo> = Context::try_new(provider)?;
     let context_id = context.id();
 
     // `observer.handle()` creates a fresh entity instance to emit events for.

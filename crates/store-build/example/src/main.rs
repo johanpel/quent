@@ -14,7 +14,7 @@ mod demo {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = tempfile::tempdir()?;
-    let context_id = quent_instrumentation_build_example::export_ndjson(output.path())?;
+    let context_id = quent_instrumentation_build_example::run_with_ndjson(output.path())?;
 
     let store = Store::<Demo>::new(output.path());
 
