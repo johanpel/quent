@@ -1,12 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Loads an existing filesystem-exported context matching the shared example schema.
+//! Runs instrumentation and loads its filesystem-exported events.
 
-use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
-
-use demo::{Demo, Query, Uuid};
+use demo::{Demo, Query};
 use quent_store::event::filesystem::Store;
 use quent_store::event::{EntityEventStore, ModelEventStore};
 
@@ -16,20 +13,10 @@ mod demo {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args_os().skip(1);
-    let root = PathBuf::from(args.next().ok_or_else(|| {
-        Error::new(
-            ErrorKind::InvalidInput,
-            "usage: quent-store-build-example <event-root> <context-id>",
-        )
-    })?);
-    let context_id = args
-        .next()
-        .and_then(|value| value.into_string().ok())
-        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "missing context ID"))?
-        .parse::<Uuid>()?;
+    let output = tempfile::tempdir()?;
+    let context_id = quent_instrumentation_build_example::export_ndjson(output.path())?;
 
-    let store = Store::<Demo>::new(root);
+    let store = Store::<Demo>::new(output.path());
 
     // Load events for one entity type.
     for event in store.entity_events::<Query>(context_id)? {

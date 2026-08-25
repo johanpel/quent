@@ -5,7 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
+quent-instrumentation = { path = "../../instrumentation", features = ["io-callback", "io-ndjson"] }
+serde = { version = "1", features = ["derive"] }
 
 [build-dependencies]
 quent-instrumentation-build = { path = ".." }

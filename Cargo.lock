@@ -2734,6 +2734,7 @@ dependencies = [
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
+ "serde",
 ]
 
 [[package]]
@@ -3212,10 +3213,12 @@ name = "quent-store-build-example"
 version = "0.1.0"
 dependencies = [
  "quent-events",
+ "quent-instrumentation-build-example",
  "quent-store",
  "quent-store-build",
  "quent-yaml",
  "serde",
+ "tempfile",
 ]
 
 [[package]]
