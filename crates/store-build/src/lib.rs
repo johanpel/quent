@@ -25,7 +25,9 @@ pub struct Options {
     /// Additional derives applied to every generated record struct.
     pub record_derives: &'static [&'static str],
 
-    /// Generate a model-wide umbrella event and model-wide loading support.
+    /// Generate a model-wide umbrella event and model-wide filesystem loading support.
+    ///
+    /// The consuming crate must enable at least one `quent-store` `io-*` feature.
     pub umbrella_event: bool,
 
     /// Directory the generated file is written into.
