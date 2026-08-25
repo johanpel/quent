@@ -41,8 +41,13 @@ export function formatDuration(ms: number, decimals: number = 2): string {
  * produce distinct formatted strings.
  * @param ms - Duration in milliseconds
  * @param windowMs - Visible time window width in milliseconds
+ * @param maxDecimals - Maximum precision to display
  */
-export function formatDurationForWindow(ms: number, windowMs: number): string {
+export function formatDurationForWindow(
+  ms: number,
+  windowMs: number,
+  maxDecimals: number = 6
+): string {
   const absMs = Math.abs(ms);
   const resolution = Math.abs(windowMs) / 1000;
 
@@ -57,7 +62,9 @@ export function formatDurationForWindow(ms: number, windowMs: number): string {
 
   const resolutionInUnit = resolution / unitMs;
   const decimals =
-    resolutionInUnit > 0 ? Math.min(6, Math.max(0, Math.ceil(-Math.log10(resolutionInUnit)))) : 2;
+    resolutionInUnit > 0
+      ? Math.min(maxDecimals, Math.max(0, Math.ceil(-Math.log10(resolutionInUnit))))
+      : Math.min(2, maxDecimals);
 
   return formatDuration(ms, decimals);
 }
@@ -259,6 +266,20 @@ export function formatBytes(value: number | bigint, decimals = 1): string {
   return formatWithPrefix(value, 'B', 'Iec', decimals);
 }
 
+/**
+ * Convert a bigint to a JS number safe for use as a chart data point.
+ * Values within Number.MAX_SAFE_INTEGER are converted exactly. Larger values
+ * are right-shifted by just enough bits to fit their mantissa within 53 bits
+ * before conversion, so precision is retained regardless of magnitude (up to
+ * and beyond u64::MAX).
+ */
+export function bigintToChartNumber(n: bigint): number {
+  if (n <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(n);
+  const bitLength = n.toString(2).length;
+  const shift = BigInt(bitLength - 53);
+  return Number(n >> shift) * 2 ** Number(shift);
+}
+
 /** Bytes-like statistic names (pivot tables, DAG field labels). */
 export function isBytesStat(name: string): boolean {
   return (
@@ -378,7 +399,7 @@ export function inferFieldFormatter(fieldName: string): (value: number | bigint)
  * Selects the appropriate prefix system based on the capacity kind.
  */
 export function formatQuantity(
-  value: number,
+  value: number | bigint,
   spec: QuantitySpec,
   kind: CapacityKind,
   decimals: number = 2
@@ -393,7 +414,7 @@ export function formatQuantity(
  * Falls back to the name-based `inferFieldFormatter` heuristic when no spec is provided.
  */
 export function formatStatWithQuantity(
-  value: number,
+  value: number | bigint,
   key: string,
   quantitySpec: QuantitySpec | undefined
 ): string {

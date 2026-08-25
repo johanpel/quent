@@ -245,9 +245,9 @@ describe('data-flow overlay components', () => {
     const bar = screen.getByTestId('node-flow-bar');
     const stateTrack = bar.children[0] as HTMLElement;
     const tierTrack = bar.children[1] as HTMLElement;
-    expect(stateTrack.className).toContain('h-[12px]');
-    expect(tierTrack.className).toContain('h-[12px]');
-    expect(tierTrack.className).toContain('mt-[2px]');
+    expect(stateTrack.style.height).toBe('12px');
+    expect(tierTrack.style.height).toBe('12px');
+    expect(tierTrack.style.marginTop).toBe('2px');
   });
 });
 
@@ -411,12 +411,14 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 
   it('shows all dimension columns when every tier is selected', () => {
     renderPanel(null);
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
     expect(screen.getByText('Memory')).toBeInTheDocument();
     expect(screen.getByText('Filesystem')).toBeInTheDocument();
   });
 
   it('hides deselected dimension columns', () => {
     renderPanel(new Set(['memory']));
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Data Flow' }), { button: 0 });
     expect(screen.getByText('Memory')).toBeInTheDocument();
     expect(screen.queryByText('Filesystem')).not.toBeInTheDocument();
   });

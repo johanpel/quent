@@ -20,27 +20,47 @@ export function clipRectByRect(target: GanttRect, bounds: GanttRect): GanttRect 
   return undefined;
 }
 
-/** Greedily pack intervals into non-overlapping rows. */
+type PackedInterval = { startMs: number; endMs: number };
+
+function findInsertionIndex(intervals: PackedInterval[], startMs: number): number {
+  let low = 0;
+  let high = intervals.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (intervals[mid]!.startMs < startMs) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
+/** Greedily pack intervals in input order so appended entries do not move existing rows. */
 export function stackIntervalsIntoRows<
   T extends { startMs: number; endMs: number; rowIndex: number },
->(entries: T[]): T[] {
-  if (entries.length === 0) return entries;
-
-  const sorted = [...entries].sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
-  const rowEndMs: number[] = [];
-
-  for (const entry of sorted) {
+>(entries: readonly T[]): T[] {
+  const rows: PackedInterval[][] = [];
+  const stackedEntries: T[] = [];
+  for (const entry of entries) {
     let row = 0;
-    while (row < rowEndMs.length && entry.startMs < rowEndMs[row]) {
+    let insertionIndex = 0;
+    while (row < rows.length) {
+      const intervals = rows[row]!;
+      insertionIndex = findInsertionIndex(intervals, entry.startMs);
+      const previous = intervals[insertionIndex - 1];
+      const next = intervals[insertionIndex];
+      if (
+        (previous == null || previous.endMs <= entry.startMs) &&
+        (next == null || entry.endMs <= next.startMs)
+      ) {
+        break;
+      }
       row++;
     }
-    if (row === rowEndMs.length) {
-      rowEndMs.push(entry.endMs);
-    } else {
-      rowEndMs[row] = Math.max(rowEndMs[row], entry.endMs);
-    }
-    entry.rowIndex = row;
+
+    if (row === rows.length) rows.push([]);
+    const stackedEntry = { ...entry, rowIndex: row };
+    rows[row]!.splice(insertionIndex, 0, stackedEntry);
+    stackedEntries.push(stackedEntry);
   }
 
-  return entries;
+  return stackedEntries;
 }

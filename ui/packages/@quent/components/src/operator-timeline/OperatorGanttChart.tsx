@@ -16,7 +16,10 @@ import {
 import { continuousColor, withOpacity, getOperationTypeColor } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
+import type { GanttHover } from '../gantt-chart/hover';
 import { clipRectByRect } from '../gantt-chart/utils';
+import { getOperatorsAtTimestamp } from './utils';
+import { GanttTooltipPortal, type GanttTooltipItem } from '../ui/gantt-tooltip';
 
 const DEFAULT_HEIGHT = 75;
 const MAX_HEIGHT = 200;
@@ -60,6 +63,19 @@ export function OperatorGanttChart({
         value: [op.startMs, op.endMs, op.rowIndex] as [number, number, number],
         name: op.label,
       })),
+    [operators]
+  );
+  const renderTooltip = useCallback(
+    (hover: GanttHover | null) => {
+      const items: GanttTooltipItem[] = hover
+        ? getOperatorsAtTimestamp(operators, hover.timestampMs).map(operator => ({
+            id: operator.operatorId,
+            color: getOperatorBarColors(operator.typeName).stroke,
+            name: operator.label,
+          }))
+        : [];
+      return <GanttTooltipPortal hover={hover} items={items} />;
+    },
     [operators]
   );
   const operatorFieldStyles = useMemo(() => {
@@ -176,7 +192,7 @@ export function OperatorGanttChart({
         if (params.seriesName !== 'operator-span') return;
         const op = operators[params.dataIndex];
         if (!op) return;
-        if (selectedNodeIds.has(op.operatorId)) {
+        if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
           setSelectedNodeIds(new Set());
           setSelectedOperatorLabel(null);
           setSelectedNodeData(null);
@@ -218,6 +234,7 @@ export function OperatorGanttChart({
       emptyMessage="No operator active spans"
       cursor="pointer"
       onEvents={handleClick}
+      renderTooltip={renderTooltip}
     />
   );
 }

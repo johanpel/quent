@@ -5,7 +5,7 @@ import type { StatValue } from '../services/query-plan/types';
 
 /**
  * One operator with an active span, normalized for chart consumption.
- * Time is in milliseconds (aligned with timeline startTime).
+ * Time is ms elapsed from query start (same domain as resource timelines).
  */
 export type OperatorActiveSpanEntry = {
   operatorId: string;

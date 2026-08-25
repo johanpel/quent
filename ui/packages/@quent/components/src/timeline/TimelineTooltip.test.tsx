@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { TooltipContent, type ActiveMark } from './TimelineTooltip';
+import { EntityTooltipContent, TooltipContent, type ActiveMark } from './TimelineTooltip';
 import type { DynamicValue } from '@quent/utils';
 
 // The Rust `DynamicValue` enum serializes externally tagged. This is the shape the
@@ -12,6 +12,13 @@ const tagged = (v: object) => v as unknown as DynamicValue;
 
 describe('TooltipContent active marks', () => {
   const series = [{ color: '#8884d8', name: 'computing', value: 1 }];
+  const makeMarks = (count: number): ActiveMark[] =>
+    Array.from({ length: count }, (_, index) => ({
+      label: `task-${index}`,
+      stateName: 'computing',
+      color: '#ff0000',
+      durationMs: 500,
+    }));
 
   const renderWithMarks = (marks: ActiveMark[]) =>
     render(<TooltipContent timestamp={3360} series={series} windowMs={5300} activeMarks={marks} />);
@@ -68,5 +75,41 @@ describe('TooltipContent active marks', () => {
     renderWithMarks([{ label: 'task-0', stateName: 'sending', color: '#0000ff' }]);
     expect(screen.getByText('task-0')).toBeInTheDocument();
     expect(screen.getByText('sending')).toBeInTheDocument();
+  });
+
+  it('renders entity-only content without a timeline total', () => {
+    render(
+      <EntityTooltipContent
+        timestamp={1_000}
+        windowMs={5_000}
+        activeMarks={[
+          {
+            label: 'task-0',
+            stateName: 'loading',
+            color: '#0000ff',
+            durationMs: 500,
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText('task-0')).toBeInTheDocument();
+    expect(screen.getByText('loading')).toBeInTheDocument();
+    expect(screen.queryByText('Total')).not.toBeInTheDocument();
+  });
+
+  it('keeps full details for six or fewer overlapping entities', () => {
+    render(<EntityTooltipContent timestamp={1_000} windowMs={5_000} activeMarks={makeMarks(6)} />);
+
+    expect(screen.getAllByText('500.00ms')).toHaveLength(6);
+  });
+
+  it('caps detailed rows and reports entities not shown', () => {
+    render(<EntityTooltipContent timestamp={1_000} windowMs={5_000} activeMarks={makeMarks(7)} />);
+
+    expect(screen.getByText('task-0')).toBeInTheDocument();
+    expect(screen.getByText('task-5')).toBeInTheDocument();
+    expect(screen.queryByText('task-6')).not.toBeInTheDocument();
+    expect(screen.getAllByText('500.00ms')).toHaveLength(6);
+    expect(screen.getByText('1 more entity not shown')).toBeInTheDocument();
   });
 });

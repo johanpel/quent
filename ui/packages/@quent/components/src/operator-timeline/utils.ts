@@ -47,6 +47,16 @@ export function getPlanIdsForWorker(planTree: PlanTree, workerId: string): strin
   return planIds;
 }
 
+/** Return every operator whose half-open active span contains the timestamp. */
+export function getOperatorsAtTimestamp(
+  operators: OperatorActiveSpanEntry[],
+  timestampMs: number
+): OperatorActiveSpanEntry[] {
+  return operators.filter(
+    operator => operator.startMs <= timestampMs && timestampMs < operator.endMs
+  );
+}
+
 /**
  * SpanSec from the API is in seconds relative to query start.
  * Returns ms offsets relative to query start (no absolute epoch base) so the

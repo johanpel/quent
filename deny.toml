@@ -7,9 +7,6 @@ all-features = true
 # The lint level for security vulnerabilities.
 version = 2
 ignore = [
-    # atomic-polyfill is unmaintained (pulled in via postcard -> heapless),
-    # no safe upgrade is available.
-    "RUSTSEC-2023-0089",
     # quick-xml DoS advisories (quadratic duplicate-attribute parse; unbounded
     # namespace allocation). Only reachable as a dev/bench dependency (pprof ->
     # inferno flamegraphs, pinned to quick-xml 0.26), parsing developer-generated
@@ -17,6 +14,10 @@ ignore = [
     # to quick-xml >= 0.41.
     "RUSTSEC-2026-0194",
     "RUSTSEC-2026-0195",
+    # smartstring is unmaintained and has no safe upgrade. It is pulled in only
+    # by ts-rs's TypeScript formatting toolchain (dprint -> SWC), not by shipped
+    # runtime code. Drop once ts-rs/dprint migrate to a maintained string crate.
+    "RUSTSEC-2026-0249",
 ]
 
 [licenses]

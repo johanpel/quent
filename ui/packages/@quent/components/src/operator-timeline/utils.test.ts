@@ -3,11 +3,13 @@
 
 import { describe, it, expect } from 'vitest';
 import type { QueryBundle, EntityRef, Operator, PlanTree } from '@quent/utils';
+import type { OperatorActiveSpanEntry } from './types';
 import {
   operatorTimelineRowId,
   workerIdFromOperatorTimelineRowId,
   getWorkerIdsFromPlanTree,
   getPlanIdsForWorker,
+  getOperatorsAtTimestamp,
   spanToMs,
   operatorsWithActiveSpans,
   operatorsWithActiveSpansForWorker,
@@ -149,6 +151,36 @@ describe('getPlanIdsForWorker', () => {
   it('returns an empty array for a leaf tree with no matching worker', () => {
     const leaf: PlanTree = { id: 'leaf', worker: null, children: [] };
     expect(getPlanIdsForWorker(leaf, 'w1')).toEqual([]);
+  });
+});
+
+describe('getOperatorsAtTimestamp', () => {
+  const operator = (
+    operatorId: string,
+    startMs: number,
+    endMs: number
+  ): OperatorActiveSpanEntry => ({
+    operatorId,
+    label: operatorId,
+    typeName: 'scan',
+    startMs,
+    endMs,
+    rowIndex: 0,
+    planId: 'plan',
+    statistics: [],
+  });
+
+  it('returns every overlapping operator', () => {
+    const operators = [operator('a', 0, 20), operator('b', 10, 30), operator('c', 30, 40)];
+    expect(getOperatorsAtTimestamp(operators, 15).map(entry => entry.operatorId)).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('treats spans as half-open at adjacent boundaries', () => {
+    const operators = [operator('a', 0, 10), operator('b', 10, 20)];
+    expect(getOperatorsAtTimestamp(operators, 10).map(entry => entry.operatorId)).toEqual(['b']);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   cn,
   type DynamicAttribute,
 } from '@quent/utils';
+import { ColorSwatch } from '../ui/color-swatch';
 import { DataText } from '../ui/data-text';
 
 /** A timeline mark under the hover cursor, as shown in the tooltip. */
@@ -43,9 +44,7 @@ const TooltipSeriesStat = ({
 }) => {
   return (
     <li className="flex items-center gap-1">
-      {series.color && (
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
-      )}
+      {series.color && <ColorSwatch color={series.color} />}
       <DataText className="text-foreground">{series.name}</DataText>
       <DataText className="font-semibold ml-auto text-foreground">
         {fmt(series.value ?? 0)}
@@ -131,7 +130,7 @@ function SegmentedBarRow({
       </div>
       <DataText
         className={cn(
-          'text-foreground font-semibold text-[11px] text-right tracking-tighter>',
+          'text-foreground font-semibold text-[11px] text-right tracking-tighter',
           valueClassName
         )}
       >
@@ -200,20 +199,19 @@ function MarkDetailRow({ name, value }: { name: string; value: string }) {
   );
 }
 
+const ACTIVE_MARK_LIMIT = 6;
+
 function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
   if (marks.length === 0) return null;
+  const visibleMarks = marks.slice(0, ACTIVE_MARK_LIMIT);
+  const hiddenCount = marks.length - visibleMarks.length;
+
   return (
     <div className="mt-1 pt-1 border-t border-border">
-      {marks.map((m, i) => (
+      {visibleMarks.map((m, i) => (
         <div key={i}>
           <div className="flex items-center gap-1">
-            <span
-              className="w-2 h-2 rounded-xs shrink-0 border"
-              style={{
-                backgroundColor: m.color + '20',
-                borderColor: m.color + 'cc',
-              }}
-            />
+            <ColorSwatch color={m.color} />
             <DataText className="text-muted-foreground">{m.label}</DataText>
             <DataText className="text-foreground font-medium ml-auto">{m.stateName}</DataText>
           </div>
@@ -243,6 +241,11 @@ function ActiveMarksSection({ marks }: { marks: ActiveMark[] }) {
           )}
         </div>
       ))}
+      {hiddenCount > 0 && (
+        <DataText as="div" className="pt-1 text-muted-foreground">
+          {hiddenCount} more {hiddenCount === 1 ? 'entity' : 'entities'} not shown
+        </DataText>
+      )}
     </div>
   );
 }
@@ -338,6 +341,27 @@ function OverlayBarTooltip({
           })()}
       </div>
       {activeMarks && <ActiveMarksSection marks={activeMarks} />}
+    </div>
+  );
+}
+
+/** ResourceTimeline entity-mark tooltip, reusable by entity Gantt charts. */
+export function EntityTooltipContent({
+  timestamp,
+  windowMs,
+  activeMarks,
+}: {
+  /** Elapsed ms from query start. */
+  timestamp: number;
+  windowMs: number;
+  activeMarks: ActiveMark[];
+}) {
+  return (
+    <div className="overflow-x-hidden px-2 py-1.5 bg-popover rounded text-[11px] text-foreground leading-tight shadow-md z-50">
+      <DataText as="div" className="font-semibold mb-1 text-muted-foreground">
+        {formatDurationForWindow(timestamp, windowMs)}
+      </DataText>
+      <ActiveMarksSection marks={activeMarks} />
     </div>
   );
 }

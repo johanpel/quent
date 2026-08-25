@@ -6,7 +6,6 @@ import { DEFAULT_STALE_TIME, fetchSingleTimeline } from '@quent/client';
 import {
   useBulkInitialized,
   useDebouncedZoomRange,
-  useHideTasks,
   timelineCacheKey,
   useTimelineData,
   useSelectedNodeIds,
@@ -17,20 +16,18 @@ import {
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineTooltipPortal } from './TimelineTooltipPortal';
 import { PlayheadLine } from './PlayheadLine';
+import { resolveOverlayData, type RetainedOverlayData } from './resourceTimeline.utils';
 import type { TimelineHoverPosition } from './Timeline';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import {
   buildBinnedTimelineSeries,
-  buildTimelineMarks,
   dimSeries,
-  getLongFsms,
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
-  getLongEntitiesThreshold,
 } from '../lib/timeline.utils';
-import { TimelineSeries, TimelineMark } from './types';
+import { TimelineSeries } from './types';
 import { EntityTypeKey } from '@quent/utils';
 import { WHITE, withOpacity, type PaletteTheme } from '@quent/utils';
 import type {
@@ -92,10 +89,10 @@ export function ResourceTimeline({
   const zoomRange = useDebouncedZoomRange();
   const bulkInitialized = useBulkInitialized();
   const operatorLabel = useSelectedOperatorLabel();
-  const hideTasks = useHideTasks();
 
   const selectedNodeIds = useSelectedNodeIds();
-  const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
+  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
+  const hasOperatorFilter = operatorIds.length > 0;
 
   const cacheResourceTypeName =
     resourceType === EntityTypeKey.ResourceGroup ? (resourceTypeName ?? '') : '';
@@ -110,21 +107,22 @@ export function ResourceTimeline({
     resourceId,
     resourceTypeName: cacheResourceTypeName,
     fsmTypeName,
-    operatorId,
+    operatorIds,
   });
   const operatorTimelineData = useTimelineData(operatorCacheKey);
-  // Preserve the last non-undefined overlay data while an operator is selected.
-  // Without this, switching operators causes a one-render undimmed flash because
-  // the new operator's atom is empty until the seed effect fires.
-  const lastOverlayRef = useRef<typeof operatorTimelineData>(undefined);
+  // Retain overlay data for the same operator set while its atom is reseeded.
+  const lastOverlayRef = useRef<RetainedOverlayData | null>(null);
   if (operatorTimelineData !== undefined) {
-    lastOverlayRef.current = operatorTimelineData;
-  } else if (!operatorId) {
-    lastOverlayRef.current = undefined;
+    lastOverlayRef.current = { cacheKey: operatorCacheKey, data: operatorTimelineData };
+  } else if (!hasOperatorFilter) {
+    lastOverlayRef.current = null;
   }
-  const overlayPreloadedData = operatorId
-    ? (operatorTimelineData ?? lastOverlayRef.current)
-    : undefined;
+  const overlayPreloadedData = resolveOverlayData(
+    operatorTimelineData,
+    lastOverlayRef.current,
+    operatorCacheKey,
+    hasOperatorFilter
+  );
 
   const {
     data: fetchedData,
@@ -144,7 +142,6 @@ export function ResourceTimeline({
       const isGroup = resourceType === EntityTypeKey.ResourceGroup;
       const start = zoomRange?.start ?? 0;
       const end = zoomRange?.end ?? durationSeconds;
-      const windowSeconds = end - start;
       const config = {
         num_bins: getAdaptiveNumBins(),
         start,
@@ -156,7 +153,7 @@ export function ResourceTimeline({
               ResourceGroup: {
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 app_params: { operator_ids: [] },
                 config,
@@ -165,7 +162,7 @@ export function ResourceTimeline({
           : {
               Resource: {
                 resource_id: resourceId,
-                long_entities_threshold_s: getLongEntitiesThreshold(windowSeconds),
+                long_entities_threshold_s: null,
                 entity_filter: { entity_type_name: fsmTypeName ?? null },
                 application: { operator_ids: [] },
                 config,
@@ -180,10 +177,9 @@ export function ResourceTimeline({
     placeholderData: keepPreviousData,
   });
 
-  const { timestamps, series, marks, yAxisLabel } = useMemo<{
+  const { timestamps, series, yAxisLabel } = useMemo<{
     timestamps: number[];
     series: TimelineSeries;
-    marks?: TimelineMark[];
     yAxisLabel?: string;
   }>(() => {
     const data = preloadedData ?? fetchedData;
@@ -197,13 +193,8 @@ export function ResourceTimeline({
       quantitySpecs,
       fsmTypes
     );
-    const longFsms = getLongFsms(data.data);
-    const filterSet =
-      resourceType === EntityTypeKey.Resource ? new Set([resourceId]) : new Set<string>();
 
-    const timelineMarks = buildTimelineMarks(longFsms, paletteTheme, filterSet, fsmTypes);
-
-    if (operatorId && operatorLabel) {
+    if (hasOperatorFilter && operatorLabel) {
       if (overlayPreloadedData) {
         const baseSpan = getTimelineConfig(data).span;
         const opSpan = getTimelineConfig(overlayPreloadedData).span;
@@ -217,19 +208,10 @@ export function ResourceTimeline({
             quantitySpecs,
             fsmTypes
           );
-          const opLongFsmIds = new Set(getLongFsms(overlayPreloadedData.data).map(f => f.id));
           return {
             timestamps: base.timestamps,
             series: mergeOverlaySeries(base.series, opResult.series, operatorLabel),
             yAxisLabel: base.yAxisLabel,
-            marks: buildTimelineMarks(
-              longFsms,
-              paletteTheme,
-              filterSet,
-              fsmTypes,
-              opLongFsmIds,
-              operatorLabel
-            ),
           };
         }
       }
@@ -241,21 +223,18 @@ export function ResourceTimeline({
         timestamps: base.timestamps,
         series: dimSeries(base.series),
         yAxisLabel: base.yAxisLabel,
-        marks: timelineMarks,
       };
     }
 
-    return { ...base, marks: timelineMarks };
+    return base;
   }, [
     preloadedData,
     fetchedData,
-    operatorId,
+    hasOperatorFilter,
     overlayPreloadedData,
     resourceTypeDecl,
     quantitySpecs,
     fsmTypes,
-    resourceType,
-    resourceId,
     operatorLabel,
     paletteTheme,
   ]);
@@ -303,7 +282,6 @@ export function ResourceTimeline({
     );
   }
 
-  const effectiveMarks = hideTasks ? undefined : marks;
   const effectiveYAxisLabel = yAxisLabel ?? fsmTypeName;
 
   return (
@@ -314,19 +292,13 @@ export function ResourceTimeline({
           timestamps={timestamps ?? []}
           durationSeconds={durationSeconds}
           showTooltip={showTooltip}
-          marks={effectiveMarks}
           isDark={isDark}
           yAxisLabel={effectiveYAxisLabel}
           onHoverChange={handleHoverChange}
           onReady={handleChartReady}
         />
         {showTooltip && (
-          <TimelineTooltipPortal
-            ownerId={ownerId}
-            series={series}
-            timestamps={timestamps ?? []}
-            marks={effectiveMarks}
-          />
+          <TimelineTooltipPortal ownerId={ownerId} series={series} timestamps={timestamps ?? []} />
         )}
       </Suspense>
       <PlayheadLine instance={chartInstance} />

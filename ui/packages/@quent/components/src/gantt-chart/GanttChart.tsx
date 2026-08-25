@@ -42,11 +42,15 @@ export interface GanttChartProps<T extends GanttDatum> {
   isDark: boolean;
   seriesName: string;
   renderItem: GanttRenderItem;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   cursor?: GanttSeriesCursor;
   onEvents?: EChartsEvents;
   gridSpacing?: GanttGridSpacing;
+  contentPaddingBottom?: number;
+  animateHeight?: boolean;
   renderTooltip?: (hover: GanttHover | null) => ReactNode;
+  /** Called when the user clicks the chart background (not a series item). */
+  onBackgroundClick?: () => void;
 }
 
 export function GanttChart<T extends GanttDatum>({
@@ -62,7 +66,10 @@ export function GanttChart<T extends GanttDatum>({
   cursor,
   onEvents,
   gridSpacing,
+  contentPaddingBottom = 0,
+  animateHeight = false,
   renderTooltip,
+  onBackgroundClick,
 }: GanttChartProps<T>) {
   const { themeName } = useTimelineEchartsTheme(isDark);
   const [hover, setHover] = useState<GanttHover | null>(null);
@@ -79,7 +86,7 @@ export function GanttChart<T extends GanttDatum>({
       rowCount: maxRow + 1,
     };
   }, [data]);
-  const chartHeight = Math.max(height, rowCount * rowHeight);
+  const chartHeight = Math.max(height, rowCount * rowHeight + contentPaddingBottom);
   const wrapperHeight = Math.min(chartHeight, maxHeight);
 
   const option = useMemo(
@@ -115,15 +122,32 @@ export function GanttChart<T extends GanttDatum>({
         wrapperRef.current ?? undefined
       );
       const detachHover = renderTooltip ? observeGanttHover(instance, setHover) : undefined;
+
+      // zrender fires click for ALL clicks; target is null when background is clicked
+      type ZrEvent = { target: unknown };
+      const zr = (
+        instance as unknown as {
+          getZr: () => {
+            on: (e: string, h: (ev: ZrEvent) => void) => void;
+            off: (e: string, h: (ev: ZrEvent) => void) => void;
+          };
+        }
+      ).getZr?.();
+      const handleZrClick = (e: ZrEvent) => {
+        if (!e.target) onBackgroundClick?.();
+      };
+      zr?.on('click', handleZrClick);
+
       const cleanup = () => {
         unregisterAxisPointerSync(instance);
         detachWheelNavigation();
         detachHover?.();
+        zr?.off('click', handleZrClick);
         if (chartCleanupRef.current === cleanup) chartCleanupRef.current = null;
       };
       chartCleanupRef.current = cleanup;
     },
-    [attachWheelNavigation, renderTooltip]
+    [attachWheelNavigation, renderTooltip, onBackgroundClick]
   );
 
   const { handleChartReady, instanceRef } = useChartConnect({
@@ -141,7 +165,15 @@ export function GanttChart<T extends GanttDatum>({
 
   return (
     <>
-      <HiddenScroll ref={wrapperRef} className="relative" style={{ height: wrapperHeight }}>
+      <HiddenScroll
+        ref={wrapperRef}
+        className={
+          animateHeight
+            ? 'relative transition-[height] duration-150 ease-out motion-reduce:transition-none'
+            : 'relative'
+        }
+        style={{ height: wrapperHeight }}
+      >
         <EChartsReactCore
           echarts={echarts}
           theme={themeName}

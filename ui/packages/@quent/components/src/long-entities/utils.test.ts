@@ -3,7 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import type { FiniteStateMachine, FsmTransition } from '@quent/utils';
-import { buildLongEntityEntries } from './utils';
+import { buildLongEntityEntries, getLongEntitySegmentsAtTimestamp } from './utils';
 
 function transition(
   name: string,
@@ -51,6 +51,47 @@ describe('buildLongEntityEntries', () => {
     // seconds → elapsed milliseconds
     expect(entry.segments[0]).toMatchObject({ startMs: 0, endMs: 1000 });
     expect(entry.segments[1]).toMatchObject({ startMs: 1000, endMs: 3000 });
+  });
+
+  it('keeps only states used on a filtered resource', () => {
+    const fsm = makeFsm('e1', [
+      transition('queueing', 0, {
+        usages: [{ resource: 'resource-2', capacities: [] }],
+      }),
+      transition('computing', 1, {
+        usages: [{ resource: 'resource-1', capacities: [] }],
+      }),
+      transition('exit', 3),
+    ]);
+
+    const [entry] = buildLongEntityEntries([fsm], {}, 'light', new Set(['resource-1']));
+
+    expect(entry.segments.map(segment => segment.stateName)).toEqual(['computing']);
+    expect(entry).toMatchObject({ startMs: 1000, endMs: 3000 });
+  });
+
+  it('drops entities with no states used on a filtered resource', () => {
+    const matching = makeFsm('matching', [
+      transition('computing', 0, {
+        usages: [{ resource: 'resource-1', capacities: [] }],
+      }),
+      transition('exit', 1),
+    ]);
+    const unrelated = makeFsm('unrelated', [
+      transition('queueing', 0, {
+        usages: [{ resource: 'resource-2', capacities: [] }],
+      }),
+      transition('exit', 1),
+    ]);
+
+    const entries = buildLongEntityEntries(
+      [matching, unrelated],
+      {},
+      'light',
+      new Set(['resource-1'])
+    );
+
+    expect(entries.map(entry => entry.entityId)).toEqual(['matching']);
   });
 
   it('spans the bar from first to last transition', () => {
@@ -124,5 +165,40 @@ describe('buildLongEntityEntries', () => {
     const b = makeFsm('b', [transition('s', 2), transition('exit', 8)]);
     const entries = buildLongEntityEntries([a, b], {}, 'light');
     expect(new Set(entries.map(e => e.rowIndex)).size).toBe(2);
+  });
+});
+
+describe('getLongEntitySegmentsAtTimestamp', () => {
+  it('returns every entity and its active state', () => {
+    const first = makeFsm(
+      'first',
+      [transition('loading', 0), transition('running', 1), transition('exit', 3)],
+      { instance_name: 'task-1' }
+    );
+    const second = makeFsm('second', [transition('queued', 0.5), transition('done', 2)], {
+      instance_name: 'task-2',
+    });
+    const entries = buildLongEntityEntries([first, second], {}, 'light');
+
+    expect(
+      getLongEntitySegmentsAtTimestamp(entries, 1_500).map(({ entry, segment }) => [
+        entry.label,
+        segment.stateName,
+      ])
+    ).toEqual([
+      ['task-1', 'running'],
+      ['task-2', 'queued'],
+    ]);
+  });
+
+  it('uses half-open state boundaries', () => {
+    const fsm = makeFsm('entity', [
+      transition('loading', 0),
+      transition('running', 1),
+      transition('exit', 2),
+    ]);
+    const entries = buildLongEntityEntries([fsm], {}, 'light');
+    const [{ segment }] = getLongEntitySegmentsAtTimestamp(entries, 1_000);
+    expect(segment.stateName).toBe('running');
   });
 });

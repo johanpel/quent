@@ -30,13 +30,20 @@ export function resourceIdFromLongEntitiesRowId(id: string): string | null {
  */
 function buildSegments(
   fsm: FiniteStateMachine,
-  colorFsm: (stateName: string) => string
+  colorFsm: (stateName: string) => string,
+  resourceIdsForFilter?: ReadonlySet<string> | null
 ): LongEntitySegment[] {
   return fsm.transitions
     .slice(0, -1)
     .map((transition, i): LongEntitySegment | null => {
       const next = fsm.transitions[i + 1];
       if (!next) return null;
+      if (
+        resourceIdsForFilter != null &&
+        !transition.usages?.some(usage => resourceIdsForFilter.has(usage.resource))
+      ) {
+        return null;
+      }
       const startMs = transition.timestamp * 1000;
       const endMs = next.timestamp * 1000;
       if (endMs <= startMs) return null;
@@ -65,13 +72,14 @@ function buildSegments(
 export function buildLongEntityEntries(
   items: FiniteStateMachine[],
   fsmTypes: { [key in string]?: FsmTypeDecl } | undefined,
-  theme: PaletteTheme
+  theme: PaletteTheme,
+  resourceIdsForFilter?: ReadonlySet<string> | null
 ): LongEntityEntry[] {
   const colorFsm = createFsmTypeColorFn(fsmTypes ?? {}, theme);
 
   const entries: LongEntityEntry[] = [];
   for (const fsm of items) {
-    const segments = buildSegments(fsm, colorFsm);
+    const segments = buildSegments(fsm, colorFsm, resourceIdsForFilter);
     if (segments.length === 0) continue;
     const startMs = segments[0]!.startMs;
     const endMs = segments[segments.length - 1]!.endMs;
@@ -87,4 +95,17 @@ export function buildLongEntityEntries(
   }
 
   return stackIntervalsIntoRows(entries);
+}
+
+/** Return every entity state whose half-open segment contains the timestamp. */
+export function getLongEntitySegmentsAtTimestamp(
+  entries: LongEntityEntry[],
+  timestampMs: number
+): Array<{ entry: LongEntityEntry; segment: LongEntitySegment }> {
+  return entries.flatMap(entry => {
+    const segment = entry.segments.find(
+      candidate => candidate.startMs <= timestampMs && timestampMs < candidate.endMs
+    );
+    return segment ? [{ entry, segment }] : [];
+  });
 }

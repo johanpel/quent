@@ -1,12 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Pause, Play } from 'lucide-react';
 import { cn, formatDurationForWindow } from '@quent/utils';
 import {
   useDataFlowEnabled,
   useDataFlowMeta,
+  useDataFlowIsPlaying,
+  useSetDataFlowIsPlaying,
   usePlayheadTimeS,
   useSetPlayheadTimeS,
   useSetPlayheadLineTimeMs,
@@ -38,8 +40,9 @@ export function DagPlayhead({ className }: DagPlayheadProps) {
   const meta = useDataFlowMeta();
   const playheadTimeS = usePlayheadTimeS();
   const setPlayheadTimeS = useSetPlayheadTimeS();
+  const isPlaying = useDataFlowIsPlaying();
+  const setIsPlaying = useSetDataFlowIsPlaying();
   const setPlayheadLineTimeMs = useSetPlayheadLineTimeMs();
-  const [isPlaying, setIsPlaying] = useState(false);
 
   const trackRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);

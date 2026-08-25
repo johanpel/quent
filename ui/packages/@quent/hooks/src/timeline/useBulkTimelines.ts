@@ -13,7 +13,6 @@ import {
   timelineDataMapAtom,
   zoomRangeAtom,
   debouncedZoomRangeAtom,
-  bulkInitializedAtom,
   visibleEntriesAtom,
 } from '../atoms/timeline';
 import { selectedNodeIdsAtom } from '../atoms/dag';
@@ -80,7 +79,7 @@ export function useBulkTimelines<T extends TreeNode>({
   const queryClient = useQueryClient();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const operatorId = selectedNodeIds.size > 0 ? selectedNodeIds.values().next().value! : null;
+  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
 
   useEffect(() => {
     return () => {
@@ -124,19 +123,13 @@ export function useBulkTimelines<T extends TreeNode>({
     store.set(visibleEntriesAtom, baseVisibleEntries);
   }, [baseVisibleEntries, store]);
 
-  const bulkData = useBulkTimelineFetch({
+  useBulkTimelineFetch({
     engineId,
     queryId,
     debouncedZoomRange,
     entries: baseVisibleEntries,
-    operatorId,
+    operatorIds,
   });
-
-  useEffect(() => {
-    if (bulkData) {
-      store.set(bulkInitializedAtom, true);
-    }
-  }, [bulkData, store]);
 
   // Zoom change handler — stable, uses store imperatively
   const handleZoomChange = useCallback(
@@ -178,8 +171,15 @@ export function useBulkTimelines<T extends TreeNode>({
         );
         const resourceTypeName = getResourceTypeName(params);
         const fsmTypeName = getFsmTypeName(params);
-        const key = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
-        if (!store.get(timelineDataMapAtom)[key]) {
+        const baseKey = timelineCacheKey({ resourceId: child.id, resourceTypeName, fsmTypeName });
+        const operatorKey = timelineCacheKey({
+          resourceId: child.id,
+          resourceTypeName,
+          operatorIds,
+          fsmTypeName,
+        });
+        const timelineData = store.get(timelineDataMapAtom);
+        if (!timelineData[baseKey] || (operatorIds.length > 0 && !timelineData[operatorKey])) {
           newBaseEntries[child.id] = params;
         }
       }
@@ -190,7 +190,7 @@ export function useBulkTimelines<T extends TreeNode>({
         entries: expandEntries,
         idToMeta: expandIdToMeta,
         requestKey: expandRequestKey,
-      } = buildMergedBulkEntries(newBaseEntries, operatorId);
+      } = buildMergedBulkEntries(newBaseEntries, operatorIds);
 
       try {
         const response = await queryClient.fetchQuery({
@@ -217,7 +217,7 @@ export function useBulkTimelines<T extends TreeNode>({
       queryClient,
       engineId,
       queryId,
-      operatorId,
+      operatorIds,
       buildBulkParamsFn,
       findItemByIdFn,
     ]
