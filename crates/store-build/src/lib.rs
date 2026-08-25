@@ -5,6 +5,8 @@
 //!
 //! Add `quent-store-build` to `[build-dependencies]`, call [`generate`] from
 //! `build.rs`, and include the generated file from Cargo's `OUT_DIR`.
+//! The crate including that source needs normal dependencies on `quent-store`,
+//! serde-enabled `quent-events`, and derive-enabled `serde`.
 
 use std::path::PathBuf;
 
