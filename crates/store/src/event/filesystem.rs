@@ -365,9 +365,12 @@ mod tests {
         assert_eq!(paths, ["alpha.ndjson", "bravo.ndjson", "charlie.ndjson"]);
     }
 
-    #[cfg(not(feature = "io-msgpack"))]
     #[test]
     fn rejects_event_files_for_disabled_formats() {
+        if Format::try_from("msgpack").is_ok() {
+            return;
+        }
+
         let root = tempfile::tempdir().unwrap();
         let entity = root.path().join("Alpha");
         fs::create_dir(&entity).unwrap();
