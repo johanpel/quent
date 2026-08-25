@@ -18,11 +18,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let store = Store::<Demo>::new(output.path());
 
+    println!("--- Query events ---");
+
     // Load events for one entity type.
     for event in store.entity_events::<Query>(context_id)? {
         let event = event?;
         println!("{event:?}");
     }
+
+    println!("\n--- All model events ---");
 
     // Load all model events as `DemoEvent`.
     for event in store.events(context_id)? {
