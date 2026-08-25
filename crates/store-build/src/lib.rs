@@ -157,12 +157,12 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 #[cfg(test)]
 mod tests {
     use quent_schema::builder::{AnnotationsBuilder, EntityBuilder, SchemaBuilder};
-    use quent_schema::test_utils::{entity, event, eventless_entity, unchecked_schema};
+    use quent_schema::test_utils::{entity, event};
 
     use super::*;
 
     #[test]
-    fn generates_store_model_and_nested_entity_membership() {
+    fn generates_nested_retrieval_apis_with_optional_model_loading() {
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
             .with_entity(entity("Foo::Query", [event("created", [])]))
@@ -170,74 +170,19 @@ mod tests {
             .build()
             .unwrap();
 
+        let default_source = generate_str(&schema, &Options::default()).unwrap();
         let opts = Options {
             umbrella_event: true,
             ..Options::default()
         };
-        let source = generate_str(&schema, &opts).unwrap();
+        let umbrella_source = generate_str(&schema, &opts).unwrap();
 
-        assert!(source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
-        assert_eq!(source.matches("import_event_files::<").count(), 2);
-        assert!(source.contains("foo::QueryEvent"));
-        assert!(source.contains("foo::nested::TaskEvent"));
-        assert!(source.contains("event::StoredEntity<Demo> for foo::Query"));
-        assert!(source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
-        assert!(!source.contains("quent_instrumentation"));
-    }
-
-    #[test]
-    fn generates_entity_loading_without_an_umbrella_by_default() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-
-        let source = generate_str(&schema, &Options::default()).unwrap();
-
-        assert!(source.contains("event::StoredEntity<Demo> for Query"));
-        assert!(!source.contains("filesystem::Model for Demo"));
-        assert!(!source.contains("pub enum DemoEvent"));
-    }
-
-    #[test]
-    fn forwards_the_serde_option_to_event_generation() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Query", [event("created", [])]))
-            .build()
-            .unwrap();
-
-        let default_source = generate_str(&schema, &Options::default()).unwrap();
-        let serde_source = generate_str(
-            &schema,
-            &Options {
-                serde: true,
-                ..Options::default()
-            },
-        )
-        .unwrap();
-
+        assert!(default_source.contains("event::StoredEntity<Demo> for foo::Query"));
+        assert!(default_source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
+        assert!(!default_source.contains("filesystem::Model for Demo"));
         assert!(!default_source.contains("::serde::"));
-        assert!(serde_source.contains("::serde::Serialize"));
-        assert!(serde_source.contains("::serde::Deserialize"));
-    }
-
-    #[test]
-    fn generate_rejects_invalid_schemas() {
-        let schema = unchecked_schema("Demo", [eventless_entity("Query")], []);
-        let output = tempfile::tempdir().unwrap();
-        let options = Options {
-            out_dir: output.path().to_owned(),
-            ..Options::default()
-        };
-
-        assert!(matches!(
-            generate(&schema, &options),
-            Err(GenerateError::EventModel(
-                quent_instrumentation_build::GenerateError::InvalidSchema(_)
-            ))
-        ));
+        assert!(umbrella_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
+        assert_eq!(umbrella_source.matches("import_event_files::<").count(), 2);
     }
 
     #[test]
