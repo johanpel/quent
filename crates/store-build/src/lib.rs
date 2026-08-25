@@ -12,22 +12,17 @@ use quent_schema::Schema;
 use quote::quote;
 
 /// Options controlling stored-event retrieval source generation.
+///
+/// Generated event and record types always derive `serde::Serialize` and
+/// `serde::Deserialize`.
 pub struct Options {
     /// Derive [`Debug`](std::fmt::Debug) on generated event and record types.
     pub debug: bool,
 
-    /// Derive `serde::Serialize` and `serde::Deserialize` on generated event
-    /// and record types.
-    pub serde: bool,
-
-    /// Derives applied to every generated event payload enum.
-    ///
-    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
+    /// Additional derives applied to every generated event payload enum.
     pub event_derives: &'static [&'static str],
 
-    /// Derives applied to every generated record struct.
-    ///
-    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
+    /// Additional derives applied to every generated record struct.
     pub record_derives: &'static [&'static str],
 
     /// Generate a model-wide umbrella event and model-wide loading support.
@@ -44,7 +39,6 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             debug: true,
-            serde: false,
             event_derives: Default::default(),
             record_derives: Default::default(),
             umbrella_event: false,
@@ -98,7 +92,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let event_opts = quent_instrumentation_build::Options {
         instrumentation: false,
         debug: opts.debug,
-        serde: opts.serde,
+        serde: true,
         event_derives: opts.event_derives,
         record_derives: opts.record_derives,
         umbrella_event: opts.umbrella_event,
@@ -180,7 +174,6 @@ mod tests {
         assert!(default_source.contains("event::StoredEntity<Demo> for foo::Query"));
         assert!(default_source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
         assert!(!default_source.contains("filesystem::Model for Demo"));
-        assert!(!default_source.contains("::serde::"));
         assert!(umbrella_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
         assert_eq!(umbrella_source.matches("import_event_files::<").count(), 2);
     }
