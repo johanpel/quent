@@ -20,5 +20,4 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-quent-instrumentation = { path = "../instrumentation", features = ["io-ndjson"] }
 tempfile = "3"

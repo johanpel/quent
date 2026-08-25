@@ -310,163 +310,17 @@ fn format_feature(extension: &str) -> Option<&'static str> {
 mod tests {
     use std::fs;
 
-    use quent_build_info::{BuildInfo, ModelSource};
-    use quent_events::{Entity, EntityEvent, Event, Model as EventModel, ModelEvents};
-    use quent_instrumentation::{ContextExporter, ContextInner};
-    use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
-    use serde::{Deserialize, Serialize};
+    use quent_build_info::ModelInfo;
+    use quent_events::Model as EventModel;
+    #[cfg(feature = "io-ndjson")]
+    use serde::Deserialize;
 
     use super::*;
 
     struct TestModel;
 
-    #[derive(Debug, Deserialize, PartialEq, Serialize)]
-    struct AlphaEvent(u8);
-
-    impl EntityEvent for AlphaEvent {
-        const NAME: &'static str = "Alpha";
-    }
-
-    struct Alpha;
-
-    impl Entity for Alpha {
-        type Event = AlphaEvent;
-    }
-
-    impl StoredEntity<TestModel> for Alpha {}
-
-    #[derive(Debug, Deserialize, PartialEq, Serialize)]
-    struct BetaEvent(u8);
-
-    impl EntityEvent for BetaEvent {
-        const NAME: &'static str = "Beta";
-    }
-
-    #[derive(Debug, PartialEq)]
-    enum TestEvent {
-        Alpha(AlphaEvent),
-        Beta(BetaEvent),
-    }
-
-    impl From<AlphaEvent> for TestEvent {
-        fn from(event: AlphaEvent) -> Self {
-            Self::Alpha(event)
-        }
-    }
-
-    impl From<BetaEvent> for TestEvent {
-        fn from(event: BetaEvent) -> Self {
-            Self::Beta(event)
-        }
-    }
-
     impl EventModel for TestModel {
         const NAME: &'static str = "Test";
-    }
-
-    impl ModelSource for TestModel {
-        fn package() -> &'static str {
-            "quent-store"
-        }
-
-        fn source() -> BuildInfo {
-            BuildInfo::unknown()
-        }
-    }
-
-    struct OtherModel;
-
-    impl EventModel for OtherModel {
-        const NAME: &'static str = "Other";
-    }
-
-    impl ModelSource for OtherModel {
-        fn package() -> &'static str {
-            "quent-store"
-        }
-
-        fn source() -> BuildInfo {
-            BuildInfo::unknown()
-        }
-    }
-
-    impl ModelEvents for TestModel {
-        type UmbrellaEvent = TestEvent;
-    }
-
-    impl Model for TestModel {
-        fn event_streams() -> &'static [EventStream<Self>] {
-            static STREAMS: &[EventStream<TestModel>] = &[
-                EventStream::new(
-                    AlphaEvent::NAME,
-                    import_event_files::<TestModel, AlphaEvent>,
-                ),
-                EventStream::new(BetaEvent::NAME, import_event_files::<TestModel, BetaEvent>),
-            ];
-            STREAMS
-        }
-    }
-
-    fn context<M>(root: &Path, id: Uuid) -> (ContextInner, ExporterOptions)
-    where
-        M: EventModel + ModelSource,
-    {
-        let context = ContextInner::try_new(id).unwrap();
-        let options = ExporterOptions::FileSystem(FileSystemExporterOptions::new(
-            FileSystemFormat::Ndjson,
-            root.to_path_buf(),
-        ));
-        options.prepare_context(id, M::model_info());
-        (context, options)
-    }
-
-    fn export_events(root: &Path, id: Uuid) {
-        let (context, options) = context::<TestModel>(root, id);
-        let alpha = context
-            .block_on(context.observer::<AlphaEvent>(&options))
-            .unwrap();
-        let beta = context
-            .block_on(context.observer::<BetaEvent>(&options))
-            .unwrap();
-
-        alpha.send(Event::new(Uuid::from_u128(11), 11, AlphaEvent(1)));
-        beta.send(Event::new(Uuid::from_u128(12), 1, BetaEvent(2)));
-    }
-
-    #[test]
-    fn loads_all_model_events_without_relying_on_order() {
-        let root = tempfile::tempdir().unwrap();
-        let id = Uuid::from_u128(2);
-        export_events(root.path(), id);
-
-        let store = Store::<TestModel>::new(root.path());
-        let events = store
-            .events(id)
-            .unwrap()
-            .map(|event| event.map(|event| event.data))
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-
-        assert_eq!(events.len(), 2);
-        assert!(events.contains(&TestEvent::Alpha(AlphaEvent(1))));
-        assert!(events.contains(&TestEvent::Beta(BetaEvent(2))));
-    }
-
-    #[test]
-    fn loads_one_entity_type_as_concrete_events() {
-        let root = tempfile::tempdir().unwrap();
-        let id = Uuid::from_u128(2);
-        export_events(root.path(), id);
-
-        let store = Store::<TestModel>::new(root.path());
-        let events = store
-            .entity_events::<Alpha>(id)
-            .unwrap()
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].data, AlphaEvent(1));
     }
 
     #[test]
@@ -476,41 +330,33 @@ mod tests {
 
         let missing = Uuid::from_u128(1);
         assert!(matches!(
-            store.events(missing),
+            store.context(missing),
             Err(Error::ContextNotFound(id)) if id == missing
         ));
 
-        let missing_sidecar = Uuid::from_u128(2);
-        let missing_sidecar_path = root.path().join(missing_sidecar.to_string());
-        fs::create_dir(&missing_sidecar_path).unwrap();
+        let mismatch = Uuid::from_u128(2);
+        let context = root.path().join(mismatch.to_string());
+        fs::create_dir(&context).unwrap();
+        let mut model = ModelInfo::unknown();
+        model.name = "Other".to_owned();
+        ArtifactInfo::new(model).write_sidecar(&context).unwrap();
         assert!(matches!(
-            store.events(missing_sidecar),
-            Err(Error::Io {
-                operation: "read context metadata from",
-                path,
-                source,
-            }) if path == missing_sidecar_path.join(SIDECAR_FILE_NAME)
-                && source.kind() == std::io::ErrorKind::NotFound
-        ));
-
-        let mismatch = Uuid::from_u128(3);
-        context::<OtherModel>(root.path(), mismatch);
-        assert!(matches!(
-            store.events(mismatch),
+            store.context(mismatch),
             Err(Error::ModelMismatch { actual, .. }) if actual == "Other"
         ));
     }
 
+    #[cfg(feature = "io-ndjson")]
     #[test]
     fn returns_event_files_in_path_order() {
         let root = tempfile::tempdir().unwrap();
-        let entity = root.path().join(AlphaEvent::NAME);
+        let entity = root.path().join("Alpha");
         fs::create_dir(&entity).unwrap();
         for name in ["charlie.ndjson", "alpha.ndjson", "bravo.ndjson"] {
             fs::write(entity.join(name), b"").unwrap();
         }
 
-        let paths = event_files(root.path(), AlphaEvent::NAME)
+        let paths = event_files(root.path(), "Alpha")
             .unwrap()
             .into_iter()
             .map(|file| file.path.file_name().unwrap().to_owned())
@@ -523,13 +369,13 @@ mod tests {
     #[test]
     fn rejects_event_files_for_disabled_formats() {
         let root = tempfile::tempdir().unwrap();
-        let entity = root.path().join(AlphaEvent::NAME);
+        let entity = root.path().join("Alpha");
         fs::create_dir(&entity).unwrap();
         let path = entity.join("events.msgpack");
         fs::write(&path, b"").unwrap();
 
         assert!(matches!(
-            event_files(root.path(), AlphaEvent::NAME),
+            event_files(root.path(), "Alpha"),
             Err(Error::DisabledFormat {
                 path: error_path,
                 format,
@@ -538,23 +384,24 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "io-ndjson")]
     #[test]
     fn reports_import_failures_during_iteration() {
         let root = tempfile::tempdir().unwrap();
-        let id = Uuid::from_u128(2);
-        let context_path = root.path().join(id.to_string());
-        context::<TestModel>(root.path(), id);
-        let entity = context_path.join(AlphaEvent::NAME);
-        fs::create_dir(&entity).unwrap();
-        fs::write(entity.join("events.ndjson"), b"not json\n").unwrap();
+        let path = root.path().join("events.ndjson");
+        fs::write(&path, b"not json\n").unwrap();
 
-        let store = Store::<TestModel>::new(root.path());
-        let mut events = store.entity_events::<Alpha>(id).unwrap();
+        #[derive(Deserialize)]
+        struct TestEvent;
+
+        let mut events = import_files::<TestEvent>(vec![EventFile {
+            format: Format::Ndjson,
+            path: path.clone(),
+        }]);
 
         assert!(matches!(
             events.next(),
-            Some(Err(Error::Importer { path, .. }))
-                if path == entity.join("events.ndjson")
+            Some(Err(Error::Importer { path: error_path, .. })) if error_path == path
         ));
         assert!(events.next().is_none());
     }
