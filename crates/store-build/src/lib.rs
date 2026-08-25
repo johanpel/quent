@@ -1,27 +1,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generates event-store models from schemas.
+//! Generates schema-based typed APIs for retrieving stored events.
 //!
 //! Add `quent-store-build` to `[build-dependencies]`, call [`generate`] from
-//! `build.rs`, and include the generated file from Cargo's `OUT_DIR`. The
-//! consuming crate requires normal dependencies on `quent-store`,
-//! serde-enabled `quent-events`, and derive-enabled `serde`.
+//! `build.rs`, and include the generated file from Cargo's `OUT_DIR`.
 
 use std::path::PathBuf;
 
 use quent_schema::Schema;
 use quote::quote;
 
-/// Options controlling event-store source generation.
+/// Options controlling stored-event retrieval source generation.
 pub struct Options {
     /// Derive [`Debug`](std::fmt::Debug) on generated event and record types.
     pub debug: bool,
 
+    /// Derive `serde::Serialize` and `serde::Deserialize` on generated event
+    /// and record types.
+    pub serde: bool,
+
     /// Derives applied to every generated event payload enum.
+    ///
+    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
     pub event_derives: &'static [&'static str],
 
     /// Derives applied to every generated record struct.
+    ///
+    /// Use [`Self::debug`] and [`Self::serde`] for the built-in derives.
     pub record_derives: &'static [&'static str],
 
     /// Generate a model-wide umbrella event and model-wide loading support.
@@ -38,6 +44,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             debug: true,
+            serde: false,
             event_derives: Default::default(),
             record_derives: Default::default(),
             umbrella_event: false,
@@ -47,18 +54,18 @@ impl Default for Options {
     }
 }
 
-/// An error from generating event-store source.
+/// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
     #[error(transparent)]
     EventModel(#[from] quent_instrumentation_build::GenerateError),
-    #[error("generated event-store code did not form a valid Rust file")]
+    #[error("generated stored-event retrieval code did not form a valid Rust file")]
     InvalidGeneratedCode(#[source] syn::Error),
-    #[error("failed to write generated event-store source")]
+    #[error("failed to write generated stored-event retrieval source")]
     Io(#[from] std::io::Error),
 }
 
-/// Information about generated event-store source.
+/// Information about generated stored-event retrieval source.
 pub struct GenerateInfo {
     /// Path of the generated Rust source file.
     pub path: PathBuf,
@@ -66,7 +73,7 @@ pub struct GenerateInfo {
     pub warnings: Vec<String>,
 }
 
-/// Generates an event model and its event-store descriptors.
+/// Generates event types and their typed stored-event retrieval API.
 ///
 /// # Errors
 ///
@@ -82,7 +89,7 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
     Ok(GenerateInfo { path, warnings })
 }
 
-/// Returns event-store model source for `schema`.
+/// Returns stored-event retrieval source for `schema`.
 ///
 /// # Errors
 ///
@@ -91,7 +98,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let event_opts = quent_instrumentation_build::Options {
         instrumentation: false,
         debug: opts.debug,
-        serde: true,
+        serde: opts.serde,
         event_derives: opts.event_derives,
         record_derives: opts.record_derives,
         umbrella_event: opts.umbrella_event,
@@ -191,6 +198,29 @@ mod tests {
         assert!(source.contains("event::StoredEntity<Demo> for Query"));
         assert!(!source.contains("filesystem::Model for Demo"));
         assert!(!source.contains("pub enum DemoEvent"));
+    }
+
+    #[test]
+    fn forwards_the_serde_option_to_event_generation() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Query", [event("created", [])]))
+            .build()
+            .unwrap();
+
+        let default_source = generate_str(&schema, &Options::default()).unwrap();
+        let serde_source = generate_str(
+            &schema,
+            &Options {
+                serde: true,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+
+        assert!(!default_source.contains("::serde::"));
+        assert!(serde_source.contains("::serde::Serialize"));
+        assert!(serde_source.contains("::serde::Deserialize"));
     }
 
     #[test]
