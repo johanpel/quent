@@ -7,7 +7,7 @@ use demo::{Demo, Query};
 use quent_store::event::filesystem::Store;
 use quent_store::event::{EntityEventStore, ModelEventStore};
 
-#[allow(unused)]
+#[allow(unused_imports)]
 mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
