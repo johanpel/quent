@@ -168,6 +168,7 @@ impl<M> Store<M>
 where
     M: EventModel,
 {
+    /// Returns the context directory after verifying that it exists and belongs to `M`.
     fn context(&self, context_id: Uuid) -> Result<PathBuf> {
         let context = self.root.join(context_id.to_string());
         match std::fs::metadata(&context) {
@@ -199,6 +200,7 @@ where
     }
 }
 
+/// Imports event files in their supplied order and yields importer failures as iterator items.
 fn import_files<T>(files: Vec<EventFile>) -> EventIterator<T, Error>
 where
     T: DeserializeOwned + 'static,
@@ -227,6 +229,10 @@ where
     }))
 }
 
+/// Returns recognized event files for `entity` in path order.
+///
+/// A missing or non-directory entity path produces an empty list. A recognized format whose
+/// feature is disabled produces an error.
 fn event_files(context: &Path, entity: &str) -> Result<Vec<EventFile>> {
     let directory = context.join(entity);
     match std::fs::metadata(&directory) {
