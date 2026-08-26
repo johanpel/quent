@@ -2628,7 +2628,7 @@ dependencies = [
  "cxx",
  "cxx-build",
  "quent-codegen",
- "quent-readme-example",
+ "quent-legacy-readme-example",
 ]
 
 [[package]]
@@ -2875,6 +2875,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-legacy-readme-example"
+version = "0.1.0"
+dependencies = [
+ "quent-model",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "quent-model"
 version = "0.1.0"
 dependencies = [
@@ -3065,9 +3074,10 @@ dependencies = [
 name = "quent-readme-example"
 version = "0.1.0"
 dependencies = [
- "quent-model",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
  "serde",
- "uuid",
 ]
 
 [[package]]
@@ -3076,7 +3086,7 @@ version = "0.1.0"
 dependencies = [
  "pyo3",
  "quent-codegen",
- "quent-readme-example",
+ "quent-legacy-readme-example",
 ]
 
 [[package]]
