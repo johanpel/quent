@@ -7,6 +7,34 @@
 //! `build.rs`, and include the generated file from Cargo's `OUT_DIR`.
 //! The crate including that source needs normal dependencies on `quent-store`,
 //! serde-enabled `quent-events`, and derive-enabled `serde`.
+//!
+//! ```ignore
+//! // build.rs
+//! use quent_store_build::{Options, generate};
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let schema = todo!("load a quent_schema::Schema");
+//!     generate(&schema, &Options::default())?;
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ```ignore
+//! // src/lib.rs
+//! mod model {
+//!     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
+//! }
+//! ```
+//!
+//! ```toml
+//! [build-dependencies]
+//! quent-store-build = { path = "../quent/crates/store-build" }
+//!
+//! [dependencies]
+//! quent-events = { path = "../quent/crates/events", features = ["serde"] }
+//! quent-store = { path = "../quent/crates/store" }
+//! serde = { version = "1", features = ["derive"] }
+//! ```
 
 use std::path::PathBuf;
 
