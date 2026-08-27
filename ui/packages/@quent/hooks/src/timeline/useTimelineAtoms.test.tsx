@@ -16,11 +16,42 @@ import {
 } from '../atoms/timeline';
 import {
   useGetZoomRange,
+  useReturnedTimelineActivity,
   useReturnedTimelineIsStale,
   useReturnedTimelineNumBins,
   useTimelinePointerPublisher,
   useTimelinePointerRatio,
 } from './useTimelineAtoms';
+
+function makeTimelineRequest(): TimelineRequest<OperatorFilter> {
+  return {
+    Resource: {
+      resource_id: 'resource-1',
+      long_entities_threshold_s: null,
+      entity_filter: { entity_type_name: 'fsm-1' },
+      application: { operator_ids: [] },
+      config: { num_bins: 2, start: 0, end: 1 },
+    },
+  };
+}
+
+function makeTimelineResponse(
+  data: SingleTimelineResponse['data'],
+  span = { start: 0, end: 1 }
+): SingleTimelineResponse {
+  return {
+    config: { span, bin_duration: 0.5, num_bins: 2n },
+    data,
+  };
+}
+
+function timelineCacheKeyForTest(): string {
+  return timelineCacheKey({
+    resourceId: 'resource-1',
+    resourceTypeName: '',
+    fsmTypeName: 'fsm-1',
+  });
+}
 
 describe('useGetZoomRange', () => {
   it('reads the latest zoom without subscribing the chart to zoom updates', () => {
@@ -184,5 +215,78 @@ describe('useReturnedTimelineNumBins', () => {
     );
 
     expect(result.current).toEqual({ numBins: undefined, isStale: true });
+  });
+});
+
+describe('useReturnedTimelineActivity', () => {
+  it('marks an all-zero binned timeline as inactive', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'resource-1': makeTimelineRequest() });
+    store.set(timelineDataMapAtom, {
+      [timelineCacheKeyForTest()]: makeTimelineResponse({
+        Binned: {
+          config: { span: { start: 0, end: 1 }, bin_duration: 0.5, num_bins: 2n },
+          capacities_values: { unit: [0, 0], memory: [0, 0] },
+          long_fsms: [],
+        },
+      }),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 0, end: 1 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useReturnedTimelineActivity(), { wrapper });
+
+    expect(result.current.get('resource-1')).toBe(false);
+  });
+
+  it('marks binned-by-state data with a nonzero bin as active', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'resource-1': makeTimelineRequest() });
+    store.set(timelineDataMapAtom, {
+      [timelineCacheKeyForTest()]: makeTimelineResponse({
+        BinnedByState: {
+          config: { span: { start: 0, end: 1 }, bin_duration: 0.5, num_bins: 2n },
+          capacities_states_values: {
+            unit: { queued: [0, 0], running: [0, 1] },
+          },
+          long_fsms: [],
+        },
+      }),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 0, end: 1 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useReturnedTimelineActivity(), { wrapper });
+
+    expect(result.current.get('resource-1')).toBe(true);
+  });
+
+  it('omits activity from a cached response for a previous viewport', () => {
+    const store = createStore();
+    store.set(visibleEntriesAtom, { 'resource-1': makeTimelineRequest() });
+    store.set(timelineDataMapAtom, {
+      [timelineCacheKeyForTest()]: makeTimelineResponse(
+        {
+          Binned: {
+            config: { span: { start: 0, end: 1 }, bin_duration: 0.5, num_bins: 2n },
+            capacities_values: { unit: [0, 0] },
+            long_fsms: [],
+          },
+        },
+        { start: 0, end: 1 }
+      ),
+    });
+    store.set(debouncedZoomRangeAtom, { start: 2, end: 3 });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <Provider store={store}>{children}</Provider>
+    );
+
+    const { result } = renderHook(() => useReturnedTimelineActivity(), { wrapper });
+
+    expect(result.current.has('resource-1')).toBe(false);
   });
 });

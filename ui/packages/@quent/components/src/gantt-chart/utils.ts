@@ -17,6 +17,30 @@ type GanttRenderItemApi = Parameters<GanttRenderItem>[1];
 /** Height reserved for the expand/collapse control. */
 export const GANTT_RESIZE_CONTROL_HEIGHT = 12;
 
+/** Resolve a Gantt's collapsed height from its content and sizing policy. */
+export function ganttCollapsedHeight({
+  rowCount,
+  rowHeight,
+  defaultHeight,
+  emptyHeight,
+  fitContentHeight,
+}: {
+  rowCount: number;
+  rowHeight: number;
+  defaultHeight: number;
+  emptyHeight: number;
+  fitContentHeight: boolean;
+}): number {
+  if (rowCount === 0) {
+    return Math.min(defaultHeight, emptyHeight);
+  }
+  if (!fitContentHeight) {
+    return defaultHeight;
+  }
+  const rowsHeight = rowCount * rowHeight + TIMELINE_SPACING.top + TIMELINE_SPACING.bottom;
+  return Math.min(defaultHeight, Math.max(emptyHeight, rowsHeight));
+}
+
 /** Clip a rectangle to the chart grid bounds. */
 export function clipRectByRect(target: GanttRect, bounds: GanttRect): GanttRect | undefined {
   const x = Math.max(target.x, bounds.x);

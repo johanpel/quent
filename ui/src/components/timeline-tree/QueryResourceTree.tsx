@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useMemo, useState } from 'react';
+import { useReturnedTimelineActivity } from '@quent/hooks';
 import { createFsmTypeColorFn } from '@quent/utils';
 import type { EntityRef, FiniteStateMachine, QueryBundle, ZoomRange } from '@quent/utils';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
@@ -30,6 +31,7 @@ export function QueryResourceTree({
 }: QueryResourceTreeProps) {
   const { durationSeconds, isDark } = useTimelineTreeSetup(queryBundle, initialZoomRange);
   const { entities } = queryBundle;
+  const resourceActivity = useReturnedTimelineActivity();
 
   const [drawerFsm, setDrawerFsm] = useState<FiniteStateMachine | null>(null);
   const toggleDrawerFsm = useCallback(
@@ -71,8 +73,9 @@ export function QueryResourceTree({
         onEntitySelect: toggleDrawerFsm,
         selectedEntityId: drawerFsm?.id,
         onBackgroundClick: closeDrawer,
+        resourceActivity,
       }),
-    [closeDrawer, drawerFsm?.id, engineId, isDark, queryBundle, toggleDrawerFsm]
+    [closeDrawer, drawerFsm?.id, engineId, isDark, queryBundle, resourceActivity, toggleDrawerFsm]
   );
   const defaultResourceSubRows = useMemo(
     () => [operatorGanttSubRow, longEntitiesSubRow],

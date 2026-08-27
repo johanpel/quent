@@ -3,7 +3,6 @@
 
 import { EntityTypeKey } from '@quent/utils';
 import { QueryBundle } from '@quent/utils';
-import { DEFAULT_TIMELINE_HEIGHT } from '../timeline/types';
 import type { EntityRef } from '@quent/utils';
 import { TreeTableItem } from './types';
 import { ResourceTimeline } from '../timeline/ResourceTimeline';
@@ -51,11 +50,7 @@ export function UsageColumn({
   // by the chart's own pointermove via `timelineHoverAtom` — no row-level
   // gating needed.
   return (
-    <div
-      onClick={e => e.stopPropagation()}
-      className="h-full w-full"
-      style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}
-    >
+    <div onClick={e => e.stopPropagation()} className="h-full w-full">
       <ResourceTimeline
         engineId={engineId}
         queryId={queryBundle.query_id}

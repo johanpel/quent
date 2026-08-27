@@ -20,7 +20,7 @@ import { useMinZoomSpanPct } from '../lib/useMinZoomSpanPct';
 import { useTimelineWheelNavigation } from '../lib/useTimelineWheelNavigation';
 import { PlayheadLine } from '../timeline/PlayheadLine';
 import { TimelinePointerArea } from '../timeline/TimelinePointerArea';
-import { CHART_GROUP, TIMELINE_SPACING } from '../timeline/types';
+import { CHART_GROUP, COMPACT_TIMELINE_HEIGHT, TIMELINE_SPACING } from '../timeline/types';
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
 import { Button } from '../ui/button';
 import { HiddenScroll } from '../ui/thin-scroll';
@@ -32,7 +32,7 @@ import {
   type GanttRenderItem,
   type GanttSeriesCursor,
 } from './options';
-import { ganttExpansionLayout } from './utils';
+import { ganttCollapsedHeight, ganttExpansionLayout } from './utils';
 
 export type { GanttDatum, GanttGridSpacing, GanttRenderItem } from './options';
 type EChartsEvents = ComponentProps<typeof EChartsReactCore>['onEvents'];
@@ -54,6 +54,10 @@ export interface GanttChartProps<T extends GanttDatum> {
   animateHeight?: boolean;
   /** Grow the row to fit stacked lanes instead of scrolling inside a fixed max height. */
   expandable?: boolean;
+  /** Shrink the collapsed chart to its stacked lanes when they fit below `height`. */
+  fitContentHeight?: boolean;
+  /** Height used when the chart has no data. */
+  emptyHeight?: number;
   expandLabel?: string;
   collapseLabel?: string;
   showPlayhead?: boolean;
@@ -78,6 +82,8 @@ export function GanttChart<T extends GanttDatum>({
   contentPaddingBottom = 0,
   animateHeight = false,
   expandable = false,
+  fitContentHeight = false,
+  emptyHeight = COMPACT_TIMELINE_HEIGHT,
   expandLabel = 'Expand chart',
   collapseLabel = 'Collapse chart',
   showPlayhead = false,
@@ -103,11 +109,18 @@ export function GanttChart<T extends GanttDatum>({
       rowCount: maxRow + 1,
     };
   }, [data]);
+  const collapsedHeight = ganttCollapsedHeight({
+    rowCount,
+    rowHeight,
+    defaultHeight: height,
+    emptyHeight,
+    fitContentHeight,
+  });
   const expansion = expandable
     ? ganttExpansionLayout({
         rowCount,
         rowHeight,
-        collapsedHeight: height,
+        collapsedHeight,
         isExpanded,
       })
     : null;
@@ -123,7 +136,7 @@ export function GanttChart<T extends GanttDatum>({
       ? resolvedGridSpacing.right
       : TIMELINE_SPACING.right;
   const chartHeight =
-    expansion?.contentHeight ?? Math.max(height, rowCount * rowHeight + resolvedPadding);
+    expansion?.contentHeight ?? Math.max(collapsedHeight, rowCount * rowHeight + resolvedPadding);
   const wrapperHeight = Math.min(chartHeight, resolvedMaxHeight);
   const shouldAnimateHeight = expandable || animateHeight;
 

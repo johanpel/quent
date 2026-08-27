@@ -33,6 +33,8 @@ export type TimelineMark = {
 };
 
 export const DEFAULT_TIMELINE_HEIGHT = 45;
+/** Minimum height for a timeline row with no visible data. */
+export const COMPACT_TIMELINE_HEIGHT = 20;
 export const CHART_GROUP = 'timeline-sync-group';
 
 // left/right spacing needs to be consistent across all timelines

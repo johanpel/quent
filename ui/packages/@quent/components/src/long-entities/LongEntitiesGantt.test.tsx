@@ -27,6 +27,7 @@ vi.mock('../gantt-chart/GanttChart', () => ({
     emptyMessage: ReactNode;
     expandable: boolean;
     expandLabel: string;
+    fitContentHeight: boolean;
     maxHeight: number;
   }) => {
     mocks.ganttChart(props);
@@ -40,10 +41,10 @@ describe('LongEntitiesGantt', () => {
       <LongEntitiesGantt entries={[]} durationSeconds={1} minUsageSeconds={0.06} isDark={false} />
     );
 
-    expect(screen.getByText('No Matching Entities')).toBeInTheDocument();
-    expect(
-      screen.getByText('Showing entities longer than 60.0ms. Zoom to see more.')
-    ).toBeInTheDocument();
+    expect(screen.getByText('No matching entities — zoom to see more')).toHaveAttribute(
+      'title',
+      'Showing entities longer than 60.0ms.'
+    );
   });
 
   it('delegates expansion to the shared Gantt chart', () => {
@@ -80,6 +81,7 @@ describe('LongEntitiesGantt', () => {
         collapseLabel: 'Collapse entities chart',
         expandable: true,
         expandLabel: 'Expand entities chart',
+        fitContentHeight: true,
         maxHeight: 75,
       })
     );

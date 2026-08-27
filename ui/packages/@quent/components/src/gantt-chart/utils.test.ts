@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GANTT_RESIZE_CONTROL_HEIGHT,
   clipRectByRect,
+  ganttCollapsedHeight,
   ganttExpansionLayout,
   stackIntervalsIntoRows,
   type GanttRect,
@@ -123,5 +124,52 @@ describe('ganttExpansionLayout', () => {
       6 * 14 + TIMELINE_SPACING.top + TIMELINE_SPACING.bottom + GANTT_RESIZE_CONTROL_HEIGHT;
     expect(collapsed.contentHeight).toBe(contentHeight);
     expect(expanded.maxHeight).toBe(contentHeight);
+  });
+});
+
+describe('ganttCollapsedHeight', () => {
+  it('uses the compact height when there are no rows', () => {
+    expect(
+      ganttCollapsedHeight({
+        rowCount: 0,
+        rowHeight: 14,
+        defaultHeight: 75,
+        emptyHeight: 20,
+        fitContentHeight: true,
+      })
+    ).toBe(20);
+  });
+
+  it('fits short content and caps tall content at the default height', () => {
+    expect(
+      ganttCollapsedHeight({
+        rowCount: 2,
+        rowHeight: 14,
+        defaultHeight: 75,
+        emptyHeight: 20,
+        fitContentHeight: true,
+      })
+    ).toBe(2 * 14 + TIMELINE_SPACING.top + TIMELINE_SPACING.bottom);
+    expect(
+      ganttCollapsedHeight({
+        rowCount: 10,
+        rowHeight: 14,
+        defaultHeight: 75,
+        emptyHeight: 20,
+        fitContentHeight: true,
+      })
+    ).toBe(75);
+  });
+
+  it('keeps the default height when content fitting is disabled', () => {
+    expect(
+      ganttCollapsedHeight({
+        rowCount: 1,
+        rowHeight: 14,
+        defaultHeight: 75,
+        emptyHeight: 20,
+        fitContentHeight: false,
+      })
+    ).toBe(75);
   });
 });

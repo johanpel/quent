@@ -204,16 +204,16 @@ export function LongEntitiesGantt({
       seriesName={SERIES_NAME}
       renderItem={renderItem}
       expandable
+      fitContentHeight
       expandLabel="Expand entities chart"
       collapseLabel="Collapse entities chart"
       emptyMessage={
-        <div className="flex flex-col items-center gap-0.5 text-center text-muted-foreground opacity-50">
-          <div className="font-medium">No Matching Entities</div>
-          <div className="text-xs">
-            Showing entities longer than {formatDuration(minUsageSeconds * 1_000, 1)}. Zoom to see
-            more.
-          </div>
-        </div>
+        <span
+          className="text-[10px] leading-none opacity-50"
+          title={`Showing entities longer than ${formatDuration(minUsageSeconds * 1_000, 1)}.`}
+        >
+          No matching entities — zoom to see more
+        </span>
       }
       renderTooltip={renderTooltip}
       cursor={onEntityClick ? 'pointer' : undefined}

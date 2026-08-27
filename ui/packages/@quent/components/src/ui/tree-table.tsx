@@ -454,6 +454,8 @@ type TreeViewProps = React.HTMLAttributes<HTMLDivElement> & {
    * actual rendered row height as closely as possible.
    */
   rowHeight?: number;
+  /** Minimum rendered row height; defaults to the estimated `rowHeight`. */
+  minRowHeight?: number;
   /**
    * Number of extra rows to render above and below the visible window so
    * scrolling doesn't reveal blank space before the next render. Only used
@@ -543,6 +545,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       controlledExpandedIds,
       virtualized: _virtualized,
       rowHeight = DEFAULT_TREE_ROW_HEIGHT,
+      minRowHeight = rowHeight,
       overscanRows = DEFAULT_TREE_OVERSCAN_ROWS,
       ...props
     },
@@ -627,7 +630,7 @@ const VirtualizedTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
                   top: 0,
                   left: 0,
                   right: 0,
-                  minHeight: `${rowHeight}px`,
+                  minHeight: `${minRowHeight}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 onClick={() => {
@@ -707,6 +710,7 @@ const RecursiveTreeView = React.forwardRef<HTMLDivElement, TreeViewProps>(
       scrollContainerRef: _scrollContainerRef,
       virtualized: _virtualized,
       rowHeight: _rowHeight,
+      minRowHeight: _minRowHeight,
       overscanRows: _overscanRows,
       ...props
     },

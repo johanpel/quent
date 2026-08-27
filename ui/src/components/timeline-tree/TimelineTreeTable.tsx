@@ -3,6 +3,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import {
+  COMPACT_TIMELINE_HEIGHT,
   DEFAULT_TIMELINE_HEIGHT,
   TimelineController,
   TimelineRuler,
@@ -154,6 +155,7 @@ export function TimelineTreeTable({
           controlledExpandedIds={controls.expandedIds}
           virtualized
           rowHeight={DEFAULT_TIMELINE_HEIGHT}
+          minRowHeight={COMPACT_TIMELINE_HEIGHT}
         />
       </div>
       {children}

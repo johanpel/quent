@@ -160,6 +160,11 @@ export function buildBinnedTimelineSeries(
   return { timestamps, series, yAxisLabel: deriveCapacityLabel(resourceTypeDecl, quantitySpecs) };
 }
 
+/** Return whether a timeline series contains at least one nonzero value. */
+export function timelineSeriesHasActivity(series: TimelineSeries): boolean {
+  return Object.values(series).some(entry => entry.values.some(value => value !== 0));
+}
+
 /**
  * Derive a display label for the y-axis from a resource type's capacity metadata.
  * Considers all non-unit capacities declared on the type. Returns undefined when

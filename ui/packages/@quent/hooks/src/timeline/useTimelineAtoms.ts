@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useId } from 'react';
+import { useCallback, useEffect, useId, useMemo } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useHydrateAtoms } from 'jotai/utils';
 import {
@@ -19,6 +19,7 @@ import {
 import {
   getFsmTypeName,
   getResourceTypeName,
+  type ResourceTimeline,
   type ZoomRange,
   type SingleTimelineResponse,
 } from '@quent/utils';
@@ -27,6 +28,14 @@ import {
 export function useTimelineData(key: string): SingleTimelineResponse | undefined {
   const map = useAtomValue(timelineDataMapAtom);
   return map[key];
+}
+
+function timelineMatchesActiveSpan(data: SingleTimelineResponse, activeSpan: ZoomRange): boolean {
+  const tolerance = data.config.bin_duration;
+  return (
+    Math.abs(data.config.span.start - activeSpan.start) <= tolerance &&
+    Math.abs(data.config.span.end - activeSpan.end) <= tolerance
+  );
 }
 
 function useReturnedTimelineState(resourceId: string): {
@@ -49,11 +58,9 @@ function useReturnedTimelineState(resourceId: string): {
   if (!data) {
     return { data: undefined, isStale: false };
   }
-  const tolerance = data.config.bin_duration;
-  const matchesActiveSpan =
-    Math.abs(data.config.span.start - activeSpan.start) <= tolerance &&
-    Math.abs(data.config.span.end - activeSpan.end) <= tolerance;
-  return matchesActiveSpan ? { data, isStale: false } : { data: undefined, isStale: true };
+  return timelineMatchesActiveSpan(data, activeSpan)
+    ? { data, isStale: false }
+    : { data: undefined, isStale: true };
 }
 
 export function useReturnedTimelineNumBins(resourceId: string): number | undefined {
@@ -64,6 +71,43 @@ export function useReturnedTimelineNumBins(resourceId: string): number | undefin
 
 export function useReturnedTimelineIsStale(resourceId: string): boolean {
   return useReturnedTimelineState(resourceId).isStale;
+}
+
+/** Map resources with current cached timelines to whether any usage bin is nonzero. */
+export function useReturnedTimelineActivity(): ReadonlyMap<string, boolean> {
+  const timelineDataMap = useAtomValue(timelineDataMapAtom);
+  const visibleEntries = useAtomValue(visibleEntriesAtom);
+  const activeSpan = useAtomValue(debouncedZoomRangeAtom);
+
+  return useMemo(() => {
+    const activity = new Map<string, boolean>();
+    for (const [resourceId, request] of Object.entries(visibleEntries)) {
+      const key = timelineCacheKey({
+        resourceId,
+        resourceTypeName: getResourceTypeName(request),
+        fsmTypeName: getFsmTypeName(request),
+      });
+      const response = timelineDataMap[key];
+      if (!response) {
+        continue;
+      }
+      if (timelineMatchesActiveSpan(response, activeSpan)) {
+        activity.set(resourceId, timelineHasActivity(response.data));
+      }
+    }
+    return activity;
+  }, [activeSpan, timelineDataMap, visibleEntries]);
+}
+
+function timelineHasActivity(data: ResourceTimeline): boolean {
+  if ('Binned' in data) {
+    return Object.values(data.Binned.capacities_values).some(values =>
+      values.some(value => value !== 0)
+    );
+  }
+  return Object.values(data.BinnedByState.capacities_states_values).some(states =>
+    Object.values(states).some(values => values.some(value => value !== 0))
+  );
 }
 
 export const useZoomRange = () => useAtomValue(zoomRangeAtom);

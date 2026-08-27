@@ -20,6 +20,7 @@ import {
   setOperatorOnEntries,
   findItemById,
   computeVisibleMaxValue,
+  timelineSeriesHasActivity,
 } from './timeline.utils';
 import type { TimelineSeries, TimelineSeriesEntry } from '../timeline/types';
 import type { TreeTableItem } from '../resource-tree/types';
@@ -279,6 +280,26 @@ describe('computeVisibleMaxValue', () => {
     };
 
     expect(computeVisibleMaxValue(series, [0, 1000], 0, 2000)).toBe(6);
+  });
+});
+
+describe('timelineSeriesHasActivity', () => {
+  it('returns false for empty and all-zero series', () => {
+    expect(timelineSeriesHasActivity({})).toBe(false);
+    expect(
+      timelineSeriesHasActivity({
+        unit: makeEntry('#fff', { values: [0, 0] }),
+        memory: makeEntry('#000', { values: [] }),
+      })
+    ).toBe(false);
+  });
+
+  it('returns true when any series contains a nonzero value', () => {
+    expect(
+      timelineSeriesHasActivity({
+        unit: makeEntry('#fff', { values: [0, 1] }),
+      })
+    ).toBe(true);
   });
 });
 

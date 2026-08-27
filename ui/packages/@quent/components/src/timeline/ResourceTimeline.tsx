@@ -26,8 +26,9 @@ import {
   mergeOverlaySeries,
   getAdaptiveNumBins,
   getTimelineConfig,
+  timelineSeriesHasActivity,
 } from '../lib/timeline.utils';
-import { TimelineSeries } from './types';
+import { COMPACT_TIMELINE_HEIGHT, DEFAULT_TIMELINE_HEIGHT, TimelineSeries } from './types';
 import { EntityTypeKey } from '@quent/utils';
 import { WHITE, withOpacity, type PaletteTheme } from '@quent/utils';
 import type {
@@ -177,19 +178,19 @@ export function ResourceTimeline({
     placeholderData: keepPreviousData,
   });
 
+  const timelineData = preloadedData ?? fetchedData;
   const { timestamps, series, yAxisLabel } = useMemo<{
     timestamps: number[];
     series: TimelineSeries;
     yAxisLabel?: string;
   }>(() => {
-    const data = preloadedData ?? fetchedData;
-    if (!data) {
+    if (!timelineData) {
       return { timestamps: [], series: EMPTY_TIMELINE_SERIES };
     }
 
     const base = buildBinnedTimelineSeries(
-      data.data,
-      data.config,
+      timelineData.data,
+      timelineData.config,
       paletteTheme,
       resourceTypeDecl,
       quantitySpecs,
@@ -198,7 +199,7 @@ export function ResourceTimeline({
 
     if (hasOperatorFilter && operatorLabel) {
       if (overlayPreloadedData) {
-        const baseSpan = getTimelineConfig(data).span;
+        const baseSpan = getTimelineConfig(timelineData).span;
         const opSpan = getTimelineConfig(overlayPreloadedData).span;
         const baseEqualsOpsSpan = baseSpan.start === opSpan.start && baseSpan.end === opSpan.end;
         if (baseEqualsOpsSpan) {
@@ -230,8 +231,7 @@ export function ResourceTimeline({
 
     return base;
   }, [
-    preloadedData,
-    fetchedData,
+    timelineData,
     hasOperatorFilter,
     overlayPreloadedData,
     resourceTypeDecl,
@@ -247,7 +247,6 @@ export function ResourceTimeline({
   // (pointerleave, drag start, unmount) only clear the atom when *this* row
   // is the current owner — preventing a stale leave from clobbering a fresh
   // enter on a neighbouring row during fast pointer transitions.
-  //
   // Declared before any conditional `return` so hook order stays stable
   // across the loading / error / data render branches.
   const ownerId = useId();
@@ -273,33 +272,42 @@ export function ResourceTimeline({
   }, [ownerId, setTimelineHover]);
 
   if (!preloadedData && (!deferredReady || isLoading)) {
-    return <TimelineSkeleton />;
+    return (
+      <div className="h-full w-full" style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}>
+        <TimelineSkeleton />
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full text-red-400 text-xs">
+      <div
+        className="flex items-center justify-center h-full text-red-400 text-xs"
+        style={{ minHeight: DEFAULT_TIMELINE_HEIGHT }}
+      >
         Failed to load timeline
       </div>
     );
   }
 
   const effectiveYAxisLabel = yAxisLabel ?? fsmTypeName;
+  const hasActivity = timelineData != null && timelineSeriesHasActivity(series);
+  const timelineHeight = hasActivity ? DEFAULT_TIMELINE_HEIGHT : COMPACT_TIMELINE_HEIGHT;
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative w-full" style={{ height: timelineHeight }}>
       <Suspense fallback={<TimelineSkeleton />}>
         <Timeline
           series={series}
           timestamps={timestamps ?? []}
           durationSeconds={durationSeconds}
-          showTooltip={showTooltip}
+          showTooltip={showTooltip && hasActivity}
           isDark={isDark}
-          yAxisLabel={effectiveYAxisLabel}
+          yAxisLabel={hasActivity ? effectiveYAxisLabel : undefined}
           onHoverChange={handleHoverChange}
           onReady={handleChartReady}
         />
-        {showTooltip && (
+        {showTooltip && hasActivity && (
           <TimelineTooltipPortal ownerId={ownerId} series={series} timestamps={timestamps ?? []} />
         )}
       </Suspense>

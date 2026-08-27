@@ -195,6 +195,7 @@ export {
 } from './timeline/timelineEchartsTheme';
 export {
   CHART_GROUP,
+  COMPACT_TIMELINE_HEIGHT,
   DEFAULT_TIMELINE_HEIGHT,
   TIMELINE_SPACING,
   TIMELINE_X_AXIS_ANIMATION,
