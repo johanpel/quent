@@ -353,6 +353,20 @@ where
     Ok(Json(analyzer.list_entities(request)?))
 }
 
+/// Return the complete FSM for one query entity.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/api/engines/{engine_id}/query/{query_id}/entity/{entity_id}/fsm",
+    tag = "entities",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID"),
+        ("query_id" = Uuid, Path, description = "The query ID"),
+        ("entity_id" = Uuid, Path, description = "The entity ID")
+    ),
+    responses(
+        (status = 200, description = "Complete entity FSM", body = Object)
+    )
+))]
 #[tracing::instrument(skip_all, err)]
 async fn entity_fsm<A>(
     State(state): State<ServiceState<A>>,
