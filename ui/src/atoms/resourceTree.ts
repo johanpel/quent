@@ -17,3 +17,4 @@ export const selectedFsmTypesAtom = atom<Map<string, string | null>>(
 );
 export const rootResourceTypeAtom = atom<string | null>(null);
 export const selectedNvtxDomainAtom = atom<string | null>(null);
+export const selectedNvtxCategoriesAtom = atom<Map<string, string>>(new Map());

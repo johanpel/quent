@@ -38,10 +38,6 @@ members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    # C++ integration example (uses readme model)
-    "examples/cpp-integration/bridge",
-    # Python integration example (uses readme model)
-    "examples/python-integration/bridge",
     # Query engine C++ bridge test
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
@@ -50,6 +46,12 @@ members = [
     "domains/query_engine/tests/python/bridge",
     # README example
     "examples/readme",
+    # Legacy README example using model macros
+    "examples/legacy/readme",
+    # Legacy C++ integration example using the legacy README model
+    "examples/legacy/cpp-integration/bridge",
+    # Legacy Python integration example using the legacy README model
+    "examples/legacy/python-integration/bridge",
     # Simulator crates
     "examples/simulator/analyzer",
     "examples/simulator/application",
@@ -106,7 +108,7 @@ default-members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    "examples/cpp-integration/bridge",
+    "examples/legacy/cpp-integration/bridge",
     "domains/query_engine/tests/cpp/instrumentation",
     "domains/query_engine/tests/cpp/bridge",
     "examples/readme",
@@ -133,6 +135,7 @@ cc = "1.2"
 http = "1"
 indexmap = "2"
 log = {version = "0.4.28", features = ["kv"]}
+nvtx = { version = "2", default-features = false, features = ["std"] }
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"

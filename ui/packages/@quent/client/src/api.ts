@@ -103,7 +103,9 @@ export async function fetchNvtxCatalog(
   const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
     params: { query_start: queryStartUnixNs },
   });
-  if (response.status === 404) return null;
+  if (response.status === 404) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
@@ -123,7 +125,9 @@ export async function fetchNvtxViewport(
       body: JSON.stringify(canonical),
     },
   });
-  if (response.status === 404) return null;
+  if (response.status === 404) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
@@ -219,7 +223,9 @@ export async function fetchDataFlow(
       body: JSON.stringify(request),
     },
   });
-  if (response.status === 501) return null;
+  if (response.status === 501) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }

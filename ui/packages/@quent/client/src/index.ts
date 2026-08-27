@@ -38,6 +38,7 @@ export {
   nvtxViewportQueryOptions,
   selectAllNvtxDomains,
 } from './nvtx';
+export type { NvtxCategoryFilter } from './nvtx';
 
 // Hooks
 export { useQueryBundle } from './queryBundle';
