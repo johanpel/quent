@@ -2,9 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useMemo, useState } from 'react';
+import { fetchEntityFsm } from '@quent/client';
 import { useReturnedTimelineActivity } from '@quent/hooks';
 import { createFsmTypeColorFn } from '@quent/utils';
-import type { EntityRef, FiniteStateMachine, QueryBundle, ZoomRange } from '@quent/utils';
+import type {
+  EntityRef,
+  FiniteStateMachine,
+  FsmEntityRef,
+  QueryBundle,
+  ZoomRange,
+} from '@quent/utils';
 import { EntityDetailDrawer } from '@/components/EntityDetailDrawer';
 import { useNvtxTreeModel } from './NvtxTree';
 import { createLongEntitiesTimelineSubRow, createOperatorGanttTimelineSubRow } from './sub-rows';
@@ -40,6 +47,14 @@ export function QueryResourceTree({
     []
   );
   const closeDrawer = useCallback(() => setDrawerFsm(null), []);
+  const selectRelatedEntity = useCallback(
+    (entity: FsmEntityRef) => {
+      void fetchEntityFsm(engineId, queryBundle.query_id, entity.id)
+        .then(setDrawerFsm)
+        .catch(error => console.error('Failed to fetch related entity FSM', error));
+    },
+    [engineId, queryBundle.query_id]
+  );
 
   const stateColorFn = useMemo(
     () => createFsmTypeColorFn(entities.fsm_types, isDark ? 'dark' : 'light'),
@@ -104,6 +119,7 @@ export function QueryResourceTree({
         onClose={closeDrawer}
         stateColorFn={stateColorFn}
         queryBundle={queryBundle}
+        onRelatedEntitySelect={selectRelatedEntity}
       />
     </TimelineTreeTable>
   );

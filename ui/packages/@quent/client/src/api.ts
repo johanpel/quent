@@ -22,6 +22,7 @@ import type {
   EntityListRequest,
   EntityListResponse,
   EngineContexts,
+  FiniteStateMachine,
   NvtxCatalog,
   NvtxViewportRequest,
   NvtxViewportResponse,
@@ -197,6 +198,17 @@ export async function fetchEntityList(
       body: JSON.stringify(request),
     },
   });
+}
+
+/** Fetch one entity's complete FSM within a query. */
+export async function fetchEntityFsm(
+  engineId: string,
+  queryId: string,
+  entityId: string
+): Promise<FiniteStateMachine> {
+  return apiFetch<FiniteStateMachine>(
+    `/engines/${engineId}/query/${queryId}/entity/${entityId}/fsm`
+  );
 }
 
 /**

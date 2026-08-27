@@ -240,5 +240,29 @@ describe('EntityDetailPanel', () => {
       const nonBottleneck = screen.getByText('400.00ms');
       expect(nonBottleneck).not.toHaveClass('text-orange-500');
     });
+
+    it('opens a related entity from a transition', () => {
+      const onRelatedEntitySelect = vi.fn();
+      const related = {
+        id: 'batch-id',
+        type_name: 'DataBatch',
+        instance_name: 'batch-1',
+      };
+      const fsm: FiniteStateMachine = {
+        ...BASE_FSM,
+        transitions: [{ ...makeTransition('running', 0), related_entities: [related] }],
+      };
+
+      render(
+        <EntityDetailPanel
+          {...DEFAULT_PROPS}
+          fsm={fsm}
+          onRelatedEntitySelect={onRelatedEntitySelect}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: /batch-1.*DataBatch/ }));
+
+      expect(onRelatedEntitySelect).toHaveBeenCalledWith(related);
+    });
   });
 });

@@ -26,6 +26,7 @@ export type { EntityRef } from '../../../../../generated/ts-bindings/EntityRef';
 export type { EntityScope } from '../../../../../generated/ts-bindings/EntityScope';
 export type { EntitySortKey } from '../../../../../generated/ts-bindings/EntitySortKey';
 export type { FiniteStateMachine } from '../../../../../generated/ts-bindings/FiniteStateMachine';
+export type { FsmEntityRef } from '../../../../../generated/ts-bindings/FsmEntityRef';
 export type { FsmStateTypeDecl } from '../../../../../generated/ts-bindings/FsmStateTypeDecl';
 export type { FsmTransition } from '../../../../../generated/ts-bindings/FsmTransition';
 export type { FsmTransitionDecl } from '../../../../../generated/ts-bindings/FsmTransitionDecl';

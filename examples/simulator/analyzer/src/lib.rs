@@ -13,7 +13,7 @@ use quent_query_engine_ui::{
     DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
-    FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
+    FiniteStateMachine, FsmEntityRef, ResourceGroupNode, ResourceTree, convert_resource_tree,
     quantity::{CapacityKind, QuantitySpec},
     timeline::{
         categorical::{
@@ -52,14 +52,18 @@ use quent_analyzer::{
 };
 use quent_simulator_instrumentation::{Simulator, SimulatorEvent};
 use quent_simulator_ui::EntityRef;
-use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
+use quent_time::{
+    SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs, to_secs_relative,
+};
 use uuid::Uuid;
 
 use crate::{
+    data_batch::{DataBatch, DataBatchExt},
     model::{SimulatorModel, SimulatorModelBuilder},
     task::{Task, TaskExt},
 };
 
+pub mod data_batch;
 pub mod model;
 pub mod task;
 pub mod view;
@@ -166,6 +170,7 @@ struct PlainBuilderSlot<'a> {
     builder: ResourceTimelineBuilder<'a>,
     resource_id_filter: Arc<HashSet<Uuid>>,
     operator_ids: Arc<HashSet<Uuid>>,
+    entity_type_name: Option<String>,
 }
 
 struct PerStateBuilderSlot<'a> {
@@ -174,6 +179,7 @@ struct PerStateBuilderSlot<'a> {
     builder: ResourceTimelineByKeyBuilder<'a, &'a str>,
     resource_id_filter: Arc<HashSet<Uuid>>,
     operator_ids: Arc<HashSet<Uuid>>,
+    entity_type_name: Option<String>,
 }
 
 struct PlainEntry<'a> {
@@ -181,6 +187,7 @@ struct PlainEntry<'a> {
     builder: ResourceTimelineBuilder<'a>,
     resource_id_filter: HashSet<Uuid>,
     operator_ids: HashSet<Uuid>,
+    entity_type_name: Option<String>,
 }
 
 struct PerStateEntry<'a> {
@@ -188,6 +195,7 @@ struct PerStateEntry<'a> {
     builder: ResourceTimelineByKeyBuilder<'a, &'a str>,
     resource_id_filter: HashSet<Uuid>,
     operator_ids: HashSet<Uuid>,
+    entity_type_name: Option<String>,
 }
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
@@ -246,6 +254,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             resource_types = model.arbitrary_resources.resource_types.len(),
             resource_group_types = model.resource_group_types.len(),
             tasks = model.tasks.len(),
+            data_batches = model.data_batches.len(),
         );
 
         Ok(Self { model })
@@ -337,7 +346,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .collect();
 
         let task_decl = Task::fsm_type_declaration();
-        let fsm_types = [(task_decl.name.clone(), task_decl)].into_iter().collect();
+        let batch_decl = DataBatch::fsm_type_declaration();
+        let fsm_types = [
+            (task_decl.name.clone(), task_decl),
+            (batch_decl.name.clone(), batch_decl),
+        ]
+        .into_iter()
+        .collect();
 
         let entities = QueryEntities {
             engine,
@@ -410,7 +425,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .map(|op| op.id())
             .collect();
 
-        entities::list_entities(
+        let mut response = entities::list_entities(
             &self.model,
             |task| {
                 task.operator_id().is_some_and(|op| {
@@ -425,7 +440,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 page: entry.page,
                 epoch,
             },
-        )
+        )?;
+        let entity_ids = response.items.iter().map(|fsm| fsm.id).collect::<Vec<_>>();
+        response.items = self.entities_to_ui_fsm(&entity_ids, epoch)?;
+        Ok(response)
     }
 
     // TODO(johanpel): consider re-using the bulk request API with a single entry for requests like this.
@@ -447,6 +465,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             TimelineRequest::Resource(req) => {
                 let resource_type = self.model.resource_type_of(req.resource_id)?;
                 let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                let entity_filter = req.entity_filter.clone();
                 let operator_ids: HashSet<Uuid> =
                     req.application.operator_ids.into_iter().collect();
 
@@ -459,9 +478,23 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     // This application only has Task FSM
                     self.populate_keyed_builder(
                         &mut builder,
-                        self.entities_filtered(req.entity_filter, operator_ids, config.span)?
-                            .filter(|task| {
-                                task.usages()
+                        self.entities_filtered(
+                            req.entity_filter,
+                            operator_ids.clone(),
+                            config.span,
+                        )?
+                        .filter(|task| {
+                            task.usages()
+                                .any(|usage| usage.resource_id() == req.resource_id)
+                        }),
+                        |id| id == req.resource_id,
+                    )?;
+                    self.populate_keyed_builder_batches(
+                        &mut builder,
+                        self.data_batches_filtered(&entity_filter, &operator_ids, config.span)?
+                            .filter(|batch| {
+                                batch
+                                    .usages()
                                     .any(|usage| usage.resource_id() == req.resource_id)
                             }),
                         |id| id == req.resource_id,
@@ -478,8 +511,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     )?;
 
                     builder.try_extend(
-                        self.entities_filtered(req.entity_filter, operator_ids, config.span)?
-                            .flat_map(|task| task.usages())
+                        self.entities_filtered(
+                            req.entity_filter,
+                            operator_ids.clone(),
+                            config.span,
+                        )?
+                        .flat_map(|task| task.usages())
+                        .filter(|usage| usage.resource_id() == req.resource_id),
+                    )?;
+                    builder.try_extend(
+                        self.data_batches_filtered(&entity_filter, &operator_ids, config.span)?
+                            .flat_map(|batch| batch.usages())
                             .filter(|usage| usage.resource_id() == req.resource_id),
                     )?;
                     Ok(SingleTimelineResponse {
@@ -491,6 +533,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             TimelineRequest::ResourceGroup(req) => {
                 let resource_type = self.model.resource_type(&req.resource_type_name)?;
                 let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
+                let entity_filter = req.entity_filter.clone();
+                let operator_ids: HashSet<Uuid> =
+                    req.app_params.operator_ids.iter().copied().collect();
 
                 // Build the resource tree for this group
                 let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
@@ -516,13 +561,23 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         &mut builder,
                         self.entities_filtered(
                             req.entity_filter,
-                            req.app_params.operator_ids.into_iter().collect(),
+                            operator_ids.clone(),
                             config.span,
                         )?
                         .filter(|task| {
                             task.usages()
                                 .any(|usage| resource_ids.contains(&usage.resource_id()))
                         }),
+                        |id| resource_ids.contains(&id),
+                    )?;
+                    self.populate_keyed_builder_batches(
+                        &mut builder,
+                        self.data_batches_filtered(&entity_filter, &operator_ids, config.span)?
+                            .filter(|batch| {
+                                batch
+                                    .usages()
+                                    .any(|usage| resource_ids.contains(&usage.resource_id()))
+                            }),
                         |id| resource_ids.contains(&id),
                     )?;
                     Ok(SingleTimelineResponse {
@@ -538,11 +593,16 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     builder.try_extend(
                         self.entities_filtered(
                             req.entity_filter,
-                            req.app_params.operator_ids.into_iter().collect(),
+                            operator_ids.clone(),
                             config.span,
                         )?
                         .flat_map(|task| task.usages())
                         .filter(|usage| resource_ids.contains(&usage.resource_id())),
+                    )?;
+                    builder.try_extend(
+                        self.data_batches_filtered(&entity_filter, &operator_ids, config.span)?
+                            .flat_map(|batch| batch.usages())
+                            .filter(|usage| resource_ids.contains(&usage.resource_id())),
                     )?;
                     Ok(SingleTimelineResponse {
                         config: config_secs,
@@ -586,6 +646,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 operator_ids,
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry, &resource_tree)?;
+            let entity_type_name = entity_filter.entity_type_name.clone();
             if entity_filter.entity_type_name.is_some() {
                 per_state_builders.push(PerStateEntry {
                     entry_id,
@@ -596,6 +657,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     )?,
                     resource_id_filter,
                     operator_ids,
+                    entity_type_name,
                 });
             } else {
                 plain_builders.push(PlainEntry {
@@ -607,6 +669,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     )?,
                     resource_id_filter,
                     operator_ids,
+                    entity_type_name,
                 });
             }
         }
@@ -661,7 +724,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if let Some(builder_indices) = plain_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
                         let entry = &mut plain_builders[builder_idx];
-                        if operator_matches(&entry.operator_ids, task_operator_id) {
+                        if entry.entity_type_name.as_deref() != Some("data_batch")
+                            && operator_matches(&entry.operator_ids, task_operator_id)
+                        {
                             plain_builders[builder_idx].builder.try_push(&usage)?;
                         }
                     }
@@ -673,10 +738,40 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if let Some(builder_indices) = per_state_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
                         let entry = &mut per_state_builders[builder_idx];
-                        if operator_matches(&entry.operator_ids, task_operator_id) {
+                        if entry.entity_type_name.as_deref() != Some("data_batch")
+                            && operator_matches(&entry.operator_ids, task_operator_id)
+                        {
                             per_state_builders[builder_idx]
                                 .builder
                                 .try_push(state_name, &usage)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        for batch in self.model.data_batches.values() {
+            let operator_id = batch.operator_id();
+            for usage in batch.usages() {
+                if let Some(builder_indices) = plain_index.get(&usage.resource_id()) {
+                    for &builder_idx in builder_indices {
+                        let entry = &mut plain_builders[builder_idx];
+                        if entry.entity_type_name.as_deref() != Some("task")
+                            && operator_matches(&entry.operator_ids, operator_id)
+                        {
+                            entry.builder.try_push(&usage)?;
+                        }
+                    }
+                }
+            }
+            for (state_name, usage) in batch.usages_with_state_names() {
+                if let Some(builder_indices) = per_state_index.get(&usage.resource_id()) {
+                    for &builder_idx in builder_indices {
+                        let entry = &mut per_state_builders[builder_idx];
+                        if entry.entity_type_name.as_deref() != Some("task")
+                            && operator_matches(&entry.operator_ids, operator_id)
+                        {
+                            entry.builder.try_push(state_name, &usage)?;
                         }
                     }
                 }
@@ -739,6 +834,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 operator_ids,
                 long_entities_threshold,
             } = self.try_prepare_bulk_entry(entry.clone(), &resource_tree)?;
+            let entity_type_name = entity_filter.entity_type_name.clone();
 
             // Wrap the filters once so per-config slots share one allocation.
             let resource_id_filter = Arc::new(resource_id_filter);
@@ -757,6 +853,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         )?,
                         resource_id_filter: Arc::clone(&resource_id_filter),
                         operator_ids: Arc::clone(&operator_ids),
+                        entity_type_name: entity_type_name.clone(),
                     });
                 } else {
                     plain_builders.push(PlainBuilderSlot {
@@ -769,6 +866,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                         )?,
                         resource_id_filter: Arc::clone(&resource_id_filter),
                         operator_ids: Arc::clone(&operator_ids),
+                        entity_type_name: entity_type_name.clone(),
                     });
                 }
             }
@@ -809,7 +907,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if let Some(builder_indices) = plain_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
                         let slot = &plain_builders[builder_idx];
-                        if operator_matches(&slot.operator_ids, task_operator_id) {
+                        if slot.entity_type_name.as_deref() != Some("data_batch")
+                            && operator_matches(&slot.operator_ids, task_operator_id)
+                        {
                             plain_builders[builder_idx].builder.try_push(&usage)?;
                         }
                     }
@@ -820,7 +920,39 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 if let Some(builder_indices) = per_state_index.get(&resource_id) {
                     for &builder_idx in builder_indices {
                         let slot = &per_state_builders[builder_idx];
-                        if operator_matches(&slot.operator_ids, task_operator_id) {
+                        if slot.entity_type_name.as_deref() != Some("data_batch")
+                            && operator_matches(&slot.operator_ids, task_operator_id)
+                        {
+                            per_state_builders[builder_idx]
+                                .builder
+                                .try_push(state_name, &usage)?;
+                        }
+                    }
+                }
+            }
+        }
+
+        for batch in self.model.data_batches.values() {
+            let operator_id = batch.operator_id();
+            for usage in batch.usages() {
+                if let Some(builder_indices) = plain_index.get(&usage.resource_id()) {
+                    for &builder_idx in builder_indices {
+                        let slot = &plain_builders[builder_idx];
+                        if slot.entity_type_name.as_deref() != Some("task")
+                            && operator_matches(&slot.operator_ids, operator_id)
+                        {
+                            plain_builders[builder_idx].builder.try_push(&usage)?;
+                        }
+                    }
+                }
+            }
+            for (state_name, usage) in batch.usages_with_state_names() {
+                if let Some(builder_indices) = per_state_index.get(&usage.resource_id()) {
+                    for &builder_idx in builder_indices {
+                        let slot = &per_state_builders[builder_idx];
+                        if slot.entity_type_name.as_deref() != Some("task")
+                            && operator_matches(&slot.operator_ids, operator_id)
+                        {
                             per_state_builders[builder_idx]
                                 .builder
                                 .try_push(state_name, &usage)?;
@@ -1064,6 +1196,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             operators,
         })
     }
+
+    fn entity_fsm(&self, query_id: Uuid, entity_id: Uuid) -> AnalyzerResult<FiniteStateMachine> {
+        let epoch = self.query_engine_model().query_epoch(query_id)?;
+        self.entity_to_ui_fsm(entity_id, epoch)
+    }
 }
 
 impl SimulatorUiAnalyzer {
@@ -1080,6 +1217,7 @@ impl SimulatorUiAnalyzer {
                     operator_matches(&operator_ids, task.operator_id())
                         && task.span().is_ok_and(|s| s.intersects(&time_window))
                 }))),
+                "data_batch" => Ok(Box::new(std::iter::empty())),
                 _ => Err(AnalyzerError::InvalidArgument(format!(
                     "{} is not a known entity type in this model",
                     entity_type_name
@@ -1091,6 +1229,28 @@ impl SimulatorUiAnalyzer {
                     && task.span().is_ok_and(|s| s.intersects(&time_window))
             })))
         }
+    }
+
+    fn data_batches_filtered(
+        &self,
+        entity_filter: &EntityFilter,
+        operator_ids: &HashSet<Uuid>,
+        time_window: SpanNanoSec,
+    ) -> AnalyzerResult<Box<dyn Iterator<Item = &DataBatch> + '_>> {
+        if entity_filter
+            .entity_type_name
+            .as_deref()
+            .is_some_and(|name| name != "data_batch")
+        {
+            return Ok(Box::new(std::iter::empty()));
+        }
+        let operator_ids = operator_ids.clone();
+        Ok(Box::new(self.model.data_batches.values().filter(
+            move |batch| {
+                operator_matches(&operator_ids, batch.operator_id())
+                    && batch.span().is_ok_and(|span| span.intersects(&time_window))
+            },
+        )))
     }
 
     /// Given a TimelineRequest figure out what are:
@@ -1154,21 +1314,83 @@ impl SimulatorUiAnalyzer {
         Ok(())
     }
 
+    fn populate_keyed_builder_batches<'a>(
+        &self,
+        builder: &mut ResourceTimelineByKeyBuilder<'a, &'a str>,
+        batches: impl Iterator<Item = &'a DataBatch>,
+        resource_filter: impl Fn(Uuid) -> bool,
+    ) -> AnalyzerResult<()> {
+        for batch in batches {
+            for (state_name, usage) in batch.usages_with_state_names() {
+                if resource_filter(usage.resource_id()) {
+                    builder.try_push(state_name, &usage)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Turn a list of entity ids into UI-compatible FSM data.
-    fn task_entities_to_ui_fsm(
+    fn entities_to_ui_fsm(
         &self,
         entity_ids: &[Uuid],
         epoch: TimeUnixNanoSec,
     ) -> AnalyzerResult<Vec<FiniteStateMachine>> {
-        entity_ids
+        let mut fsms: Vec<FiniteStateMachine> = entity_ids
             .iter()
             .filter_map(|&id| {
                 self.model
                     .tasks
                     .get(&id)
                     .map(|task| task.try_to_ui_fsm(epoch))
+                    .or_else(|| {
+                        self.model
+                            .data_batches
+                            .get(&id)
+                            .map(|batch| batch.try_to_ui_fsm(epoch))
+                    })
             })
-            .collect()
+            .collect::<AnalyzerResult<_>>()?;
+
+        for fsm in &mut fsms {
+            let Some(operator_id) = self.model.tasks.get(&fsm.id).and_then(TaskExt::operator_id)
+            else {
+                continue;
+            };
+            for transition_index in 0..fsm.transitions.len().saturating_sub(1) {
+                let state_start = fsm.transitions[transition_index].timestamp;
+                let state_end = fsm.transitions[transition_index + 1].timestamp;
+                fsm.transitions[transition_index].related_entities = self
+                    .model
+                    .data_batches
+                    .values()
+                    .filter(|batch| batch.operator_id() == Some(operator_id))
+                    .filter(|batch| {
+                        batch.init_timestamp().is_some_and(|timestamp| {
+                            let timestamp = to_secs_relative(timestamp, epoch);
+                            timestamp >= state_start && timestamp < state_end
+                        })
+                    })
+                    .map(|batch| FsmEntityRef {
+                        id: batch.id(),
+                        type_name: batch.type_name().to_owned(),
+                        instance_name: batch.instance_name().to_owned(),
+                    })
+                    .collect();
+            }
+        }
+
+        Ok(fsms)
+    }
+
+    fn entity_to_ui_fsm(
+        &self,
+        entity_id: Uuid,
+        epoch: TimeUnixNanoSec,
+    ) -> AnalyzerResult<FiniteStateMachine> {
+        self.entities_to_ui_fsm(&[entity_id], epoch)?
+            .pop()
+            .ok_or(AnalyzerError::InvalidId(entity_id))
     }
 
     /// Convert a timeline to a UI-compatible one.
@@ -1183,7 +1405,7 @@ impl SimulatorUiAnalyzer {
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms = self.entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::Binned(ResourceTimelineBinned {
             config,
             capacities_values,
@@ -1205,7 +1427,7 @@ impl SimulatorUiAnalyzer {
                 .or_insert_with(StdHashMap::new)
                 .insert(state_name.to_owned(), values);
         }
-        let long_fsms = self.task_entities_to_ui_fsm(&result.long_entities, epoch)?;
+        let long_fsms = self.entities_to_ui_fsm(&result.long_entities, epoch)?;
         Ok(UiResourceTimeline::BinnedByState(
             ResourceTimelineBinnedByState {
                 config,

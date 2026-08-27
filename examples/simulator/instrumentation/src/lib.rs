@@ -5,6 +5,7 @@
 
 use quent_model::{entity, instrumentation, model};
 
+pub mod data_batch;
 pub mod task;
 
 entity! {
@@ -15,6 +16,19 @@ entity! {
     Network: ResourceGroup {}
 }
 
+entity! {
+    Host: ResourceGroup {}
+}
+
+entity! {
+    Storage: ResourceGroup {}
+}
+
+entity! {
+    Gpu: ResourceGroup {}
+}
+
+pub use data_batch::DataBatchEvent;
 pub use quent_query_engine_model::{engine, operator, plan, port, query, query_group, worker};
 pub use quent_stdlib::{channel, memory, processor};
 pub use task::TaskEvent;
@@ -29,9 +43,13 @@ model! {
         quent_query_engine_model::plan::Plan,
         quent_query_engine_model::operator::Operator,
         quent_query_engine_model::port::Port,
+        data_batch::DataBatch,
         task::Task,
         ThreadPool,
         Network,
+        Host,
+        Storage,
+        Gpu,
         quent_stdlib::memory::Memory,
         quent_stdlib::processor::Processor,
         quent_stdlib::channel::Channel,

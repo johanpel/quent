@@ -27,7 +27,9 @@ state! {
         },
         usages: {
             use_thread: quent_stdlib::processor::Processor,
-            use_memory: quent_stdlib::memory::Memory,
+            use_host_memory: quent_stdlib::memory::Memory,
+            use_gpu_compute: quent_stdlib::processor::Processor,
+            use_gpu_memory: quent_stdlib::memory::Memory,
         },
     }
 }
@@ -44,8 +46,7 @@ state! {
     Loading {
         usages: {
             use_thread: quent_stdlib::processor::Processor,
-            use_fs_to_mem: quent_stdlib::channel::Channel,
-            use_memory: quent_stdlib::memory::Memory,
+            use_host_memory: quent_stdlib::memory::Memory,
         },
     }
 }
@@ -54,7 +55,6 @@ state! {
     Spilling {
         usages: {
             use_thread: quent_stdlib::processor::Processor,
-            use_mem_to_fs: quent_stdlib::channel::Channel,
         },
     }
 }

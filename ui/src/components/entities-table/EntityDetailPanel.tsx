@@ -11,7 +11,7 @@ import {
   getColorForKey,
   isBytesStat,
 } from '@quent/utils';
-import type { EntityRef, FiniteStateMachine, QueryBundle } from '@quent/utils';
+import type { EntityRef, FiniteStateMachine, FsmEntityRef, QueryBundle } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import { ResourceUsageList } from './ResourceUsageList';
 import { TransitionAttributes } from './TransitionAttributes';
@@ -22,6 +22,7 @@ interface EntityDetailPanelProps {
   operatorLabel: (id: string) => string;
   stateColorFn?: (name: string) => string;
   queryBundle: QueryBundle<EntityRef>;
+  onRelatedEntitySelect?: (entity: FsmEntityRef) => void;
 }
 
 export function EntityDetailPanel({
@@ -30,6 +31,7 @@ export function EntityDetailPanel({
   operatorLabel,
   stateColorFn,
   queryBundle,
+  onRelatedEntitySelect,
 }: EntityDetailPanelProps) {
   const { theme } = useTheme();
   const paletteTheme = theme === THEME_DARK ? ('dark' as const) : ('light' as const);
@@ -238,6 +240,30 @@ export function EntityDetailPanel({
                 derivedAttributes={transition.derived_attributes}
                 operatorLabel={operatorLabel}
               />
+              {(transition.related_entities?.length ?? 0) > 0 && (
+                <div className="mt-2 border-t pt-2">
+                  <DataText className="mb-1 text-xs text-muted-foreground">
+                    Related entities
+                  </DataText>
+                  <div className="flex flex-col gap-1">
+                    {transition.related_entities!.map(entity => (
+                      <button
+                        key={entity.id}
+                        type="button"
+                        className="flex items-center justify-between gap-2 rounded bg-muted/50 px-2 py-1 text-left text-xs hover:bg-muted"
+                        onClick={() => onRelatedEntitySelect?.(entity)}
+                      >
+                        <DataText className="truncate">
+                          {entity.instance_name || entity.id}
+                        </DataText>
+                        <DataText className="shrink-0 text-muted-foreground">
+                          {entity.type_name}
+                        </DataText>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </li>
           );
         })}

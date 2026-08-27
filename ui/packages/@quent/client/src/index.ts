@@ -14,6 +14,7 @@ export {
   fetchSingleTimeline,
   fetchBulkTimelines,
   fetchDataFlow,
+  fetchEntityFsm,
   fetchEntityList,
   fetchEngineContexts,
   fetchNvtxCatalog,

@@ -12,11 +12,14 @@ use quent_query_engine_analyzer::{
     EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
 };
 use quent_query_engine_ui as ui;
-use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
     categorical::CategoricalTimelineRequest,
     request::{BulkTimelineRequest, SingleTimelineRequest},
     response::{BulkTimelinesResponse, SingleTimelineResponse},
+};
+use quent_ui::{
+    FiniteStateMachine,
+    entities::{request::EntityListRequest, response::EntityListResponse},
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -350,6 +353,20 @@ where
     Ok(Json(analyzer.list_entities(request)?))
 }
 
+#[tracing::instrument(skip_all, err)]
+async fn entity_fsm<A>(
+    State(state): State<ServiceState<A>>,
+    Path((engine_id, query_id, entity_id)): Path<(Uuid, Uuid, Uuid)>,
+) -> ServerResult<Json<FiniteStateMachine>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let analyzer = state.analyzers.get(engine_id).await?;
+    let response =
+        tokio::task::spawn_blocking(move || analyzer.entity_fsm(query_id, entity_id)).await??;
+    Ok(Json(response))
+}
+
 #[cfg(feature = "swagger")]
 #[derive(utoipa::OpenApi)]
 #[openapi(
@@ -364,6 +381,7 @@ where
         bulk_timelines,
         data_flow_timeline,
         entities,
+        entity_fsm,
     ),
     tags(
         (name = "engines", description = "Engine, query group, and query management"),
@@ -392,5 +410,9 @@ where
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))
         .route("/{engine_id}/timeline/data-flow", post(data_flow_timeline))
         .route("/{engine_id}/entities", post(entities))
+        .route(
+            "/{engine_id}/query/{query_id}/entity/{entity_id}/fsm",
+            get(entity_fsm),
+        )
         .with_state(state)
 }

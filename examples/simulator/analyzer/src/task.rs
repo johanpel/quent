@@ -82,6 +82,7 @@ impl TaskExt for Task {
                     timestamp: to_secs_relative(t.timestamp(), epoch),
                     attributes: t.attributes(),
                     derived_attributes,
+                    related_entities: vec![],
                 })
             })
             .collect::<AnalyzerResult<Vec<_>>>()?;

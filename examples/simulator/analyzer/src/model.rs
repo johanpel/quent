@@ -31,6 +31,7 @@ use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
 use crate::{
+    data_batch::{DataBatch, DataBatchBuilder},
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
@@ -40,6 +41,7 @@ pub struct SimulatorModel {
     pub(crate) query_engine: InMemoryQueryEngineModel,
     pub(crate) arbitrary_resources: InMemoryResources,
     pub(crate) tasks: HashMap<Uuid, Task>,
+    pub(crate) data_batches: HashMap<Uuid, DataBatch>,
     pub(crate) resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
 }
 
@@ -65,11 +67,12 @@ impl Model for SimulatorModel {
             .contains_key(&entity_id)
         {
             Ok(EntityRef::ResourceGroup(entity_id))
+        } else if self.tasks.contains_key(&entity_id) {
+            Ok(EntityRef::Task(entity_id))
+        } else if self.data_batches.contains_key(&entity_id) {
+            Ok(EntityRef::DataBatch(entity_id))
         } else {
-            self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
-                .ok_or(AnalyzerError::InvalidId(entity_id))
+            Err(AnalyzerError::InvalidId(entity_id))
         }
     }
 
@@ -237,6 +240,7 @@ pub struct SimulatorModelBuilder {
     query_engine: InMemoryQueryEngineModelBuilder,
     arbitrary_resources: InMemoryResourcesBuilder,
     tasks: HashMap<Uuid, TaskBuilder>,
+    data_batches: HashMap<Uuid, DataBatchBuilder>,
 }
 
 impl SimulatorModelBuilder {
@@ -245,6 +249,7 @@ impl SimulatorModelBuilder {
             query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
             arbitrary_resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
+            data_batches: HashMap::default(),
         })
     }
 
@@ -261,6 +266,14 @@ impl SimulatorModelBuilder {
                     .entry(id)
                     .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
                 task_builder.push(Event::new(id, timestamp, t));
+                Ok(())
+            }
+            SimulatorEvent::DataBatch(data_batch) => {
+                let builder = self
+                    .data_batches
+                    .entry(id)
+                    .or_insert_with(|| DataBatchBuilder::try_new(id).unwrap());
+                builder.push(Event::new(id, timestamp, data_batch));
                 Ok(())
             }
             SimulatorEvent::Engine(e) => {
@@ -314,6 +327,39 @@ impl SimulatorModelBuilder {
                     "network",
                     &d.instance_name,
                     Some(d.parent_group_id),
+                );
+                Ok(())
+            }
+            SimulatorEvent::Host(quent_simulator_instrumentation::HostEvent::Declaration(
+                declaration,
+            )) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "host",
+                    &declaration.instance_name,
+                    Some(declaration.parent_group_id),
+                );
+                Ok(())
+            }
+            SimulatorEvent::Storage(
+                quent_simulator_instrumentation::StorageEvent::Declaration(declaration),
+            ) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "storage",
+                    &declaration.instance_name,
+                    Some(declaration.parent_group_id),
+                );
+                Ok(())
+            }
+            SimulatorEvent::Gpu(quent_simulator_instrumentation::GpuEvent::Declaration(
+                declaration,
+            )) => {
+                self.arbitrary_resources.push_group_raw(
+                    id,
+                    "gpu",
+                    &declaration.instance_name,
+                    Some(declaration.parent_group_id),
                 );
                 Ok(())
             }
@@ -441,6 +487,7 @@ impl SimulatorModelBuilder {
         let mut query_engine = self.query_engine.try_build()?;
 
         let mut tasks = HashMap::default();
+        let mut data_batches = HashMap::default();
 
         for (task_id, task_builder) in self.tasks.into_iter() {
             let task = task_builder.try_build()?;
@@ -468,12 +515,30 @@ impl SimulatorModelBuilder {
             tasks.insert(task_id, task);
         }
 
+        for (batch_id, batch_builder) in self.data_batches {
+            let batch = batch_builder.try_build()?;
+            for usage in batch.usages() {
+                let resource_type_name = resources
+                    .resource(usage.resource_id())?
+                    .type_name()
+                    .to_owned();
+                resources
+                    .resource_types
+                    .get_mut(&resource_type_name)
+                    .unwrap()
+                    .used_by
+                    .insert(batch.type_name().to_owned());
+            }
+            data_batches.insert(batch_id, batch);
+        }
+
         // Construct the model without group type decls being populated yet, we
         // will populate it based on the resource tree.
         let temp_model = SimulatorModel {
             query_engine,
             arbitrary_resources: resources,
             tasks,
+            data_batches,
             resource_group_types: HashMap::default(),
         };
         let mut resource_group_types = derive_resource_group_types(&temp_model)?;
@@ -497,6 +562,7 @@ impl SimulatorModelBuilder {
             query_engine: temp_model.query_engine,
             arbitrary_resources: temp_model.arbitrary_resources,
             tasks: temp_model.tasks,
+            data_batches: temp_model.data_batches,
             resource_group_types,
         })
     }

@@ -9,6 +9,7 @@ use quent_events::Event;
 use quent_model::io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
+    FiniteStateMachine,
     entities::{request::EntityListRequest, response::EntityListResponse},
     timeline::{
         categorical::CategoricalTimelineRequest,
@@ -130,6 +131,11 @@ pub trait UiAnalyzer {
         &self,
         _request: CategoricalTimelineRequest<ui::QueryFilter>,
     ) -> AnalyzerResult<ui::DataFlowTimelineBinned> {
+        Err(AnalyzerError::Unsupported)
+    }
+
+    /// Return the FSM for a single entity.
+    fn entity_fsm(&self, _query_id: Uuid, _entity_id: Uuid) -> AnalyzerResult<FiniteStateMachine> {
         Err(AnalyzerError::Unsupported)
     }
 }

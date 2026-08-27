@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils';
-import { fetchDataFlow } from './api';
+import { fetchDataFlow, fetchEntityFsm } from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
@@ -62,6 +62,23 @@ describe('fetchDataFlow', () => {
           app_params: { query_id: 'q-1' },
         }),
       })
+    );
+  });
+});
+
+describe('fetchEntityFsm', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('GETs the entity FSM scoped to its engine and query', async () => {
+    const fsm = { id: 'batch-1', type_name: 'DataBatch', instance_name: '', transitions: [] };
+    const fetchMock = stubFetch(new Response(JSON.stringify(fsm), { status: 200 }));
+
+    await expect(fetchEntityFsm('engine-1', 'query-1', 'batch-1')).resolves.toEqual(fsm);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/engines/engine-1/query/query-1/entity/batch-1/fsm'),
+      expect.objectContaining({ headers: {} })
     );
   });
 });
