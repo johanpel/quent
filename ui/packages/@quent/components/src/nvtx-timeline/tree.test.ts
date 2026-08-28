@@ -11,8 +11,6 @@ import {
   nvtxDomainRowId,
   nvtxDomainMeta,
   nvtxLaneLabel,
-  nvtxMarksRowId,
-  nvtxProcessRowId,
   nvtxThreadRowId,
 } from './utils';
 
@@ -38,7 +36,7 @@ const catalog = {
 
 describe('NVTX resource tree', () => {
   it('keeps the selected domain header above its lanes', () => {
-    const tree = buildNvtxTree(catalog, null, '3');
+    const tree = buildNvtxTree(catalog, new Set([nvtxThreadRowId('3', 303)]), '3');
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -66,7 +64,11 @@ describe('NVTX resource tree', () => {
   });
 
   it('keeps each domain in a sub-tree when showing all domains', () => {
-    const tree = buildNvtxTree(catalog, null, null);
+    const tree = buildNvtxTree(
+      catalog,
+      new Set([nvtxThreadRowId('1', 101), nvtxThreadRowId('3', 303)]),
+      null
+    );
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -85,7 +87,7 @@ describe('NVTX resource tree', () => {
     expect(nvtxLaneLabel(domainRow.children![0]!.entity)).toBe('worker 3');
   });
 
-  it('appends process and marks lanes after thread rows', () => {
+  it('omits empty process and marks lanes', () => {
     const viewport = {
       viewport: { start: 0, end: 1 },
       domains: [
@@ -117,14 +119,7 @@ describe('NVTX resource tree', () => {
     const tree = buildNvtxTree(catalog, new Set(lanesByRowId.keys()), '3');
 
     expect(tree?.children?.map(item => item.id)).toEqual([nvtxDomainRowId('3')]);
-    expect(tree?.children?.[0]?.children?.map(item => item.id)).toEqual([
-      nvtxProcessRowId('3'),
-      nvtxMarksRowId('3'),
-    ]);
-    expect(tree?.children?.[0]?.children?.map(item => nvtxLaneLabel(item.entity))).toEqual([
-      'Process ranges',
-      'Marks',
-    ]);
+    expect(tree?.children?.[0]?.children).toBeUndefined();
   });
 
   it('keeps only threads with populated viewport lanes', () => {

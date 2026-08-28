@@ -431,7 +431,7 @@ describe('QueryResourceTree — NVTX filters', () => {
     expect(collectRowIds(capturedTreeData)).not.toContain(nvtxThreadRowId('1', 42));
   });
 
-  it('keeps catalog threads visible while their viewport is loading', () => {
+  it('hides catalog threads while their viewport is loading', () => {
     const catalog = {
       domains: [
         {
@@ -458,7 +458,7 @@ describe('QueryResourceTree — NVTX filters', () => {
       </JotaiProvider>
     );
 
-    expect(collectRowIds(capturedTreeData)).toContain(nvtxThreadRowId('1', 42));
+    expect(collectRowIds(capturedTreeData)).not.toContain(nvtxThreadRowId('1', 42));
   });
 });
 

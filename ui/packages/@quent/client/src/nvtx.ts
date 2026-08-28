@@ -195,8 +195,8 @@ export function useNvtxStream(
   return {
     contextId,
     catalog,
-    viewport: viewportQuery.data ?? null,
+    viewport: viewportQuery.isPlaceholderData ? null : (viewportQuery.data ?? null),
     isLoading:
-      contextsQuery.isLoading || catalogsPending || (viewportEnabled && viewportQuery.isPending),
+      contextsQuery.isLoading || catalogsPending || (viewportEnabled && viewportQuery.isFetching),
   };
 }

@@ -153,7 +153,7 @@ export function useNvtxTreeModel({
     }
     return filters;
   }, [selectedNvtxCategories]);
-  const { catalog, viewport, isLoading } = useNvtxStream(
+  const { catalog, viewport } = useNvtxStream(
     engineId,
     queryBundle.start_time_unix_ns,
     nvtxWindow,
@@ -219,10 +219,9 @@ export function useNvtxTreeModel({
     () => new Set(laneRowIdsKey ? laneRowIdsKey.split('\0') : []),
     [laneRowIdsKey]
   );
-  const visibleLaneRowIds = isLoading && viewport == null ? null : laneRowIds;
   const tree = useMemo(
-    () => (catalog ? buildNvtxTree(catalog, visibleLaneRowIds, selectedNvtxDomain) : null),
-    [catalog, selectedNvtxDomain, visibleLaneRowIds]
+    () => (catalog ? buildNvtxTree(catalog, laneRowIds, selectedNvtxDomain) : null),
+    [catalog, laneRowIds, selectedNvtxDomain]
   );
   const onZoomChange = useCallback(
     (range: { start: number; end: number }) => {
