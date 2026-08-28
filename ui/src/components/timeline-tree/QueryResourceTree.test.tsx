@@ -19,6 +19,7 @@ import type {
 import {
   LONG_ENTITIES_ROW_TYPE,
   OPERATOR_TIMELINE_ROW_TYPE,
+  nvtxThreadRowId,
   type TreeTableItem,
 } from '@quent/components';
 import type { ResourceTimelineSubRow } from './sub-rows';
@@ -184,6 +185,10 @@ function ViewportProbe() {
 
 function collectRowTypes(items: TreeTableItem[]): string[] {
   return items.flatMap(item => [item.type, ...collectRowTypes(item.children ?? [])]);
+}
+
+function collectRowIds(items: TreeTableItem[]): string[] {
+  return items.flatMap(item => [item.id, ...collectRowIds(item.children ?? [])]);
 }
 
 const CUSTOM_SUB_ROW_TYPE = 'custom-sub-row';
@@ -394,6 +399,66 @@ describe('QueryResourceTree — NVTX filters', () => {
         capturedInlineSelectors.find(selector => selector.id === 'nvtx-category-1')?.value
       ).toBe('7')
     );
+  });
+
+  it('hides threads after an empty viewport is returned', () => {
+    const catalog = {
+      domains: [
+        {
+          domain_id: '1',
+          name: 'Domain 1',
+          color: '#76b900ff',
+          threads: [{ thread_id: 42, name: 'worker 42' }],
+          categories: [],
+          has_uncategorized: true,
+        },
+      ],
+    } as unknown as NvtxCatalog;
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+      contextId: 'context-1',
+      catalog,
+      viewport: { viewport: { start: 0, end: 100 }, domains: [], statistics: [] },
+      isLoading: false,
+    });
+
+    renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    expect(collectRowIds(capturedTreeData)).not.toContain(nvtxThreadRowId('1', 42));
+  });
+
+  it('keeps catalog threads visible while their viewport is loading', () => {
+    const catalog = {
+      domains: [
+        {
+          domain_id: '1',
+          name: 'Domain 1',
+          color: '#76b900ff',
+          threads: [{ thread_id: 42, name: 'worker 42' }],
+          categories: [],
+          has_uncategorized: true,
+        },
+      ],
+    } as unknown as NvtxCatalog;
+    vi.mocked(clientApi.fetchSingleTimeline).mockResolvedValue(makeTimeline(0, DURATION_S));
+    vi.mocked(clientApi.useNvtxStream).mockReturnValue({
+      contextId: 'context-1',
+      catalog,
+      viewport: null,
+      isLoading: true,
+    });
+
+    renderWithQuery(
+      <JotaiProvider store={createStore()}>
+        <QueryResourceTree engineId="engine-1" queryBundle={makeBundle()} />
+      </JotaiProvider>
+    );
+
+    expect(collectRowIds(capturedTreeData)).toContain(nvtxThreadRowId('1', 42));
   });
 });
 

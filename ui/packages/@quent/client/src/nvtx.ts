@@ -186,8 +186,9 @@ export function useNvtxStream(
     (): NvtxViewportRequest => ({ viewport, selections }),
     [viewport, selections]
   );
+  const viewportEnabled = !!contextId && selections.length > 0 && (options?.enabled ?? true);
   const viewportQuery = useNvtxViewport(contextId ?? '', queryStartUnixNs, request, {
-    enabled: !!contextId && selections.length > 0 && (options?.enabled ?? true),
+    enabled: viewportEnabled,
     staleTime: options?.staleTime,
   });
   const catalogsPending = contextIds.length > 0 && catalogQueries.some(query => query.isPending);
@@ -195,6 +196,7 @@ export function useNvtxStream(
     contextId,
     catalog,
     viewport: viewportQuery.data ?? null,
-    isLoading: contextsQuery.isLoading || catalogsPending,
+    isLoading:
+      contextsQuery.isLoading || catalogsPending || (viewportEnabled && viewportQuery.isPending),
   };
 }

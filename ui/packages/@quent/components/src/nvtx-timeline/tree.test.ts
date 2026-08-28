@@ -38,7 +38,7 @@ const catalog = {
 
 describe('NVTX resource tree', () => {
   it('keeps the selected domain header above its lanes', () => {
-    const tree = buildNvtxTree(catalog, new Set(), '3');
+    const tree = buildNvtxTree(catalog, null, '3');
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -66,7 +66,7 @@ describe('NVTX resource tree', () => {
   });
 
   it('keeps each domain in a sub-tree when showing all domains', () => {
-    const tree = buildNvtxTree(catalog, new Set(), null);
+    const tree = buildNvtxTree(catalog, null, null);
 
     expect(tree?.children).toEqual([
       expect.objectContaining({
@@ -118,14 +118,46 @@ describe('NVTX resource tree', () => {
 
     expect(tree?.children?.map(item => item.id)).toEqual([nvtxDomainRowId('3')]);
     expect(tree?.children?.[0]?.children?.map(item => item.id)).toEqual([
-      nvtxThreadRowId('3', 303),
       nvtxProcessRowId('3'),
       nvtxMarksRowId('3'),
     ]);
     expect(tree?.children?.[0]?.children?.map(item => nvtxLaneLabel(item.entity))).toEqual([
-      'worker 3',
       'Process ranges',
       'Marks',
     ]);
+  });
+
+  it('keeps only threads with populated viewport lanes', () => {
+    const tree = buildNvtxTree(catalog, new Set([nvtxThreadRowId('1', 101)]));
+
+    expect(tree?.children?.[0]?.children?.map(item => item.id)).toEqual([
+      nvtxThreadRowId('1', 101),
+    ]);
+    expect(tree?.children?.[1]?.children).toBeUndefined();
+  });
+
+  it('does not index empty thread lanes as visible rows', () => {
+    const viewport = {
+      viewport: { start: 0, end: 1 },
+      domains: [
+        {
+          domain_id: '1',
+          name: 'libcudf',
+          color: '#000000ff',
+          lanes: [
+            {
+              id: 'thread-101-depth-0',
+              label: 'worker 1',
+              identity: { kind: 'thread', thread_id: 101, depth: 0 },
+              ranges: [],
+              marks: [],
+            },
+          ],
+        },
+      ],
+      statistics: [],
+    } satisfies NvtxViewportResponse;
+
+    expect(indexNvtxLanes(viewport).has(nvtxThreadRowId('1', 101))).toBe(false);
   });
 });

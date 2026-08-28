@@ -73,7 +73,7 @@ function treeItem(
 /** Domain sub-trees for the visible domains; headers stay so category filters have a row. */
 export function buildNvtxTree(
   catalog: Pick<NvtxCatalog, 'domains'>,
-  laneRowIds: ReadonlySet<string>,
+  laneRowIds: ReadonlySet<string> | null,
   selectedDomainId: string | null = null
 ): NvtxTreeItem | null {
   const visibleDomains = catalog.domains.filter(
@@ -83,15 +83,20 @@ export function buildNvtxTree(
     return null;
   }
   const domainLanes = visibleDomains.map(domain => {
-    const threadRows = domain.threads.map(thread =>
-      treeItem(nvtxThreadRowId(domain.domain_id, thread.thread_id), NVTX_LANE_ROW_TYPE, {
-        nvtxKind: 'thread',
-        domain,
-        thread,
-      })
-    );
+    const threadRows = domain.threads
+      .filter(
+        thread =>
+          laneRowIds == null || laneRowIds.has(nvtxThreadRowId(domain.domain_id, thread.thread_id))
+      )
+      .map(thread =>
+        treeItem(nvtxThreadRowId(domain.domain_id, thread.thread_id), NVTX_LANE_ROW_TYPE, {
+          nvtxKind: 'thread',
+          domain,
+          thread,
+        })
+      );
     const extraRows: NvtxTreeItem[] = [];
-    if (laneRowIds.has(nvtxProcessRowId(domain.domain_id))) {
+    if (laneRowIds?.has(nvtxProcessRowId(domain.domain_id))) {
       extraRows.push(
         treeItem(nvtxProcessRowId(domain.domain_id), NVTX_LANE_ROW_TYPE, {
           nvtxKind: 'process',
@@ -99,7 +104,7 @@ export function buildNvtxTree(
         })
       );
     }
-    if (laneRowIds.has(nvtxMarksRowId(domain.domain_id))) {
+    if (laneRowIds?.has(nvtxMarksRowId(domain.domain_id))) {
       extraRows.push(
         treeItem(nvtxMarksRowId(domain.domain_id), NVTX_LANE_ROW_TYPE, {
           nvtxKind: 'marks',
@@ -130,6 +135,9 @@ export function indexNvtxLanes(viewport: NvtxViewportResponse | null): Map<strin
     const byThread = new Map<number, NvtxLane[]>();
     for (const lane of domain.lanes) {
       if (isThreadIdentity(lane.identity)) {
+        if (lane.ranges.length === 0 && lane.marks.length === 0) {
+          continue;
+        }
         const lanes = byThread.get(lane.identity.thread_id) ?? [];
         lanes.push(lane);
         byThread.set(lane.identity.thread_id, lanes);
