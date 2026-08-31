@@ -15,25 +15,29 @@
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
-application. You and your agents first describe a _schema_ of _events_ with
-_attributes_, which you use to instrument anything (called an _entity_) in your
-application.
+application. You and your agents first model your application to produce a
+_schema_ describing _events_ and _attributes_ emitted from your modeled
+abstractions (called an _entity_) at run-time. Examples include control flow,
+data flow, and resources such as threads, memory pools, and channels moving data.
 
-Quent then turns a _schema_ into a dedicated _instrumentation library_. This
+Quent then turns the _schema_ into a dedicated _instrumentation library_. This
 instrumentation library not only has a type-safe API but also uses a statically
-typed export path. It also generates an _analysis library_ that provides the
-means to query stored events for various purposes. This includes not only the
-means to look up events by attribute values but also the means to convert events
-into something semantically rich, leveraging the rules imposed by _mods_.
+typed export path for maximum performance.
+
+It also generates a statically-typed _analysis library_ that provides the means
+to query stored events for various purposes. This includes not only the means to
+look up events by attribute values but also the means to convert events into
+something semantically rich, leveraging _mods_.
 
 <p align="center">
 <img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="640">
 </p>
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
-stack. Each mod can contribute constraints on schema elements (e.g. on events or
-attributes), code generators, analysis components, visualizations, and agent
-interfaces, among others.
+stack. Each mod can contribute semantics around basic schema elements (e.g. on
+events or attributes), and potentially add suppot for those semantics in code
+generators, analysis components. These mods can also provide visualizations, and
+agent interfaces, among others.
 
 By applying mods to an application-specific model, you and your coding agents
 can easily provide the last bit of glue to mix and match mod components to
@@ -46,24 +50,24 @@ case for Quent: ![Quent overview demo](ui/docs/screenshots/demo.gif)
 ## Why
 
 Quent is built to address a growing complexity gap between complex modern
-distributed systems software and low-level profiling tools.
+accelerated and distributed systems software and low-level profiling tools.
 
-Highly dynamic software systems (take query engines, for example) have a lot
-of "stuff" to do before the heavy computation actually starts inside
-accelerators. All that "stuff" is complex, highly layered, and very
-custom-tailored. This may include asynchronous execution engines, multi-layered
-workload schedulers, out-of-core execution support, caching, and much more. All
-this must not become a bottleneck to the raw computational and I/O performance
-that accelerated systems nowadays provide. Looking at all this abstract
-machinery with traditional profiling tools is, however, hard and time-consuming.
+Highly dynamic software systems (take query engines, for example) have a lot of
+"stuff" to do before the heavy computation actually starts inside accelerators.
+All that "stuff" is complex, highly layered, and very custom-tailored. This may
+include asynchronous execution engines, multi-layered workload schedulers,
+out-of-core execution support, caching, and much more. All this must not become
+a bottleneck to the raw computational and I/O performance that accelerated
+systems nowadays provide. Looking at all this abstract machinery with
+traditional profiling tools is, however, both hard and time-consuming.
 
-The goal is to reduce time to conclusion (TTC) for these applications by
-allowing developers to start performance analysis from code they work with every
-day, have full control over, and have already formed mental models for. This
-helps narrow the analysis first in a familiar environment before reaching for
-other excellent low-level profiling tools such as Linux Perf, NVIDIA Nsight
-Systems or Nsight Compute for deeper system-level or closer-to-hardware
-analysis.
+The goal of profiling tools built with Quent is to reduce time to conclusion
+(TTC) for these applications by allowing developers to start performance
+analysis from code they work with every day, have full control over, and have
+already formed mental models for. This helps narrow the analysis first in a
+familiar environment before reaching for other excellent low-level profiling
+tools such as Linux Perf, NVIDIA Nsight Systems or Nsight Compute for deeper
+system-level or closer-to-hardware analysis.
 
 ## Status
 
