@@ -71,10 +71,11 @@ system-level or closer-to-hardware analysis.
 
 ## Status
 
-Quent is an experimental alpha-stage project and is changing quickly. Its schema
-format, generated APIs, runtime, analysis components, and documentation may
-change without compatibility guarantees for now. There are no releases yet;
-breaking changes and bugs are currently expected. Use this at your own risk.
+Quent is an experimental alpha-stage project and is changing quickly. Its
+currently migrating from a PoC to a first release. Schema format, generated
+APIs, runtime, analysis components, and documentation may change without
+compatibility guarantees for now. There are no releases yet; breaking changes
+and bugs are currently expected. Use this at your own risk.
 
 ## Mods
 
