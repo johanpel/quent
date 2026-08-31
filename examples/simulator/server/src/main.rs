@@ -1,13 +1,14 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
+use nvtx_server::{import_context_events, routes as nvtx_routes};
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_server::{
-    analyzer_cache::index_query_engines, analyzer_service_router, collector_service,
+    analyzer_cache::index_query_engines, analyzer_service_router_with_routes, collector_service,
     initialize_tracing,
 };
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
@@ -88,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
+    let nvtx_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
         "ndjson" => Format::Ndjson,
@@ -100,8 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
-            SimulatorContext::try_with_id(id, Some(exporter_kind.clone()))
-                .map_err(|e| e.to_string())
+            SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
         })?
         .serve(collector_addr)
         .await
@@ -122,16 +123,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // make up an engine instance.
     let importer = move |context_id| {
         let dir = importer_output_dir.join(format!("{context_id}"));
-        Ok(Simulator::import_events(&dir)?)
+        let events =
+            Simulator::import_events(&dir)?.collect::<quent_io::ImporterResult<Vec<_>>>()?;
+        Ok::<Box<dyn Iterator<Item = _>>, quent_query_engine_server::error::ServerError>(Box::new(
+            events.into_iter(),
+        ))
     };
 
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router::<SimulatorUiAnalyzer>(
+            analyzer_service_router_with_routes::<SimulatorUiAnalyzer>(
                 Box::new(importer),
                 Box::new(lister),
                 cors_address,
+                nvtx_routes(Box::new(move |context_id| {
+                    import_context_events(&nvtx_output_dir, context_id)
+                })),
             )?
             .into_make_service(),
         )

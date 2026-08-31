@@ -40,10 +40,10 @@ jobs:
     name: Rust
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -57,12 +57,10 @@ jobs:
       - run: pixi run cargo fmt --all -- --check
       - run: pixi run cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: pixi run cargo test --workspace --all-features --locked --all-targets
+      - run: pixi run cargo test -p quent-store --no-default-features --features io-ndjson --locked
       - run: pixi run cargo build --workspace --all-features --locked --release
-      # The instrumentation-build example is its own workspace (callback-only,
-      # Serialize-free), excluded above; build and run it separately so it stays
-      # covered.
-      - run: pixi run cargo clippy --manifest-path crates/instrumentation-build/example/Cargo.toml --all-targets --locked -- -D warnings
-      - run: pixi run cargo run --manifest-path crates/instrumentation-build/example/Cargo.toml --locked
+      - run: pixi run cargo run -p quent-instrumentation-build-example --locked
+      - run: pixi run cargo run -p quent-store-build-example --locked
 
   # Regression gate for `quent-open` backward compatibility: build a viewer for
   # a sidecar pinning the previous quent commit (the PR's base commit, or the
@@ -74,12 +72,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # Picking the previous commit on push builds needs the parent of HEAD.
           fetch-depth: 2
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -104,10 +102,10 @@ jobs:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - run: pixi run cargo deny check

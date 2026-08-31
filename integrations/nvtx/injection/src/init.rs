@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! The NVTX injection entry point, one-shot table fill, and the sink-agnostic
@@ -36,6 +36,31 @@ static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 /// Return a fresh, process-unique, nonzero handle/id.
 pub(crate) fn next_handle() -> u64 {
     NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
+}
+
+/// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
+/// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
+/// resolve against a named thread. Read on the app thread from inside a callback.
+///
+/// The value is computed once per thread and cached in a thread-local so the
+/// syscall is not repeated on every push/pop. Works on all Linux architectures
+/// (x86-64, aarch64, …) — this crate is Linux-64-only per the `compile_error!`
+/// in `lib.rs`.
+pub(crate) fn current_thread_id() -> u32 {
+    thread_local! {
+        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
+    }
+    CACHED_TID.with(|cell| *cell.get_or_init(compute_thread_id))
+}
+
+fn compute_thread_id() -> u32 {
+    // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
+    // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
+    // works against every Linux libc (including the older conda sysroot in CI).
+    // Available on all Linux architectures including aarch64.
+    // SAFETY: `gettid` takes no arguments and cannot fail; it returns the calling
+    // thread's kernel task id (the Linux `gettid` id space).
+    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
 }
 
 thread_local! {
@@ -146,8 +171,20 @@ pub(crate) fn dispatch(event: NvtxEvent) {
 /// # Safety
 /// `get_export_table` must be the accessor NVTX supplies; calling this with an
 /// arbitrary pointer is undefined behavior. NVTX itself upholds this contract.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn InitializeInjectionNvtx2(
+// Static consumers may need to expose the NVTX-standard entry from a normal
+// object file (rather than from this archive, whose symbols are commonly
+// localized with `--exclude-libs`). Give that build an internal ABI name so a
+// consumer-owned exported trampoline can forward into this exact hook state.
+// The runtime-loaded library keeps exporting NVTX's required public name.
+#[cfg_attr(
+    feature = "static-injection",
+    unsafe(export_name = "quent_InitializeInjectionNvtx2")
+)]
+#[cfg_attr(
+    not(feature = "static-injection"),
+    unsafe(export_name = "InitializeInjectionNvtx2")
+)]
+pub unsafe extern "C" fn initialize_injection_nvtx2(
     get_export_table: NvtxGetExportTableFunc_t,
 ) -> c_int {
     // Contain any panic in the init path (e.g. a diagnostic write failing) so it
@@ -205,7 +242,7 @@ macro_rules! subscribe {
 ///
 /// # Safety
 /// `get_export_table` must be the accessor NVTX passes to
-/// [`InitializeInjectionNvtx2`].
+/// [`initialize_injection_nvtx2`].
 unsafe fn install_callbacks(get_export_table: NvtxGetExportTableFunc_t) -> bool {
     let Some(get_export_table) = get_export_table else {
         return false;
@@ -534,7 +571,20 @@ unsafe fn set_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{range_pop_level, range_push_level};
+    use super::{current_thread_id, range_pop_level, range_push_level};
+
+    #[test]
+    fn current_thread_id_is_stable_and_nonzero() {
+        let first = current_thread_id();
+        let second = current_thread_id();
+        // A real OS thread id is never `0` (the value we use as "unstamped").
+        assert_ne!(first, 0, "current_thread_id must be nonzero");
+        // Two reads on the same thread must observe the same id.
+        assert_eq!(
+            first, second,
+            "current_thread_id must be stable within a thread"
+        );
+    }
 
     #[test]
     fn push_and_pop_report_zero_based_nesting_levels() {

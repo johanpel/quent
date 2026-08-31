@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { memo, useState, useMemo, useCallback } from 'react';
@@ -25,8 +25,8 @@ import {
   useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
 } from '@quent/hooks';
+import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { inferFieldFormatter } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 import { NodeFlowBar } from './NodeFlowBar';
 
@@ -34,7 +34,11 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
   label: string;
   nodeId: string;
   operationType: string;
-  metadata?: { rawNode?: Operator };
+  metadata?: {
+    rawNode?: Operator;
+    relatedOperatorIds?: string[];
+    relatedOperators?: Operator[];
+  };
   hasIncoming?: boolean;
   hasOutgoing?: boolean;
   /** Which edge of the node incoming/outgoing handles attach to; flips with the DAG layout direction. */
@@ -53,6 +57,7 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    * relayouts exactly once.
    */
   flowBarVisible?: boolean;
+  quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }
 
 const nodeVariants = cva(
@@ -81,7 +86,9 @@ function nodeOpacityClass({
   operatorId: string;
   isDimmed: boolean;
 }): string {
-  if (hoveredStat) return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  if (hoveredStat) {
+    return hoveredStat.values.has(operatorId) ? 'opacity-100' : 'opacity-20';
+  }
   // An active highlight set fully overrides the selection-based dim so that
   // hovered (highlighted) operators are always visible, even when a DAG
   // selection would otherwise dim them. The atom is fed through
@@ -91,7 +98,9 @@ function nodeOpacityClass({
   if (highlightedNodeIds !== null && highlightedNodeIds.size > 0) {
     return highlightedNodeIds.has(operatorId) ? 'opacity-100' : 'opacity-35';
   }
-  if (isDimmed) return 'opacity-35';
+  if (isDimmed) {
+    return 'opacity-35';
+  }
   return 'opacity-100';
 }
 
@@ -108,24 +117,34 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
+  const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
   const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
-    if (nodeLabelField === NODE_LABEL_FIELD.ID) return data.metadata?.rawNode?.id ?? data.nodeId;
-    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) return data.operationType;
+    if (nodeLabelField === NODE_LABEL_FIELD.ID) {
+      return data.metadata?.rawNode?.id ?? data.nodeId;
+    }
+    if (nodeLabelField === NODE_LABEL_FIELD.TYPE) {
+      return data.operationType;
+    }
     return data.label;
   }, [nodeLabelField, data]);
 
-  const colorFieldValue = colorField
-    ? (statistics.find(s => s.key === colorField)?.value ?? null)
-    : null;
+  const colorFieldStat = colorField ? statistics.find(s => s.key === colorField) : null;
+  const colorFieldValue = colorFieldStat?.value ?? null;
   const formattedColorFieldValue =
     colorFieldValue === null
       ? null
       : typeof colorFieldValue === 'number'
-        ? inferFieldFormatter(colorField!)(colorFieldValue)
+        ? formatStatWithQuantity(
+            colorFieldValue,
+            colorField!,
+            colorFieldStat?.quantity && quantitySpecs
+              ? quantitySpecs[colorFieldStat.quantity]
+              : undefined
+          )
         : String(colorFieldValue);
 
   const baseColor = data.baseColor ?? getOperationTypeColor(data.operationType);
@@ -134,9 +153,13 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);
 
   const heatmapColor = useMemo(() => {
-    if (!hoveredStat) return undefined;
+    if (!hoveredStat) {
+      return undefined;
+    }
     const v = hoveredStat.values.get(operatorId);
-    if (v === undefined) return undefined;
+    if (v === undefined) {
+      return undefined;
+    }
     const range = hoveredStat.max - hoveredStat.min;
     const t = range > 0 ? (v - hoveredStat.min) / range : 0.5;
     return continuousColor(t, nodePalette, isDark);

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -43,13 +43,19 @@ import {
   useDataFlowEnabled,
   useDataFlowMeta,
 } from '@quent/hooks';
-import { calculateLayout, NODE_LAYOUT_WIDTH } from './layout';
+import { calculateLayout, NODE_LAYOUT_WIDTH, NODE_LAYOUT_HEIGHT, FLOW_BAR_HEIGHT } from './layout';
 import type { DAGData } from '../services/query-plan/types';
 import { QueryPlanNode, type QueryPlanNodeData } from '../query-plan/QueryPlanNode';
 import { DAGLegend } from './DAGLegend';
+import { resolveInspectedNodeData } from './dagSelection';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
-import { continuousColor, getOperationTypeColor, buildOperatorColorMap } from '@quent/utils';
-import { inferFieldFormatter } from '@quent/utils';
+import {
+  continuousColor,
+  getOperationTypeColor,
+  buildOperatorColorMap,
+  inferFieldFormatter,
+  type QuantitySpec,
+} from '@quent/utils';
 
 // Edge geometry constants
 const EDGE_STROKE_WIDTH_DEFAULT = 1.5;
@@ -122,8 +128,11 @@ const VariableWidthEdge = ({
       }
     } else {
       const color = edgeColoring.colorMap.get(id);
-      if (!color) edgeDimmed = true;
-      else edgeColor = color;
+      if (!color) {
+        edgeDimmed = true;
+      } else {
+        edgeColor = color;
+      }
     }
   }
 
@@ -148,7 +157,9 @@ const VariableWidthEdge = ({
       }
     } else {
       const v = edgeColoring.labelMap.get(id);
-      if (v !== undefined) edgeLabelValue = v;
+      if (v !== undefined) {
+        edgeLabelValue = v;
+      }
     }
   } else if (edgeWidthConfig) {
     const v = edgeWidthConfig.values.get(id);
@@ -306,6 +317,12 @@ const FlowLayout = ({
     };
   }, [data.nodes, setDagDisplayedNodeIds]);
 
+  useEffect(() => {
+    const selected = resolveInspectedNodeData(data.nodes, selectedNodeIds);
+    setSelectedOperatorLabel(selected?.label ?? null);
+    setSelectedNodeData(selected);
+  }, [data.nodes, selectedNodeIds, setSelectedNodeData, setSelectedOperatorLabel]);
+
   const handleMoveStart = useCallback<OnMoveStart>(event => {
     if (event !== null) {
       hasUserInteracted.current = true;
@@ -316,6 +333,29 @@ const FlowLayout = ({
     () => buildOperatorColorMap(data.nodes.map(n => n.type)),
     [data.nodes]
   );
+
+  const getSelectionIds = useCallback((node: Node<QueryPlanNodeData>): string[] => {
+    const relatedOperatorIds = node.data.metadata?.relatedOperatorIds ?? [];
+    return relatedOperatorIds.length > 0 ? [...relatedOperatorIds, node.id] : [node.id];
+  }, []);
+
+  const statQuantitySpecs = useMemo((): Record<string, QuantitySpec> => {
+    if (!data.quantitySpecs) {
+      return {};
+    }
+    const result: Record<string, QuantitySpec> = {};
+    for (const node of data.nodes) {
+      for (const stat of parseCustomStatistics(node.metadata?.rawNode)) {
+        if (stat.quantity && !(stat.key in result)) {
+          const spec = data.quantitySpecs[stat.quantity];
+          if (spec) {
+            result[stat.key] = spec;
+          }
+        }
+      }
+    }
+    return result;
+  }, [data.nodes, data.quantitySpecs]);
 
   // Convert DAGData to ReactFlow format
   const convertToReactFlow = useCallback(() => {
@@ -338,6 +378,7 @@ const FlowLayout = ({
           isDark,
           baseColor: operatorColorMap.get(node.type.toLowerCase()),
           flowBarVisible,
+          quantitySpecs: data.quantitySpecs,
         },
         style: {
           width: NODE_LAYOUT_WIDTH,
@@ -370,7 +411,8 @@ const FlowLayout = ({
         setSelectedNodeData(null);
         onSelectionChange?.([]);
       } else {
-        const newSet = new Set([node.id]);
+        const selectionIds = getSelectionIds(node);
+        const newSet = new Set(selectionIds);
         setSelectedNodeIds(newSet);
         setSelectedOperatorLabel(node.data.label);
         setSelectedNodeData({
@@ -378,11 +420,18 @@ const FlowLayout = ({
           label: node.data.label,
           operationType: node.data.operationType,
           statistics: parseCustomStatistics(node.data.metadata?.rawNode),
+          relatedOperators: node.data.metadata?.relatedOperators?.map(operator => ({
+            nodeId: operator.id,
+            label: operator.instance_name ?? operator.operator_type_name ?? 'Operator',
+            operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
+            statistics: parseCustomStatistics(operator),
+          })),
         });
-        onSelectionChange?.([node.id]);
+        onSelectionChange?.(selectionIds);
       }
     },
     [
+      getSelectionIds,
       selectedNodeIds,
       setSelectedNodeIds,
       setSelectedOperatorLabel,
@@ -401,7 +450,9 @@ const FlowLayout = ({
   // hasn't interacted with the chart (to maintain any focus states applied)
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
     const observer = new ResizeObserver(() => {
       if (nodes.length > 0 && !hasUserInteracted.current) {
         fitView({ padding: FIT_VIEW_PADDING, minZoom: FLOW_MIN_ZOOM });
@@ -421,8 +472,15 @@ const FlowLayout = ({
 
     const applyLayout = async () => {
       const { flowNodes, flowEdges } = convertToReactFlow();
-      const layoutResult = await calculateLayout(flowNodes, flowEdges, layoutDirection);
-      if (cancelled) return;
+      const layoutResult = await calculateLayout(
+        flowNodes,
+        flowEdges,
+        layoutDirection,
+        NODE_LAYOUT_HEIGHT + (flowBarVisible ? FLOW_BAR_HEIGHT : 0)
+      );
+      if (cancelled) {
+        return;
+      }
 
       setNodes(layoutResult.nodes);
       setEdges(layoutResult.edges);
@@ -435,7 +493,7 @@ const FlowLayout = ({
     return () => {
       cancelled = true;
     };
-  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection]);
+  }, [data, convertToReactFlow, fitView, setNodes, setEdges, layoutDirection, flowBarVisible]);
 
   return (
     <ReactFlow
@@ -455,7 +513,7 @@ const FlowLayout = ({
       defaultEdgeOptions={{ type: 'smoothstep' }}
     >
       <Background />
-      <DAGLegend isDark={isDark} />
+      <DAGLegend isDark={isDark} statQuantitySpecs={statQuantitySpecs} />
       <MiniMap
         pannable
         zoomable

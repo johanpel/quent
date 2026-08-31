@@ -35,10 +35,10 @@ jobs:
     name: C++ Examples
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: prefix-dev/setup-pixi@5185adfbffb4bd703da3010310260805d89ebb11 # v0.9.6
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
         with:
           cache: true
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -49,12 +49,12 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
-      - name: Build C++ integration example
+      - name: Build legacy C++ integration example
         run: |
-          pixi run cmake -B examples/cpp-integration/cpp/build -S examples/cpp-integration/cpp
-          pixi run cmake --build examples/cpp-integration/cpp/build
-      - name: Run C++ integration example
-        run: ./examples/cpp-integration/cpp/build/example
+          pixi run cmake -B examples/legacy/cpp-integration/cpp/build -S examples/legacy/cpp-integration/cpp
+          pixi run cmake --build examples/legacy/cpp-integration/cpp/build
+      - name: Run legacy C++ integration example
+        run: ./examples/legacy/cpp-integration/cpp/build/example
       - name: Build C++ query engine bridge test
         run: |
           pixi run cmake -B domains/query_engine/tests/cpp/cpp/build -S domains/query_engine/tests/cpp/cpp

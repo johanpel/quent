@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
@@ -48,9 +48,22 @@ fn resource_annotations(data: String) -> Annotations {
         .unwrap()
 }
 
-fn fsm_annotations() -> Annotations {
+fn fsm_annotations(initial: &str, transitions: &[(&str, &str)]) -> Annotations {
+    let transitions: Vec<serde_json::Value> = transitions
+        .iter()
+        .map(|&(source, target)| serde_json::json!({ "source": source, "target": target }))
+        .collect();
     AnnotationsBuilder::new()
-        .with_constraint(FsmConstraint::NAME, None)
+        .with_constraint(
+            FsmConstraint::NAME,
+            Some(
+                serde_json::json!({
+                    "initial_state": initial,
+                    "transitions": transitions,
+                })
+                .to_string(),
+            ),
+        )
         .build()
         .unwrap()
 }
@@ -111,9 +124,24 @@ fn user_entity_with_data_type(name: &str, fsm: bool, data: DataType, on_ref: boo
     let mut builder =
         EntityBuilder::new(path(name)).with_event(event("using", [field("claim", ty)]));
     if fsm {
-        builder = builder.with_annotations(fsm_annotations());
+        builder = builder
+            .with_event(event("done", []))
+            .with_annotations(fsm_annotations("using", &[("using", "done")]));
     }
     builder.build().unwrap()
+}
+
+fn final_state_user_entity(name: &str, record: &str) -> Entity {
+    let ty = DataType::EntityRef {
+        data: Some(Box::new(record_type(record))),
+        annotations: Annotations::default(),
+    };
+    EntityBuilder::new(path(name))
+        .with_event(event("start", []))
+        .with_event(event("done", [field("claim", ty)]))
+        .with_annotations(fsm_annotations("start", &[("start", "done")]))
+        .build()
+        .unwrap()
 }
 
 fn resource_errors(schema: &Schema) -> Vec<ResourceError> {
@@ -209,7 +237,7 @@ fn bounds_match_resource_boundedness() {
     ));
 }
 
-/// Requirements 3–6 govern resource usage.
+/// Requirements 3 and 5–7 govern resource usage.
 ///
 /// Resource users must be FSM entities. Usage and bounds records must name
 /// declared resources, claims must name declared capacities, and usage records
@@ -237,7 +265,7 @@ fn invalid_usages_are_rejected() {
             .any(|e| matches!(e, ResourceError::NonFsmUser { entity, .. } if entity == "Worker"))
     );
 
-    // Requirement 4: usage and bounds records name declared resources.
+    // Requirement 5: usage and bounds records name declared resources.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Ghost")
     ));
@@ -245,12 +273,12 @@ fn invalid_usages_are_rejected() {
         |e| matches!(e, ResourceError::UnknownResource { resource, .. } if resource == "Phantom")
     ));
 
-    // Requirement 5: a usage claims only its resource's capacities.
+    // Requirement 6: a usage claims only its resource's capacities.
     assert!(errors.iter().any(
         |e| matches!(e, ResourceError::UndeclaredCapacity { capacity, .. } if capacity == "watts")
     ));
 
-    // Requirement 6: a usage record rides on an entity reference.
+    // Requirement 7: a usage record rides on an entity reference.
     assert!(
         errors
             .iter()
@@ -258,7 +286,26 @@ fn invalid_usages_are_rejected() {
     );
 }
 
-/// Requirement 7: a bounds record appears only on its own resource's events.
+/// Requirement 4: an FSM final-state event cannot start a resource usage.
+#[test]
+fn usage_on_an_fsm_final_state_is_rejected() {
+    let memory = resource_entity("Memory", &[("bytes", "occupancy", false)], None);
+    let worker = final_state_user_entity("Worker", "MemoryUsage");
+    let usage = usage_record("MemoryUsage", "Memory", &["bytes"]);
+    let errors = resource_errors(&schema("App", [memory, worker], [usage]));
+
+    assert!(errors.iter().any(|error| matches!(
+        error,
+        ResourceError::UsageOnFinalState {
+            entity,
+            state,
+            resource,
+            ..
+        } if entity == "Worker" && state == "done" && resource == "Memory"
+    )));
+}
+
+/// Requirement 8: a bounds record appears only on its own resource's events.
 #[test]
 fn bounds_record_used_by_a_foreign_entity_is_rejected() {
     let memory = resource_entity(

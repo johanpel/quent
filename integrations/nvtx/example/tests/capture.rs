@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! In-process capture proof.
@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::NvtxEvent;
-use quent_instrumentation::{Event, EventCallback};
+use quent_instrumentation::EventCallback;
 use uuid::Uuid;
 
 /// The variant name of an [`NvtxEvent`], for coverage assertions.
@@ -39,10 +39,8 @@ fn captures_core_nvtx_kinds() {
     let collected: Arc<Mutex<Vec<NvtxEvent>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = {
         let collected = Arc::clone(&collected);
-        EventCallback::new(move |recorded| {
-            if let Some(event) = recorded.event.downcast_ref::<Event<NvtxEventEntity>>() {
-                collected.lock().unwrap().push(event.data.0.clone());
-            }
+        EventCallback::<NvtxEventEntity>::new(move |event| {
+            collected.lock().unwrap().push(event.data.0.clone());
         })
     };
 

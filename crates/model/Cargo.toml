@@ -24,7 +24,7 @@ quent-build-info = { path = "../build-info" }
 quent-model-macros = { path = "../model-macros" }
 quent-events = { path = "../events" }
 quent-io = { path = "../io" }
-quent-instrumentation = { path = "../instrumentation" }
+quent-instrumentation = { path = "../instrumentation", features = ["io-callback"] }
 quent-time = { path = "../time" }
 tokio = { workspace = true, features = ["macros"] }
 

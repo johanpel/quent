@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import path from 'path';
@@ -30,6 +30,31 @@ function vitePluginScriptPriority() {
   };
 }
 
+function vendorChunk(id: string) {
+  const normalizedId = id.replaceAll('\\', '/');
+  const includesPackage = (packageName: string) =>
+    normalizedId.includes(`/node_modules/${packageName}/`);
+
+  if (includesPackage('react') || includesPackage('react-dom') || includesPackage('scheduler')) {
+    return 'react-vendor';
+  }
+  if (includesPackage('@tanstack')) {
+    return 'tanstack';
+  }
+  if (includesPackage('@radix-ui')) {
+    return 'ui-vendor';
+  }
+  if (includesPackage('@xyflow')) {
+    return 'xyflow';
+  }
+  if (includesPackage('zrender')) {
+    return 'echarts-zrender';
+  }
+  if (includesPackage('echarts')) {
+    return 'echarts-core';
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
@@ -48,17 +73,10 @@ export default defineConfig({
     }),
   ],
   build: {
+    chunkSizeWarningLimit: 1337,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Split large dependencies into separate chunks for better caching
-          'react-vendor': ['react', 'react-dom'],
-          tanstack: ['@tanstack/react-query', '@tanstack/react-router'],
-          xyflow: ['@xyflow/react'],
-          // echarts uses tree-shaking via @/lib/echarts.ts custom build
-          echarts: ['echarts/core', 'echarts/charts', 'echarts/components', 'echarts/renderers'],
-          // elkjs is handled separately via alias to bundled version
-        },
+        manualChunks: vendorChunk,
       },
     },
   },

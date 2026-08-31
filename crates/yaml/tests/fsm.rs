@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! FSM tests: an `fsms:` block declares an entity whose events are its states,
@@ -37,7 +37,6 @@ fsms:
         to: [progress, finished]
       finished:
         attributes: { ok: bool }
-        to: [exit]
 ";
 
 #[test]
@@ -66,7 +65,7 @@ entities:
 fsms:
   E:
     states:
-      a: { initial: true, to: [exit] }
+      a: { initial: true }
 ",
     );
     assert!(
@@ -84,8 +83,8 @@ model: m
 fsms:
   E:
     states:
-      a: { to: [exit] }
-      b: { to: [exit] }
+      a: {}
+      b: {}
 ",
     );
     assert!(
@@ -95,7 +94,7 @@ fsms:
 }
 
 #[test]
-fn fsm_needs_an_exit_state() {
+fn fsm_needs_a_final_state() {
     let errors = errors_of(
         "\
 quent: alpha
@@ -106,8 +105,23 @@ fsms:
       a: { initial: true, to: [a] }
 ",
     );
+    assert!(errors.contains("cannot reach any final state"), "{errors}");
+}
+
+#[test]
+fn initial_state_cannot_also_be_final() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+fsms:
+  E:
+    states:
+      only: { initial: true }
+",
+    );
     assert!(
-        errors.contains("no state transitions to `exit`"),
+        errors.contains("initial state \"only\" cannot also be a final state"),
         "{errors}"
     );
 }
@@ -122,9 +136,50 @@ model: m
 fsms:
   E:
     states:
-      a: { initial: true, to: [exit] }
-      b: { to: [a, exit] }
+      a: { initial: true, to: [c] }
+      b: { to: [a] }
+      c: {}
 ",
     );
     assert!(errors.contains("unreachable"), "{errors}");
+}
+
+#[test]
+fn exit_is_an_ordinary_state_with_attributes() {
+    let schema = schema_of(
+        "\
+quent: alpha
+model: m
+fsms:
+  E:
+    states:
+      running: { initial: true, to: [exit] }
+      exit:
+        attributes: { code: i32 }
+",
+    );
+    let exit = schema
+        .entity(&path("E"))
+        .unwrap()
+        .event(&ident("exit"))
+        .unwrap();
+    assert!(exit.field(&ident("code")).is_some());
+}
+
+#[test]
+fn undeclared_exit_target_is_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+fsms:
+  E:
+    states:
+      running: { initial: true, to: [exit] }
+",
+    );
+    assert!(
+        errors.contains("state \"exit\" does not match any event"),
+        "{errors}"
+    );
 }

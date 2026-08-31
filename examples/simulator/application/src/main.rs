@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -1129,7 +1129,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut engine = Engine::new();
 
-    let context = SimulatorContext::try_new(args.exporter.into_options())?;
+    let context = match args.exporter.into_options() {
+        Some(provider) => SimulatorContext::try_new(provider)?,
+        None => SimulatorContext::try_new(quent_model::Noop)?,
+    };
 
     engine.spawn(&context, args.num_workers, args.num_threads);
 

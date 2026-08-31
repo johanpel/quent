@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 // Query engine C++ integration test.
 //
 // Calls every generated CXX bridge function to catch regressions.
@@ -14,13 +19,71 @@
 #include "quent-qe-bridge/gen/uuid.rs.h"
 #include "quent-qe-bridge/gen/worker.rs.h"
 
+#include <filesystem>
+#include <stdexcept>
 #include <string>
 
+namespace {
+
+void emit_single_event(rust::Box<quent::ExporterOptions> options) {
+  auto ctx = quent::create_context(std::move(options));
+  auto query_group = quent::query_group::create_observer(*ctx);
+  query_group->declaration(
+      uuid::now_v7(),
+      quent::query_group::Declaration{
+          .instance_name = "exporter-test",
+          .engine_id = uuid::now_v7(),
+      });
+}
+
+void require_event_file(const std::filesystem::path &root,
+                        const std::string &extension) {
+  for (const auto &entry : std::filesystem::recursive_directory_iterator(root)) {
+    if (entry.is_regular_file() && entry.path().extension() == extension &&
+        entry.file_size() > 0) {
+      return;
+    }
+  }
+  throw std::runtime_error("no non-empty " + extension + " event file under " +
+                           root.string());
+}
+
+void test_exporter_options() {
+  emit_single_event(quent::ExporterOptions::none());
+
+  const auto root = std::filesystem::path("./events/exporter-options");
+  emit_single_event(
+      quent::ExporterOptions::ndjson((root / "ndjson").string()));
+  require_event_file(root / "ndjson", ".ndjson");
+
+  emit_single_event(
+      quent::ExporterOptions::msgpack((root / "msgpack").string()));
+  require_event_file(root / "msgpack", ".msgpack");
+
+  emit_single_event(
+      quent::ExporterOptions::postcard((root / "postcard").string()));
+  require_event_file(root / "postcard", ".postcard");
+
+  auto collector =
+      quent::ExporterOptions::collector("http://127.0.0.1:7836");
+  try {
+    auto invalid = quent::ExporterOptions::collector("not a valid uri");
+    static_cast<void>(invalid);
+    throw std::runtime_error("malformed collector URI was accepted");
+  } catch (const rust::Error &) {
+  }
+}
+
+} // namespace
+
 int main() {
+  test_exporter_options();
+
   // Create instrumentation context. The context generates its own id for the
   // output subdirectory; the root engine uses an independent id here.
   auto engine_id = uuid::now_v7();
-  auto ctx = quent::create_context("ndjson", "./events");
+  auto ctx =
+      quent::create_context(quent::ExporterOptions::ndjson("./events"));
 
   // Engine: init with implementation attributes and custom attributes.
   auto engine_obs = quent::engine::create_observer(*ctx);

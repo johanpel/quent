@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! Lowering from the deserialized model to a schema.
@@ -244,23 +244,16 @@ fn fsm_entity_of(
             resources,
             sink,
         );
-        // The reserved target `exit` transitions out of the FSM; the rest are
-        // transitions to other states.
-        let mut exit = false;
-        let mut to = Vec::new();
-        for target in &state.to {
-            if target.eq_ignore_ascii_case("exit") {
-                exit = true;
-            } else if let Some(id) = ident(target, &path, sink) {
-                to.push(id);
-            }
-        }
+        let to = state
+            .to
+            .iter()
+            .filter_map(|target| ident(target, &path, sink))
+            .collect();
         states.push(StateDecl {
             name: state_id,
             attributes,
             to,
             initial: state.initial,
-            exit,
         });
     }
 
@@ -284,8 +277,7 @@ fn fsm_entity_of(
     }
 }
 
-/// Report an FSM structural error in the YAML's own terms (`initial: true`,
-/// transitioning to `exit`).
+/// Report an FSM structural error in the YAML's own terms.
 fn fsm_shape_error(error: &FsmEntityBuilderError, path: &str, sink: &mut Diagnostics) {
     match error {
         FsmEntityBuilderError::NoInitialState => {
@@ -293,9 +285,6 @@ fn fsm_shape_error(error: &FsmEntityBuilderError, path: &str, sink: &mut Diagnos
         }
         FsmEntityBuilderError::MultipleInitialStates(_) => {
             sink.error(path, "more than one state marked `initial: true`", None);
-        }
-        FsmEntityBuilderError::NoExitState => {
-            sink.error(path, "no state transitions to `exit`", None);
         }
         FsmEntityBuilderError::Invalid(error) => {
             sink.error(path, error.to_string(), None);

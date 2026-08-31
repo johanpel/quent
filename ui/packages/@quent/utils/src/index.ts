@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Utilities
 export { cn } from './cn';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
+export { getFsmTypeName, getResourceTypeName } from './timeline';
 
 // Color utilities
 export {
@@ -44,6 +45,10 @@ export {
   formatAttributeValue,
   unwrapTaggedValue,
   inferFieldFormatter,
+  formatStatWithQuantity,
+  isNumericValue,
+  isBytesStat,
+  bigintToChartNumber,
 } from './formatters';
 
 // Rust-generated TypeScript types
@@ -73,6 +78,9 @@ export type {
   DAGNode,
   DAGEdge,
 } from './dagTypes';
+
+export { AGG_MODES } from './aggMode';
+export type { AggMode } from './aggMode';
 
 // Operator timeline row ID utilities
 export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';

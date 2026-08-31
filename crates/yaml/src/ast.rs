@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! The shape a model file deserializes into, format `alpha`.
@@ -65,10 +65,7 @@ pub(crate) struct StateSpec {
     pub(crate) initial: bool,
     #[serde(default)]
     pub(crate) attributes: IndexMap<String, Field>,
-    // States the FSM can transition to.
-    //
-    // "exit" is a reserved special name to mark a state as final before
-    // dissapearing from existence through the exit transition.
+    /// States the FSM can transition to. An empty list makes this a final state.
     #[serde(default)]
     pub(crate) to: Vec<String>,
 }

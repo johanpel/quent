@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 export type { DynamicAttribute } from '../../../../../generated/ts-bindings/DynamicAttribute';
@@ -15,9 +15,16 @@ export type { DataFlowTimelineBinned } from '../../../../../generated/ts-binding
 export type { DimensionKeyDecl } from '../../../../../generated/ts-bindings/DimensionKeyDecl';
 export type { Edge } from '../../../../../generated/ts-bindings/Edge';
 export type { Engine } from '../../../../../generated/ts-bindings/Engine';
+export type { EngineContexts } from '../../../../../generated/ts-bindings/EngineContexts';
 export type { EngineImplementationAttributes } from '../../../../../generated/ts-bindings/EngineImplementationAttributes';
 export type { EntityFilter } from '../../../../../generated/ts-bindings/EntityFilter';
+export type { EntityListEntry } from '../../../../../generated/ts-bindings/EntityListEntry';
+export type { EntityListFilter } from '../../../../../generated/ts-bindings/EntityListFilter';
+export type { EntityListRequest } from '../../../../../generated/ts-bindings/EntityListRequest';
+export type { EntityListResponse } from '../../../../../generated/ts-bindings/EntityListResponse';
 export type { EntityRef } from '../../../../../generated/ts-bindings/EntityRef';
+export type { EntityScope } from '../../../../../generated/ts-bindings/EntityScope';
+export type { EntitySortKey } from '../../../../../generated/ts-bindings/EntitySortKey';
 export type { FiniteStateMachine } from '../../../../../generated/ts-bindings/FiniteStateMachine';
 export type { FsmStateTypeDecl } from '../../../../../generated/ts-bindings/FsmStateTypeDecl';
 export type { FsmTransition } from '../../../../../generated/ts-bindings/FsmTransition';
@@ -27,7 +34,9 @@ export type { FsmUsage } from '../../../../../generated/ts-bindings/FsmUsage';
 export type { DynamicList } from '../../../../../generated/ts-bindings/DynamicList';
 export type { Operator } from '../../../../../generated/ts-bindings/Operator';
 export type { OperatorFilter } from '../../../../../generated/ts-bindings/OperatorFilter';
+export type { OperatorStatistic } from '../../../../../generated/ts-bindings/OperatorStatistic';
 export type { OperatorStatistics } from '../../../../../generated/ts-bindings/OperatorStatistics';
+export type { PageParams } from '../../../../../generated/ts-bindings/PageParams';
 export type { Plan } from '../../../../../generated/ts-bindings/Plan';
 export type { PlanTree } from '../../../../../generated/ts-bindings/PlanTree';
 export type { Port } from '../../../../../generated/ts-bindings/Port';
@@ -52,9 +61,28 @@ export type { ResourceTree } from '../../../../../generated/ts-bindings/Resource
 export type { ResourceTypeDecl } from '../../../../../generated/ts-bindings/ResourceTypeDecl';
 export type { SingleTimelineRequest } from '../../../../../generated/ts-bindings/SingleTimelineRequest';
 export type { SingleTimelineResponse } from '../../../../../generated/ts-bindings/SingleTimelineResponse';
+export type { Sort } from '../../../../../generated/ts-bindings/Sort';
+export type { SortDir } from '../../../../../generated/ts-bindings/SortDir';
 export type { SpanSec } from '../../../../../generated/ts-bindings/SpanSec';
 export type { DynamicStruct } from '../../../../../generated/ts-bindings/DynamicStruct';
 export type { TimelineConfig } from '../../../../../generated/ts-bindings/TimelineConfig';
 export type { TimelineRequest } from '../../../../../generated/ts-bindings/TimelineRequest';
+export type { TimeWindow } from '../../../../../generated/ts-bindings/TimeWindow';
 export type { DynamicValue } from '../../../../../generated/ts-bindings/DynamicValue';
 export type { Worker } from '../../../../../generated/ts-bindings/Worker';
+export type { NvtxCatalog } from '../../../../../generated/ts-bindings/NvtxCatalog';
+export type { NvtxCatalogAnomalies } from '../../../../../generated/ts-bindings/NvtxCatalogAnomalies';
+export type { NvtxCatalogCategory } from '../../../../../generated/ts-bindings/NvtxCatalogCategory';
+export type { NvtxCatalogDomain } from '../../../../../generated/ts-bindings/NvtxCatalogDomain';
+export type { NvtxCatalogThread } from '../../../../../generated/ts-bindings/NvtxCatalogThread';
+export type { NvtxDomainLaneGroup } from '../../../../../generated/ts-bindings/NvtxDomainLaneGroup';
+export type { NvtxDomainSelection } from '../../../../../generated/ts-bindings/NvtxDomainSelection';
+export type { NvtxLane } from '../../../../../generated/ts-bindings/NvtxLane';
+export type { NvtxLaneIdentity } from '../../../../../generated/ts-bindings/NvtxLaneIdentity';
+export type { NvtxMarkItem } from '../../../../../generated/ts-bindings/NvtxMarkItem';
+export type { NvtxRangeItem } from '../../../../../generated/ts-bindings/NvtxRangeItem';
+export type { NvtxRangeKind } from '../../../../../generated/ts-bindings/NvtxRangeKind';
+export type { NvtxRangeStatistics } from '../../../../../generated/ts-bindings/NvtxRangeStatistics';
+export type { NvtxViewportRequest } from '../../../../../generated/ts-bindings/NvtxViewportRequest';
+export type { NvtxViewportResponse } from '../../../../../generated/ts-bindings/NvtxViewportResponse';
+export type { NvtxViewportWindow } from '../../../../../generated/ts-bindings/NvtxViewportWindow';

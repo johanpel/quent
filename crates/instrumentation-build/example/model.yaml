@@ -60,4 +60,3 @@ fsms:
         to: [running, ready]
       ready:
         attributes: { ok: bool }
-        to: [exit]

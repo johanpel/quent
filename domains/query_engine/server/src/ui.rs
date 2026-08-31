@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
@@ -8,7 +8,9 @@ use axum::{
 };
 
 use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{QueryEngineModel, query_group::QueryGroup, ui::UiAnalyzer};
+use quent_query_engine_analyzer::{
+    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
+};
 use quent_query_engine_ui as ui;
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
@@ -112,6 +114,33 @@ where
     Ok(Json(analyzer.query_engine_model().engine()?.to_ui()?))
 }
 
+/// List every Quent context attributed to an engine.
+#[cfg_attr(feature = "swagger", utoipa::path(
+    get,
+    path = "/api/engines/{engine_id}/contexts",
+    tag = "engines",
+    params(
+        ("engine_id" = Uuid, Path, description = "The engine ID")
+    ),
+    responses(
+        (status = 200, description = "Contexts contributing telemetry to the engine", body = Object)
+    )
+))]
+#[tracing::instrument(skip_all, err)]
+async fn engine_contexts<A>(
+    State(state): State<ServiceState<A>>,
+    Path(engine_id): Path<Uuid>,
+) -> ServerResult<Json<ui::EngineContexts>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
+    let contexts = state.analyzers.contexts(engine_id).await.map_err(|error| {
+        tracing::error!(%error, %engine_id, "engine context inventory failed");
+        crate::error::ServerError::Cache("engine context inventory could not be loaded".to_owned())
+    })?;
+    Ok(Json(contexts))
+}
+
 // TODO(johanpel): pagination
 /// List all query groups for a given engine.
 #[cfg_attr(feature = "swagger", utoipa::path(
@@ -138,7 +167,7 @@ where
         analyzer
             .query_engine_model()
             .query_groups()
-            .map(QueryGroup::to_ui)
+            .map(|query_group| query_group.to_ui())
             .collect::<Vec<_>>(),
     ))
 }
@@ -327,6 +356,7 @@ where
     paths(
         list_engines,
         engine,
+        engine_contexts,
         list_query_groups,
         list_queries,
         query,
@@ -351,6 +381,7 @@ where
     Router::new()
         .route("/", get(list_engines))
         .route("/{engine_id}", get(engine))
+        .route("/{engine_id}/contexts", get(engine_contexts))
         .route("/{engine_id}/query-groups", get(list_query_groups))
         .route(
             "/{engine_id}/query_group/{query_group_id}/queries",

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { EntityRefKey, unwrapTaggedValue } from '@quent/utils';
@@ -27,25 +27,32 @@ export function entityRefToEntitiesKey(entityRef: EntityRefKey): keyof QueryEnti
   return ENTITY_REF_TO_ENTITIES_KEY[entityRef];
 }
 
-export function parseCustomStatistics(rawNode: unknown): Array<{ key: string; value: StatValue }> {
+export function parseCustomStatistics(
+  rawNode: unknown
+): Array<{ key: string; value: StatValue; quantity?: string }> {
   const statistics = (rawNode as Operator)?.statistics?.custom_statistics;
-  if (!statistics) return [];
+  if (!statistics) {
+    return [];
+  }
 
-  return Object.entries(statistics).map(([key, tagged]) => ({
-    key,
-    value: tagged
-      ? unwrapTaggedValue(Object.values(tagged as unknown as Record<string, unknown>)[0])
-      : null,
-  }));
+  return Object.entries(statistics).map(([key, statistic]) => {
+    const { value, quantity } = statistic;
+    return {
+      key,
+      value: value ? unwrapTaggedValue(value) : null,
+      ...(quantity !== null ? { quantity } : {}),
+    };
+  });
 }
 
 export function parsePortStatistics(rawPort: unknown): Array<{ key: string; value: StatValue }> {
   const port = rawPort as Record<string, unknown> | undefined;
   const statistics = port?.statistics as
-    | { custom_statistics?: Record<string, unknown> }
-    | undefined;
+    { custom_statistics?: Record<string, unknown> } | undefined;
   const custom = statistics?.custom_statistics;
-  if (!custom) return [];
+  if (!custom) {
+    return [];
+  }
 
   return Object.entries(custom).map(([key, tagged]) => ({
     key,

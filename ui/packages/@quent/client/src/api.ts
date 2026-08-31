@@ -1,8 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import { parseJsonWithBigInt } from '@quent/utils';
 import { getApiBaseUrl } from './config';
+import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
   QueryBundle,
   QueryGroup,
@@ -18,10 +19,16 @@ import type {
   EntityRef,
   Engine,
   TimelineConfig,
+  EntityListRequest,
+  EntityListResponse,
+  EngineContexts,
+  NvtxCatalog,
+  NvtxViewportRequest,
+  NvtxViewportResponse,
 } from '@quent/utils';
 
 interface ApiFetchOptions {
-  params?: Record<string, string | number | boolean>;
+  params?: Record<string, string | number | bigint | boolean>;
   fetchOptions?: RequestInit;
 }
 
@@ -84,6 +91,64 @@ export async function fetchListEngines(): Promise<Engine[]> {
   return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
 }
 
+export async function fetchEngineContexts(engineId: string): Promise<EngineContexts> {
+  return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
+}
+
+/** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
+export async function fetchNvtxCatalog(
+  contextId: string,
+  queryStartUnixNs: bigint
+): Promise<NvtxCatalog | null> {
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`, {
+    params: { query_start: queryStartUnixNs },
+  });
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return parseJsonWithBigInt<NvtxCatalog>(await response.text());
+}
+
+export async function fetchNvtxViewport(
+  contextId: string,
+  queryStartUnixNs: bigint,
+  request: NvtxViewportRequest
+): Promise<NvtxViewportResponse | null> {
+  const canonical = canonicalizeNvtxRequest(request);
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
+    params: { query_start: queryStartUnixNs },
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(canonical),
+    },
+  });
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return normalizeNvtxViewport(parseJsonWithBigInt<NvtxViewportResponse>(await response.text()));
+}
+
+function asBigInt(value: bigint | number): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value);
+}
+
+function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResponse {
+  return {
+    ...viewport,
+    statistics: viewport.statistics.map(statistics => ({
+      ...statistics,
+      count: asBigInt(statistics.count),
+      observed_count: asBigInt(statistics.observed_count),
+    })),
+  };
+}
+
 export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
   return apiFetch<QueryGroup[]>(`/engines/${engineId}/query-groups`);
 }
@@ -119,6 +184,22 @@ export async function fetchBulkTimelines(
 }
 
 /**
+ * Fetch a ranked, paged list of a query's entities (longest resource-usage
+ * span first). Backs the long-entities Gantt view.
+ */
+export async function fetchEntityList(
+  engineId: string,
+  request: EntityListRequest<QueryFilter, OperatorFilter>
+): Promise<EntityListResponse> {
+  return apiFetch<EntityListResponse>(`/engines/${engineId}/entities`, {
+    fetchOptions: {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  });
+}
+
+/**
  * Fetch the data-flow categorical timeline for a query (all operators in one
  * response). Resolves to `null` when the engine's analyzer does not implement
  * the data-flow protocol (HTTP 501) — an expected "feature unavailable"
@@ -142,7 +223,9 @@ export async function fetchDataFlow(
       body: JSON.stringify(request),
     },
   });
-  if (response.status === 501) return null;
+  if (response.status === 501) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }

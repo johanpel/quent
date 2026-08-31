@@ -1,7 +1,7 @@
 <!-- rumdl-disable MD033 MD041 -->
 
 <p align="center">
-  <img src="ui/public/favicon.svg" alt="Quent honey badger logo" width="240">
+  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="240">
 </p>
 
 <h1 align="center">Quent</h1>
@@ -212,8 +212,8 @@ additional code generators can provide C++ or Python bindings over that
 implementation. This keeps event behavior and exporter integration consistent
 across languages without maintaining separate language-specific SDKs.
 
-- [C++ integration example](examples/cpp-integration/)
-- [Python integration example](examples/python-integration/)
+- [C++ integration example](examples/legacy/cpp-integration/)
+- [Python integration example](examples/legacy/python-integration/)
 
 ## More advanced examples
 

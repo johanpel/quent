@@ -1,10 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //! The Quent built-in resource constraint.
 
 use quent_constraints::{Constraint, utils::bullet_list};
-use quent_fsm::FsmConstraint;
+use quent_fsm::{Fsm, FsmConstraint};
 use quent_schema::{
     Annotations, DataType, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
@@ -21,9 +21,9 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 /// claim through a usage over a span of time.
 ///
 /// Every usage must end. This constraint can currently enforce that only for
-/// finite-state machine (FSM) entities: leaving a state through a transition ends
-/// its usages, and the exit state cannot hold attributes. Usages by other entities
-/// are rejected.
+/// finite-state machine (FSM) entities: leaving a state through a transition
+/// ends its usages, and a transition into a final state cannot start a new
+/// usage. Usages by other entities are rejected.
 ///
 /// Resource definitions, usages, and bounds are validated together. Usage records
 /// claim capacities through entity references. Bounds records define the bound
@@ -37,12 +37,13 @@ pub use builder::{BuildError, ResourceBuilder, ResourceParts};
 ///    capacities.
 /// 3. An entity can use some quantity of a resource's capacities if and
 ///    only if it is an FSM.
-/// 4. The resource named by a usage or bounds is a declared resource.
-/// 5. A usage claims only capacities declared by its resource.
-/// 6. A usage record is used only as data carried by an entity reference and
+/// 4. A final-state event cannot carry a usage record.
+/// 5. The resource named by a usage or bounds is a declared resource.
+/// 6. A usage claims only capacities declared by its resource.
+/// 7. A usage record is used only as data carried by an entity reference and
 ///    cannot be nested in a list within that data.
-/// 7. A bounds record is used only by events of the resource it names.
-/// 8. Bounds records may be optional, but cannot be used in a list.
+/// 8. A bounds record is used only by events of the resource it names.
+/// 9. Bounds records may be optional, but cannot be used in a list.
 ///
 /// ## Unit resources
 ///
@@ -56,6 +57,7 @@ pub struct ResourceConstraint {
     usage_records: Map<Path, UsageRecord>,
     bounds_records: Map<Path, BoundsRecord>,
     record_refs: Vec<RecordRef>,
+    final_fsm_events: Map<Path, FxHashSet<Identifier>>,
 }
 
 /// A resource quantity that can be claimed by a usage.
@@ -159,6 +161,7 @@ struct RecordRef {
     in_list: bool,
     in_reference_list: bool,
     entity: Option<(Path, bool)>,
+    event: Option<Identifier>,
     location: String,
 }
 
@@ -186,6 +189,16 @@ impl Visitor for ResourceConstraint {
                         });
                     }
                     None => {}
+                }
+                if let Some(fsm) = parse_fsm_annotation(entity.annotations()) {
+                    self.final_fsm_events.insert(
+                        entity.path().clone(),
+                        entity
+                            .events()
+                            .filter(|event| fsm.is_final_state(event.name()))
+                            .map(|event| event.name().clone())
+                            .collect(),
+                    );
                 }
             }
             Element::Record(record) => {
@@ -258,6 +271,7 @@ impl Visitor for ResourceConstraint {
                             entity.annotations().has_constraint(FsmConstraint::NAME),
                         )
                     }),
+                    event: enclosing_event(cursor).map(|event| event.name().clone()),
                     location: cursor.to_string(),
                 });
             }
@@ -272,9 +286,10 @@ impl Visitor for ResourceConstraint {
             usage_records,
             bounds_records,
             record_refs,
+            final_fsm_events,
         } = self;
 
-        // Requirements 4 and 5: a usage names a declared resource and claims
+        // Requirements 5 and 6: a usage names a declared resource and claims
         // only that resource's capacities.
         for UsageRecord {
             resource,
@@ -300,7 +315,7 @@ impl Visitor for ResourceConstraint {
             }
         }
 
-        // Requirements 3, 6 and 7: validate references after record roles are
+        // Requirements 3, 4, 7 and 8: validate references after record roles are
         // known.
         let mut non_fsm_seen = FxHashSet::default();
         let mut resources_with_bounds_event = FxHashSet::default();
@@ -310,6 +325,7 @@ impl Visitor for ResourceConstraint {
             in_list,
             in_reference_list,
             entity,
+            event,
             location,
         } in &record_refs
         {
@@ -320,7 +336,7 @@ impl Visitor for ResourceConstraint {
                     });
                     continue;
                 }
-                // Requirement 6: a usage is carried by an entity reference.
+                // Requirement 7: a usage is carried by an entity reference.
                 if !on_entity_ref {
                     errors.push(ResourceError::UsageNotOnReference {
                         location: location.clone(),
@@ -330,10 +346,22 @@ impl Visitor for ResourceConstraint {
                 // Requirement 3: only an FSM entity may use a resource.
                 match entity {
                     Some((entity, is_fsm)) => {
-                        if !is_fsm && non_fsm_seen.insert((entity.clone(), usage.resource.clone()))
+                        if !is_fsm {
+                            if non_fsm_seen.insert((entity.clone(), usage.resource.clone())) {
+                                errors.push(ResourceError::NonFsmUser {
+                                    entity: entity.clone(),
+                                    resource: usage.resource.clone(),
+                                });
+                            }
+                        } else if let Some(state) = event.as_ref()
+                            && final_fsm_events
+                                .get(entity)
+                                .is_some_and(|final_events| final_events.contains(state))
                         {
-                            errors.push(ResourceError::NonFsmUser {
+                            errors.push(ResourceError::UsageOnFinalState {
+                                location: location.clone(),
                                 entity: entity.clone(),
+                                state: state.clone(),
                                 resource: usage.resource.clone(),
                             });
                         }
@@ -351,7 +379,7 @@ impl Visitor for ResourceConstraint {
                     });
                     continue;
                 }
-                // Requirement 7: a bounds record belongs to its resource, so the
+                // Requirement 8: a bounds record belongs to its resource, so the
                 // entity referencing it must be that resource.
                 let on_resource = matches!(entity, Some((entity, _)) if entity == &bounds.resource);
                 if !on_resource {
@@ -466,6 +494,12 @@ fn parse_resource_annotation(annotations: &Annotations) -> Option<Result<Resourc
     })
 }
 
+/// Decode a valid FSM topology, leaving malformed data to [`FsmConstraint`].
+fn parse_fsm_annotation(annotations: &Annotations) -> Option<Fsm> {
+    let raw = annotations.constraint(FsmConstraint::NAME)?.data()?;
+    serde_json::from_str(raw).ok()
+}
+
 /// Return the nearest entity enclosing `cursor`.
 fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
     cursor
@@ -474,6 +508,18 @@ fn enclosing_entity<'s>(cursor: &Cursor<'s>) -> Option<&'s Entity> {
         .rev()
         .find_map(|element| match *element {
             Element::Entity(entity) => Some(entity),
+            _ => None,
+        })
+}
+
+/// Return the nearest event enclosing `cursor`.
+fn enclosing_event<'s>(cursor: &Cursor<'s>) -> Option<&'s quent_schema::Event> {
+    cursor
+        .elements()
+        .iter()
+        .rev()
+        .find_map(|element| match *element {
+            Element::Event(event) => Some(event),
             _ => None,
         })
 }
@@ -514,6 +560,15 @@ pub enum ResourceError {
     UsageInList { location: String },
     #[error("entity \"{entity}\" uses resource \"{resource}\" but is not an FSM")]
     NonFsmUser { entity: Path, resource: Path },
+    #[error(
+        "{location}: final state \"{state}\" of FSM entity \"{entity}\" uses resource \"{resource}\""
+    )]
+    UsageOnFinalState {
+        location: String,
+        entity: Path,
+        state: Identifier,
+        resource: Path,
+    },
     #[error("{location}: bounds of resource \"{resource}\" used outside that resource's events")]
     ForeignBounds { location: String, resource: Path },
     #[error("{location}: a bounds record cannot be used in a list")]
