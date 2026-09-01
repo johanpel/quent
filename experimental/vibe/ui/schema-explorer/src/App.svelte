@@ -35,6 +35,12 @@
     parseYamlSchema,
     parserErrorMessage,
   } from './yaml-schema';
+  import {
+    observeTheme,
+    readThemePreference,
+    saveThemePreference,
+    type ThemePreference,
+  } from './theme';
 
   type ModelSelectionId = ExampleModelId | 'loaded';
 
@@ -62,6 +68,7 @@
   let editorPane = $state<PaneAPI | null>(null);
   let graphPane = $state<PaneAPI | null>(null);
   let selectionsPane = $state<PaneAPI | null>(null);
+  let themePreference = $state<ThemePreference>(readThemePreference());
   let config = $state<ResolvedEntityGraphConfig>({
     ...DEFAULT_ENTITY_GRAPH_CONFIG,
   });
@@ -103,6 +110,12 @@
       hoverSelection === null &&
       breadcrumbPreview === null,
   );
+
+  $effect(() => {
+    const preference = themePreference;
+    saveThemePreference(preference);
+    return observeTheme(preference);
+  });
 
   $effect(() => {
     const source = yamlSource;
@@ -374,6 +387,18 @@
           Save
         </button>
       </div>
+      <label class="ml-auto flex shrink-0 items-center gap-2">
+        <span class="text-xs font-medium">Theme</span>
+        <select
+          class="select select-bordered select-sm w-28"
+          bind:value={themePreference}
+          aria-label="Color theme"
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </label>
     </header>
   {/if}
 
