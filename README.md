@@ -15,19 +15,19 @@
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
-application. You and your agents first model your application to produce a
-_schema_ describing _events_ and _attributes_ emitted from your modeled
-abstractions (called an _entity_) at run-time. Examples include control flow,
-data flow, and resources such as threads, memory pools, and channels moving data.
+application. You and your agents first define a _schema_ of _events_ with
+_attributes_ emitted from your data and control flow abstractions (called
+_entities_) at runtime.
 
 Quent then turns the _schema_ into a dedicated _instrumentation library_. This
 instrumentation library not only has a type-safe API but also uses a statically
 typed export path for maximum performance.
 
-It also generates a statically-typed _analysis library_ that provides the means
+Quent also generates a work-in-progress (WIP), statically typed _analysis
+library_ that provides the means
 to query stored events for various purposes. This includes not only the means to
 look up events by attribute values but also the means to convert events into
-something semantically rich, leveraging _mods_.
+something semantically enriched, leveraging _mods_.
 
 <p align="center">
 <img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="640">
@@ -35,17 +35,20 @@ something semantically rich, leveraging _mods_.
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
 stack. Each mod can contribute semantics around basic schema elements (e.g. on
-events or attributes), and potentially add suppot for those semantics in code
-generators, analysis components. These mods can also provide visualizations, and
-agent interfaces, among others.
+events or attributes), and potentially add support for those semantics in
+instrumentation or analysis code generation. These mods can also include curated
+visualizations for user interfaces, querying events through CLIs or MCP
+endpoints to support agent-in-the-loop optimization efforts, and more.
 
-By applying mods to an application-specific model, you and your coding agents
-can easily provide the last bit of glue to mix and match mod components to
+By leveraging mods in an application-specific schema, you and your coding agents
+provide the last bit of glue to mix and match mod components to
 ultimately produce a dedicated performance analysis tool in which you can
 quickly explore the dynamic behavior of your program.
 
-For example, see the UI for the accelerated query engine domain, a primary use
-case for Quent: ![Quent overview demo](ui/docs/screenshots/demo.gif)
+Quent is currently developed around the use case of accelerated data-processing
+engines. An elaborate example of how Quent is used to produce a domain-specific
+analysis toolchain with a user interface in this domain is shown below:
+![Quent overview demo](ui/docs/screenshots/demo.gif)
 
 ## Why
 
@@ -56,10 +59,15 @@ Highly dynamic software systems (take query engines, for example) have a lot of
 "stuff" to do before the heavy computation actually starts inside accelerators.
 All that "stuff" is complex, highly layered, and very custom-tailored. This may
 include asynchronous execution engines, multi-layered workload schedulers,
-out-of-core execution support, caching, and much more. All this must not become
-a bottleneck to the raw computational and I/O performance that accelerated
+out-of-core execution support, caching, and much more. All these things need to
+exist before considering the computational kernels executed on accelerators. At
+the same time, this software must not bottleneck the raw computational and I/O
+performance that accelerated
 systems nowadays provide. Looking at all this abstract machinery with
-traditional profiling tools is, however, both hard and time-consuming.
+traditional profiling tools is, however, both hard and time-consuming, since
+these tools provide incredibly detailed call-stack traces that add a lot of
+noise, greatly inflate storage requirements, and typically do not "speak the
+same language" as the abstractions in the system's software architecture.
 
 The goal of profiling tools built with Quent is to reduce time to conclusion
 (TTC) for these applications by allowing developers to start performance
@@ -71,11 +79,15 @@ system-level or closer-to-hardware analysis.
 
 ## Status
 
-Quent is an experimental alpha-stage project and is changing quickly. Its
-currently migrating from a PoC to a first release. Schema format, generated
+Quent is an experimental alpha-stage project and is changing quickly. It is
+currently migrating from a PoC to a first beta release. Schema format, generated
 APIs, runtime, analysis components, and documentation may change without
-compatibility guarantees for now. There are no releases yet; breaking changes
+compatibility guarantees for now. There are no releases yet. Breaking changes
 and bugs are currently expected. Use this at your own risk.
+
+At the same time, Quent is already used or being evaluated in pioneering engines
+such as the GPU-accelerated [SiriusDB](https://www.sirius-db.com/) and [cuDF
+Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 
 ## Mods
 
@@ -105,7 +117,7 @@ capture their computational path via directed acyclic graphs. By capturing rules
 for how a schema should represent vertices and edges, and how data flow across
 edges can be captured, an analysis component can quickly find all associated
 events, and an UI component can visually render the graph and data flowing
-across edges over time.
+across edges over time as shown in the example above.
 
 ## Quick example
 
@@ -329,7 +341,7 @@ fsms:
       closed:
         to: [exit]
 
-  TracingSpan: # like tracing crate spans
+  TracingSpan: # like the Rust "tracing" crate spans
     states:
       entered:
         initial: true
