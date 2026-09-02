@@ -50,7 +50,8 @@ docker compose up --build
 ```
 
 The collector listens on port `7836`, and the analysis API listens on port
-`8080`.
+`8080`. This development image intentionally omits the embedded UI so the
+frontend can run separately with Vite and hot reload.
 
 ## Run the UI development server
 

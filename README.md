@@ -50,6 +50,35 @@ engines. An elaborate example of how Quent is used to produce a domain-specific
 analysis toolchain with a user interface in this domain is shown below:
 ![Quent overview demo](ui/docs/screenshots/demo.gif)
 
+## Try it
+
+### Query-engine UI
+
+To quickly get an idea of what the framework can do, run the query-engine UI
+shown above. This simulator is one example of a performance-analysis
+application built with Quent; it targets the query-engine domain.
+
+Install [Docker](https://docs.docker.com/compose/install/) with the Compose
+plugin, then start the complete example from the repository root:
+
+```bash
+docker compose -f examples/simulator/docker-compose.yml up --build
+```
+
+Open <http://localhost:8080> after the services start. Docker Compose serves the
+UI and analysis API, and runs the simulator once to generate a sample
+query-engine dataset. Press `Ctrl+C` to stop the stack.
+
+For frontend development with Vite and hot reload, see the
+[development guide](DEVELOPMENT.md#run-the-ui-development-server).
+
+### Explore the modeling approach
+
+The hosted [Quent Schema Explorer](https://rapidsai.github.io/quent/) is a
+browser-based YAML schema editor and visualization tool. Use it to edit example
+schemas and explore how Quent models entities, events, finite-state machines,
+resources, and their relationships without installing anything.
+
 ## Why
 
 Quent is built to address a growing complexity gap between complex modern
@@ -93,23 +122,23 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 
 Built-in mods include things useful for a wide variety of applications:
 
-- `quent-fsm`: describes the potential sequences of events by modeling entities
-  as finite-state machines.
+- [`quent-fsm`](crates/fsm/): describes the potential sequences of events by
+  modeling entities as finite-state machines.
   - Through this mod, the instrumentation library can be generated
     such that invalid transitions are already rejected at compile time, and/or
     an analysis library can validate whether FSM transition events followed the
     described topology.
-- `quent-resource`: defines resources such as memories, channels, and processing
-  elements, and how other entities can use them.
+- [`quent-resource`](crates/resource/): defines resources such as memories,
+  channels, and processing elements, and how other entities can use them.
   - Through this mod, an analysis library can provide functionality
     that checks whether resources were saturated above some threshold for a
     certain duration, or it can generate data for a resource utilization
     timeline visualization.
-- `quent-ref-target`: constrains references to other entities to be of a certain
-  type.
-- `quent-ref-scope`: allows forming hierarchies of event-emitting entities to,
-  e.g., provide the canonical path of performance analysis exploration through
-  all event data from a UI.
+- [`quent-ref-target`](crates/ref-target/): constrains references to other
+  entities to be of a certain type.
+- [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of
+  event-emitting entities to, e.g., provide the canonical path of performance
+  analysis exploration through all event data from a UI.
 
 Mods can be self-authored to provide components around application- or
 domain-specific concerns. For example, applications like query engines often
@@ -149,7 +178,7 @@ entities:
       started:
         attributes:
           # ... and what its arguments were
-          args: list<string>
+          args: { list: string }
 ```
 
 ### Generating an instrumentation library
@@ -193,20 +222,21 @@ semantics. This ultimately helps ensure that events can be properly interpreted
 during analysis and that the outcome can be properly visualized (or otherwise
 utilized).
 
-Quent's YAML-based source format provides built-in syntax for FSMs:
+Quent's YAML-based source format provides built-in syntax for FSMs. Every FSM
+has exactly one initial state, every transition target must be declared, and a
+state with no `to` transitions is final:
 
 ```yaml
 quent: alpha
 model: hello
 
 fsms:
-  App:s
+  App:
     states:
       started:
         initial: true
         to: [ended]
       ended:
-        to: [exit]
         attributes:
           success: bool
 ```
@@ -232,7 +262,9 @@ across languages without maintaining separate language-specific SDKs.
 
 To give a more illustrative example of some built-in mod features, the example
 below shows an application event model for a contrived distributed application
-whose FSM-modeled entities use resources and tree-forming references:
+whose entities use the [`quent-fsm`](crates/fsm/),
+[`quent-resource`](crates/resource/), and
+[`quent-ref-tree`](crates/ref-tree/) mods:
 
 ```yaml
 quent: alpha
@@ -294,11 +326,12 @@ fsms:
         attributes:
           memory: { uses: Memory }
           thread: { uses: Thread }
-        to: [sending, exit]
+        to: [sending, finished]
       sending:
         attributes:
           channel: { uses: Channel }
-        to: [exit]
+        to: [finished]
+      finished: {}
 ```
 
 Quent can also represent traditional telemetry signals, e.g. (simplified):
@@ -338,20 +371,18 @@ fsms:
         to: [closed]
         attributes:
           name: string
-      closed:
-        to: [exit]
+      closed: {}
 
   TracingSpan: # like the Rust "tracing" crate spans
     states:
       entered:
         initial: true
-        to: [exit, closed]
+        to: [exited, closed]
         attributes:
           name: string
       exited:
         to: [entered, closed]
-      closed:
-        to: [exit]
+      closed: {}
 ```
 
 ## More information
