@@ -3176,6 +3176,7 @@ name = "quent-simulator"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "crossbeam-channel",
  "petgraph",
  "quent-dynamic-attributes",
  "quent-io",
