@@ -4,11 +4,12 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Barrier,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
-
-use crossbeam_channel::Sender;
 
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
@@ -236,8 +237,6 @@ struct WorkItem<'a> {
     operator: &'a Operator<Physical>,
     /// Input batches (empty for scan operators which produce their own).
     input_batches: Vec<Batch>,
-    /// Senders for the operator's outgoing edges in the DAG.
-    output_senders: Vec<&'a Sender<Batch>>,
     /// Task index for naming.
     task_index: u64,
     /// JoinLocal nodes that use selective (non-amplifying) join logic.
@@ -252,43 +251,15 @@ struct PlanExecution<'a> {
     logical_plan: &'a Plan<Logical>,
     num_tasks: usize,
     result_rows: &'a AtomicU64,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum InputBehavior {
-    /// Produces batches from nothing (FileSystemScan).
-    Source,
-    /// Processes one batch at a time.
-    Streaming,
-    /// Collects all input before processing (JoinLocal, Sort).
-    Barrier,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum OutputBehavior {
-    /// Sends output immediately during compute.
-    Streaming,
-    /// Buffers output, sends after task completion (Aggregate, Sort).
-    Deferred,
-    /// Consumes without producing (Output).
-    Sink,
+    phase_barrier: &'a Barrier,
 }
 
 impl Physical {
-    fn input_behavior(self) -> InputBehavior {
-        match self {
-            Physical::FileSystemScan => InputBehavior::Source,
-            Physical::JoinLocal | Physical::Sort => InputBehavior::Barrier,
-            _ => InputBehavior::Streaming,
-        }
-    }
-
-    fn output_behavior(self) -> OutputBehavior {
-        match self {
-            Physical::Output => OutputBehavior::Sink,
-            Physical::Aggregate | Physical::Sort => OutputBehavior::Deferred,
-            _ => OutputBehavior::Streaming,
-        }
+    fn ends_pipeline_phase(self) -> bool {
+        matches!(
+            self,
+            Physical::JoinPartition | Physical::Aggregate | Physical::Sort
+        )
     }
 
     fn output_size(self, input_bytes: u64, input_rows: u64, selective_join: bool) -> (u64, u64) {
@@ -685,8 +656,8 @@ fn lower_logical(
 
 #[derive(Debug)]
 struct Gpu {
+    id: Uuid,
     memory: Uuid,
-    compute: Uuid,
     host_mem_to_gpu: Uuid,
     gpu_to_host_mem: Uuid,
     /// Tracks current GPU memory usage in bytes for spill decisions.
@@ -696,8 +667,8 @@ struct Gpu {
 impl Gpu {
     fn new() -> Self {
         Self {
+            id: Uuid::now_v7(),
             memory: Uuid::now_v7(),
-            compute: Uuid::now_v7(),
             host_mem_to_gpu: Uuid::now_v7(),
             gpu_to_host_mem: Uuid::now_v7(),
             memory_used: AtomicU64::new(0),
@@ -807,20 +778,19 @@ impl Worker {
         }
 
         for (index, gpu) in self.gpus.iter().enumerate() {
+            context
+                .gpu_observer()
+                .gpu(gpu.id, &format!("GPU {index}"), self.id);
+
             let mut gpu_memory =
-                memory_obs.initializing(gpu.memory, &format!("GPU {index} Memory"), self.id);
+                memory_obs.initializing(gpu.memory, &format!("GPU {index} Memory"), gpu.id);
             gpu_memory.operating(Some(0));
             self.memory_handles.push(gpu_memory);
-
-            let mut gpu_compute =
-                processor_obs.initializing(gpu.compute, &format!("GPU {index} Compute"), self.id);
-            gpu_compute.operating();
-            self.processor_handles.push(gpu_compute);
 
             let mut host_to_gpu = channel_obs.initializing(
                 gpu.host_mem_to_gpu,
                 &format!("Host -> GPU {index}"),
-                self.id,
+                gpu.id,
                 self.host_memory,
                 gpu.memory,
             );
@@ -830,7 +800,7 @@ impl Worker {
             let mut gpu_to_host = channel_obs.initializing(
                 gpu.gpu_to_host_mem,
                 &format!("GPU {index} -> Host"),
-                self.id,
+                gpu.id,
                 gpu.memory,
                 self.host_memory,
             );
@@ -839,10 +809,9 @@ impl Worker {
         }
     }
 
-    /// Process a single work item dispatched by the scheduler.
-    /// Returns output batches that barrier operators deferred until after
-    /// the task completes, so the caller can send them after marking the
-    /// operator as completed.
+    /// Processes one operator for a query partition.
+    ///
+    /// Returns batches consumed by downstream operators in the partition.
     fn process_work_item(
         &self,
         context: &SimulatorContext,
@@ -913,10 +882,95 @@ impl Worker {
             }
         }
 
-        if uses_gpu {
-            sleep_pcie(input_bytes);
+        if let Some(target_gpu_index) = gpu_index {
+            for source_gpu_index in 0..self.gpus.len() {
+                if source_gpu_index == target_gpu_index {
+                    continue;
+                }
+                let transfer_bytes: u64 = input_batches
+                    .iter()
+                    .filter(|batch| batch.gpu_index == Some(source_gpu_index))
+                    .map(|batch| batch.bytes)
+                    .sum();
+                if transfer_bytes == 0 {
+                    continue;
+                }
+                let source_gpu = &self.gpus[source_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(source_gpu.gpu_to_host_mem),
+                        transfer_bytes,
+                    ))),
+                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                );
+                sleep_pcie(transfer_bytes);
+                saturating_sub(&source_gpu.memory_used, transfer_bytes);
+                self.host_memory_used
+                    .fetch_add(transfer_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index == Some(source_gpu_index) {
+                        batch.gpu_index = None;
+                    }
+                }
+            }
+
+            let host_to_gpu_bytes: u64 = input_batches
+                .iter()
+                .filter(|batch| batch.gpu_index.is_none())
+                .map(|batch| batch.bytes)
+                .sum();
+            if host_to_gpu_bytes > 0 {
+                let target_gpu = &self.gpus[target_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(target_gpu.host_mem_to_gpu),
+                        host_to_gpu_bytes,
+                    ))),
+                    Some(usage((Ref::new(target_gpu.memory), host_to_gpu_bytes))),
+                );
+                sleep_pcie(host_to_gpu_bytes);
+                saturating_sub(&self.host_memory_used, host_to_gpu_bytes);
+                target_gpu
+                    .memory_used
+                    .fetch_add(host_to_gpu_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index.is_none() {
+                        batch.gpu_index = Some(target_gpu_index);
+                    }
+                }
+            }
+        } else {
+            for source_gpu_index in 0..self.gpus.len() {
+                let transfer_bytes: u64 = input_batches
+                    .iter()
+                    .filter(|batch| batch.gpu_index == Some(source_gpu_index))
+                    .map(|batch| batch.bytes)
+                    .sum();
+                if transfer_bytes == 0 {
+                    continue;
+                }
+                let source_gpu = &self.gpus[source_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(source_gpu.gpu_to_host_mem),
+                        transfer_bytes,
+                    ))),
+                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                );
+                sleep_pcie(transfer_bytes);
+                saturating_sub(&source_gpu.memory_used, transfer_bytes);
+                self.host_memory_used
+                    .fetch_add(transfer_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index == Some(source_gpu_index) {
+                        batch.gpu_index = None;
+                    }
+                }
+            }
         }
-        let processor = gpu.map_or(thread, |device| device.compute);
         let memory = gpu.map_or(self.host_memory, |device| device.memory);
         let working_bytes = (input_bytes / 2).clamp(1024 * 1024, 2 * 1024 * 1024 * 1024);
         if let Some(device) = gpu {
@@ -930,7 +984,7 @@ impl Worker {
         task.computing(
             &operator.name(),
             input_bytes,
-            Some(usage(Ref::new(processor))),
+            thread_usage(),
             Some(usage((Ref::new(memory), working_bytes))),
         );
         let compute_multiplier = match operator.kind {
@@ -1011,9 +1065,6 @@ impl Worker {
                 gpu_index,
                 in_storage: false,
             };
-            for sender in &work.output_senders {
-                let _ = sender.send(batch.clone());
-            }
             if engine.workers.len() > 1
                 && let Some(other) = engine.workers.keys().find(|id| **id != self.id)
             {
@@ -1034,7 +1085,7 @@ impl Worker {
             }
             task.exit();
             operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
-            return Vec::new();
+            return vec![batch];
         }
 
         const MAX_CHUNK_BYTES: u64 = 64 * 1024 * 1024;
@@ -1061,20 +1112,9 @@ impl Worker {
             })
             .collect();
 
-        let deferred = operator.kind.output_behavior() == OutputBehavior::Deferred;
-        let mut deferred_sends = Vec::new();
-        for batch in batches {
-            if deferred {
-                deferred_sends.push(batch);
-            } else {
-                for sender in &work.output_senders {
-                    let _ = sender.send(batch.clone());
-                }
-            }
-        }
         task.exit();
         operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
-        deferred_sends
+        batches
     }
 
     fn execute_logical_plan(&self, execution: PlanExecution<'_>) {
@@ -1084,7 +1124,7 @@ impl Worker {
             logical_plan,
             num_tasks,
             result_rows,
-            ..
+            phase_barrier,
         } = execution;
         let physical_plan = simulate_planning(logical_plan);
         physical_plan.declare(context, Some(self.id));
@@ -1100,52 +1140,55 @@ impl Worker {
                 physical_plan.dag[*node].kind == Physical::JoinLocal && Some(*node) != first_join
             })
             .collect();
-        let scan_count = nodes
-            .iter()
-            .filter(|node| physical_plan.dag[**node].kind == Physical::FileSystemScan)
-            .count()
-            .max(1);
-        let tasks_per_scan = num_tasks.div_ceil(scan_count).max(1);
-        let mut outputs: HashMap<NodeIndex, Vec<Batch>> = HashMap::new();
-        let mut task_index = 0_u64;
-
+        let mut phases = vec![Vec::new()];
         for &node in &nodes {
-            let operator = &physical_plan.dag[node];
-            let inputs: Vec<Batch> = physical_plan
-                .dag
-                .edges_directed(node, Direction::Incoming)
-                .flat_map(|edge| outputs.get(&edge.source()).into_iter().flatten().cloned())
-                .collect();
-            let task_inputs: Vec<Vec<Batch>> = match operator.kind.input_behavior() {
-                InputBehavior::Source => (0..tasks_per_scan).map(|_| Vec::new()).collect(),
-                InputBehavior::Barrier => {
-                    (!inputs.is_empty()).then_some(inputs).into_iter().collect()
-                }
-                InputBehavior::Streaming => inputs.into_iter().map(|batch| vec![batch]).collect(),
-            };
-            let (output_tx, output_rx) = crossbeam_channel::unbounded();
-            let output_senders = vec![&output_tx];
-            let mut node_outputs = Vec::new();
-
-            for input_batches in task_inputs {
-                let work = WorkItem {
-                    operator_node: node,
-                    operator,
-                    input_batches,
-                    output_senders: output_senders.clone(),
-                    task_index,
-                    selective_joins: &selective_joins,
-                    result_rows,
-                };
-                let thread = self.threads[task_index as usize % self.threads.len()];
-                node_outputs.extend(self.process_work_item(context, engine, &work, thread));
-                while let Ok(batch) = output_rx.try_recv() {
-                    node_outputs.push(batch);
-                }
-                task_index += 1;
+            phases.last_mut().unwrap().push(node);
+            if physical_plan.dag[node].kind.ends_pipeline_phase() {
+                phases.push(Vec::new());
             }
-            outputs.insert(node, node_outputs);
         }
+        phases.retain(|phase| !phase.is_empty());
+
+        std::thread::scope(|scope| {
+            for (thread_index, &thread) in self.threads.iter().enumerate() {
+                let physical_plan = &physical_plan;
+                let phases = &phases;
+                let selective_joins = &selective_joins;
+                scope.spawn(move || {
+                    let mut partitions: Vec<_> = (thread_index..num_tasks)
+                        .step_by(self.threads.len())
+                        .map(|task_index| (task_index, HashMap::new()))
+                        .collect();
+
+                    for phase in phases {
+                        for (task_index, outputs) in &mut partitions {
+                            for &node in phase {
+                                let operator = &physical_plan.dag[node];
+                                let input_batches = physical_plan
+                                    .dag
+                                    .edges_directed(node, Direction::Incoming)
+                                    .flat_map(|edge| {
+                                        outputs.get(&edge.source()).into_iter().flatten().cloned()
+                                    })
+                                    .collect();
+                                let work = WorkItem {
+                                    operator_node: node,
+                                    operator,
+                                    input_batches,
+                                    task_index: *task_index as u64,
+                                    selective_joins,
+                                    result_rows,
+                                };
+                                let node_outputs =
+                                    self.process_work_item(context, engine, &work, thread);
+                                outputs.insert(node, node_outputs);
+                            }
+                        }
+                        phase_barrier.wait();
+                    }
+                });
+            }
+        });
 
         let op_obs = context.operator_observer();
         for &node in &nodes {
@@ -1411,11 +1454,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let workers: Vec<_> = engine.workers.values().collect();
             let result_rows = AtomicU64::new(0);
+            let phase_barrier =
+                Barrier::new(workers.iter().map(|worker| worker.threads.len()).sum());
             std::thread::scope(|s| {
                 let context = &context;
                 let engine = &engine;
                 let l_plan = &l_plan;
                 let result_rows = &result_rows;
+                let phase_barrier = &phase_barrier;
                 for worker in workers {
                     s.spawn(move || {
                         worker.execute_logical_plan(PlanExecution {
@@ -1424,6 +1470,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             logical_plan: l_plan,
                             num_tasks: args.num_tasks,
                             result_rows,
+                            phase_barrier,
                         });
                     });
                 }
@@ -1473,6 +1520,28 @@ mod tests {
             Physical::Sort.output_size(1_000_000, 100_000, false),
             (1_000_000, 100_000)
         );
+    }
+
+    #[test]
+    fn blocking_operators_end_pipeline_phases() {
+        for kind in [Physical::JoinPartition, Physical::Aggregate, Physical::Sort] {
+            assert!(kind.ends_pipeline_phase(), "{kind:?} must be a barrier");
+        }
+
+        for kind in [
+            Physical::FileSystemScan,
+            Physical::GpuDecode,
+            Physical::JoinLocal,
+            Physical::Filter,
+            Physical::Udf,
+            Physical::Limit,
+            Physical::Output,
+        ] {
+            assert!(
+                !kind.ends_pipeline_phase(),
+                "{kind:?} must remain pipelined"
+            );
+        }
     }
 
     #[test]

@@ -6,7 +6,6 @@ publish.workspace = true
 [dependencies]
 clap = {version = "4.5.57", features = ["derive", "env"] }
 petgraph.workspace = true
-crossbeam-channel = "0.5"
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-io = { path = "../../../../crates/io", features = ["clap"] }
 quent-query-engine-model = { path = "../../../../domains/query_engine/model" }

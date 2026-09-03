@@ -9,8 +9,13 @@ The simulator has multiple [Workers][worker], each with a logical and physical
 [Plan][plan]. Physical operators model compressed scans, GPU decoding,
 partitioned and local joins, aggregations, filters, UDFs, sorting, a query-wide
 limit, and output. During execution, a Task may allocate [Memory][memory], load
-from or spill to storage, compute on a CPU thread or GPU, or send shuffled data
-over the Network.
+from or spill to storage, compute on a CPU thread, transfer data between host
+and GPU memory, or send shuffled data over the Network.
+
+Worker threads process query partitions concurrently within bounded pipeline
+phases. Shuffle exchanges, aggregations, and sorts form query-wide barriers
+across all Workers, while scans and ordinary transformations remain pipelined
+within a phase.
 
 The generated profile follows query-engine cardinality behavior: decoding and
 one early many-to-many join may expand data, sorting preserves it, and later
@@ -29,10 +34,9 @@ animation is populated for both logical and physical plan views.
 - Storage: [Memory][memory]
 - StorageToHost: [Channel][channel] (Storage → Host Memory)
 - HostToStorage: [Channel][channel] (Host Memory → Storage)
-- GPU Memory: [Memory][memory]
-- HostToGpu / GpuToHost: [Channel][channel]
+- GPU: [Resource Group][resource-group] containing GPU Memory, HostToGpu, and
+  GpuToHost
 - Thread: [Processor][processor]
-- GPU Compute: [Processor][processor]
 - ThreadPool: [Resource Group][resource-group] of Threads
 
 ### Engine-scoped
@@ -52,7 +56,7 @@ Resource usage per state:
 | `queueing`   |             |            |                    |
 | `allocating` | Computation |            |                    |
 | `spilling`   | Computation |            | Transfer (MemToFs) |
-| `loading`    | Computation | Allocation | Transfer (FsToMem) |
+| `loading`    | Computation | Allocation | Input transfer     |
 | `computing`  | Computation | Allocation |                    |
 | `sending`    | Computation |            | Transfer (Link)    |
 
@@ -80,10 +84,12 @@ Every [Resource][resource] [Usage][usage] traces back to an Engine through
 resource groups:
 
 ```text
-Task -> Computation -> Thread / GPU Compute -> ThreadPool / Worker -> Engine
-Task -> Transfer    -> StorageToHost / HostToStorage -> Worker -> Engine
-Task -> Transfer    -> Link -> Network -> Engine
-Task -> Allocation  -> Host / GPU Memory -> Worker -> Engine
+Task -> Computation    -> Thread -> ThreadPool -> Worker -> Engine
+Task -> Transfer       -> HostToGpu / GpuToHost -> GPU -> Worker -> Engine
+Task -> Transfer       -> StorageToHost / HostToStorage -> Worker -> Engine
+Task -> Transfer       -> Link -> Network -> Engine
+Task -> Allocation     -> GPU Memory -> GPU -> Worker -> Engine
+Task -> Allocation     -> Host Memory -> Worker -> Engine
 ```
 
 ## Example analyses
