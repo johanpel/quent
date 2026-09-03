@@ -118,6 +118,60 @@ At the same time, Quent is already used or being evaluated in pioneering engines
 such as the GPU-accelerated [SiriusDB](https://www.sirius-db.com/) and [cuDF
 Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
 
+## Roadmap
+
+- Schema capture
+  - [x] YAML-based DSL
+- Code generation
+  - [x] Instrumentation library
+    - [ ] FSM typestate pattern API
+    - [x] Python integration
+      - [ ] Packaging
+        - [ ] Wheels
+        - [ ] Conda
+    - [x] C++ integration
+      - [ ] Packaging
+        - [ ] CMake
+        - [ ] Conda
+        - ...
+  - [ ] Analysis library
+    - [ ] Dataframe-style query API
+    - [ ] Lazy evaluation
+    - [ ] Async
+    - [ ] Query engine backend
+  - [ ] Command-Line Interface
+  - [ ] Reusable GitHub Actions Workflow
+- Exporters
+  - [x] NDJSON
+  - [x] Postcard
+  - [x] MessagePack
+  - [x] gRPC Collector
+  - [ ] Parquet
+  - [ ] DuckDB
+  - [ ] DuckDB Quack
+  - ...
+- Semantic Modules (Mods)
+  - [x] Typed and scoped references
+  - [x] Finite-State-Machines
+    - UI
+      - [x] Transitions Viewer
+  - [x] Resource
+    - UI
+      - [x] Timeline
+  - [ ] Directed Acyclic Graph
+    - UI
+      - [x] Viewer
+      - [x] Node stati~~stics
+  - [ ] OS Process + Thread
+  - [x] NVTX
+    - [x] UI Range Viewer
+  - [ ] CUPTI
+- UI
+  - [x] Entity listing and filtering
+  - [ ] Blueprints
+- [ ] Model Context Protocol
+- [ ] Tutorial
+
 ## Mods
 
 Built-in mods include things useful for a wide variety of applications:
