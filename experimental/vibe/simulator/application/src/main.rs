@@ -1059,6 +1059,14 @@ impl Worker {
 
         if operator.kind == Physical::JoinPartition {
             operator.batches_out.fetch_add(1, Ordering::Relaxed);
+            if let Some(device) = gpu {
+                device
+                    .memory_used
+                    .fetch_add(output_bytes, Ordering::Relaxed);
+            } else {
+                self.host_memory_used
+                    .fetch_add(output_bytes, Ordering::Relaxed);
+            }
             let batch = Batch {
                 bytes: output_bytes,
                 rows: output_rows,

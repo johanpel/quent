@@ -916,10 +916,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let operator_series: HashMap<Uuid, Vec<Uuid>> = query_view
             .operators()
             .map(|operator| {
-                let operator_ui = operator.to_ui(epoch);
-                let mut series = Vec::with_capacity(1 + operator_ui.parent_operator_ids.len());
+                let parent_operator_ids = operator.parent_operator_ids();
+                let mut series = Vec::with_capacity(1 + parent_operator_ids.len());
                 series.push(operator.id());
-                series.extend(operator_ui.parent_operator_ids);
+                series.extend(parent_operator_ids);
                 series.sort_unstable();
                 series.dedup();
                 (operator.id(), series)

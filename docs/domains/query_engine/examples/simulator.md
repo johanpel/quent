@@ -12,11 +12,6 @@ limit, and output. During execution, a Task may allocate [Memory][memory], load
 from or spill to storage, compute on a CPU thread, transfer data between host
 and GPU memory, or send shuffled data over the Network.
 
-Worker threads process query partitions concurrently within bounded pipeline
-phases. Shuffle exchanges, aggregations, and sorts form query-wide barriers
-across all Workers, while scans and ordinary transformations remain pipelined
-within a phase.
-
 The generated profile follows query-engine cardinality behavior: decoding and
 one early many-to-many join may expand data, sorting preserves it, and later
 selective joins, aggregations, filters, and projection-like UDFs reduce it. The
