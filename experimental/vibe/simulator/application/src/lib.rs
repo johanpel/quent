@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Barrier,
+        atomic::{AtomicU64, Ordering},
+    },
     time::Duration,
 };
 
 use clap::Parser;
 use petgraph::{Directed, Direction, Graph, graph::NodeIndex, visit::EdgeRef};
-use quent_dynamic_attributes::{DynamicAttribute, DynamicList, DynamicStruct};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_io::clap::ExporterArgs;
 use quent_model::{Ref, usage};
 use quent_query_engine_model::{
@@ -18,8 +21,8 @@ use quent_query_engine_model::{
     operator, plan, port, query_group, worker,
 };
 use quent_simulator_instrumentation::SimulatorContext;
-use rand::{RngExt, distr::slice::Choose, rng};
-use tracing::{debug, info};
+use rand::{RngExt, rng};
+use tracing::info;
 use uuid::Uuid;
 
 #[derive(Parser, Debug)]
@@ -46,6 +49,10 @@ struct Args {
     #[arg(long, default_value_t = 2)]
     num_threads: usize,
 
+    /// Number of GPUs per worker
+    #[arg(long, default_value_t = 1)]
+    num_gpus: usize,
+
     #[command(flatten)]
     exporter: ExporterArgs,
 }
@@ -58,38 +65,64 @@ fn initialize_tracing() {
         .init();
 }
 
-fn log_resource_links(engine_id: Uuid, query_id: Uuid, resource_id: Uuid, resource_name: &str) {
-    debug!("\tResource: {resource_name}
-\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource/{resource_id}/timeline?num_bins=16&start=0&end=4"
-    );
+fn sleep_fixed(micros: u64) {
+    std::thread::sleep(Duration::from_micros(micros * 4));
 }
 
-fn log_resource_group_links(
-    engine_id: Uuid,
-    query_id: Uuid,
-    resource_group_id: Uuid,
-    resource_group_name: &str,
-) {
-    debug!("\tResource Group: {resource_group_name}
-\t\tTimeline: http://localhost:8080/analyzer/engine/{engine_id}/query/{query_id}/resource_group/{resource_group_id}/timeline?num_bins=16&start=0&end=4"
-    );
+/// Atomically subtract `val` from `counter`, clamping at 0 to prevent
+/// unsigned underflow wrapping to u64::MAX.
+fn saturating_sub(counter: &AtomicU64, val: u64) {
+    let mut current = counter.load(Ordering::Relaxed);
+    loop {
+        let new = current.saturating_sub(val);
+        match counter.compare_exchange_weak(current, new, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => break,
+            Err(actual) => current = actual,
+        }
+    }
 }
 
-fn sleep_short() {
-    std::thread::sleep(Duration::from_micros(1));
+/// Simulated bandwidth limits — server-grade hardware.
+const STORAGE_BANDWIDTH_MBPS: u64 = 28_000; // 28 GB/s (NVMe RAID array, 4x gen4 drives)
+const PCIE_BANDWIDTH_MBPS: u64 = 63_000; // 63 GB/s (PCIe 5.0 x16)
+const NETWORK_BANDWIDTH_MBPS: u64 = 50_000; // 50 GB/s (400 GbE / InfiniBand HDR)
+const COMPUTE_BANDWIDTH_MBPS: u64 = 80_000; // 80 GB/s (memory-bound compute throughput)
+
+/// Sleep to simulate a transfer at the given bandwidth (MB/s).
+fn sleep_transfer(bytes: u64, bandwidth_mbps: u64) {
+    let mib = (bytes / (1024 * 1024)).max(1);
+    // microseconds = MiB * 1_000_000 / bandwidth_mbps
+    let micros = 50 + mib * 1_000_000 / bandwidth_mbps;
+    std::thread::sleep(Duration::from_micros(micros));
 }
 
-fn sleep_long() {
-    std::thread::sleep(Duration::from_micros(25));
+/// Storage I/O (NVMe RAID ~28 GB/s).
+fn sleep_storage_io(bytes: u64) {
+    sleep_transfer(bytes, STORAGE_BANDWIDTH_MBPS);
 }
 
-fn sleep_sometimes_really_long() {
-    // make 1% tasks incredibly slow
-    std::thread::sleep(Duration::from_micros(if rng().random_ratio(1, 100) {
-        50000
+/// PCIe transfer: host↔GPU (~63 GB/s, PCIe 5.0 x16).
+fn sleep_pcie(bytes: u64) {
+    sleep_transfer(bytes, PCIE_BANDWIDTH_MBPS);
+}
+
+/// Network transfer (~50 GB/s, 400 GbE / InfiniBand).
+fn sleep_network(bytes: u64) {
+    sleep_transfer(bytes, NETWORK_BANDWIDTH_MBPS);
+}
+
+/// Compute-bound processing (~80 GB/s effective throughput).
+fn sleep_compute(bytes: u64) {
+    sleep_transfer(bytes, COMPUTE_BANDWIDTH_MBPS);
+}
+
+/// Storage I/O with occasional latency spikes (1% of the time, 4x slower).
+fn sleep_storage_io_variable(bytes: u64) {
+    if rng().random_ratio(1, 100) {
+        sleep_transfer(bytes, STORAGE_BANDWIDTH_MBPS / 4);
     } else {
-        25
-    }));
+        sleep_storage_io(bytes);
+    }
 }
 
 struct Operator<T: Debug> {
@@ -97,6 +130,12 @@ struct Operator<T: Debug> {
     parents: Vec<Uuid>,
     kind: T,
     tasks_processed: AtomicU64,
+    batches_in: AtomicU64,
+    bytes_in: AtomicU64,
+    rows_in: AtomicU64,
+    batches_out: AtomicU64,
+    bytes_out: AtomicU64,
+    rows_out: AtomicU64,
 }
 
 impl<T> Operator<T>
@@ -113,6 +152,12 @@ where
             parents,
             kind,
             tasks_processed: AtomicU64::new(0),
+            batches_in: AtomicU64::new(0),
+            bytes_in: AtomicU64::new(0),
+            rows_in: AtomicU64::new(0),
+            batches_out: AtomicU64::new(0),
+            bytes_out: AtomicU64::new(0),
+            rows_out: AtomicU64::new(0),
         }
     }
 }
@@ -130,8 +175,6 @@ where
 struct Port {
     id: Uuid,
     name: &'static str,
-    num_bytes: AtomicU64,
-    num_rows: AtomicU64,
 }
 
 #[derive(Debug)]
@@ -152,14 +195,10 @@ impl Edge {
             source: Port {
                 id: Uuid::now_v7(),
                 name: source,
-                num_bytes: AtomicU64::new(0),
-                num_rows: AtomicU64::new(0),
             },
             target: Port {
                 id: Uuid::now_v7(),
                 name: target,
-                num_bytes: AtomicU64::new(0),
-                num_rows: AtomicU64::new(0),
             },
         }
     }
@@ -170,6 +209,9 @@ enum Logical {
     Scan,
     Project,
     Join,
+    Aggregate,
+    Filter,
+    Udf,
     Sort,
     Limit,
     Output,
@@ -178,11 +220,97 @@ enum Logical {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Physical {
     FileSystemScan,
+    GpuDecode,
     JoinPartition,
     JoinLocal,
+    Aggregate,
+    Filter,
+    Udf,
     Sort,
     Limit,
     Output,
+}
+
+/// A work item dispatched by the scheduler to a pool thread.
+struct WorkItem<'a> {
+    operator_node: NodeIndex,
+    operator: &'a Operator<Physical>,
+    /// Input batches (empty for scan operators which produce their own).
+    input_batches: Vec<Batch>,
+    /// Task index for naming.
+    task_index: u64,
+    /// JoinLocal nodes that use selective (non-amplifying) join logic.
+    selective_joins: &'a HashSet<NodeIndex>,
+    /// Query-wide row budget shared by every worker's limit operator.
+    result_rows: &'a AtomicU64,
+}
+
+struct PlanExecution<'a> {
+    context: &'a SimulatorContext,
+    engine: &'a Engine,
+    logical_plan: &'a Plan<Logical>,
+    num_tasks: usize,
+    result_rows: &'a AtomicU64,
+    phase_barrier: &'a Barrier,
+}
+
+impl Physical {
+    fn ends_pipeline_phase(self) -> bool {
+        matches!(
+            self,
+            Physical::JoinPartition | Physical::Aggregate | Physical::Sort
+        )
+    }
+
+    fn output_size(self, input_bytes: u64, input_rows: u64, selective_join: bool) -> (u64, u64) {
+        let scale = |value: u64, percent: u64| value.saturating_mul(percent) / 100;
+
+        match self {
+            Physical::JoinLocal if selective_join => {
+                let row_percent = rng().random_range(40..70);
+                let byte_percent = rng().random_range(35..65);
+                (
+                    scale(input_bytes, byte_percent),
+                    scale(input_rows, row_percent),
+                )
+            }
+            Physical::JoinLocal => {
+                let factor = rng().random_range(2..5);
+                (
+                    input_bytes.saturating_mul(factor),
+                    input_rows.saturating_mul(factor),
+                )
+            }
+            Physical::Aggregate => {
+                let row_divisor = rng().random_range(8..24);
+                let byte_divisor = rng().random_range(6..18);
+                (input_bytes / byte_divisor, input_rows / row_divisor)
+            }
+            Physical::Filter => {
+                let keep_percent = rng().random_range(35..70);
+                (
+                    scale(input_bytes, keep_percent),
+                    scale(input_rows, keep_percent),
+                )
+            }
+            Physical::Udf => {
+                let width_percent = rng().random_range(80..95);
+                (scale(input_bytes, width_percent), input_rows)
+            }
+            _ => (input_bytes, input_rows),
+        }
+    }
+}
+
+const RESULT_ROW_LIMIT: u64 = 42;
+
+fn claim_result_rows(rows_out: &AtomicU64, requested: u64) -> u64 {
+    let mut claimed = 0;
+    let _ = rows_out.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+        claimed = requested.min(RESULT_ROW_LIMIT.saturating_sub(current));
+        (claimed > 0).then_some(current + claimed)
+    });
+    claimed
 }
 
 struct Plan<T>
@@ -194,7 +322,6 @@ where
     query_id: Uuid,
     parent_plan_id: Option<Uuid>,
     dag: Graph<Operator<T>, Edge, Directed>,
-    execute: bool,
 }
 
 impl<T: Debug> Plan<T> {
@@ -235,8 +362,8 @@ impl<T: Debug> Plan<T> {
             let op_handle = operator_obs.create(op.id);
             op_handle.declaration(operator::Declaration {
                 plan_id: Ref::new(self.id),
-                parent_operator_ids: op.parents.iter().map(|&id| Ref::new(id)).collect(),
-                instance_name: format!("{}-{node_idx:?}", op.name()),
+                parent_operator_ids: op.parents.iter().copied().map(Ref::new).collect(),
+                instance_name: format!("{}:{}", node_idx.index(), op.name()),
                 type_name: op.name(),
                 custom_attributes: Default::default(),
             });
@@ -268,38 +395,81 @@ impl<T: Debug> Plan<T> {
                         }),
                 )
             {
-                let port_handle = port_obs.create(id);
-                port_handle.declaration(event);
+                port_obs.create(id).declaration(event)
             }
         }
     }
 }
 
 // Create the following logical plan:
-// Scan -> Project \
-//                  -> Join -> Sort -> Limit -> Output
-// Scan -> Project /
+// Scan -> Project \                        Scan -> Project \
+//                  -> Join -> Aggregate                    -> Join -> Aggregate -> Filter -> Udf \
+// Scan -> Project /                        Scan -> Project /                                     -> Join -> Filter -> Udf -> Aggregate -> Sort -> Limit -> Output
+//                                                                                Scan -> Project /
+// Each Scan -> Project lowers to: FileSystemScan -> GpuDecode
 fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
-    // Add a scan --> project branch and return the (project, project output port) Uuids.
     fn add_scan_project_branch(plan: &mut Graph<Operator<Logical>, Edge, Directed>) -> NodeIndex {
         let scan = plan.add_node(Operator::new(Logical::Scan, vec![]));
         let project = plan.add_node(Operator::new(Logical::Project, vec![]));
         plan.add_edge(scan, project, Edge::new("out", "in"));
-
         project
+    }
+
+    fn add_join(
+        plan: &mut Graph<Operator<Logical>, Edge, Directed>,
+        left: NodeIndex,
+        right: NodeIndex,
+    ) -> NodeIndex {
+        let join = plan.add_node(Operator::new(Logical::Join, vec![]));
+        plan.add_edge(left, join, Edge::new("out", "left"));
+        plan.add_edge(right, join, Edge::new("out", "right"));
+        join
     }
 
     let mut dag = Graph::new();
 
+    // Left branch: join scans A and B, then pre-aggregate
     let project_a = add_scan_project_branch(&mut dag);
     let project_b = add_scan_project_branch(&mut dag);
+    let join_left = add_join(&mut dag, project_a, project_b);
+    let agg_left = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_left, agg_left, Edge::new("out", "in"));
 
-    let join = dag.add_node(Operator::new(Logical::Join, vec![]));
-    dag.add_edge(project_a, join, Edge::new("out", "left"));
-    dag.add_edge(project_b, join, Edge::new("out", "right"));
+    // Right branch: join scans C and D, then pre-aggregate
+    let project_c = add_scan_project_branch(&mut dag);
+    let project_d = add_scan_project_branch(&mut dag);
+    let join_right = add_join(&mut dag, project_c, project_d);
+    let agg_right = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_right, agg_right, Edge::new("out", "in"));
+
+    // Final join combining pre-aggregated sides
+    let join_final = add_join(&mut dag, agg_left, agg_right);
+
+    let aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(join_final, aggregate, Edge::new("out", "in"));
+
+    let filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
+    dag.add_edge(aggregate, filter, Edge::new("out", "in"));
+
+    let udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
+    dag.add_edge(filter, udf, Edge::new("out", "in"));
+
+    // Late-stage dimension table lookup join
+    let project_e = add_scan_project_branch(&mut dag);
+    let join_lookup = add_join(&mut dag, udf, project_e);
+
+    // Post-join processing before final sort
+    let post_filter = dag.add_node(Operator::new(Logical::Filter, vec![]));
+    dag.add_edge(join_lookup, post_filter, Edge::new("out", "in"));
+
+    let post_udf = dag.add_node(Operator::new(Logical::Udf, vec![]));
+    dag.add_edge(post_filter, post_udf, Edge::new("out", "in"));
+
+    let post_aggregate = dag.add_node(Operator::new(Logical::Aggregate, vec![]));
+    dag.add_edge(post_udf, post_aggregate, Edge::new("out", "in"));
 
     let sort = dag.add_node(Operator::new(Logical::Sort, vec![]));
-    dag.add_edge(join, sort, Edge::new("out", "in"));
+    dag.add_edge(post_aggregate, sort, Edge::new("out", "in"));
 
     let limit = dag.add_node(Operator::new(Logical::Limit, vec![]));
     dag.add_edge(sort, limit, Edge::new("out", "in"));
@@ -313,7 +483,6 @@ fn make_logical_plan(query_id: Uuid, name: String) -> Plan<Logical> {
         query_id,
         parent_plan_id: None,
         dag,
-        execute: false,
     }
 }
 
@@ -334,7 +503,6 @@ fn simulate_planning(logical: &Plan<Logical>) -> Plan<Physical> {
         query_id: logical.query_id,
         parent_plan_id: Some(logical.id),
         dag: Graph::new(),
-        execute: true,
     };
 
     lower_logical(logical, &mut physical, output, None);
@@ -355,21 +523,26 @@ fn lower_logical(
             unimplemented!("this shouldn't happen in this simulator, yet")
         }
         Logical::Project => {
-            // Check whether this project has an incoming scan source to simulate predicate pushdown
+            // Scan+Project lowers to FileSystemScan → GpuDecode
             if let Some(scan_edge) = logical
                 .dag
                 .edges_directed(logical_current_idx, Direction::Incoming)
                 .find(|edge| logical.dag[edge.source()].kind == Logical::Scan)
             {
                 let scan_op = &logical.dag[scan_edge.source()];
-                let source = physical.dag.add_node(Operator::new(
+                let scan = physical.dag.add_node(Operator::new(
                     Physical::FileSystemScan,
                     vec![current_logical_op.id, scan_op.id],
                 ));
+                let decode = physical.dag.add_node(Operator::new(
+                    Physical::GpuDecode,
+                    vec![current_logical_op.id],
+                ));
+                physical.dag.add_edge(scan, decode, Edge::new("out", "in"));
                 if let Some((target_node, target_port)) = physical_target_idx_port {
                     physical
                         .dag
-                        .add_edge(source, target_node, Edge::new(target_port, "in"));
+                        .add_edge(decode, target_node, Edge::new(target_port, "in"));
                 }
             } else {
                 unimplemented!("this shouldn't happen in this simulator, yet");
@@ -387,10 +560,7 @@ fn lower_logical(
             ));
             physical
                 .dag
-                .add_edge(partition, local, Edge::new("build_out", "build_in"));
-            physical
-                .dag
-                .add_edge(partition, local, Edge::new("probe_out", "probe_in"));
+                .add_edge(partition, local, Edge::new("out", "partitioned_in"));
 
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
@@ -411,14 +581,21 @@ fn lower_logical(
                 );
             }
         }
-        Logical::Sort => {
-            let sort = physical
+        Logical::Aggregate | Logical::Filter | Logical::Udf | Logical::Sort => {
+            let physical_kind = match current_logical_op.kind {
+                Logical::Aggregate => Physical::Aggregate,
+                Logical::Filter => Physical::Filter,
+                Logical::Udf => Physical::Udf,
+                Logical::Sort => Physical::Sort,
+                _ => unreachable!(),
+            };
+            let node = physical
                 .dag
-                .add_node(Operator::new(Physical::Sort, vec![current_logical_op.id]));
+                .add_node(Operator::new(physical_kind, vec![current_logical_op.id]));
             if let Some((target_node, target_port)) = physical_target_idx_port {
                 physical
                     .dag
-                    .add_edge(sort, target_node, Edge::new("out", target_port));
+                    .add_edge(node, target_node, Edge::new("out", target_port));
             }
             let input_edge = logical
                 .dag
@@ -429,7 +606,7 @@ fn lower_logical(
                 logical,
                 physical,
                 input_edge.source(),
-                Some((sort, input_edge.weight().target.name)),
+                Some((node, input_edge.weight().target.name)),
             );
         }
         Logical::Limit => {
@@ -477,534 +654,649 @@ fn lower_logical(
     }
 }
 
-struct Worker {
+#[derive(Debug)]
+struct Gpu {
     id: Uuid,
     memory: Uuid,
-    filesystem: Uuid,
-    fs_to_mem: Uuid,
-    mem_to_fs: Uuid,
+    host_mem_to_gpu: Uuid,
+    gpu_to_host_mem: Uuid,
+    /// Tracks current GPU memory usage in bytes for spill decisions.
+    memory_used: AtomicU64,
+}
+
+impl Gpu {
+    fn new() -> Self {
+        Self {
+            id: Uuid::now_v7(),
+            memory: Uuid::now_v7(),
+            host_mem_to_gpu: Uuid::now_v7(),
+            gpu_to_host_mem: Uuid::now_v7(),
+            memory_used: AtomicU64::new(0),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Batch {
+    bytes: u64,
+    rows: u64,
+    /// Index into the worker's `gpus` vec if this batch is currently on a GPU.
+    /// `None` means the batch is in host memory (or in storage if `in_storage` is true).
+    gpu_index: Option<usize>,
+    /// Batch has been spilled to storage; memory is not tracked on host or GPU.
+    in_storage: bool,
+}
+
+struct Worker {
+    id: Uuid,
+    name: String,
+    host_memory: Uuid,
+    /// Tracks current host memory usage in bytes for spill decisions.
+    host_memory_used: AtomicU64,
     thread_pool: Uuid,
+    storage: Uuid,
+    storage_to_host: Uuid,
+    host_to_storage: Uuid,
     threads: Vec<Uuid>,
-    // Resource handles — kept alive until shut_down().
+    gpus: Vec<Gpu>,
     memory_handles: Vec<quent_stdlib::memory::MemoryHandle>,
     channel_handles: Vec<quent_stdlib::channel::ChannelHandle>,
     processor_handles: Vec<quent_stdlib::processor::ProcessorHandle>,
 }
 
 impl Worker {
-    fn new(
-        id: Uuid,
-        name: String,
-        context: &SimulatorContext,
-        parent_engine_id: Uuid,
-        num_threads: usize,
-    ) -> Self {
-        let worker_obs = context.worker_observer();
-
-        info!("Spawning worker {name}");
-        let worker_handle = worker_obs.create(id);
-        worker_handle.init(worker::Init {
-            parent_engine_id: Ref::new(parent_engine_id),
-            instance_name: name.clone(),
-        });
-
-        let mut memory_handles = Vec::new();
-        let mut channel_handles = Vec::new();
-        let mut processor_handles = Vec::new();
-
-        let mem_obs = context.memory_observer();
-        let ch_obs = context.channel_observer();
-        let proc_obs = context.processor_observer();
-
-        // Filesystem
-        let filesystem = Uuid::now_v7();
-        let mut fs_handle = mem_obs.initializing(filesystem, "Filesystem", id);
-        fs_handle.operating(Some(0));
-        memory_handles.push(fs_handle);
-
-        // Memory pool
-        let memory = Uuid::now_v7();
-        let mut mem_handle = mem_obs.initializing(memory, "Memory", id);
-        mem_handle.operating(Some(0));
-        memory_handles.push(mem_handle);
-
-        // Filesystem -> Memory channel
-        let fs_to_mem = Uuid::now_v7();
-        let mut fs_to_mem_handle =
-            ch_obs.initializing(fs_to_mem, "Filesystem -> Memory", id, filesystem, memory);
-        fs_to_mem_handle.operating(None);
-        channel_handles.push(fs_to_mem_handle);
-
-        // Memory -> Filesystem channel
-        let mem_to_fs = Uuid::now_v7();
-        let mut mem_to_fs_handle =
-            ch_obs.initializing(mem_to_fs, "Memory -> Filesystem", id, memory, filesystem);
-        mem_to_fs_handle.operating(None);
-        channel_handles.push(mem_to_fs_handle);
-
-        // Thread pool
-        let tp_obs = context.thread_pool_observer();
-        let thread_pool = Uuid::now_v7();
-        tp_obs.thread_pool(thread_pool, "Thread Pool", id);
-
-        let mut threads = Vec::new();
-        for index in 0..num_threads {
-            let thread_id = Uuid::now_v7();
-            let mut thread_handle =
-                proc_obs.initializing(thread_id, &format!("Thread {index}"), thread_pool);
-            threads.push(thread_id);
-            thread_handle.operating();
-            processor_handles.push(thread_handle);
-        }
-
+    fn new(id: Uuid, name: String, num_threads: usize, num_gpus: usize) -> Self {
         Self {
             id,
-            memory,
-            filesystem,
-            fs_to_mem,
-            mem_to_fs,
-            thread_pool,
-            threads,
-            memory_handles,
-            channel_handles,
-            processor_handles,
+            name,
+            host_memory: Uuid::now_v7(),
+            host_memory_used: AtomicU64::new(0),
+            thread_pool: Uuid::now_v7(),
+            storage: Uuid::now_v7(),
+            storage_to_host: Uuid::now_v7(),
+            host_to_storage: Uuid::now_v7(),
+            threads: std::iter::repeat_with(Uuid::now_v7)
+                .take(num_threads)
+                .collect(),
+            gpus: std::iter::repeat_with(Gpu::new).take(num_gpus).collect(),
+            memory_handles: Vec::new(),
+            channel_handles: Vec::new(),
+            processor_handles: Vec::new(),
         }
     }
 
-    fn execute_physical_operator_task(
+    fn spawn(&mut self, context: &SimulatorContext, parent_engine_id: Uuid) {
+        let worker_obs = context.worker_observer();
+        worker_obs.create(self.id).init(worker::Init {
+            parent_engine_id: Ref::new(parent_engine_id),
+            instance_name: self.name.clone(),
+        });
+
+        let memory_obs = context.memory_observer();
+        let channel_obs = context.channel_observer();
+        let processor_obs = context.processor_observer();
+
+        let mut host_memory = memory_obs.initializing(self.host_memory, "Host Memory", self.id);
+        host_memory.operating(Some(0));
+        self.memory_handles.push(host_memory);
+
+        let mut storage = memory_obs.initializing(self.storage, "Storage", self.id);
+        storage.operating(Some(0));
+        self.memory_handles.push(storage);
+
+        let mut storage_to_host = channel_obs.initializing(
+            self.storage_to_host,
+            "Storage -> Host",
+            self.id,
+            self.storage,
+            self.host_memory,
+        );
+        storage_to_host.operating(None);
+        self.channel_handles.push(storage_to_host);
+
+        let mut host_to_storage = channel_obs.initializing(
+            self.host_to_storage,
+            "Host -> Storage",
+            self.id,
+            self.host_memory,
+            self.storage,
+        );
+        host_to_storage.operating(None);
+        self.channel_handles.push(host_to_storage);
+
+        context
+            .thread_pool_observer()
+            .thread_pool(self.thread_pool, "Thread Pool", self.id);
+        for (index, thread_id) in self.threads.iter().enumerate() {
+            let mut thread = processor_obs.initializing(
+                *thread_id,
+                &format!("Thread {index}"),
+                self.thread_pool,
+            );
+            thread.operating();
+            self.processor_handles.push(thread);
+        }
+
+        for (index, gpu) in self.gpus.iter().enumerate() {
+            context
+                .gpu_observer()
+                .gpu(gpu.id, &format!("GPU {index}"), self.id);
+
+            let mut gpu_memory =
+                memory_obs.initializing(gpu.memory, &format!("GPU {index} Memory"), gpu.id);
+            gpu_memory.operating(Some(0));
+            self.memory_handles.push(gpu_memory);
+
+            let mut host_to_gpu = channel_obs.initializing(
+                gpu.host_mem_to_gpu,
+                &format!("Host -> GPU {index}"),
+                gpu.id,
+                self.host_memory,
+                gpu.memory,
+            );
+            host_to_gpu.operating(None);
+            self.channel_handles.push(host_to_gpu);
+
+            let mut gpu_to_host = channel_obs.initializing(
+                gpu.gpu_to_host_mem,
+                &format!("GPU {index} -> Host"),
+                gpu.id,
+                gpu.memory,
+                self.host_memory,
+            );
+            gpu_to_host.operating(None);
+            self.channel_handles.push(gpu_to_host);
+        }
+    }
+
+    /// Processes one operator for a query partition.
+    ///
+    /// Returns batches consumed by downstream operators in the partition.
+    fn process_work_item(
         &self,
         context: &SimulatorContext,
-        index: usize,
         engine: &Engine,
-        operator: &Operator<Physical>,
+        work: &WorkItem,
         thread: Uuid,
-    ) {
-        let thread_ref = Ref::new(thread);
-        let mem_ref = Ref::new(self.memory);
+    ) -> Vec<Batch> {
+        let operator = work.operator;
+        let mut task = context.task_observer().queueing(
+            Uuid::now_v7(),
+            &format!("task-{}", work.task_index),
+            operator.id,
+        );
+        sleep_fixed(50);
 
-        // Create task — emits entry -> Queueing
-        let task_obs = context.task_observer();
-        let mut task = task_obs.queueing(Uuid::now_v7(), &format!("task-{index}"), operator.id);
-
-        sleep_long();
-        let (spill, load, send) = match operator.kind {
-            Physical::FileSystemScan => (false, rng().random_bool(0.5), false),
-            Physical::JoinPartition => (false, rng().random_bool(0.5), true),
-            Physical::JoinLocal => (true, rng().random_bool(0.5), false),
-            Physical::Sort => (false, rng().random_bool(0.5), false),
-            Physical::Limit => (false, rng().random_bool(0.5), false),
-            Physical::Output => (false, rng().random_bool(0.5), false),
+        let mut input_batches = if operator.kind == Physical::FileSystemScan {
+            let compressed_bytes = rng().random_range(8..32) * 1024 * 1024;
+            let rows = rng().random_range(32_768..131_072);
+            self.host_memory_used
+                .fetch_add(compressed_bytes, Ordering::Relaxed);
+            vec![Batch {
+                bytes: compressed_bytes,
+                rows,
+                gpu_index: None,
+                in_storage: false,
+            }]
+        } else {
+            work.input_batches.clone()
         };
 
-        let num_bytes = rng().random_range(0..1024) * 1024 * 1024;
+        let input_bytes: u64 = input_batches.iter().map(|batch| batch.bytes).sum();
+        let input_rows: u64 = input_batches.iter().map(|batch| batch.rows).sum();
+        operator
+            .batches_in
+            .fetch_add(input_batches.len() as u64, Ordering::Relaxed);
+        operator.bytes_in.fetch_add(input_bytes, Ordering::Relaxed);
+        operator.rows_in.fetch_add(input_rows, Ordering::Relaxed);
 
-        task.allocating(Some(usage(thread_ref)));
-        sleep_short();
-
-        if spill {
-            task.spilling(
-                Some(usage(thread_ref)),
-                Some(usage((Ref::new(self.mem_to_fs), num_bytes))),
-            );
-            sleep_sometimes_really_long();
-            task.allocating(Some(usage(thread_ref)));
-            sleep_short();
-        }
-
-        if load {
-            task.loading(
-                Some(usage(thread_ref)),
-                Some(usage((Ref::new(self.fs_to_mem), num_bytes))),
-                Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
-            );
-            sleep_sometimes_really_long();
-        }
-
-        task.computing(
-            /* instance_name */ "",
-            /* input_bytes */ num_bytes,
-            Some(usage(thread_ref)),
-            Some(usage((mem_ref, rng().random_range(0..4) * num_bytes))),
+        let uses_gpu = matches!(
+            operator.kind,
+            Physical::GpuDecode
+                | Physical::JoinPartition
+                | Physical::JoinLocal
+                | Physical::Aggregate
+                | Physical::Filter
+                | Physical::Udf
+                | Physical::Sort
         );
+        let gpu_index =
+            (uses_gpu && !self.gpus.is_empty()).then(|| work.task_index as usize % self.gpus.len());
+        let gpu = gpu_index.and_then(|index| self.gpus.get(index));
+        let thread_usage = || Some(usage(Ref::new(thread)));
 
-        if send {
-            let other_workers = engine.workers.keys().filter(|w| **w != self.id);
-
-            for other in other_workers {
-                let link = *engine.network_links.get(&(self.id, *other)).unwrap();
-
-                task.sending(
-                    Some(usage(thread_ref)),
-                    Some(usage((Ref::new(link), num_bytes))),
-                );
-                sleep_long();
+        task.allocating(thread_usage());
+        sleep_fixed(25);
+        let reads_storage = operator.kind == Physical::FileSystemScan
+            || input_batches.iter().any(|batch| batch.in_storage);
+        if reads_storage {
+            task.loading(
+                thread_usage(),
+                Some(usage((Ref::new(self.storage_to_host), input_bytes))),
+                Some(usage((Ref::new(self.host_memory), input_bytes))),
+            );
+            sleep_storage_io_variable(input_bytes);
+            for batch in &mut input_batches {
+                batch.in_storage = false;
+                batch.gpu_index = None;
             }
         }
+
+        if let Some(target_gpu_index) = gpu_index {
+            for source_gpu_index in 0..self.gpus.len() {
+                if source_gpu_index == target_gpu_index {
+                    continue;
+                }
+                let transfer_bytes: u64 = input_batches
+                    .iter()
+                    .filter(|batch| batch.gpu_index == Some(source_gpu_index))
+                    .map(|batch| batch.bytes)
+                    .sum();
+                if transfer_bytes == 0 {
+                    continue;
+                }
+                let source_gpu = &self.gpus[source_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(source_gpu.gpu_to_host_mem),
+                        transfer_bytes,
+                    ))),
+                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                );
+                sleep_pcie(transfer_bytes);
+                saturating_sub(&source_gpu.memory_used, transfer_bytes);
+                self.host_memory_used
+                    .fetch_add(transfer_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index == Some(source_gpu_index) {
+                        batch.gpu_index = None;
+                    }
+                }
+            }
+
+            let host_to_gpu_bytes: u64 = input_batches
+                .iter()
+                .filter(|batch| batch.gpu_index.is_none())
+                .map(|batch| batch.bytes)
+                .sum();
+            if host_to_gpu_bytes > 0 {
+                let target_gpu = &self.gpus[target_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(target_gpu.host_mem_to_gpu),
+                        host_to_gpu_bytes,
+                    ))),
+                    Some(usage((Ref::new(target_gpu.memory), host_to_gpu_bytes))),
+                );
+                sleep_pcie(host_to_gpu_bytes);
+                saturating_sub(&self.host_memory_used, host_to_gpu_bytes);
+                target_gpu
+                    .memory_used
+                    .fetch_add(host_to_gpu_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index.is_none() {
+                        batch.gpu_index = Some(target_gpu_index);
+                    }
+                }
+            }
+        } else {
+            for source_gpu_index in 0..self.gpus.len() {
+                let transfer_bytes: u64 = input_batches
+                    .iter()
+                    .filter(|batch| batch.gpu_index == Some(source_gpu_index))
+                    .map(|batch| batch.bytes)
+                    .sum();
+                if transfer_bytes == 0 {
+                    continue;
+                }
+                let source_gpu = &self.gpus[source_gpu_index];
+                task.loading(
+                    thread_usage(),
+                    Some(usage((
+                        Ref::new(source_gpu.gpu_to_host_mem),
+                        transfer_bytes,
+                    ))),
+                    Some(usage((Ref::new(self.host_memory), transfer_bytes))),
+                );
+                sleep_pcie(transfer_bytes);
+                saturating_sub(&source_gpu.memory_used, transfer_bytes);
+                self.host_memory_used
+                    .fetch_add(transfer_bytes, Ordering::Relaxed);
+                for batch in &mut input_batches {
+                    if batch.gpu_index == Some(source_gpu_index) {
+                        batch.gpu_index = None;
+                    }
+                }
+            }
+        }
+        let memory = gpu.map_or(self.host_memory, |device| device.memory);
+        let working_bytes = (input_bytes / 2).clamp(1024 * 1024, 2 * 1024 * 1024 * 1024);
+        if let Some(device) = gpu {
+            device
+                .memory_used
+                .fetch_add(working_bytes, Ordering::Relaxed);
+        } else {
+            self.host_memory_used
+                .fetch_add(working_bytes, Ordering::Relaxed);
+        }
+        task.computing(
+            &operator.name(),
+            input_bytes,
+            thread_usage(),
+            Some(usage((Ref::new(memory), working_bytes))),
+        );
+        let compute_multiplier = match operator.kind {
+            Physical::JoinLocal => 3,
+            Physical::Aggregate | Physical::Sort => 2,
+            _ => 1,
+        };
+        sleep_compute(input_bytes.saturating_mul(compute_multiplier));
+        if let Some(device) = gpu {
+            saturating_sub(&device.memory_used, working_bytes);
+        } else {
+            saturating_sub(&self.host_memory_used, working_bytes);
+        }
+        for batch in &input_batches {
+            if let Some(index) = batch.gpu_index {
+                saturating_sub(&self.gpus[index].memory_used, batch.bytes);
+            } else if !batch.in_storage {
+                saturating_sub(&self.host_memory_used, batch.bytes);
+            }
+        }
+
+        if operator.kind == Physical::Output {
+            if input_bytes > 0 {
+                task.spilling(
+                    thread_usage(),
+                    Some(usage((Ref::new(self.host_to_storage), input_bytes))),
+                );
+                sleep_storage_io(input_bytes);
+                task.allocating(thread_usage());
+                task.computing(
+                    "finalize output",
+                    0,
+                    thread_usage(),
+                    Some(usage((Ref::new(self.host_memory), 0))),
+                );
+            }
+            task.exit();
+            operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
+            return Vec::new();
+        }
+
+        let (mut output_bytes, output_rows) = match operator.kind {
+            Physical::GpuDecode => (
+                input_bytes.saturating_mul(rng().random_range(2..4)),
+                input_rows,
+            ),
+            Physical::Limit => {
+                let rows = claim_result_rows(work.result_rows, input_rows);
+                let bytes = input_bytes
+                    .saturating_mul(rows)
+                    .checked_div(input_rows)
+                    .unwrap_or(0);
+                (bytes, rows)
+            }
+            _ => operator.kind.output_size(
+                input_bytes,
+                input_rows,
+                work.selective_joins.contains(&work.operator_node),
+            ),
+        };
+
+        if output_rows == 0 {
+            task.exit();
+            operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
+            return Vec::new();
+        }
+        output_bytes = output_bytes.max(output_rows.saturating_mul(8));
+        operator
+            .bytes_out
+            .fetch_add(output_bytes, Ordering::Relaxed);
+        operator.rows_out.fetch_add(output_rows, Ordering::Relaxed);
+
+        if operator.kind == Physical::JoinPartition {
+            operator.batches_out.fetch_add(1, Ordering::Relaxed);
+            if let Some(device) = gpu {
+                device
+                    .memory_used
+                    .fetch_add(output_bytes, Ordering::Relaxed);
+            } else {
+                self.host_memory_used
+                    .fetch_add(output_bytes, Ordering::Relaxed);
+            }
+            let batch = Batch {
+                bytes: output_bytes,
+                rows: output_rows,
+                gpu_index,
+                in_storage: false,
+            };
+            if engine.workers.len() > 1
+                && let Some(other) = engine.workers.keys().find(|id| **id != self.id)
+            {
+                let link = engine.network_links[&(self.id, *other)];
+                let network_bytes = output_bytes
+                    .saturating_mul(engine.workers.len().saturating_sub(1) as u64)
+                    / engine.workers.len() as u64;
+                task.sending(thread_usage(), Some(usage((Ref::new(link), network_bytes))));
+                sleep_network(network_bytes);
+                task.queueing("network completion", operator.id);
+                task.allocating(thread_usage());
+                task.computing(
+                    "finalize shuffle",
+                    0,
+                    thread_usage(),
+                    Some(usage((Ref::new(memory), 0))),
+                );
+            }
+            task.exit();
+            operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
+            return vec![batch];
+        }
+
+        const MAX_CHUNK_BYTES: u64 = 64 * 1024 * 1024;
+        let chunk_count = output_bytes.div_ceil(MAX_CHUNK_BYTES).max(1);
+        operator
+            .batches_out
+            .fetch_add(chunk_count, Ordering::Relaxed);
+        let batches: Vec<Batch> = (0..chunk_count)
+            .map(|index| {
+                let batch = Batch {
+                    bytes: output_bytes / chunk_count
+                        + u64::from(index < output_bytes % chunk_count),
+                    rows: output_rows / chunk_count + u64::from(index < output_rows % chunk_count),
+                    gpu_index,
+                    in_storage: false,
+                };
+                if let Some(device) = gpu {
+                    device.memory_used.fetch_add(batch.bytes, Ordering::Relaxed);
+                } else {
+                    self.host_memory_used
+                        .fetch_add(batch.bytes, Ordering::Relaxed);
+                }
+                batch
+            })
+            .collect();
 
         task.exit();
+        operator.tasks_processed.fetch_add(1, Ordering::Relaxed);
+        batches
     }
 
-    fn execute_logical_plan(
-        &self,
-        context: &SimulatorContext,
-        engine: &Engine,
-        l_plan: &Plan<Logical>,
-        num_tasks: usize,
-    ) {
-        let physical_plan = simulate_planning(l_plan);
+    fn execute_logical_plan(&self, execution: PlanExecution<'_>) {
+        let PlanExecution {
+            context,
+            engine,
+            logical_plan,
+            num_tasks,
+            result_rows,
+            phase_barrier,
+        } = execution;
+        let physical_plan = simulate_planning(logical_plan);
         physical_plan.declare(context, Some(self.id));
-
-        // Log analyzer debug links:
-        log_resource_links(engine.id, physical_plan.query_id, self.memory, "Memory");
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.filesystem,
-            "Filesystem",
-        );
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.fs_to_mem,
-            "Filesystem -> Memory",
-        );
-        log_resource_links(
-            engine.id,
-            physical_plan.query_id,
-            self.mem_to_fs,
-            "Memory -> Filesystem",
-        );
-        log_resource_group_links(
-            engine.id,
-            physical_plan.query_id,
-            self.thread_pool,
-            "Thread Pool",
-        );
-        for (index, thread_id) in self.threads.iter().enumerate() {
-            log_resource_links(
-                engine.id,
-                physical_plan.query_id,
-                *thread_id,
-                format!("Thread {index}").as_str(),
-            );
-        }
-
         let nodes = petgraph::algo::toposort(&physical_plan.dag, None).unwrap();
-        info!(
-            "Topological order: {:?}",
-            nodes
-                .iter()
-                .map(|node| format!("{:?}: {:?}", node, physical_plan.dag[*node].kind))
-                .collect::<Vec<_>>()
-        );
+        let first_join = nodes
+            .iter()
+            .copied()
+            .find(|node| physical_plan.dag[*node].kind == Physical::JoinLocal);
+        let selective_joins: HashSet<NodeIndex> = nodes
+            .iter()
+            .copied()
+            .filter(|node| {
+                physical_plan.dag[*node].kind == Physical::JoinLocal && Some(*node) != first_join
+            })
+            .collect();
+        let mut phases = vec![Vec::new()];
+        for &node in &nodes {
+            phases.last_mut().unwrap().push(node);
+            if physical_plan.dag[node].kind.ends_pipeline_phase() {
+                phases.push(Vec::new());
+            }
+        }
+        phases.retain(|phase| !phase.is_empty());
 
-        if physical_plan.execute {
-            // On each thread, run a bunch of tasks for each operator.
-            let tasks_per_thread_per_op = num_tasks / self.threads.len();
-            let plan = &physical_plan;
-            let nodes = &nodes;
-            std::thread::scope(|s| {
-                for (thread_index, thread_id) in self.threads.iter().enumerate() {
-                    s.spawn({
-                        let thread_id = *thread_id;
-                        move || {
-                            for task_index in thread_index * tasks_per_thread_per_op
-                                ..(thread_index + 1) * tasks_per_thread_per_op
-                            {
-                                for node_idx in nodes {
-                                    let op = &plan.dag[*node_idx];
-                                    self.execute_physical_operator_task(
-                                        context, task_index, engine, op, thread_id,
-                                    );
-                                    op.tasks_processed.fetch_add(1, Ordering::Relaxed);
-                                    let edges =
-                                        plan.dag.edges_directed(*node_idx, Direction::Outgoing);
-                                    for edge in edges {
-                                        edge.weight().source.num_bytes.fetch_add(
-                                            rng().random_range(1024..1024 * 1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().source.num_rows.fetch_add(
-                                            rng().random_range(16..1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().target.num_bytes.fetch_add(
-                                            rng().random_range(1024..128 * 1024),
-                                            Ordering::Relaxed,
-                                        );
-                                        edge.weight().target.num_rows.fetch_add(
-                                            rng().random_range(16..1024),
-                                            Ordering::Relaxed,
-                                        );
-                                    }
-                                }
+        std::thread::scope(|scope| {
+            for (thread_index, &thread) in self.threads.iter().enumerate() {
+                let physical_plan = &physical_plan;
+                let phases = &phases;
+                let selective_joins = &selective_joins;
+                scope.spawn(move || {
+                    let mut partitions: Vec<_> = (thread_index..num_tasks)
+                        .step_by(self.threads.len())
+                        .map(|task_index| (task_index, HashMap::new()))
+                        .collect();
+
+                    for phase in phases {
+                        for (task_index, outputs) in &mut partitions {
+                            for &node in phase {
+                                let operator = &physical_plan.dag[node];
+                                let input_batches = physical_plan
+                                    .dag
+                                    .edges_directed(node, Direction::Incoming)
+                                    .flat_map(|edge| {
+                                        outputs.get(&edge.source()).into_iter().flatten().cloned()
+                                    })
+                                    .collect();
+                                let work = WorkItem {
+                                    operator_node: node,
+                                    operator,
+                                    input_batches,
+                                    task_index: *task_index as u64,
+                                    selective_joins,
+                                    result_rows,
+                                };
+                                let node_outputs =
+                                    self.process_work_item(context, engine, &work, thread);
+                                outputs.insert(node, node_outputs);
                             }
                         }
-                    });
-                }
-            });
-        }
-
-        // Set some stats
-        macro_rules! attr {
-            (u64 $name:expr, $range:expr) => { DynamicAttribute::u64($name, rng().random_range($range)) };
-            (u32 $name:expr, $val:expr) => { DynamicAttribute::u32($name, $val) };
-            (f64 $name:expr, $range:expr) => { DynamicAttribute::f64($name, rng().random_range($range)) };
-            (str $name:expr, $val:expr) => { DynamicAttribute::string($name, $val) };
-            (pick $name:expr, $($choice:expr),+) => {
-                DynamicAttribute::string($name, *rng().sample(Choose::new(&[$($choice),+]).unwrap()))
-            };
-        }
-
-        let op_obs = context.operator_observer();
-        let port_obs = context.port_observer();
-        for node_idx in nodes.iter() {
-            let op = &physical_plan.dag[*node_idx];
-            let tasks_processed = op.tasks_processed.load(Ordering::Relaxed);
-
-            // Common metrics for all operators
-            let mut attributes = vec![
-                DynamicAttribute::u64("tasks_processed", tasks_processed),
-                attr!(u64 "wall_time_ns",       100_000..5_000_000_000),
-                attr!(u64 "cpu_time_ns",        50_000..4_000_000_000),
-                attr!(u64 "peak_memory_bytes",  1024..512 * 1024 * 1024),
-                attr!(u64 "output_rows",        0..10_000_000),
-                attr!(u64 "output_bytes",       0..2u64 * 1024 * 1024 * 1024),
-                attr!(u64 "input_rows",         0..50_000_000),
-                attr!(u64 "input_bytes",        0..4u64 * 1024 * 1024 * 1024),
-                attr!(u64 "num_batches",        1..2048),
-                attr!(f64 "avg_batch_rows",     64.0..65536.0),
-            ];
-
-            match op.kind {
-                Physical::FileSystemScan => {
-                    let num_files: u64 = rng().random_range(1..256);
-                    attributes.extend([
-                        attr!(str "file_name",              "/dev/null"),
-                        DynamicAttribute::u64("files_scanned", num_files),
-                        attr!(u64 "bytes_read",             1024..8u64 * 1024 * 1024 * 1024),
-                        attr!(u64 "row_groups_read",        1..1024),
-                        attr!(u64 "row_groups_skipped",     0..512),
-                        attr!(u64 "pages_read",             1..8192),
-                        attr!(u64 "pages_decompressed",     1..8192),
-                        attr!(u64 "io_wait_ns",             10_000..2_000_000_000),
-                        attr!(f64 "io_throughput_mbs",      50.0..6000.0),
-                        attr!(u64 "decompress_time_ns",     10_000..500_000_000),
-                        attr!(u64 "predicate_filter_time_ns", 0..100_000_000),
-                        attr!(f64 "predicate_selectivity",  0.001..1.0),
-                        attr!(u64 "null_count",             0..100_000),
-                        attr!(u64 "columns_projected",      1..64),
-                        // Per-file byte counts
-                        DynamicAttribute::list(
-                            "per_file_bytes_read",
-                            DynamicList::U64(
-                                (0..num_files)
-                                    .map(|_| rng().random_range(1024..1024 * 1024 * 1024))
-                                    .collect(),
-                            ),
-                        ),
-                        // Column projection info
-                        DynamicAttribute::list(
-                            "projected_column_names",
-                            DynamicList::String(
-                                [
-                                    "id", "name", "ts", "amount", "region", "status", "category",
-                                    "score",
-                                ]
-                                .iter()
-                                .take(rng().random_range(1..8))
-                                .map(|s| s.to_string())
-                                .collect(),
-                            ),
-                        ),
-                    ]);
-                }
-                Physical::JoinPartition => {
-                    let num_partitions: u64 = rng().random_range(2..256);
-                    attributes.extend([
-                        attr!(u64  "average_partition_size_bytes", 1..1024 * 1024 * 1024),
-                        attr!(pick "join_strategy",          "broadcast", "hash partition"),
-                        DynamicAttribute::u64("num_partitions", num_partitions),
-                        attr!(u64  "partition_time_ns",      100_000..1_000_000_000),
-                        attr!(u64  "hash_time_ns",           50_000..500_000_000),
-                        attr!(f64  "partition_skew",         0.0..5.0),
-                        attr!(u64  "max_partition_rows",     100..1_000_000),
-                        attr!(u64  "min_partition_rows",     0..10_000),
-                        attr!(u64  "build_side_bytes",       1024..2u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "probe_side_bytes",       1024..4u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "network_bytes_sent",     0..2u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "network_time_ns",        0..2_000_000_000),
-                        // Row count per partition
-                        DynamicAttribute::list(
-                            "partition_row_counts",
-                            DynamicList::U64(
-                                (0..num_partitions)
-                                    .map(|_| rng().random_range(0..1_000_000))
-                                    .collect(),
-                            ),
-                        ),
-                    ]);
-                }
-                Physical::JoinLocal => attributes.extend([
-                    attr!(u64 "hash_table_size_bytes",   1024..2u64 * 1024 * 1024 * 1024),
-                    attr!(u64 "hash_table_entries",      100..50_000_000),
-                    attr!(u64 "build_time_ns",           100_000..2_000_000_000),
-                    attr!(u64 "probe_time_ns",           100_000..3_000_000_000),
-                    attr!(u64 "build_rows",              100..10_000_000),
-                    attr!(u64 "probe_rows",              100..50_000_000),
-                    attr!(u64 "match_rows",              0..10_000_000),
-                    attr!(f64 "hash_collision_rate",     0.0..0.3),
-                    attr!(u64 "spill_count",             0..32),
-                    attr!(u64 "spill_bytes",             0..4u64 * 1024 * 1024 * 1024),
-                    attr!(u64 "bloom_filter_size_bytes", 0..64 * 1024 * 1024),
-                    attr!(f64 "bloom_filter_fpr",        0.001..0.1),
-                    // Join key columns
-                    DynamicAttribute::list(
-                        "join_keys",
-                        DynamicList::String(
-                            vec!["id", "region_id", "ts"]
-                                .into_iter()
-                                .take(rng().random_range(1..4))
-                                .map(|s| s.to_string())
-                                .collect(),
-                        ),
-                    ),
-                    // Per-spill detail: list of structs with bytes + time
-                    DynamicAttribute::list(
-                        "spill_events",
-                        DynamicList::Struct(
-                            (0..rng().random_range(0u64..4))
-                                .map(|_| {
-                                    DynamicStruct(vec![
-                                        DynamicAttribute::u64(
-                                            "bytes",
-                                            rng().random_range(1024..1024 * 1024 * 1024),
-                                        ),
-                                        DynamicAttribute::u64(
-                                            "time_ns",
-                                            rng().random_range(10_000..500_000_000),
-                                        ),
-                                        DynamicAttribute::u64(
-                                            "rows",
-                                            rng().random_range(1000..1_000_000),
-                                        ),
-                                    ])
-                                })
-                                .collect(),
-                        ),
-                    ),
-                ]),
-                Physical::Sort => {
-                    let num_keys: usize = rng().random_range(1..8);
-                    attributes.extend([
-                        attr!(pick "direction",              "asc", "desc"),
-                        DynamicAttribute::u64("sort_keys", num_keys as u64),
-                        attr!(u64  "comparison_count",       1000..500_000_000),
-                        attr!(u64  "merge_passes",           1..16),
-                        attr!(u64  "run_count",              1..512),
-                        attr!(u64  "spill_count",            0..64),
-                        attr!(u64  "spill_bytes",            0..4u64 * 1024 * 1024 * 1024),
-                        attr!(u64  "merge_time_ns",          100_000..2_000_000_000),
-                        attr!(f64  "avg_key_length_bytes",   4.0..256.0),
-                        attr!(f64  "presorted_fraction",     0.0..1.0),
-                        // Per sort-key specification
-                        DynamicAttribute::list(
-                            "key_specs",
-                            DynamicList::Struct(
-                                [
-                                    "ts", "amount", "id", "score", "name", "region", "category",
-                                    "status",
-                                ]
-                                .iter()
-                                .take(num_keys)
-                                .map(|col| {
-                                    DynamicStruct(vec![
-                                        DynamicAttribute::string("column", *col),
-                                        DynamicAttribute::string(
-                                            "direction",
-                                            *rng().sample(Choose::new(&["asc", "desc"]).unwrap()),
-                                        ),
-                                        DynamicAttribute::string(
-                                            "nulls",
-                                            *rng().sample(Choose::new(&["first", "last"]).unwrap()),
-                                        ),
-                                    ])
-                                })
-                                .collect(),
-                            ),
-                        ),
-                    ]);
-                }
-                Physical::Limit => attributes.extend([
-                    attr!(u32 "amount",                  42),
-                    attr!(u64 "rows_inspected",          42..10_000_000),
-                    attr!(u64 "rows_emitted",            1..43),
-                    attr!(f64 "early_termination_ratio", 0.0..1.0),
-                ]),
-                Physical::Output => {
-                    let flush_count: u64 = rng().random_range(1..128);
-                    attributes.extend([
-                        attr!(pick "sink",                   "file", "memory"),
-                        attr!(u64  "rows_written",           0..10_000_000),
-                        attr!(u64  "bytes_written",          0..4u64 * 1024 * 1024 * 1024),
-                        DynamicAttribute::u64("flush_count", flush_count),
-                        attr!(u64  "flush_time_ns",          10_000..500_000_000),
-                        attr!(f64  "compression_ratio",      0.1..0.9),
-                        attr!(u64  "serialization_time_ns",  10_000..1_000_000_000),
-                        // Per-flush durations
-                        DynamicAttribute::list(
-                            "per_flush_time_ns",
-                            DynamicList::U64(
-                                (0..flush_count)
-                                    .map(|_| rng().random_range(1000..10_000_000))
-                                    .collect(),
-                            ),
-                        ),
-                    ]);
-                }
-            }
-            let op_handle = op_obs.create(op.id);
-            op_handle.statistics(operator::Statistics {
-                custom_attributes: attributes.into(),
-            });
-
-            let edges = physical_plan
-                .dag
-                .edges_directed(*node_idx, Direction::Incoming);
-            for edge in edges {
-                let port = &edge.weight().target;
-                let port_handle = port_obs.create(port.id);
-                port_handle.statistics(port::Statistics {
-                    custom_attributes: vec![
-                        DynamicAttribute::u64("bytes", port.num_bytes.load(Ordering::Relaxed)),
-                        DynamicAttribute::u64("rows", port.num_rows.load(Ordering::Relaxed)),
-                    ]
-                    .into(),
+                        phase_barrier.wait();
+                    }
                 });
             }
+        });
+
+        let op_obs = context.operator_observer();
+        for &node in &nodes {
+            let operator = &physical_plan.dag[node];
+            let input_batches = operator.batches_in.load(Ordering::Relaxed);
+            let input_bytes = operator.bytes_in.load(Ordering::Relaxed);
+            let input_rows = operator.rows_in.load(Ordering::Relaxed);
+            let output_batches = operator.batches_out.load(Ordering::Relaxed);
+            let output_bytes = operator.bytes_out.load(Ordering::Relaxed);
+            let output_rows = operator.rows_out.load(Ordering::Relaxed);
+            let mut attributes = vec![
+                DynamicAttribute::u64(
+                    "tasks_processed",
+                    operator.tasks_processed.load(Ordering::Relaxed),
+                ),
+                DynamicAttribute::u64("input_batches", input_batches),
+                DynamicAttribute::u64("input_bytes", input_bytes),
+                DynamicAttribute::u64("input_rows", input_rows),
+                DynamicAttribute::u64("output_batches", output_batches),
+                DynamicAttribute::u64("output_bytes", output_bytes),
+                DynamicAttribute::u64("output_rows", output_rows),
+            ];
+            match operator.kind {
+                Physical::FileSystemScan => {
+                    attributes.push(DynamicAttribute::u64("bytes_read", input_bytes))
+                }
+                Physical::GpuDecode => attributes.extend([
+                    DynamicAttribute::u64("compressed_bytes", input_bytes),
+                    DynamicAttribute::u64("decompressed_bytes", output_bytes),
+                ]),
+                Physical::JoinPartition => attributes.push(DynamicAttribute::u64(
+                    "network_bytes_sent",
+                    output_bytes.saturating_mul(engine.workers.len().saturating_sub(1) as u64)
+                        / engine.workers.len().max(1) as u64,
+                )),
+                Physical::JoinLocal => attributes.extend([
+                    DynamicAttribute::u64("build_rows", input_rows / 2),
+                    DynamicAttribute::u64("probe_rows", input_rows - input_rows / 2),
+                    DynamicAttribute::u64("match_rows", output_rows),
+                ]),
+                Physical::Aggregate => attributes.push(DynamicAttribute::f64(
+                    "reduction_factor",
+                    input_rows as f64 / output_rows.max(1) as f64,
+                )),
+                Physical::Filter => attributes.push(DynamicAttribute::f64(
+                    "selectivity",
+                    output_rows as f64 / input_rows.max(1) as f64,
+                )),
+                Physical::Limit => {
+                    attributes.push(DynamicAttribute::u64("amount", RESULT_ROW_LIMIT))
+                }
+                Physical::Output => {
+                    attributes.push(DynamicAttribute::u64("rows_written", input_rows))
+                }
+                Physical::Udf | Physical::Sort => {}
+            }
+            op_obs.create(operator.id).statistics(operator::Statistics {
+                custom_attributes: attributes.into(),
+            });
+        }
+
+        let port_obs = context.port_observer();
+        for edge in physical_plan.dag.edge_references() {
+            let source = &physical_plan.dag[edge.source()];
+            let attributes = || {
+                vec![
+                    DynamicAttribute::u64("bytes", source.bytes_out.load(Ordering::Relaxed)),
+                    DynamicAttribute::u64("rows", source.rows_out.load(Ordering::Relaxed)),
+                ]
+                .into()
+            };
+            port_obs
+                .create(edge.weight().source.id)
+                .statistics(port::Statistics {
+                    custom_attributes: attributes(),
+                });
+            port_obs
+                .create(edge.weight().target.id)
+                .statistics(port::Statistics {
+                    custom_attributes: attributes(),
+                });
         }
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        let worker_obs = context.worker_observer();
-
         for handle in &mut self.memory_handles {
             handle.finalizing();
             handle.exit();
-            sleep_long();
+            sleep_fixed(25);
         }
         for handle in &mut self.channel_handles {
             handle.finalizing();
             handle.exit();
-            sleep_long();
+            sleep_fixed(25);
         }
         for handle in &mut self.processor_handles {
             handle.finalizing();
             handle.exit();
         }
-        sleep_long();
-        let worker_handle = worker_obs.create(self.id);
-        worker_handle.exit(worker::Exit);
+        context.worker_observer().create(self.id).exit(worker::Exit);
     }
 }
 
@@ -1027,18 +1319,20 @@ impl Engine {
         }
     }
 
-    fn spawn(&mut self, context: &SimulatorContext, num_workers: usize, num_threads: usize) {
-        info!("Simulating Engine:");
-        info!("\thttp://localhost:8080/analyzer/engine/{}", self.id);
+    fn spawn(
+        &mut self,
+        context: &SimulatorContext,
+        num_workers: usize,
+        num_threads: usize,
+        num_gpus: usize,
+    ) {
+        info!("Simulating Engine {}", self.id);
         let engine_obs = context.engine_observer();
-
-        let instance_name = format!("holodeck-{:04x}", rng().random::<u32>());
-        let engine_handle = engine_obs.create(self.id);
-        engine_handle.init(engine::Init {
-            instance_name: Some(instance_name),
+        engine_obs.create(self.id).init(engine::Init {
+            instance_name: Some(format!("holodeck-{:04x}", rng().random::<u32>())),
             implementation: EngineImplementationAttributes {
                 name: Some("Simulator".into()),
-                version: Some("0.0.0-PoC".into()),
+                version: Some("vibe".into()),
                 custom_attributes: Default::default(),
             },
         });
@@ -1049,48 +1343,47 @@ impl Engine {
             .collect::<Vec<_>>();
 
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
-            let worker = Worker::new(
+            let mut worker = Worker::new(
                 *worker_id,
                 format!("drone-{worker_index}"),
-                context,
-                self.id,
                 num_threads,
+                num_gpus,
             );
+            worker.spawn(context, self.id);
             self.workers.insert(*worker_id, worker);
         }
 
         // Engine-wide resources
         // Create a fully connected bidirectional network of workers
-        let net_obs = context.network_observer();
-        self.network = Uuid::now_v7();
-        net_obs.network(self.network, "network", self.id);
-        let ch_obs = context.channel_observer();
+        context
+            .network_observer()
+            .network(self.network, "Network", self.id);
+        let channel_obs = context.channel_observer();
         for worker_index in 0..worker_ids.len() {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
-
                 let up_link_id = Uuid::now_v7();
-                let mut up_handle = ch_obs.initializing(
+                let mut up_link = channel_obs.initializing(
                     up_link_id,
                     &format!("worker {worker_index} -> {other_worker_index}"),
                     self.network,
-                    self.workers.get(&worker_id).unwrap().memory,
-                    self.workers.get(&other_worker_id).unwrap().memory,
+                    self.workers[&worker_id].host_memory,
+                    self.workers[&other_worker_id].host_memory,
                 );
-                up_handle.operating(None);
-                self.network_link_handles.push(up_handle);
+                up_link.operating(None);
+                self.network_link_handles.push(up_link);
 
                 let down_link_id = Uuid::now_v7();
-                let mut down_handle = ch_obs.initializing(
+                let mut down_link = channel_obs.initializing(
                     down_link_id,
                     &format!("worker {other_worker_index} -> {worker_index}"),
                     self.network,
-                    self.workers.get(&other_worker_id).unwrap().memory,
-                    self.workers.get(&worker_id).unwrap().memory,
+                    self.workers[&other_worker_id].host_memory,
+                    self.workers[&worker_id].host_memory,
                 );
-                down_handle.operating(None);
-                self.network_link_handles.push(down_handle);
+                down_link.operating(None);
+                self.network_link_handles.push(down_link);
 
                 self.network_links
                     .insert((worker_id, other_worker_id), up_link_id);
@@ -1101,9 +1394,6 @@ impl Engine {
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        let engine_obs = context.engine_observer();
-
-        // Tear down network
         for handle in &mut self.network_link_handles {
             handle.finalizing();
             handle.exit();
@@ -1114,8 +1404,7 @@ impl Engine {
             worker.shut_down(context);
         }
 
-        let engine_handle = engine_obs.create(self.id);
-        engine_handle.exit(engine::Exit);
+        context.engine_observer().create(self.id).exit(engine::Exit);
         info!("Simulated engine shut down.")
     }
 }
@@ -1133,6 +1422,8 @@ pub struct SimulationConfig {
     pub num_workers: usize,
     /// Number of threads in each worker thread pool.
     pub num_threads: usize,
+    /// Number of GPUs attached to each worker.
+    pub num_gpus: usize,
 }
 
 impl Default for SimulationConfig {
@@ -1143,82 +1434,96 @@ impl Default for SimulationConfig {
             num_tasks: 32,
             num_workers: 2,
             num_threads: 2,
+            num_gpus: 1,
         }
     }
 }
 
-/// Emit a simulator run through `context`.
+/// Emits a simulator run through `context`.
 pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
     let mut engine = Engine::new();
-    engine.spawn(&context, config.num_workers, config.num_threads);
+    engine.spawn(
+        &context,
+        config.num_workers,
+        config.num_threads,
+        config.num_gpus,
+    );
 
     for (query_group_index, query_group_id) in std::iter::repeat_with(Uuid::now_v7)
         .take(config.num_query_groups)
         .enumerate()
     {
-        info!("Simulating Query Group:");
-        info!(
-            "\thttp://localhost:8080/analyzer/engine/{}/query_group/{query_group_id}/list_queries",
-            engine.id
-        );
-
         let query_group_obs = context.query_group_observer();
-
         query_group_obs.declaration(
             query_group_id,
             query_group::Declaration {
                 engine_id: engine.id,
-                instance_name: format!("TPC-H (iteration {query_group_index})"),
+                instance_name: format!("TPC-H (run {query_group_index})"),
             },
         );
 
         // "Run" the specified number of queries, sequentially for now.
-        for query_index in 0..config.num_queries {
+        for (query_index, query_id) in std::iter::repeat_with(Uuid::now_v7)
+            .take(config.num_queries)
+            .enumerate()
+        {
+            let total = config.num_query_groups * config.num_queries;
+            let done = query_group_index * config.num_queries + query_index;
+            info!("{}% ({}/{})", done * 100 / total, done, total);
+            const QUERY_NUMBERS: &[u32] = &[42, 1337, 7, 404, 256, 99, 13, 1024, 69, 314];
+            let n = QUERY_NUMBERS[query_index % QUERY_NUMBERS.len()];
+            let query_name = format!("Q{n}");
             let query_obs = context.query_observer();
-            let query_id = Uuid::now_v7();
-            let mut query_handle = query_obs.init(
-                query_id,
-                &format!("Q{query_index}"),
-                Ref::new(query_group_id),
-            );
-            info!("Simulating Query:");
-            info!(
-                "\thttp://localhost:8080/analyzer/engine/{}/query/{query_id}",
-                engine.id
-            );
-            query_handle.planning();
+            let mut query = query_obs.init(query_id, &query_name, Ref::new(query_group_id));
+            query.planning();
             let l_plan = make_logical_plan(query_id, "logical".into());
             l_plan.declare(&context, None);
-            query_handle.executing();
+            query.executing();
 
             let workers: Vec<_> = engine.workers.values().collect();
+            let result_rows = AtomicU64::new(0);
+            let phase_barrier =
+                Barrier::new(workers.iter().map(|worker| worker.threads.len()).sum());
             std::thread::scope(|s| {
+                let context = &context;
+                let engine = &engine;
+                let l_plan = &l_plan;
+                let result_rows = &result_rows;
+                let phase_barrier = &phase_barrier;
                 for worker in workers {
-                    s.spawn(|| {
-                        worker.execute_logical_plan(&context, &engine, &l_plan, config.num_tasks);
+                    s.spawn(move || {
+                        worker.execute_logical_plan(PlanExecution {
+                            context,
+                            engine,
+                            logical_plan: l_plan,
+                            num_tasks: config.num_tasks,
+                            result_rows,
+                            phase_barrier,
+                        });
                     });
                 }
             });
 
-            query_handle.exit();
+            query.exit();
         }
     }
 
     engine.shut_down(&context);
 
-    // Each entity stream flushes only when its last observer clone is released.
-    // `engine` co-owns those clones through its worker and network-link handles,
-    // so it must drop together with the context to write all pending events.
     drop((engine, context));
-
     info!("simulation completed");
 }
 
-/// Run the simulator command-line interface.
+/// Runs the simulator command-line interface.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     initialize_tracing();
 
     let args = Args::parse();
+
+    if args.num_workers == 0 || args.num_threads == 0 || args.num_tasks == 0 {
+        return Err("num-workers, num-threads, and num-tasks must be greater than zero".into());
+    }
+
     info!("Simulating with: {args:?}");
 
     let config = SimulationConfig {
@@ -1227,6 +1532,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         num_tasks: args.num_tasks,
         num_workers: args.num_workers,
         num_threads: args.num_threads,
+        num_gpus: args.num_gpus,
     };
     let context = match args.exporter.into_options() {
         Some(provider) => SimulatorContext::try_new(provider)?,
@@ -1234,4 +1540,104 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     simulate(context, config);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reducing_operators_do_not_increase_data_volume() {
+        const BYTES: u64 = 1_000_000;
+        const ROWS: u64 = 100_000;
+
+        for _ in 0..100 {
+            for kind in [
+                Physical::JoinLocal,
+                Physical::Aggregate,
+                Physical::Filter,
+                Physical::Udf,
+            ] {
+                let (bytes, rows) = kind.output_size(BYTES, ROWS, true);
+                assert!(bytes < BYTES, "{kind:?} increased or preserved bytes");
+                assert!(rows <= ROWS, "{kind:?} increased rows");
+            }
+        }
+    }
+
+    #[test]
+    fn amplifying_join_and_sort_have_realistic_cardinality() {
+        let (join_bytes, join_rows) = Physical::JoinLocal.output_size(1_000_000, 100_000, false);
+        assert!(join_bytes > 1_000_000);
+        assert!(join_rows > 100_000);
+
+        assert_eq!(
+            Physical::Sort.output_size(1_000_000, 100_000, false),
+            (1_000_000, 100_000)
+        );
+    }
+
+    #[test]
+    fn blocking_operators_end_pipeline_phases() {
+        for kind in [Physical::JoinPartition, Physical::Aggregate, Physical::Sort] {
+            assert!(kind.ends_pipeline_phase(), "{kind:?} must be a barrier");
+        }
+
+        for kind in [
+            Physical::FileSystemScan,
+            Physical::GpuDecode,
+            Physical::JoinLocal,
+            Physical::Filter,
+            Physical::Udf,
+            Physical::Limit,
+            Physical::Output,
+        ] {
+            assert!(
+                !kind.ends_pipeline_phase(),
+                "{kind:?} must remain pipelined"
+            );
+        }
+    }
+
+    #[test]
+    fn concurrent_limit_claims_cannot_exceed_result_limit() {
+        let rows_out = AtomicU64::new(0);
+        let claimed = AtomicU64::new(0);
+
+        std::thread::scope(|scope| {
+            for _ in 0..16 {
+                scope.spawn(|| {
+                    claimed.fetch_add(claim_result_rows(&rows_out, 10), Ordering::Relaxed);
+                });
+            }
+        });
+
+        assert_eq!(claimed.load(Ordering::Relaxed), RESULT_ROW_LIMIT);
+        assert_eq!(rows_out.load(Ordering::Relaxed), RESULT_ROW_LIMIT);
+    }
+
+    #[test]
+    fn downstream_pipeline_reduces_data_before_output() {
+        const INPUT_BYTES: u64 = 10 * 1024 * 1024 * 1024;
+        const INPUT_ROWS: u64 = 100_000_000;
+
+        for _ in 0..100 {
+            let (joined_bytes, joined_rows) =
+                Physical::JoinLocal.output_size(INPUT_BYTES, INPUT_ROWS, true);
+            let (filtered_bytes, filtered_rows) =
+                Physical::Filter.output_size(joined_bytes, joined_rows, false);
+            let (udf_bytes, udf_rows) =
+                Physical::Udf.output_size(filtered_bytes, filtered_rows, false);
+            let (aggregate_bytes, aggregate_rows) =
+                Physical::Aggregate.output_size(udf_bytes, udf_rows, false);
+            let sorted = Physical::Sort.output_size(aggregate_bytes, aggregate_rows, false);
+
+            assert!(joined_bytes < INPUT_BYTES);
+            assert!(filtered_bytes < joined_bytes);
+            assert!(udf_bytes < filtered_bytes);
+            assert!(aggregate_bytes < udf_bytes);
+            assert!(aggregate_bytes < INPUT_BYTES / 10);
+            assert_eq!(sorted, (aggregate_bytes, aggregate_rows));
+        }
+    }
 }
