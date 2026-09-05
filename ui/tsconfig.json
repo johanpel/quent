@@ -29,6 +29,6 @@
       "@quent/components/ui/*": ["./packages/@quent/components/src/ui/*"]
     }
   },
-  "include": ["src", "generated/ts-bindings"],
+  "include": ["src", "simulator", "generated/ts-bindings"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
