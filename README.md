@@ -1,15 +1,19 @@
 <!-- rumdl-disable MD033 MD041 -->
 
-<h1 align="center">
-  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="72" align="middle">
-  Quent
-</h1>
-
-<h2 align="center">
-  <a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline">Try the query-engine profiler UI →</a>
-</h2>
-
-<p align="center">Explore a simulated query-engine workload directly in your browser.</p>
+<table width="100%">
+  <tr>
+    <td align="center" valign="middle">
+      <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="72">
+    </td>
+    <td width="100%" valign="middle">
+      <h1>Quent</h1>
+    </td>
+    <td align="center" valign="middle" nowrap>
+      <p><a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline"><strong>Try the query engine UI →</strong></a></p>
+      <p><a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a></p>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <a href="https://github.com/rapidsai/quent/actions/workflows/rust.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
@@ -56,8 +60,6 @@ analysis toolchain with a user interface in this domain is shown below:
 ![Quent overview demo](ui/docs/screenshots/demo.gif)
 
 ## Try it
-
-### Query-engine UI
 
 To quickly get an idea of what the framework can do, open the
 [live query-engine profiler UI](https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline).
