@@ -35,7 +35,7 @@ entities:
           process: { scope-ref: Server }
 
   Thread:
-    doc: An operating-system thread on which queries can run.
+    doc: An abstraction over an operating-system thread on which queries can run.
     resource: true
     events:
       started:
