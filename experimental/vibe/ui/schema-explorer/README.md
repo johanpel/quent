@@ -21,7 +21,7 @@ Open the local URL printed by Vite, normally `http://localhost:5173`.
 Open a built-in model directly with the `example` query parameter, for example:
 
 ```text
-https://rapidsai.github.io/quent/?example=dynamo-inference
+https://rapidsai.github.io/quent/schema/?example=simple
 ```
 
 Available values are `simple`, `hello`, `dynamo-inference`, `simulator`, and

@@ -1,4 +1,3 @@
-# Generated entirely by coding agents from prompts without human review or refinement.
 name: Deploy Demos to Pages
 
 on:
@@ -34,7 +33,7 @@ jobs:
       - name: Build schema explorer
         run: pixi run --frozen pnpm --dir experimental/vibe/ui build
         env:
-          SCHEMA_EXPLORER_BASE: /quent/
+          SCHEMA_EXPLORER_BASE: /quent/schema/
       - name: Install simulator UI dependencies
         run: pixi run --frozen pnpm --dir ui install --frozen-lockfile
       - name: Build simulator
@@ -43,8 +42,8 @@ jobs:
           VITE_BASE_PATH: /quent/simulator/
       - name: Assemble Pages artifact
         run: |
-          mkdir -p pages/simulator
-          cp -R experimental/vibe/ui/schema-explorer/dist/. pages/
+          mkdir -p pages/schema pages/simulator
+          cp -R experimental/vibe/ui/schema-explorer/dist/. pages/schema/
           cp -R ui/dist/. pages/simulator/
       - name: Set up Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6

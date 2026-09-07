@@ -1,10 +1,15 @@
 <!-- rumdl-disable MD033 MD041 -->
 
-<p align="center">
-  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="240">
-</p>
+<h1 align="center">
+  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="72" align="middle">
+  Quent
+</h1>
 
-<h1 align="center">Quent</h1>
+<h2 align="center">
+  <a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline">Try the query-engine profiler UI →</a>
+</h2>
+
+<p align="center">Explore a simulated query-engine workload directly in your browser.</p>
 
 <p align="center">
   <a href="https://github.com/rapidsai/quent/actions/workflows/rust.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
@@ -54,30 +59,36 @@ analysis toolchain with a user interface in this domain is shown below:
 
 ### Query-engine UI
 
-To quickly get an idea of what the framework can do, run the query-engine UI
-shown above. This simulator is one example of a performance-analysis
-application built with Quent; it targets the query-engine domain.
+To quickly get an idea of what the framework can do, open the
+[live query-engine profiler UI](https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline).
+It runs a simulated query-engine workload entirely in your browser and requires
+no installation.
 
-Install [Docker](https://docs.docker.com/compose/install/) with the Compose
-plugin, then start the complete example from the repository root:
+This simulator is one example of a performance-analysis application built with
+Quent; it targets the query-engine domain. To run it locally, install
+[Docker](https://docs.docker.com/compose/install/) with the Compose plugin, then
+start the complete example from the repository root:
 
 ```bash
 docker compose -f experimental/vibe/simulator/docker-compose.yml up --build
 ```
 
-Open <http://localhost:8080> after the services start. Docker Compose serves the
-UI and analysis API, and runs the simulator once to generate a sample
-query-engine dataset. Press `Ctrl+C` to stop the stack.
+Open the
+[simulated query timeline](http://localhost:8080/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline)
+after the services start. Docker Compose serves the UI and analysis API, and
+runs the simulator once to generate a sample query-engine dataset. Press
+`Ctrl+C` to stop the stack.
 
 For frontend development with Vite and hot reload, see the
 [development guide](DEVELOPMENT.md#run-the-ui-development-server).
 
 ### Explore the modeling approach
 
-The hosted [Quent Schema Explorer](https://rapidsai.github.io/quent/) is a
-browser-based YAML schema editor and visualization tool. Use it to edit example
-schemas and explore how Quent models entities, events, finite-state machines,
-resources, and their relationships without installing anything.
+The hosted
+[Quent Schema Explorer](https://rapidsai.github.io/quent/schema/)
+is a browser-based YAML schema editor and visualization tool. Use it to edit
+example schemas and explore how Quent models entities, events, finite-state
+machines, resources, and their relationships without installing anything.
 
 ## Why
 

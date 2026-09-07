@@ -25,6 +25,9 @@ use rand::{RngExt, rng};
 use tracing::info;
 use uuid::Uuid;
 
+const ENGINE_ID: Uuid = Uuid::from_u128(0x01a07b4c86ab797197c124879c41910e);
+const QUERY_ID_BASE: u128 = 0x01a07b4c86ab797197c128ffb10dde0d;
+
 #[derive(Parser, Debug)]
 #[command(name = "simulator")]
 #[command(about = "Emits simulated query engine telemetry", long_about = None)]
@@ -42,11 +45,11 @@ struct Args {
     num_tasks: usize,
 
     /// Number of workers
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 4)]
     num_workers: usize,
 
     /// Number of threads per worker thread pool
-    #[arg(long, default_value_t = 2)]
+    #[arg(long, default_value_t = 4)]
     num_threads: usize,
 
     /// Number of GPUs per worker
@@ -1311,7 +1314,7 @@ struct Engine {
 impl Engine {
     fn new() -> Self {
         Self {
-            id: Uuid::now_v7(),
+            id: ENGINE_ID,
             workers: Default::default(),
             network: Uuid::now_v7(),
             network_links: Default::default(),
@@ -1345,7 +1348,7 @@ impl Engine {
         for (worker_index, worker_id) in worker_ids.iter().enumerate() {
             let mut worker = Worker::new(
                 *worker_id,
-                format!("drone-{worker_index}"),
+                format!("worker-{worker_index}"),
                 num_threads,
                 num_gpus,
             );
@@ -1432,8 +1435,8 @@ impl Default for SimulationConfig {
             num_query_groups: 1,
             num_queries: 1,
             num_tasks: 32,
-            num_workers: 2,
-            num_threads: 2,
+            num_workers: 4,
+            num_threads: 4,
             num_gpus: 1,
         }
     }
@@ -1458,17 +1461,15 @@ pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
             query_group_id,
             query_group::Declaration {
                 engine_id: engine.id,
-                instance_name: format!("TPC-H (run {query_group_index})"),
+                instance_name: format!("Simulated workload (run {query_group_index})"),
             },
         );
 
         // "Run" the specified number of queries, sequentially for now.
-        for (query_index, query_id) in std::iter::repeat_with(Uuid::now_v7)
-            .take(config.num_queries)
-            .enumerate()
-        {
+        for query_index in 0..config.num_queries {
             let total = config.num_query_groups * config.num_queries;
             let done = query_group_index * config.num_queries + query_index;
+            let query_id = Uuid::from_u128(QUERY_ID_BASE + done as u128);
             info!("{}% ({}/{})", done * 100 / total, done, total);
             const QUERY_NUMBERS: &[u32] = &[42, 1337, 7, 404, 256, 99, 13, 1024, 69, 314];
             let n = QUERY_NUMBERS[query_index % QUERY_NUMBERS.len()];
