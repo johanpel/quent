@@ -2,7 +2,7 @@
 
 This tutorial builds a Quent model from basic events through finite-state
 machines and resources. Every lesson shows the complete YAML model beside the
-generated Rust instrumentation API that uses it.
+generated instrumentation API that uses it.
 
 Each lesson ends with two **Check yourself** questions. Answers are evaluated
 locally in the browser.
