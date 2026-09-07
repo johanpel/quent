@@ -13,6 +13,12 @@ use quent_schema::{
 
 fn os_record(path: quent_schema::Path, fields: impl IntoIterator<Item = Field>) -> Record {
     RecordBuilder::new(path)
+        .with_annotations(
+            AnnotationsBuilder::new()
+                .with_constraint(OsConstraint::NAME, None)
+                .build()
+                .unwrap(),
+        )
         .with_fields(fields)
         .build()
         .unwrap()
@@ -108,7 +114,38 @@ fn once_events_with_os_records_mark_processes_and_threads() {
 
     assert_eq!(process.path(), &process_path());
     assert_eq!(thread.path(), &thread_path());
+    assert!(process.annotations().has_constraint(OsConstraint::NAME));
+    assert!(thread.annotations().has_constraint(OsConstraint::NAME));
     assert!(validate(&schema([process_entity, thread_entity], [process, thread])).is_empty());
+}
+
+#[test]
+fn canonical_record_requires_os_constraint_annotation() {
+    let process = RecordBuilder::new(process_path())
+        .with_field(field("native_id", DataType::U32))
+        .build()
+        .unwrap();
+    let process_entity = entity(
+        "MyProcess",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("process", DataType::Record(process_path()))],
+        )],
+    );
+
+    assert!(
+        validate(&schema([process_entity], [process]))
+            .iter()
+            .any(|error| matches!(error, OsError::MissingOsConstraintAnnotation { .. }))
+    );
+}
+
+#[test]
+fn canonical_record_advertises_unregistered_os_constraint() {
+    let report = quent_constraints::validate::<()>(&schema([], [process_record()]));
+
+    assert_eq!(report.unregistered_constraints, [OsConstraint::NAME]);
 }
 
 #[test]
