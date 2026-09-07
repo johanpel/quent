@@ -53,6 +53,21 @@ impl<'e> RecordValidator<'e> {
         }
         errors
     }
+
+    /// Validate that `actual` has exactly the fields declared by the expected record.
+    pub fn validate_exact(&self, actual: &Record) -> Vec<RecordValidationError> {
+        let mut errors = self.validate(actual);
+        errors.extend(
+            actual
+                .fields()
+                .filter(|field| self.expected.field(field.name()).is_none())
+                .map(|field| RecordValidationError::UnexpectedField {
+                    record: actual.path().clone(),
+                    field: field.name().to_string(),
+                }),
+        );
+        errors
+    }
 }
 
 /// A record field failed a [`RecordValidator`] requirement.
@@ -67,6 +82,8 @@ pub enum RecordValidationError {
         expected: Box<DataType>,
         actual: Box<DataType>,
     },
+    #[error("{record}: record has unexpected field `{field}`")]
+    UnexpectedField { record: Path, field: String },
 }
 
 #[cfg(test)]
@@ -99,6 +116,24 @@ mod tests {
         assert!(matches!(
             errors[1],
             RecordValidationError::MissingField { .. }
+        ));
+    }
+
+    #[test]
+    fn exact_validation_rejects_unexpected_fields() {
+        let expected = RecordBuilder::new(path("Expected"))
+            .with_field(field("id", DataType::U32))
+            .build()
+            .unwrap();
+        let actual = RecordBuilder::new(path("Actual"))
+            .with_fields([field("id", DataType::U32), field("extra", DataType::String)])
+            .build()
+            .unwrap();
+
+        assert!(RecordValidator::new(&expected).validate(&actual).is_empty());
+        assert!(matches!(
+            RecordValidator::new(&expected).validate_exact(&actual)[0],
+            RecordValidationError::UnexpectedField { .. }
         ));
     }
 }

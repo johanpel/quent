@@ -45,6 +45,7 @@ pub use record::{process_record, thread_record};
 /// 4. A thread entity must be transitively scoped under a process entity by
 ///    tree-forming entity references.
 /// 5. Canonical record declarations must carry the [`OsConstraint`] annotation.
+/// 6. Canonical record declarations must match their required shape exactly.
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
@@ -170,7 +171,7 @@ impl Visitor for OsConstraint {
             let expected = role.record();
             self.errors.extend(
                 RecordValidator::new(&expected)
-                    .validate(&record)
+                    .validate_exact(&record)
                     .into_iter()
                     .map(OsError::InvalidOsRecord),
             );

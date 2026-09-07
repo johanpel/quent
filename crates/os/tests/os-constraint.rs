@@ -166,6 +166,36 @@ fn canonical_record_shapes_are_validated() {
 }
 
 #[test]
+fn canonical_record_shapes_reject_extra_fields() {
+    let process = os_record(
+        process_path(),
+        [
+            field("native_id", DataType::U32),
+            field("command", DataType::String),
+        ],
+    );
+    let thread = os_record(
+        thread_path(),
+        [
+            field("native_id", DataType::U64),
+            field("name", DataType::String),
+        ],
+    );
+    let errors = validate(&schema([], [process, thread]));
+
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| matches!(
+                error,
+                OsError::InvalidOsRecord(RecordValidationError::UnexpectedField { .. })
+            ))
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn thread_may_be_transitively_scoped_under_process() {
     let process_entity = entity(
         "MyProcess",
