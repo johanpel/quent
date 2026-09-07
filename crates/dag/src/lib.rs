@@ -359,6 +359,7 @@ impl Visitor for DagConstraint {
                         location: endpoint.location.clone(),
                         role: endpoint.role,
                     });
+                    continue;
                 }
                 check_endpoint_target(edge, endpoint, &entities, &roles, &dag_parents, &mut errors);
             }

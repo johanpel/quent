@@ -423,6 +423,11 @@ fn endpoint_roles_require_entity_references_on_edges() {
             .count(),
         2
     );
+    assert!(
+        errors
+            .iter()
+            .all(|error| !matches!(error, DagError::UntargetedEndpoint { .. }))
+    );
     assert!(errors.iter().any(
         |error| matches!(error, DagError::EndpointOnNonEdge { entity, .. } if entity == "Operator")
     ));
