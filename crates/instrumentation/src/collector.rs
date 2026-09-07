@@ -3,7 +3,7 @@
 
 //! Collector integration for generated instrumentation models.
 
-use crate::{Context, InstrumentedEntity, InstrumentedModel, Observer};
+use crate::{Context, InstrumentedModel};
 
 #[doc(hidden)]
 pub use quent_collector_client::{CollectorSink, deserialize_event, serialize_event};
@@ -16,15 +16,6 @@ pub trait CollectorRouter: quent_events::Model + InstrumentedModel + Sized {
         entity: &str,
         event: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>>;
-}
-
-/// Forwards a collected event through its entity observer.
-#[doc(hidden)]
-pub fn forward<E>(observer: &Observer<E>, event: crate::Event<E::Event>)
-where
-    E: InstrumentedEntity,
-{
-    observer.inner.send(event);
 }
 
 impl<M: CollectorRouter> CollectorSink for Context<M> {

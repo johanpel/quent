@@ -155,10 +155,7 @@ fn collector_sink_impl(schema: &Schema) -> TokenStream {
         quote! {
             if entity == <#event_ty as ::quent_instrumentation::EntityEvent>::NAME {
                 let event = ::quent_instrumentation::deserialize_event::<#event_ty>(event)?;
-                ::quent_instrumentation::collector::forward(
-                    &context.observer::<#marker>(),
-                    event,
-                );
+                context.observer::<#marker>().forward(event);
                 return ::core::result::Result::Ok(());
             }
         }

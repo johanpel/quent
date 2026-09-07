@@ -18,7 +18,7 @@ pub trait InstrumentedEntity: quent_events::Entity + Sized {
 
 /// Provides handles for an entity type through its shared event observer.
 pub struct Observer<E: InstrumentedEntity> {
-    pub(crate) inner: Arc<ObserverInner<E::Event>>,
+    inner: Arc<ObserverInner<E::Event>>,
 }
 
 impl<E: InstrumentedEntity> Clone for Observer<E> {
@@ -47,5 +47,11 @@ impl<E: InstrumentedEntity> Observer<E> {
     /// Creates a handle for the entity instance identified by `id`.
     pub fn handle_with_id(&self, id: crate::Uuid) -> E::Handle {
         HandleInner::with_id(id, Arc::clone(&self.inner)).into()
+    }
+
+    /// Forwards an existing event through this observer.
+    #[doc(hidden)]
+    pub fn forward(&self, event: crate::Event<E::Event>) {
+        self.inner.send(event);
     }
 }
