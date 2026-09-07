@@ -289,3 +289,45 @@ fn os_record_may_only_be_used_by_an_entity_event() {
             .any(|error| matches!(error, OsError::OsRecordOutsideEvent { .. }))
     );
 }
+
+#[test]
+fn os_record_must_be_a_direct_event_field() {
+    let target = entity("Target", [event("Init", Cardinality::Once, [])]);
+    let candidate = entity(
+        "Candidate",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [
+                field(
+                    "optional",
+                    DataType::Option(Box::new(DataType::Record(process_path()))),
+                ),
+                field(
+                    "processes",
+                    DataType::List(Box::new(DataType::Record(process_path()))),
+                ),
+                field(
+                    "target",
+                    DataType::EntityRef {
+                        data: Some(Box::new(DataType::Record(process_path()))),
+                        annotations: AnnotationsBuilder::new()
+                            .with_constraint(RefTargetConstraint::NAME, Some("Target".to_string()))
+                            .build()
+                            .unwrap(),
+                    },
+                ),
+            ],
+        )],
+    );
+
+    let errors = validate(&schema([target, candidate], [process_record()]));
+
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| matches!(error, OsError::OsRecordNotDirectEventField { .. }))
+            .count(),
+        3
+    );
+}

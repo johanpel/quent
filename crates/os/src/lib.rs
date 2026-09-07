@@ -37,7 +37,8 @@ pub use record::{process_record, thread_record};
 ///
 /// ## Requirements
 ///
-/// 1. A canonical process or thread record may be used only by an entity event.
+/// 1. A canonical process or thread record may be used only as a direct field
+///    of an entity event.
 /// 2. An entity may carry a canonical record in only one event, whose
 ///    cardinality must be [`Cardinality::Once`].
 /// 3. An entity may not carry both canonical records.
@@ -127,6 +128,13 @@ impl Visitor for OsConstraint {
                 let Some(role) = entity_role_for_record(record) else {
                     return;
                 };
+                if !matches!(cursor.previous(), Some(Element::Field(_))) {
+                    self.errors.push(OsError::OsRecordNotDirectEventField {
+                        location: cursor.to_string(),
+                        record: record.clone(),
+                    });
+                    return;
+                }
                 let event = cursor.enclosing_event();
                 self.os_record_uses.push(OsRecordUse {
                     role,
@@ -338,6 +346,8 @@ fn entity_role_for_record(path: &Path) -> Option<OsEntityRole> {
 /// Error produced when an OS constraint requirement is violated.
 #[derive(Debug, Error)]
 pub enum OsError {
+    #[error("{location}: OS record `{record}` must be used directly as an entity event field")]
+    OsRecordNotDirectEventField { location: String, record: Path },
     #[error("{location}: OS record `{record}` may only be used by an entity event")]
     OsRecordOutsideEvent { location: String, record: Path },
     #[error("{location}: entity `{entity}` must carry OS record `{record}` in a `Once` event")]
