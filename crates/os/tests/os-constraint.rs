@@ -249,6 +249,27 @@ fn os_record_may_be_carried_by_only_one_event() {
 }
 
 #[test]
+fn os_record_may_be_carried_by_only_one_field() {
+    let process_entity = entity(
+        "MyProcess",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [
+                field("first", DataType::Record(process_path())),
+                field("second", DataType::Record(process_path())),
+            ],
+        )],
+    );
+
+    assert!(
+        validate(&schema([process_entity], [process_record()]))
+            .iter()
+            .any(|error| matches!(error, OsError::OsRecordUsedMultipleTimesByEvent { .. }))
+    );
+}
+
+#[test]
 fn entity_cannot_represent_both_process_and_thread() {
     let process = process_record();
     let thread = thread_record();

@@ -39,8 +39,8 @@ pub use record::{process_record, thread_record};
 ///
 /// 1. A canonical process or thread record may be used only as a direct field
 ///    of an entity event.
-/// 2. An entity may carry a canonical record in only one event, whose
-///    cardinality must be [`Cardinality::Once`].
+/// 2. An entity may carry each canonical record in only one field of one event,
+///    whose cardinality must be [`Cardinality::Once`].
 /// 3. An entity may not carry both canonical records.
 /// 4. A thread entity must be transitively scoped under a process entity by
 ///    tree-forming entity references.
@@ -108,6 +108,7 @@ struct OsRecordEvent {
     event: Identifier,
     cardinality: Cardinality,
     location: String,
+    uses: usize,
 }
 
 impl Visitor for OsConstraint {
@@ -198,11 +199,14 @@ impl OsConstraint {
             let events = events_by_entity_and_role
                 .entry((entity, record_use.role))
                 .or_default();
-            if events.iter().all(|use_| use_.event != event) {
+            if let Some(existing) = events.iter_mut().find(|use_| use_.event == event) {
+                existing.uses += 1;
+            } else {
                 events.push(OsRecordEvent {
                     event,
                     cardinality,
                     location: record_use.location,
+                    uses: 1,
                 });
             }
         }
@@ -215,6 +219,13 @@ impl OsConstraint {
                 .push(*role);
 
             for event in events {
+                if event.uses > 1 {
+                    self.errors.push(OsError::OsRecordUsedMultipleTimesByEvent {
+                        entity: entity.clone(),
+                        record: role.record_path(),
+                        event: event.event.clone(),
+                    });
+                }
                 if event.cardinality != Cardinality::Once {
                     self.errors.push(OsError::OsRecordEventNotOnce {
                         location: event.location.clone(),
@@ -361,6 +372,12 @@ pub enum OsError {
         entity: Path,
         record: Path,
         events: Vec<Identifier>,
+    },
+    #[error("{entity}.{event}: OS record `{record}` may be carried by only one event field")]
+    OsRecordUsedMultipleTimesByEvent {
+        entity: Path,
+        record: Path,
+        event: Identifier,
     },
     #[error("{entity}: an entity cannot represent both an OS process and an OS thread")]
     ConflictingEntityRoles { entity: Path },
