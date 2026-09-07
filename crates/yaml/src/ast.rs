@@ -55,6 +55,8 @@ pub(crate) struct FsmSpec {
     pub(crate) states: IndexMap<String, StateSpec>,
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
 }
 
 /// One state of an FSM.

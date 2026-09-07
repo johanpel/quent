@@ -193,6 +193,155 @@ entities:
     );
 }
 
+#[test]
+fn fsm_vertex_belongs_to_a_dag() {
+    let parsed = parse_from_str(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+fsms:
+  Operator:
+    dag:
+      vertex: Plan
+    states:
+      created:
+        initial: true
+        to: [done]
+      done: {}
+",
+        None,
+    )
+    .expect("valid FSM vertex");
+
+    let operator = parsed.schema.entity(&path("Operator")).unwrap();
+    let membership = operator
+        .event(&"created".try_into().unwrap())
+        .unwrap()
+        .field(&"dag".try_into().unwrap())
+        .unwrap();
+    assert_eq!(
+        DagRole::from_annotations(membership.annotations()),
+        Ok(Some(DagRole::Membership))
+    );
+    assert_eq!(reference_target(membership.ty()), Some(path("Plan")));
+}
+
+#[test]
+fn fsm_edge_belongs_to_a_dag() {
+    let parsed = parse_from_str(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+  Operator:
+    dag:
+      vertex: Plan
+fsms:
+  PlanEdge:
+    dag:
+      edge: Plan
+    states:
+      connected:
+        initial: true
+        attributes:
+          input:
+            dag:
+              source: Operator
+          output:
+            dag:
+              target: Operator
+        to: [done]
+      done: {}
+",
+        None,
+    )
+    .expect("valid FSM edge");
+
+    let edge = parsed.schema.entity(&path("PlanEdge")).unwrap();
+    let connected = edge.event(&"connected".try_into().unwrap()).unwrap();
+    assert_eq!(
+        DagRole::from_annotations(
+            connected
+                .field(&"dag".try_into().unwrap())
+                .unwrap()
+                .annotations()
+        ),
+        Ok(Some(DagRole::Membership))
+    );
+}
+
+#[test]
+fn fsm_edge_endpoints_must_share_a_state() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+  Operator:
+    dag:
+      vertex: Plan
+fsms:
+  PlanEdge:
+    dag:
+      edge: Plan
+    states:
+      source_state:
+        initial: true
+        attributes:
+          input:
+            dag:
+              source: Operator
+        to: [target_state]
+      target_state:
+        attributes:
+          output:
+            dag:
+              target: Operator
+        to: [done]
+      done: {}
+",
+    );
+    assert!(
+        errors.contains("DAG edge endpoints must be declared in one state"),
+        "{errors}"
+    );
+}
+
+#[test]
+fn fsm_dag_membership_field_name_is_reserved() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+fsms:
+  Operator:
+    dag:
+      vertex: Plan
+    states:
+      created:
+        initial: true
+        attributes:
+          dag: string
+        to: [done]
+      done: {}
+",
+    );
+    assert!(
+        errors.contains("`dag` is reserved for generated DAG membership"),
+        "{errors}"
+    );
+}
+
 fn errors_of(model: &str) -> String {
     let Err(Error::Invalid(diagnostics)) = parse_from_str(model, None) else {
         panic!("expected invalid model");
