@@ -39,7 +39,7 @@ look up events by attribute values but also the means to convert events into
 something semantically enriched, leveraging _mods_.
 
 <p align="center">
-<img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="640">
+<img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
 </p>
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
