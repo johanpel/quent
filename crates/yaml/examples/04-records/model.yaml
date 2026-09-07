@@ -1,0 +1,16 @@
+quent: alpha
+model: records
+
+records:
+  TaskResult:
+    fields:
+      success: bool
+      items_processed: u64
+
+entities:
+  Task:
+    events:
+      started: {}
+      ended:
+        attributes:
+          result: TaskResult

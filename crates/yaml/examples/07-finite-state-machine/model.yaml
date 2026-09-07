@@ -1,0 +1,10 @@
+quent: alpha
+model: finite_state_machine
+
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        to: [completed]
+      completed: {}

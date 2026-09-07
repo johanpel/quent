@@ -17,6 +17,8 @@
   <a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline">Try the query engine UI</a>
   &bull;
   <a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a>
+  &bull;
+  <a href="https://rapidsai.github.io/quent/tutorial/">Tutorial</a>
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
@@ -180,7 +182,7 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [x] Entity listing and filtering
   - [ ] Blueprints
 - [ ] Model Context Protocol
-- [ ] Tutorial
+- [x] Tutorial
 
 ## Mods
 

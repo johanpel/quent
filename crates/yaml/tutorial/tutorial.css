@@ -1,0 +1,97 @@
+.badger-note {
+  align-items: center;
+  background: color-mix(in srgb, var(--quote-bg) 82%, #d9a441 18%);
+  border: 1px solid color-mix(in srgb, var(--quote-border) 65%, #d9a441 35%);
+  border-radius: 0.75rem;
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+}
+
+.badger-mark {
+  flex: 0 0 auto;
+  height: 4rem;
+  width: 4rem;
+}
+
+.badger-mark svg {
+  height: 100%;
+  width: 100%;
+}
+
+.badger-note p {
+  margin: 0.25rem 0 0;
+}
+
+.check-yourself {
+  border-top: 2px solid var(--table-border-color);
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+}
+
+.check-yourself fieldset {
+  border: 1px solid var(--table-border-color);
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+}
+
+.check-yourself fieldset.is-correct {
+  border-color: #2c8c55;
+}
+
+.check-yourself fieldset.is-incorrect {
+  border-color: #c54b4b;
+}
+
+.check-yourself legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+
+.check-yourself label {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  gap: 0.55rem;
+  margin: 0.55rem 0;
+}
+
+.question-feedback {
+  font-size: 0.92em;
+  margin-bottom: 0;
+}
+
+.check-answers {
+  background: var(--links);
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--bg);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 0.9rem;
+}
+
+.quiz-result {
+  font-weight: 600;
+  min-height: 1.5em;
+}
+
+.navy .badger-mark,
+.ayu .badger-mark,
+.coal .badger-mark {
+  filter: invert(1);
+}
+
+@media (max-width: 620px) {
+  .badger-note {
+    align-items: flex-start;
+  }
+
+  .badger-mark {
+    height: 3rem;
+    width: 3rem;
+  }
+}

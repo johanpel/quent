@@ -1,0 +1,20 @@
+quent: alpha
+model: resource_capacity
+
+entities:
+  Memory:
+    resource:
+      bytes:
+        kind: occupancy
+    events:
+      created: {}
+
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        attributes:
+          memory: { uses: Memory }
+        to: [completed]
+      completed: {}

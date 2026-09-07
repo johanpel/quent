@@ -1,0 +1,298 @@
+# Quent YAML
+
+`quent-yaml` parses a YAML model into a validated Quent schema. The format is
+currently `alpha` and may change incompatibly.
+
+## At a glance
+
+Describe a worker with 16 threads and a job that requests four of them:
+
+```yaml
+quent: alpha
+model: job_workload
+
+entities:
+  Worker:
+    resource:
+      threads:
+        kind: occupancy
+        known-bounds: true
+    events:
+      ready:
+        attributes:
+          name: string
+          limits: { sets-resource-bounds: true }
+
+fsms:
+  Job:
+    states:
+      queued:
+        initial: true
+        attributes:
+          name: string
+          requested_threads: u64
+        to: [running]
+      running:
+        attributes:
+          worker: { uses: Worker }
+        to: [completed]
+      completed: {}
+```
+
+The generated Rust API turns states, attributes, and resource usage into typed
+calls:
+
+```rust
+use instrumentation::{Context, Job, JobWorkload, Noop, Worker, WorkerBounds, WorkerUsage};
+
+let context = Context::<JobWorkload>::try_new(Noop)?;
+
+let mut worker = context.observer::<Worker>().handle();
+worker.ready("worker-1".to_owned(), WorkerBounds { threads: 16 })?;
+
+let mut job = context.observer::<Job>().handle();
+job.queued("compile".to_owned(), 4)?;
+job.running(worker.as_entity_ref_with(WorkerUsage { threads: 4 }))?;
+job.completed()?;
+```
+
+Misspelled states and malformed resource payloads become compile errors. The
+full [job workload example](examples/12-job-workload/) is runnable.
+
+## Validate a model
+
+Run the checker from the repository root:
+
+```console
+cargo run -p quent-yaml --bin quent-yaml-check -- path/to/model.yaml
+```
+
+The command exits unsuccessfully and prints source diagnostics when the model
+is invalid. Pass `--warnings` before the path to also report constraints that
+have no registered validator.
+
+## Interactive tutorial
+
+The browser tutorial presents the examples one at a time and includes short
+multiple-choice checks. It is published at
+<https://rapidsai.github.io/quent/tutorial/>.
+
+Start its local development server from the repository root:
+
+```console
+pixi run mdbook serve crates/yaml/tutorial
+```
+
+Then open <http://localhost:3000>. The questions are optional and do not
+restrict navigation.
+
+## Examples
+
+Each example contains a YAML model and a program using its generated Rust
+instrumentation API. The programs use a no-op exporter, so a successful run
+has no output.
+
+### 1. Minimal model
+
+Every model declares the YAML format version and a model name. This model
+defines a `Task` entity with two events. Each event can occur once for each
+`Task` instance, but the model does not constrain their order.
+
+- [YAML model](examples/01-minimal-model/model.yaml)
+- [Instrumentation API usage](examples/01-minimal-model/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin minimal-model
+```
+
+### 2. Event data
+
+An event's `attributes` declare the data captured when it occurs. Attributes
+have explicit types, which become argument types in the generated
+instrumentation API.
+
+- [YAML model](examples/02-event-data/model.yaml)
+- [Instrumentation API usage](examples/02-event-data/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin event-data
+```
+
+### 3. Repeated events
+
+An event declared with `multi: true` can occur repeatedly for one entity
+instance. Events are `once` by default and return an error when emitted again
+for the same instance.
+
+- [YAML model](examples/03-repeated-events/model.yaml)
+- [Instrumentation API usage](examples/03-repeated-events/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin repeated-events
+```
+
+### 4. Records
+
+A record groups related fields into a reusable type. It becomes a struct in the
+generated Rust instrumentation API.
+
+- [YAML model](examples/04-records/model.yaml)
+- [Instrumentation API usage](examples/04-records/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin records
+```
+
+### 5. Entity references
+
+A `ref` field links one entity to another entity of a declared type. It does not
+define a hierarchy between them.
+
+- [YAML model](examples/05-entity-references/model.yaml)
+- [Instrumentation API usage](examples/05-entity-references/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin entity-references
+```
+
+### 6. Scoped references
+
+A `scope-ref` field defines a parent relationship. Scoped references are
+validated as a hierarchy in addition to being type-checked entity references.
+
+- [YAML model](examples/06-scoped-references/model.yaml)
+- [Instrumentation API usage](examples/06-scoped-references/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin scoped-references
+```
+
+### 7. Finite-state machines
+
+An FSM declares the allowed lifecycle topology. The parser validates its
+initial state, reachability, and final paths, and derives event cardinality from
+the transitions. The generated instrumentation API currently emits state-entry
+events but does not enforce transition order at runtime.
+
+- [YAML model](examples/07-finite-state-machine/model.yaml)
+- [Instrumentation API usage](examples/07-finite-state-machine/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin finite-state-machine
+```
+
+### 8. FSM self-loops
+
+A self-loop allows an FSM to enter the same state repeatedly. The generated
+event for that state has `multi` cardinality, while states without a cycle have
+`once` cardinality.
+
+- [YAML model](examples/08-fsm-self-loop/model.yaml)
+- [Instrumentation API usage](examples/08-fsm-self-loop/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin fsm-self-loop
+```
+
+### 9. Unit resources
+
+`resource: true` declares an indivisible resource. Each `Thread` is scoped under
+a `ThreadPool`. The task's scoped reference carries `ThreadUsage`, so the task
+is scoped under and claims a specific thread while it is running.
+
+- [YAML model](examples/09-unit-resource/model.yaml)
+- [Instrumentation API usage](examples/09-unit-resource/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin unit-resource
+```
+
+### 10. Resource capacities
+
+A resource can expose a measured capacity instead of being indivisible. An
+`occupancy` usage records a quantity held for the duration of an FSM state.
+
+- [YAML model](examples/10-resource-capacity/model.yaml)
+- [Instrumentation API usage](examples/10-resource-capacity/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin resource-capacity
+```
+
+### 11. Bounded resources
+
+`known-bounds: true` gives a capacity an explicit bound. An attribute marked
+with `sets-resource-bounds: true` carries the generated bounds record whenever
+the bound changes.
+
+- [YAML model](examples/11-bounded-resource/model.yaml)
+- [Instrumentation API usage](examples/11-bounded-resource/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin bounded-resource
+```
+
+### 12. Job workload
+
+This capstone combines an FSM, event attributes, and measured resource usage.
+A worker publishes its thread limit. A job records how many threads it requests
+and how many it occupies while running.
+
+- [YAML model](examples/12-job-workload/model.yaml)
+- [Instrumentation API usage](examples/12-job-workload/src/main.rs)
+
+Run the example from the repository root:
+
+```console
+cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin job-workload
+```
+
+## Type reference
+
+Scalar attributes support `bool`, `string`, `uuid`, `dynamic`, `u8`, `u16`,
+`u32`, `u64`, `i8`, `i16`, `i32`, `i64`, `f32`, and `f64`. A declared record
+name can also be used as a type.
+
+Composite types use mapping forms:
+
+| YAML | Meaning |
+| --- | --- |
+| `{ list: string }` | List of strings |
+| `{ option: u64 }` | Optional `u64` |
+| `ref` | Reference to any entity |
+| `{ ref: Worker }` | Reference to a `Worker` |
+| `{ ref: Worker, data: u64 }` | `Worker` reference carrying data |
+| `{ scope-ref: Pipeline }` | Tree-forming entity reference |
+| `{ uses: Memory }` | Resource usage reference |
+
+Composite forms can nest. For example, `{ option: { list: string } }` is an
+optional list of strings.
+
+## Complete model
+
+The [instrumentation-build model](../instrumentation-build/example/model.yaml)
+combines records, references, FSMs, and event attributes in one larger example.
+Its [Rust program](../instrumentation-build/example/src/main.rs) configures an
+exporter and uses the generated instrumentation API.

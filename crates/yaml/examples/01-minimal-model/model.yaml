@@ -1,0 +1,8 @@
+quent: alpha
+model: minimal
+
+entities:
+  Task:
+    events:
+      started: {}
+      ended: {}

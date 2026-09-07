@@ -1,0 +1,62 @@
+[workspace]
+
+[package]
+name = "quent-yaml-examples"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../instrumentation-build" }
+quent-yaml = { path = ".." }
+
+[[bin]]
+name = "minimal-model"
+path = "01-minimal-model/src/main.rs"
+
+[[bin]]
+name = "event-data"
+path = "02-event-data/src/main.rs"
+
+[[bin]]
+name = "repeated-events"
+path = "03-repeated-events/src/main.rs"
+
+[[bin]]
+name = "records"
+path = "04-records/src/main.rs"
+
+[[bin]]
+name = "entity-references"
+path = "05-entity-references/src/main.rs"
+
+[[bin]]
+name = "scoped-references"
+path = "06-scoped-references/src/main.rs"
+
+[[bin]]
+name = "finite-state-machine"
+path = "07-finite-state-machine/src/main.rs"
+
+[[bin]]
+name = "fsm-self-loop"
+path = "08-fsm-self-loop/src/main.rs"
+
+[[bin]]
+name = "unit-resource"
+path = "09-unit-resource/src/main.rs"
+
+[[bin]]
+name = "resource-capacity"
+path = "10-resource-capacity/src/main.rs"
+
+[[bin]]
+name = "bounded-resource"
+path = "11-bounded-resource/src/main.rs"
+
+[[bin]]
+name = "job-workload"
+path = "12-job-workload/src/main.rs"

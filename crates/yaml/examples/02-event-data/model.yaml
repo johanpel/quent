@@ -1,0 +1,14 @@
+quent: alpha
+model: event_data
+
+entities:
+  Task:
+    events:
+      started:
+        attributes:
+          command: string
+          attempt: u32
+      ended:
+        attributes:
+          success: bool
+          items_processed: u64

@@ -1,0 +1,12 @@
+quent: alpha
+model: fsm_self_loop
+
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        attributes:
+          items_processed: u64
+        to: [running, completed]
+      completed: {}

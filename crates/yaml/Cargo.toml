@@ -3,6 +3,7 @@ name = "quent-yaml"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+autoexamples = false
 
 [dependencies]
 indexmap = { workspace = true, features = ["serde"] }

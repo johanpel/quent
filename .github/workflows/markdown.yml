@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "**/*.md"
+      - "crates/yaml/tutorial/**"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - "**/*.md"
+      - "crates/yaml/tutorial/**"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"
@@ -32,3 +34,4 @@ jobs:
         with:
           cache: true
       - run: pixi run --frozen rumdl check --diff
+      - run: pixi run --frozen mdbook build crates/yaml/tutorial

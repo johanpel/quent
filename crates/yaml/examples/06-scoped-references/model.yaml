@@ -1,0 +1,14 @@
+quent: alpha
+model: scoped_references
+
+entities:
+  Pipeline:
+    events:
+      created: {}
+
+  Task:
+    events:
+      started:
+        attributes:
+          parent: { scope-ref: Pipeline }
+      ended: {}
