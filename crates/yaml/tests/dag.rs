@@ -144,6 +144,55 @@ entities:
     assert!(errors.contains("DAG constraint is set from a `dag:` declaration"));
 }
 
+#[test]
+fn generated_membership_field_name_is_reserved() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+  Operator:
+    dag:
+      vertex: Plan
+    events:
+      declared:
+        attributes:
+          dag: string
+",
+    );
+    assert!(
+        errors.contains("`dag` is reserved for generated DAG membership"),
+        "{errors}"
+    );
+    assert!(!errors.contains("duplicate name"), "{errors}");
+    assert!(!errors.contains("declares no events"), "{errors}");
+}
+
+#[test]
+fn dag_membership_event_must_not_be_multi() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: true
+  Operator:
+    dag:
+      vertex: Plan
+    events:
+      declared:
+        multi: true
+",
+    );
+    assert!(
+        errors.contains("`multi` must be `false` for a DAG membership event"),
+        "{errors}"
+    );
+}
+
 fn errors_of(model: &str) -> String {
     let Err(Error::Invalid(diagnostics)) = parse_from_str(model, None) else {
         panic!("expected invalid model");

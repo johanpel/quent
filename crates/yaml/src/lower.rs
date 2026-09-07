@@ -189,6 +189,9 @@ fn entity_of(
     }
 
     let membership_event = membership_target.map(|_| dag_membership_event(entity));
+    let inject_membership = membership_event
+        .map(|event| validate_dag_membership_event(entity, event, &path, sink))
+        .unwrap_or(false);
 
     let mut events: Vec<_> = entity
         .events
@@ -200,7 +203,8 @@ fn entity_of(
                 &path,
                 bounds_record.as_ref(),
                 resources,
-                membership_target.filter(|_| membership_event == Some(event_name.as_str())),
+                membership_target
+                    .filter(|_| inject_membership && membership_event == Some(event_name.as_str())),
                 sink,
             )
         })
@@ -376,6 +380,36 @@ fn dag_membership_event(entity: &ast::Entity) -> &str {
     } else {
         "declared"
     }
+}
+
+fn validate_dag_membership_event(
+    entity: &ast::Entity,
+    event_name: &str,
+    entity_path: &str,
+    sink: &mut Diagnostics,
+) -> bool {
+    let Some(event) = entity.events.get(event_name) else {
+        return true;
+    };
+    let event_path = format!("{entity_path}.events.{event_name}");
+    let mut valid = true;
+    if event.attributes.contains_key("dag") {
+        sink.error(
+            &format!("{event_path}.attributes.dag"),
+            "`dag` is reserved for generated DAG membership",
+            None,
+        );
+        valid = false;
+    }
+    if event.multi {
+        sink.error(
+            &format!("{event_path}.multi"),
+            "`multi` must be `false` for a DAG membership event",
+            None,
+        );
+        valid = false;
+    }
+    valid
 }
 
 fn dag_declaration_event(
