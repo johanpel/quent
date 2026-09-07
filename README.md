@@ -53,6 +53,7 @@ quickly explore the dynamic behavior of your program.
 Quent is currently developed around the use case of accelerated data-processing
 engines. An elaborate example of how Quent is used to produce a domain-specific
 analysis toolchain with a user interface in this domain is shown below:
+
 ![Quent overview demo](ui/docs/screenshots/demo.gif)
 
 ## Try it
