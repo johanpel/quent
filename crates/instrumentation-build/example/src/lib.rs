@@ -55,8 +55,7 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     let mut thread = context.observer::<Thread>().handle();
     thread.started(
         demo::quent::os::Thread {
-            // Obtaining the native thread ID is left as an exercise to the reader.
-            native_id: 42,
+            native_id: current_native_thread_id()?,
         },
         pool.as_entity_ref(),
     )?;
@@ -112,4 +111,49 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     assert!(conn.closed().is_err());
 
     Ok(context_id)
+}
+
+#[cfg(target_os = "linux")]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    // SAFETY: `gettid` takes no arguments and returns the caller's kernel task ID.
+    let native_id = unsafe { libc::syscall(libc::SYS_gettid) };
+    if native_id < 0 {
+        Err(std::io::Error::last_os_error())
+    } else {
+        Ok(native_id as u64)
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    let mut native_id = 0;
+    // SAFETY: A null thread selects the calling thread, and `native_id` is writable.
+    let result = unsafe { libc::pthread_threadid_np(0, &mut native_id) };
+    if result == 0 {
+        Ok(native_id)
+    } else {
+        Err(std::io::Error::from_raw_os_error(result))
+    }
+}
+
+#[cfg(windows)]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    // SAFETY: `GetCurrentThreadId` has no preconditions.
+    Ok(unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() }.into())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn current_native_thread_id() -> std::io::Result<u64> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "native thread IDs are unsupported on this platform",
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn native_thread_id_is_nonzero() {
+        assert_ne!(super::current_native_thread_id().unwrap(), 0);
+    }
 }
