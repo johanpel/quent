@@ -1,19 +1,9 @@
 <!-- rumdl-disable MD033 MD041 -->
 
-<table width="100%">
-  <tr>
-    <td align="center" valign="middle">
-      <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="72">
-    </td>
-    <td width="100%" valign="middle">
-      <h1>Quent</h1>
-    </td>
-    <td align="center" valign="middle" nowrap>
-      <p><a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline"><strong>Try the query engine UI →</strong></a></p>
-      <p><a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a></p>
-    </td>
-  </tr>
-</table>
+<h1 align="center">
+  <img src="ui/public/logo.svg" alt="Quent honey badger logo" width="72" align="absmiddle">
+  Quent
+</h1>
 
 <p align="center">
   <a href="https://github.com/rapidsai/quent/actions/workflows/rust.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/rust.yml/badge.svg" alt="Rust CI"></a>
@@ -21,6 +11,12 @@
   <a href="https://github.com/rapidsai/quent/actions/workflows/cpp.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/cpp.yml/badge.svg" alt="C++ CI"></a>
   <a href="https://github.com/rapidsai/quent/actions/workflows/ui.yml"><img src="https://github.com/rapidsai/quent/actions/workflows/ui.yml/badge.svg" alt="UI CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/rapidsai/quent" alt="Apache-2.0 license"></a>
+</p>
+
+<p align="center">
+  <a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline">Try the query engine UI</a>
+  &bull;
+  <a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a>
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
