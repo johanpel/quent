@@ -24,7 +24,7 @@ fn os_annotations() -> Annotations {
 /// in `U32`, matching [`std::process::id`].
 ///
 /// [linux-pid-t]: https://man7.org/linux/man-pages/man3/pid_t.3type.html
-/// [macos-pid-t]: https://developer.apple.com/documentation/oslog/oslogentryfromprocess/processidentifier
+/// [macos-pid-t]: https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/_types.h
 /// [`DWORD`]: https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types#dword
 /// [`GetCurrentProcessId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocessid
 pub fn process_record() -> Record {
@@ -41,14 +41,14 @@ pub fn process_record() -> Record {
 
 /// Return the canonical thread record.
 ///
-/// Linux [`gettid`] returns an `I32` `pid_t`, macOS [`threadIdentifier`] is
-/// `U64`, and Windows [`GetCurrentThreadId`] returns a `U32` [`DWORD`]. The
-/// record assumes only valid OS thread IDs are recorded; Linux IDs are
+/// Linux [`gettid`] returns an `I32` `pid_t`, macOS [`pthread_threadid_np`]
+/// writes a `U64`, and Windows [`GetCurrentThreadId`] returns a `U32` [`DWORD`].
+/// The record assumes only valid OS thread IDs are recorded; Linux IDs are
 /// nonnegative, so widening the Linux and Windows values to `U64` is lossless.
 /// [`std::thread::ThreadId`] is opaque and is not an OS thread ID.
 ///
 /// [`gettid`]: https://man7.org/linux/man-pages/man2/gettid.2.html
-/// [`threadIdentifier`]: https://developer.apple.com/documentation/oslog/oslogentryfromprocess/threadidentifier
+/// [`pthread_threadid_np`]: https://github.com/apple-oss-distributions/libpthread/blob/main/include/pthread/pthread.h
 /// [`DWORD`]: https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types#dword
 /// [`GetCurrentThreadId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid
 pub fn thread_record() -> Record {
