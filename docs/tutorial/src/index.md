@@ -13,7 +13,7 @@ is retained between lessons in the same browser.
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Tutorial scope</strong>

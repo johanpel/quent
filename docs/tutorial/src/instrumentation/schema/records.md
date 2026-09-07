@@ -6,7 +6,7 @@ can use a record name wherever they can use a scalar type.
 ## YAML model
 
 ```yaml
-{{#include ../../../../examples/records/model.yaml}}
+{{#include ../../../../../crates/yaml/examples/records/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ The generated API represents `TaskResult` as a Rust struct. Construct the
 record, then pass it to the event method.
 
 ```rust
-{{#include ../../../../examples/records/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/records/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

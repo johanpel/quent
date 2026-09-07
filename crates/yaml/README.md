@@ -80,7 +80,7 @@ multiple-choice checks. It is published at
 Start its local development server from the repository root:
 
 ```console
-pixi run mdbook serve crates/yaml/tutorial
+pixi run mdbook serve docs/tutorial
 ```
 
 Then open <http://localhost:3000>.

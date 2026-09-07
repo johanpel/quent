@@ -6,7 +6,7 @@ emit the same event repeatedly.
 ## YAML model
 
 ```yaml
-{{#include ../../../../examples/repeated-events/model.yaml}}
+{{#include ../../../../../crates/yaml/examples/repeated-events/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ The same `Task` handle emits `progress` more than once. Repeating `started` or
 `ended` on that handle would return an error.
 
 ```rust
-{{#include ../../../../examples/repeated-events/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/repeated-events/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

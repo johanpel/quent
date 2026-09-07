@@ -7,7 +7,7 @@ and how many it occupies while running.
 ## YAML model
 
 ```yaml
-{{#include ../../../../../examples/job-workload/model.yaml}}
+{{#include ../../../../../../crates/yaml/examples/job-workload/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -16,12 +16,12 @@ The generated API distinguishes the worker's `WorkerBounds` from the job's
 `WorkerUsage`. No event names or payload keys are assembled at runtime.
 
 ```rust
-{{#include ../../../../../examples/job-workload/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/job-workload/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

@@ -58,7 +58,7 @@ The current focus is on query engines, but the modeling
 concepts are domain-agnostic and may be applied to other domains.
 
 For development instructions and repository overview, see the
-[root README](../README.md).
+[root README](../../README.md).
 
 [fsm]: ./modeling/fsm.md
 [resource]: ./modeling/resource.md

@@ -6,7 +6,7 @@ on:
     paths:
       - "**/*.md"
       - "crates/yaml/examples/**"
-      - "crates/yaml/tutorial/**"
+      - "docs/tutorial/**"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"
@@ -15,7 +15,7 @@ on:
     paths:
       - "**/*.md"
       - "crates/yaml/examples/**"
-      - "crates/yaml/tutorial/**"
+      - "docs/tutorial/**"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"
@@ -36,4 +36,4 @@ jobs:
         with:
           cache: true
       - run: pixi run --frozen rumdl check --diff
-      - run: pixi run --frozen bash crates/yaml/tutorial/build.sh
+      - run: pixi run --frozen bash docs/tutorial/build.sh

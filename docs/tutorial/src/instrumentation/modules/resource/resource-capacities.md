@@ -6,7 +6,7 @@ held over the usage span, such as bytes of memory held while a task runs.
 ## YAML model
 
 ```yaml
-{{#include ../../../../../examples/resource-capacity/model.yaml}}
+{{#include ../../../../../../crates/yaml/examples/resource-capacity/model.yaml}}
 ```
 
 Declaring the `bytes` capacity generates a `MemoryUsage` record with a `bytes`
@@ -17,12 +17,12 @@ field.
 The task's reference to `Memory` carries the quantity it claims.
 
 ```rust
-{{#include ../../../../../examples/resource-capacity/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/resource-capacity/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

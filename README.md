@@ -37,7 +37,7 @@ look up events by attribute values but also the means to convert events into
 something semantically enriched, leveraging _mods_.
 
 <p align="center">
-<img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
+<img src="docs/legacy/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
 </p>
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
@@ -461,4 +461,5 @@ fsms:
 - [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
 - [Development guide](DEVELOPMENT.md)
 - [Contributing guide](CONTRIBUTING.md)
-- [Documentation book](docs/) — outdated and may not match current APIs.
+- [Legacy documentation](docs/legacy/) — outdated and may not match current
+  APIs.

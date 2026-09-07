@@ -6,7 +6,7 @@ topology therefore gives that state's generated event `multi` cardinality.
 ## YAML model
 
 ```yaml
-{{#include ../../../../../examples/fsm-self-loop/model.yaml}}
+{{#include ../../../../../../crates/yaml/examples/fsm-self-loop/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ The task enters `running` repeatedly as its progress changes, then enters
 `completed` once.
 
 ```rust
-{{#include ../../../../../examples/fsm-self-loop/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/fsm-self-loop/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

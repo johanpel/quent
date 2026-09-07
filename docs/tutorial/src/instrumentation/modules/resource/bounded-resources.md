@@ -7,7 +7,7 @@ generated bounds record whenever that limit changes.
 ## YAML model
 
 ```yaml
-{{#include ../../../../../examples/bounded-resource/model.yaml}}
+{{#include ../../../../../../crates/yaml/examples/bounded-resource/model.yaml}}
 ```
 
 The resource declaration generates both `MemoryUsage` and `MemoryBounds`.
@@ -18,12 +18,12 @@ The memory entity publishes its current bound. The task separately records how
 much of that capacity it claims.
 
 ```rust
-{{#include ../../../../../examples/bounded-resource/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/bounded-resource/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

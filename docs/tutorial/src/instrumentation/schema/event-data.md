@@ -7,7 +7,7 @@ declaration order.
 ## YAML model
 
 ```yaml
-{{#include ../../../../examples/event-data/model.yaml}}
+{{#include ../../../../../crates/yaml/examples/event-data/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -16,12 +16,12 @@ YAML scalar types map to ordinary Rust types. A YAML `string` becomes a Rust
 `String`, while integer and boolean types retain their names.
 
 ```rust
-{{#include ../../../../examples/event-data/src/main.rs}}
+{{#include ../../../../../crates/yaml/examples/event-data/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../../../ui/public/logo.svg}}
+{{#include ../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>
