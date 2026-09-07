@@ -23,7 +23,7 @@ io-collector = ["dep:quent-collector-client", "quent-io/collector", "serde"]
 async-trait.workspace = true
 quent-dynamic-attributes = { path = "../dynamic-attributes" }
 quent-build-info = { path = "../build-info" }
-quent-collector-client = { path = "../collector/client", optional = true }
+quent-collector-client = { workspace = true, optional = true }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
 quent-io-callback = { path = "../io/callback", optional = true }
