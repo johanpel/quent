@@ -24,8 +24,8 @@ entity instance and exposes one method per event.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>Two events, zero lifecycle rules. Calling <code>ended</code> first is legal, if aesthetically upsetting.</p>
+    <strong>Key point</strong>
+    <p>The two events have no declared ordering constraint, so either event may be emitted first.</p>
   </div>
 </div>
 

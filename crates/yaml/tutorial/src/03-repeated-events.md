@@ -23,8 +23,8 @@ The same `Task` handle emits `progress` more than once. Repeating `started` or
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>Progress may repeat. Starting the same task twice is either a bug or an impressively confusing product requirement.</p>
+    <strong>Key point</strong>
+    <p><code>multi: true</code> permits an event to be emitted more than once for an entity.</p>
   </div>
 </div>
 

@@ -26,8 +26,8 @@ much of that capacity it claims.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>A capacity without a bound is a number. A capacity with a bound is a number that can disappoint you.</p>
+    <strong>Key point</strong>
+    <p>A known bound records the available capacity separately from resource usage.</p>
   </div>
 </div>
 

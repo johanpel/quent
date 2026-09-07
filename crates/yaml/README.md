@@ -1,7 +1,7 @@
 # Quent YAML
 
 `quent-yaml` parses a YAML model into a validated Quent schema. The format is
-currently `alpha` and may change incompatibly.
+`alpha` and may change incompatibly.
 
 ## At a glance
 
@@ -83,8 +83,7 @@ Start its local development server from the repository root:
 pixi run mdbook serve crates/yaml/tutorial
 ```
 
-Then open <http://localhost:3000>. The questions are optional and do not
-restrict navigation.
+Then open <http://localhost:3000>.
 
 ## Examples
 
@@ -183,8 +182,8 @@ cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin scoped-reference
 
 An FSM declares the allowed lifecycle topology. The parser validates its
 initial state, reachability, and final paths, and derives event cardinality from
-the transitions. The generated instrumentation API currently emits state-entry
-events but does not enforce transition order at runtime.
+the transitions. The generated instrumentation API emits state-entry events.
+Transition order is model metadata and is not enforced at runtime.
 
 - [YAML model](examples/07-finite-state-machine/model.yaml)
 - [Instrumentation API usage](examples/07-finite-state-machine/src/main.rs)

@@ -23,8 +23,8 @@ An entity handle produces a typed reference with `as_entity_ref`. The generated
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>A typed reference answers “which worker?” before an incident report has to.</p>
+    <strong>Key point</strong>
+    <p>An entity reference identifies a specific entity and preserves its type.</p>
   </div>
 </div>
 

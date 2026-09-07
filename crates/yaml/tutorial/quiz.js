@@ -25,8 +25,7 @@
       allCorrect = allCorrect && correct;
 
       if (!selected) {
-        feedback.textContent =
-          "Choose an answer. Telepathy support remains unimplemented.";
+        feedback.textContent = "Choose an answer before checking.";
       } else if (correct) {
         feedback.textContent = "Correct.";
       } else {
@@ -35,7 +34,7 @@
     });
 
     result.textContent = allCorrect
-      ? "Correct. The YAML did not win this round."
-      : "Not yet. Review the marked answer and try again.";
+      ? "All answers are correct."
+      : "Review the marked answers and try again.";
   });
 })();

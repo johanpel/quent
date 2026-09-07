@@ -23,8 +23,8 @@ The task enters `running` repeatedly as its progress changes, then enters
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>A self-loop is intentional repetition. An accidental loop is merely “production behavior.”</p>
+    <strong>Key point</strong>
+    <p>A self-loop makes the corresponding state-entry event repeatable.</p>
   </div>
 </div>
 

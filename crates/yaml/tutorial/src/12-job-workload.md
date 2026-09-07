@@ -24,8 +24,8 @@ The generated API distinguishes the worker's `WorkerBounds` from the job's
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>The job requests four threads and claims four threads. Accounting becomes less exciting when the numbers agree.</p>
+    <strong>Key point</strong>
+    <p>The job records its requested thread count and its usage of a bounded worker resource.</p>
   </div>
 </div>
 

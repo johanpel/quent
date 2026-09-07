@@ -15,9 +15,8 @@ the topology.
 
 ## Instrumentation API
 
-Entering a state emits its generated event. The current generated handle does
-not enforce transition order at runtime, so the topology is validated in the
-model rather than encoded as Rust typestate.
+Entering a state emits its generated event. The parser validates the transition
+topology, while generated handles do not enforce transition order at runtime.
 
 ```rust
 {{#include ../../examples/07-finite-state-machine/src/main.rs}}
@@ -28,8 +27,8 @@ model rather than encoded as Rust typestate.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>The arrows are documentation the validator can argue about on your behalf. It enjoys this.</p>
+    <strong>Key point</strong>
+    <p>The model declares valid transitions, reachable states, and the path to a final state.</p>
   </div>
 </div>
 
@@ -42,8 +41,8 @@ model rather than encoded as Rust typestate.
     <label><input type="radio" name="q07a" value="c"> Runtime thread ownership</label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="c" data-explanation="The current generated API emits state-entry events but does not enforce transition order at runtime.">
-    <legend>Does the current Rust handle prevent calling <code>completed</code> before <code>running</code>?</legend>
+  <fieldset data-answer="c" data-explanation="The generated API emits state-entry events but does not enforce transition order at runtime.">
+    <legend>Does the Rust handle prevent calling <code>completed</code> before <code>running</code>?</legend>
     <label><input type="radio" name="q07b" value="a"> Yes, through typestate</label>
     <label><input type="radio" name="q07b" value="b"> Yes, by blocking the thread</label>
     <label><input type="radio" name="q07b" value="c"> No</label>

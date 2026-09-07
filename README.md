@@ -182,7 +182,12 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [x] Entity listing and filtering
   - [ ] Blueprints
 - [ ] Model Context Protocol
-- [x] Tutorial
+- Tutorials
+  - Instrumentation
+    - [x] Rust
+    - [ ] C++
+    - [ ] Python
+  - [ ] Analysis
 
 ## Mods
 

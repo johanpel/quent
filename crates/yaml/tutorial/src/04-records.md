@@ -23,8 +23,8 @@ record, then pass it to the event method.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>A named record prevents five events from inventing six definitions of “result.” This is considered progress.</p>
+    <strong>Key point</strong>
+    <p>A named record provides one reusable structure for event attributes.</p>
   </div>
 </div>
 

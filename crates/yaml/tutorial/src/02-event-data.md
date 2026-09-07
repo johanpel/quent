@@ -24,8 +24,8 @@ YAML scalar types map to ordinary Rust types. A YAML `string` becomes a Rust
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>Typed event data is cheaper than reconstructing intent from seventeen vaguely related log lines.</p>
+    <strong>Key point</strong>
+    <p>Event attributes produce typed parameters in the generated instrumentation API.</p>
   </div>
 </div>
 

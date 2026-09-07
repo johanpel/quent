@@ -25,8 +25,8 @@ The task's reference to `Memory` carries the quantity it claims.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>“Uses memory” is technically true. “Uses 512 MB” is useful. The distinction has survived several dashboards.</p>
+    <strong>Key point</strong>
+    <p>A capacity resource records the quantity of a resource used by an entity.</p>
   </div>
 </div>
 

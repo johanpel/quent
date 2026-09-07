@@ -11,7 +11,7 @@ relationship. The parser validates all scoped references together as one tree.
 
 ## Instrumentation API
 
-The Rust value is still obtained from the parent entity's handle. The extra
+The Rust value is obtained from the parent entity's handle. The additional
 hierarchy meaning belongs to the model and its constraints.
 
 ```rust
@@ -23,8 +23,8 @@ hierarchy meaning belongs to the model and its constraints.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>Trees have one root. “Technically this graph has three roots” is how meetings become recurring.</p>
+    <strong>Key point</strong>
+    <p>A scoped reference defines a parent relationship in a validated entity tree.</p>
   </div>
 </div>
 

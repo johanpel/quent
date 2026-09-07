@@ -1,5 +1,5 @@
 [book]
-title = "Quent YAML Tutorial"
+title = "Quent Tutorial"
 description = "A step-by-step tutorial for authoring Quent models in YAML."
 language = "en"
 src = "src"
@@ -11,6 +11,6 @@ create-missing = false
 [output.html]
 theme = "theme"
 additional-css = ["tutorial.css"]
-additional-js = ["quiz.js"]
+additional-js = ["language-tabs.js", "quiz.js"]
 default-theme = "light"
 preferred-dark-theme = "navy"

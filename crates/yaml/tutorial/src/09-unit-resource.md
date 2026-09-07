@@ -27,8 +27,8 @@ reference.
 {{#include ../../../../ui/public/logo.svg}}
   </div>
   <div>
-    <strong>Badger says</strong>
-    <p>A thread is indivisible. Assigning 0.4 threads is a scheduling proposal best delivered from a safe distance.</p>
+    <strong>Key point</strong>
+    <p>A unit resource represents one indivisible resource instance.</p>
   </div>
 </div>
 
