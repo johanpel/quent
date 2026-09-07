@@ -15,6 +15,7 @@
 
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
+use quent_dag::DagRole;
 use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
@@ -171,7 +172,25 @@ fn entity_of(
         anns = anns.with_constraint(Resource::NAME, Some(data));
     }
 
-    let events: Vec<_> = entity
+    let (dag_role, membership_target) = match &entity.dag {
+        None => (None, None),
+        Some(ast::DagEntityDecl::Dag(true)) => (Some(DagRole::Dag), None),
+        Some(ast::DagEntityDecl::Dag(false)) => {
+            sink.error(&format!("{path}.dag"), "`dag` must be `true`", None);
+            (None, None)
+        }
+        Some(ast::DagEntityDecl::Vertex(decl)) => {
+            (Some(DagRole::Vertex), Some(decl.vertex.as_str()))
+        }
+        Some(ast::DagEntityDecl::Edge(decl)) => (Some(DagRole::Edge), Some(decl.edge.as_str())),
+    };
+    if let Some(role) = dag_role {
+        anns = anns.with_constraint(DagRole::NAME, Some(role.to_string()));
+    }
+
+    let membership_event = membership_target.map(|_| dag_membership_event(entity));
+
+    let mut events: Vec<_> = entity
         .events
         .iter()
         .filter_map(|(event_name, event)| {
@@ -181,10 +200,22 @@ fn entity_of(
                 &path,
                 bounds_record.as_ref(),
                 resources,
+                membership_target.filter(|_| membership_event == Some(event_name.as_str())),
                 sink,
             )
         })
         .collect();
+    if let (Some(target), Some(event_name)) = (membership_target, membership_event)
+        && !entity.events.contains_key(event_name)
+        && let Some(event) = dag_declaration_event(event_name, target, &path, sink)
+    {
+        events.push(event);
+    } else if dag_role == Some(DagRole::Dag)
+        && entity.events.is_empty()
+        && let Some(event) = empty_declaration_event(&path, sink)
+    {
+        events.push(event);
+    }
     match EntityBuilder::new(id?)
         .with_events(events)
         .with_annotations(build_or_diagnose(anns.build(), &path, sink).unwrap_or_default())
@@ -300,18 +331,22 @@ fn event_of(
     entity_path: &str,
     bounds_record: Option<&Path>,
     resources: &ResourceLowerer,
+    dag_membership_target: Option<&str>,
     sink: &mut Diagnostics,
 ) -> Option<quent_schema::Event> {
     let events_path = format!("{entity_path}.events");
     let path = format!("{events_path}.{name}");
     let id = ident(name, &events_path, sink);
-    let fields = event_fields(
+    let mut fields = event_fields(
         &event.attributes,
         &format!("{path}.attributes"),
         bounds_record,
         resources,
         sink,
     );
+    if let Some(target) = dag_membership_target {
+        fields.extend(dag_membership_field(target, &path, sink));
+    }
     let anns = annotations(&event.doc, &event.constraints, &event.metadata, &path, sink);
     let cardinality = if event.multi {
         Cardinality::Multi
@@ -323,6 +358,62 @@ fn event_of(
         .with_annotations(anns)
         .build();
     build_or_diagnose(event, &path, sink)
+}
+
+fn dag_membership_event(entity: &ast::Entity) -> &str {
+    let mut endpoint_events = entity.events.iter().filter_map(|(name, event)| {
+        event
+            .attributes
+            .values()
+            .any(|field| matches!(field, ast::Field::DagEndpoint(_)))
+            .then_some(name.as_str())
+    });
+    let Some(first) = endpoint_events.next() else {
+        return "declared";
+    };
+    if endpoint_events.all(|event| event == first) {
+        first
+    } else {
+        "declared"
+    }
+}
+
+fn dag_declaration_event(
+    name: &str,
+    target: &str,
+    entity_path: &str,
+    sink: &mut Diagnostics,
+) -> Option<quent_schema::Event> {
+    let path = format!("{entity_path}.events.{name}");
+    let field = dag_membership_field(target, &path, sink)?;
+    build_or_diagnose(
+        EventBuilder::new(ident(name, &path, sink)?, Cardinality::Once)
+            .with_field(field)
+            .build(),
+        &path,
+        sink,
+    )
+}
+
+fn empty_declaration_event(
+    entity_path: &str,
+    sink: &mut Diagnostics,
+) -> Option<quent_schema::Event> {
+    let path = format!("{entity_path}.events.declared");
+    build_or_diagnose(
+        EventBuilder::new(ident("declared", &path, sink)?, Cardinality::Once).build(),
+        &path,
+        sink,
+    )
+}
+
+fn dag_membership_field(target: &str, event_path: &str, sink: &mut Diagnostics) -> Option<Field> {
+    let path = format!("{event_path}.attributes.dag");
+    Some(Field::new(
+        ident("dag", &path, sink)?,
+        entity_ref_type(target, None, false, &path, sink)?,
+        DagRole::Membership.annotations(),
+    ))
 }
 
 /// Lower event attributes, including a resource bounds field.
@@ -384,6 +475,16 @@ fn field_of(
             let ann = annotations(&body.doc, &body.constraints, &body.metadata, path, sink);
             (ty, ann)
         }
+        ast::Field::DagEndpoint(endpoint) => match &endpoint.dag {
+            ast::DagEndpointDecl::Source(decl) => (
+                entity_ref_type(&decl.source, None, false, path, sink)?,
+                DagRole::Source.annotations(),
+            ),
+            ast::DagEndpointDecl::Target(decl) => (
+                entity_ref_type(&decl.target, None, false, path, sink)?,
+                DagRole::Target.annotations(),
+            ),
+        },
         ast::Field::ResourceBounds(_) => {
             sink.error(
                 path,
