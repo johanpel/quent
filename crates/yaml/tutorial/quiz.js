@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
 (() => {
   "use strict";
 
@@ -14,10 +17,11 @@
     quiz.querySelectorAll("fieldset[data-answer]").forEach((question) => {
       const selected = question.querySelector("input:checked");
       const correct = selected?.value === question.dataset.answer;
+      const incorrect = selected !== null && !correct;
       const feedback = question.querySelector(".question-feedback");
 
       question.classList.toggle("is-correct", correct);
-      question.classList.toggle("is-incorrect", !correct);
+      question.classList.toggle("is-incorrect", incorrect);
       allCorrect = allCorrect && correct;
 
       if (!selected) {

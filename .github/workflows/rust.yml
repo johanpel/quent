@@ -63,6 +63,8 @@ jobs:
       - run: pixi run cargo build --workspace --all-features --locked --release
       - run: pixi run cargo run -p quent-instrumentation-build-example --locked
       - run: pixi run cargo run -p quent-store-build-example --locked
+      - run: pixi run cargo fmt --manifest-path crates/yaml/examples/Cargo.toml -- --check
+      - run: pixi run cargo clippy --manifest-path crates/yaml/examples/Cargo.toml --bins --locked -- -D warnings
       - run: pixi run cargo check --manifest-path crates/yaml/examples/Cargo.toml --bins --locked
 
   # Regression gate for `quent-open` backward compatibility: build a viewer for

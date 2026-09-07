@@ -1,3 +1,8 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 .badger-note {
   align-items: center;
   background: color-mix(in srgb, var(--quote-bg) 82%, #d9a441 18%);
