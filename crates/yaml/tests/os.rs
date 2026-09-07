@@ -12,6 +12,13 @@ fn schema_of(src: &str) -> Schema {
     parse_from_str(src, None).expect("parses").schema
 }
 
+fn errors_of(src: &str) -> String {
+    match parse_from_str(src, None) {
+        Ok(_) => panic!("expected errors, but parsing succeeded"),
+        Err(error) => error.to_string(),
+    }
+}
+
 #[test]
 fn process_record_is_added_when_referenced() {
     let schema = schema_of(
@@ -62,4 +69,91 @@ entities:
 
     assert!(schema.record(&thread_path()).is_some());
     assert!(schema.record(&process_path()).is_some());
+}
+
+#[test]
+fn process_record_on_multi_event_is_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  MyProcess:
+    events:
+      observed:
+        multi: true
+        attributes:
+          process: quent::os::Process
+",
+    );
+
+    assert!(errors.contains("must carry OS record `quent::os::Process` in a `Once` event"));
+}
+
+#[test]
+fn thread_without_process_ancestor_is_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  MyThread:
+    events:
+      started:
+        attributes:
+          thread: quent::os::Thread
+",
+    );
+
+    assert!(errors.contains("OS thread entity must be scoped under an OS process entity"));
+}
+
+#[test]
+fn nested_os_records_are_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Target:
+    events:
+      init: {}
+  Candidate:
+    events:
+      init:
+        attributes:
+          optional: { option: quent::os::Process }
+          processes: { list: quent::os::Process }
+          target: { ref: Target, data: quent::os::Process }
+",
+    );
+
+    assert_eq!(
+        errors
+            .matches("must be used directly as an entity event field")
+            .count(),
+        3,
+        "{errors}"
+    );
+}
+
+#[test]
+fn duplicate_os_records_in_one_event_are_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  MyProcess:
+    events:
+      init:
+        attributes:
+          first: quent::os::Process
+          second: quent::os::Process
+",
+    );
+
+    assert!(
+        errors.contains("OS record `quent::os::Process` may be carried by only one event field")
+    );
 }
