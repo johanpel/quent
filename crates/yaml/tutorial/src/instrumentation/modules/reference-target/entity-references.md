@@ -1,4 +1,4 @@
-# 5. Entity references
+# Entity references
 
 A targeted `ref` links one entity to another entity of a declared type. Here,
 the task's `started` event records which `Worker` runs it.
@@ -6,7 +6,7 @@ the task's `started` event records which `Worker` runs it.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/05-entity-references/model.yaml}}
+{{#include ../../../../../examples/entity-references/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ An entity handle produces a typed reference with `as_entity_ref`. The generated
 `started` method only accepts a reference targeting `Worker`.
 
 ```rust
-{{#include ../../examples/05-entity-references/src/main.rs}}
+{{#include ../../../../../examples/entity-references/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

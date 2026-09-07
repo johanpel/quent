@@ -1,4 +1,4 @@
-# 1. Minimal model
+# Minimal model
 
 Every model declares the YAML format version and a model name. This model has
 one entity type, `Task`, with two events. Events are emitted at most once per
@@ -7,7 +7,7 @@ entity instance unless the model says otherwise.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/01-minimal-model/model.yaml}}
+{{#include ../../../../examples/minimal-model/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -16,12 +16,12 @@ The context provides an observer for each entity type. A handle represents one
 entity instance and exposes one method per event.
 
 ```rust
-{{#include ../../examples/01-minimal-model/src/main.rs}}
+{{#include ../../../../examples/minimal-model/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

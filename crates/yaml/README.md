@@ -57,7 +57,7 @@ job.completed()?;
 ```
 
 Misspelled states and malformed resource payloads become compile errors. The
-full [job workload example](examples/12-job-workload/) is runnable.
+full [job workload example](examples/job-workload/) is runnable.
 
 ## Validate a model
 
@@ -91,14 +91,14 @@ Each example contains a YAML model and a program using its generated Rust
 instrumentation API. The programs use a no-op exporter, so a successful run
 has no output.
 
-### 1. Minimal model
+### Minimal model
 
 Every model declares the YAML format version and a model name. This model
 defines a `Task` entity with two events. Each event can occur once for each
 `Task` instance, but the model does not constrain their order.
 
-- [YAML model](examples/01-minimal-model/model.yaml)
-- [Instrumentation API usage](examples/01-minimal-model/src/main.rs)
+- [YAML model](examples/minimal-model/model.yaml)
+- [Instrumentation API usage](examples/minimal-model/src/main.rs)
 
 Run the example from the repository root:
 
@@ -106,14 +106,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin minimal-model
 ```
 
-### 2. Event data
+### Event data
 
 An event's `attributes` declare the data captured when it occurs. Attributes
 have explicit types, which become argument types in the generated
 instrumentation API.
 
-- [YAML model](examples/02-event-data/model.yaml)
-- [Instrumentation API usage](examples/02-event-data/src/main.rs)
+- [YAML model](examples/event-data/model.yaml)
+- [Instrumentation API usage](examples/event-data/src/main.rs)
 
 Run the example from the repository root:
 
@@ -121,14 +121,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin event-data
 ```
 
-### 3. Repeated events
+### Repeated events
 
 An event declared with `multi: true` can occur repeatedly for one entity
 instance. Events are `once` by default and return an error when emitted again
 for the same instance.
 
-- [YAML model](examples/03-repeated-events/model.yaml)
-- [Instrumentation API usage](examples/03-repeated-events/src/main.rs)
+- [YAML model](examples/repeated-events/model.yaml)
+- [Instrumentation API usage](examples/repeated-events/src/main.rs)
 
 Run the example from the repository root:
 
@@ -136,13 +136,13 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin repeated-events
 ```
 
-### 4. Records
+### Records
 
 A record groups related fields into a reusable type. It becomes a struct in the
 generated Rust instrumentation API.
 
-- [YAML model](examples/04-records/model.yaml)
-- [Instrumentation API usage](examples/04-records/src/main.rs)
+- [YAML model](examples/records/model.yaml)
+- [Instrumentation API usage](examples/records/src/main.rs)
 
 Run the example from the repository root:
 
@@ -150,13 +150,13 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin records
 ```
 
-### 5. Entity references
+### Entity references
 
 A `ref` field links one entity to another entity of a declared type. It does not
 define a hierarchy between them.
 
-- [YAML model](examples/05-entity-references/model.yaml)
-- [Instrumentation API usage](examples/05-entity-references/src/main.rs)
+- [YAML model](examples/entity-references/model.yaml)
+- [Instrumentation API usage](examples/entity-references/src/main.rs)
 
 Run the example from the repository root:
 
@@ -164,13 +164,13 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin entity-references
 ```
 
-### 6. Scoped references
+### Scoped references
 
 A `scope-ref` field defines a parent relationship. Scoped references are
 validated as a hierarchy in addition to being type-checked entity references.
 
-- [YAML model](examples/06-scoped-references/model.yaml)
-- [Instrumentation API usage](examples/06-scoped-references/src/main.rs)
+- [YAML model](examples/scoped-references/model.yaml)
+- [Instrumentation API usage](examples/scoped-references/src/main.rs)
 
 Run the example from the repository root:
 
@@ -178,15 +178,15 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin scoped-references
 ```
 
-### 7. Finite-state machines
+### Finite-state machines
 
 An FSM declares the allowed lifecycle topology. The parser validates its
 initial state, reachability, and final paths, and derives event cardinality from
 the transitions. The generated instrumentation API emits state-entry events.
 Transition order is model metadata and is not enforced at runtime.
 
-- [YAML model](examples/07-finite-state-machine/model.yaml)
-- [Instrumentation API usage](examples/07-finite-state-machine/src/main.rs)
+- [YAML model](examples/finite-state-machine/model.yaml)
+- [Instrumentation API usage](examples/finite-state-machine/src/main.rs)
 
 Run the example from the repository root:
 
@@ -194,14 +194,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin finite-state-machine
 ```
 
-### 8. FSM self-loops
+### FSM self-loops
 
 A self-loop allows an FSM to enter the same state repeatedly. The generated
 event for that state has `multi` cardinality, while states without a cycle have
 `once` cardinality.
 
-- [YAML model](examples/08-fsm-self-loop/model.yaml)
-- [Instrumentation API usage](examples/08-fsm-self-loop/src/main.rs)
+- [YAML model](examples/fsm-self-loop/model.yaml)
+- [Instrumentation API usage](examples/fsm-self-loop/src/main.rs)
 
 Run the example from the repository root:
 
@@ -209,14 +209,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin fsm-self-loop
 ```
 
-### 9. Unit resources
+### Unit resources
 
 `resource: true` declares an indivisible resource. Each `Thread` is scoped under
 a `ThreadPool`. The task's scoped reference carries `ThreadUsage`, so the task
 is scoped under and claims a specific thread while it is running.
 
-- [YAML model](examples/09-unit-resource/model.yaml)
-- [Instrumentation API usage](examples/09-unit-resource/src/main.rs)
+- [YAML model](examples/unit-resource/model.yaml)
+- [Instrumentation API usage](examples/unit-resource/src/main.rs)
 
 Run the example from the repository root:
 
@@ -224,13 +224,13 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin unit-resource
 ```
 
-### 10. Resource capacities
+### Resource capacities
 
 A resource can expose a measured capacity instead of being indivisible. An
 `occupancy` usage records a quantity held for the duration of an FSM state.
 
-- [YAML model](examples/10-resource-capacity/model.yaml)
-- [Instrumentation API usage](examples/10-resource-capacity/src/main.rs)
+- [YAML model](examples/resource-capacity/model.yaml)
+- [Instrumentation API usage](examples/resource-capacity/src/main.rs)
 
 Run the example from the repository root:
 
@@ -238,14 +238,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin resource-capacity
 ```
 
-### 11. Bounded resources
+### Bounded resources
 
 `known-bounds: true` gives a capacity an explicit bound. An attribute marked
 with `sets-resource-bounds: true` carries the generated bounds record whenever
 the bound changes.
 
-- [YAML model](examples/11-bounded-resource/model.yaml)
-- [Instrumentation API usage](examples/11-bounded-resource/src/main.rs)
+- [YAML model](examples/bounded-resource/model.yaml)
+- [Instrumentation API usage](examples/bounded-resource/src/main.rs)
 
 Run the example from the repository root:
 
@@ -253,14 +253,14 @@ Run the example from the repository root:
 cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin bounded-resource
 ```
 
-### 12. Job workload
+### Job workload
 
 This capstone combines an FSM, event attributes, and measured resource usage.
 A worker publishes its thread limit. A job records how many threads it requests
 and how many it occupies while running.
 
-- [YAML model](examples/12-job-workload/model.yaml)
-- [Instrumentation API usage](examples/12-job-workload/src/main.rs)
+- [YAML model](examples/job-workload/model.yaml)
+- [Instrumentation API usage](examples/job-workload/src/main.rs)
 
 Run the example from the repository root:
 

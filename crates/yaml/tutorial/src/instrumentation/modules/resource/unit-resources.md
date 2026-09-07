@@ -1,4 +1,4 @@
-# 9. Unit resources
+# Unit resources
 
 `resource: true` declares an indivisible resource. This model places each
 `Thread` under a `ThreadPool`, then places a running `Task` under the specific
@@ -7,7 +7,7 @@ thread it claims.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/09-unit-resource/model.yaml}}
+{{#include ../../../../../examples/unit-resource/model.yaml}}
 ```
 
 The `ThreadUsage` record is generated automatically. It has no fields because a
@@ -19,12 +19,12 @@ unit resource is claimed as a whole.
 reference.
 
 ```rust
-{{#include ../../examples/09-unit-resource/src/main.rs}}
+{{#include ../../../../../examples/unit-resource/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

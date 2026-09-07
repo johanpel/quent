@@ -15,48 +15,48 @@ quent-yaml = { path = ".." }
 
 [[bin]]
 name = "minimal-model"
-path = "01-minimal-model/src/main.rs"
+path = "minimal-model/src/main.rs"
 
 [[bin]]
 name = "event-data"
-path = "02-event-data/src/main.rs"
+path = "event-data/src/main.rs"
 
 [[bin]]
 name = "repeated-events"
-path = "03-repeated-events/src/main.rs"
+path = "repeated-events/src/main.rs"
 
 [[bin]]
 name = "records"
-path = "04-records/src/main.rs"
+path = "records/src/main.rs"
 
 [[bin]]
 name = "entity-references"
-path = "05-entity-references/src/main.rs"
+path = "entity-references/src/main.rs"
 
 [[bin]]
 name = "scoped-references"
-path = "06-scoped-references/src/main.rs"
+path = "scoped-references/src/main.rs"
 
 [[bin]]
 name = "finite-state-machine"
-path = "07-finite-state-machine/src/main.rs"
+path = "finite-state-machine/src/main.rs"
 
 [[bin]]
 name = "fsm-self-loop"
-path = "08-fsm-self-loop/src/main.rs"
+path = "fsm-self-loop/src/main.rs"
 
 [[bin]]
 name = "unit-resource"
-path = "09-unit-resource/src/main.rs"
+path = "unit-resource/src/main.rs"
 
 [[bin]]
 name = "resource-capacity"
-path = "10-resource-capacity/src/main.rs"
+path = "resource-capacity/src/main.rs"
 
 [[bin]]
 name = "bounded-resource"
-path = "11-bounded-resource/src/main.rs"
+path = "bounded-resource/src/main.rs"
 
 [[bin]]
 name = "job-workload"
-path = "12-job-workload/src/main.rs"
+path = "job-workload/src/main.rs"

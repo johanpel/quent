@@ -1,4 +1,4 @@
-# 11. Bounded resources
+# Bounded resources
 
 `known-bounds: true` states that a capacity has an explicit bound. An event or
 FSM state attribute marked with `sets-resource-bounds: true` carries the
@@ -7,7 +7,7 @@ generated bounds record whenever that limit changes.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/11-bounded-resource/model.yaml}}
+{{#include ../../../../../examples/bounded-resource/model.yaml}}
 ```
 
 The resource declaration generates both `MemoryUsage` and `MemoryBounds`.
@@ -18,12 +18,12 @@ The memory entity publishes its current bound. The task separately records how
 much of that capacity it claims.
 
 ```rust
-{{#include ../../examples/11-bounded-resource/src/main.rs}}
+{{#include ../../../../../examples/bounded-resource/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

@@ -1,4 +1,4 @@
-# 7. Finite-state machines
+# Basic lifecycle
 
 An FSM puts lifecycle topology in the model. It declares an initial state,
 allowed transitions, and a reachable final state.
@@ -6,7 +6,7 @@ allowed transitions, and a reachable final state.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/07-finite-state-machine/model.yaml}}
+{{#include ../../../../../examples/finite-state-machine/model.yaml}}
 ```
 
 The parser rejects missing initial states, unreachable states, invalid targets,
@@ -19,12 +19,12 @@ Entering a state emits its generated event. The parser validates the transition
 topology, while generated handles do not enforce transition order at runtime.
 
 ```rust
-{{#include ../../examples/07-finite-state-machine/src/main.rs}}
+{{#include ../../../../../examples/finite-state-machine/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

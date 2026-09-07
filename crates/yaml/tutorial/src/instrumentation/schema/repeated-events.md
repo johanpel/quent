@@ -1,4 +1,4 @@
-# 3. Repeated events
+# Repeated events
 
 Events are `once` by default. Set `multi: true` when one entity instance may
 emit the same event repeatedly.
@@ -6,7 +6,7 @@ emit the same event repeatedly.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/03-repeated-events/model.yaml}}
+{{#include ../../../../examples/repeated-events/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ The same `Task` handle emits `progress` more than once. Repeating `started` or
 `ended` on that handle would return an error.
 
 ```rust
-{{#include ../../examples/03-repeated-events/src/main.rs}}
+{{#include ../../../../examples/repeated-events/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

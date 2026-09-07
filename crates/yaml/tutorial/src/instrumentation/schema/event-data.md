@@ -1,4 +1,4 @@
-# 2. Event data
+# Event data
 
 An event's `attributes` describe the data captured when that event occurs. The
 generated event method receives one typed argument for each attribute, in
@@ -7,7 +7,7 @@ declaration order.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/02-event-data/model.yaml}}
+{{#include ../../../../examples/event-data/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -16,12 +16,12 @@ YAML scalar types map to ordinary Rust types. A YAML `string` becomes a Rust
 `String`, while integer and boolean types retain their names.
 
 ```rust
-{{#include ../../examples/02-event-data/src/main.rs}}
+{{#include ../../../../examples/event-data/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

@@ -1,4 +1,4 @@
-# 6. Scoped references
+# Scoped references
 
 A `scope-ref` is a typed entity reference that also defines a parent
 relationship. The parser validates all scoped references together as one tree.
@@ -6,7 +6,7 @@ relationship. The parser validates all scoped references together as one tree.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/06-scoped-references/model.yaml}}
+{{#include ../../../../../examples/scoped-references/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -15,12 +15,12 @@ The Rust value is obtained from the parent entity's handle. The additional
 hierarchy meaning belongs to the model and its constraints.
 
 ```rust
-{{#include ../../examples/06-scoped-references/src/main.rs}}
+{{#include ../../../../../examples/scoped-references/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>

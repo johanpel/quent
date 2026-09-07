@@ -14,5 +14,6 @@ docs/agents/
 .cursor
 __pycache__/
 .env
+/book/
 
 ui/generated/ts-bindings/

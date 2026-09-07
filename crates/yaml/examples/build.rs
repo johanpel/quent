@@ -9,18 +9,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
 
     for relative_path in [
-        "01-minimal-model/model.yaml",
-        "02-event-data/model.yaml",
-        "03-repeated-events/model.yaml",
-        "04-records/model.yaml",
-        "05-entity-references/model.yaml",
-        "06-scoped-references/model.yaml",
-        "07-finite-state-machine/model.yaml",
-        "08-fsm-self-loop/model.yaml",
-        "09-unit-resource/model.yaml",
-        "10-resource-capacity/model.yaml",
-        "11-bounded-resource/model.yaml",
-        "12-job-workload/model.yaml",
+        "minimal-model/model.yaml",
+        "event-data/model.yaml",
+        "repeated-events/model.yaml",
+        "records/model.yaml",
+        "entity-references/model.yaml",
+        "scoped-references/model.yaml",
+        "finite-state-machine/model.yaml",
+        "fsm-self-loop/model.yaml",
+        "unit-resource/model.yaml",
+        "resource-capacity/model.yaml",
+        "bounded-resource/model.yaml",
+        "job-workload/model.yaml",
     ] {
         let model = root.join(relative_path);
         println!("cargo:rerun-if-changed={}", model.display());

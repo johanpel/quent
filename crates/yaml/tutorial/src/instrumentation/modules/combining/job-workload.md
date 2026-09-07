@@ -1,4 +1,4 @@
-# 12. Job workload
+# Job workload
 
 This capstone combines an FSM, event attributes, and measured resource usage.
 A worker publishes its thread limit. A job records how many threads it requests
@@ -7,7 +7,7 @@ and how many it occupies while running.
 ## YAML model
 
 ```yaml
-{{#include ../../examples/12-job-workload/model.yaml}}
+{{#include ../../../../../examples/job-workload/model.yaml}}
 ```
 
 ## Instrumentation API
@@ -16,12 +16,12 @@ The generated API distinguishes the worker's `WorkerBounds` from the job's
 `WorkerUsage`. No event names or payload keys are assembled at runtime.
 
 ```rust
-{{#include ../../examples/12-job-workload/src/main.rs}}
+{{#include ../../../../../examples/job-workload/src/main.rs}}
 ```
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
-{{#include ../../../../ui/public/logo.svg}}
+{{#include ../../../../../../../ui/public/logo.svg}}
   </div>
   <div>
     <strong>Key point</strong>
