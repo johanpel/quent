@@ -663,6 +663,14 @@ fn annotations_builder(
             );
             continue;
         }
+        if name == DagRole::NAME {
+            sink.error(
+                path,
+                "the DAG constraint is set from a `dag:` declaration, not written directly",
+                None,
+            );
+            continue;
+        }
         builder = builder.with_constraint(name, value.clone());
     }
     for (name, value) in metadata {

@@ -106,6 +106,51 @@ fn dag_marker_must_be_true() {
     assert!(diagnostics.to_string().contains("`dag` must be `true`"));
 }
 
+#[test]
+fn hand_written_dag_constraint_is_rejected_on_an_entity() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    constraints:
+      quent.dag.v0.1.0: dag
+    events:
+      declared: {}
+",
+    );
+    assert!(errors.contains("DAG constraint is set from a `dag:` declaration"));
+}
+
+#[test]
+fn hand_written_dag_constraint_is_rejected_on_a_field() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    events:
+      declared:
+        attributes:
+          endpoint:
+            type:
+              ref: Plan
+            constraints:
+              quent.dag.v0.1.0: source
+",
+    );
+    assert!(errors.contains("DAG constraint is set from a `dag:` declaration"));
+}
+
+fn errors_of(model: &str) -> String {
+    let Err(Error::Invalid(diagnostics)) = parse_from_str(model, None) else {
+        panic!("expected invalid model");
+    };
+    diagnostics.to_string()
+}
+
 fn reference_target(ty: &DataType) -> Option<Path> {
     let DataType::EntityRef { annotations, .. } = ty else {
         return None;
