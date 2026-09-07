@@ -3,7 +3,8 @@
 
 //! OS tests: canonical process and thread records are included when referenced.
 
-use quent_os::{process_path, thread_path};
+use quent_constraints::Constraint as _;
+use quent_os::{OsConstraint, process_path, thread_path};
 use quent_schema::test_utils::{ident, path};
 use quent_schema::{DataType, Schema};
 use quent_yaml::parse_from_str;
@@ -42,7 +43,13 @@ entities:
         .field(&ident("process"))
         .unwrap();
     assert_eq!(field.ty(), &DataType::Record(process_path()));
-    assert!(schema.record(&process_path()).is_some());
+    assert!(
+        schema
+            .record(&process_path())
+            .unwrap()
+            .annotations()
+            .has_constraint(OsConstraint::NAME)
+    );
     assert!(schema.record(&thread_path()).is_none());
 }
 

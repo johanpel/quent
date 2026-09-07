@@ -1,9 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::{Annotations, DataType, Field, Identifier, Record, builder::RecordBuilder};
+use quent_constraints::Constraint as _;
+use quent_schema::{
+    Annotations, DataType, Field, Identifier, Record,
+    builder::{AnnotationsBuilder, RecordBuilder},
+};
 
-use crate::{process_path, thread_path};
+use crate::{OsConstraint, process_path, thread_path};
+
+fn os_annotations() -> Annotations {
+    AnnotationsBuilder::new()
+        .with_constraint(OsConstraint::NAME, None)
+        .build()
+        .expect("canonical OS annotations are valid")
+}
 
 /// Return the canonical process record.
 ///
@@ -18,6 +29,7 @@ use crate::{process_path, thread_path};
 /// [`GetCurrentProcessId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocessid
 pub fn process_record() -> Record {
     RecordBuilder::new(process_path())
+        .with_annotations(os_annotations())
         .with_field(Field::new(
             Identifier::try_new("native_id").expect("canonical field name is valid"),
             DataType::U32,
@@ -41,6 +53,7 @@ pub fn process_record() -> Record {
 /// [`GetCurrentThreadId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid
 pub fn thread_record() -> Record {
     RecordBuilder::new(thread_path())
+        .with_annotations(os_annotations())
         .with_field(Field::new(
             Identifier::try_new("native_id").expect("canonical field name is valid"),
             DataType::U64,

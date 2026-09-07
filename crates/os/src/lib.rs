@@ -44,6 +44,7 @@ pub use record::{process_record, thread_record};
 /// 3. An entity may not carry both canonical records.
 /// 4. A thread entity must be transitively scoped under a process entity by
 ///    tree-forming entity references.
+/// 5. Canonical record declarations must carry the [`OsConstraint`] annotation.
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
@@ -119,6 +120,11 @@ impl Visitor for OsConstraint {
             Element::Schema(schema) => self.schema = Some((*schema).clone()),
             Element::Record(record) => {
                 if let Some(role) = entity_role_for_record(record.path()) {
+                    if !record.annotations().has_constraint(Self::NAME) {
+                        self.errors.push(OsError::MissingOsConstraintAnnotation {
+                            record: record.path().clone(),
+                        });
+                    }
                     match role {
                         OsEntityRole::Process => self.process_record = Some(record.clone()),
                         OsEntityRole::Thread => self.thread_record = Some(record.clone()),
@@ -357,6 +363,11 @@ fn entity_role_for_record(path: &Path) -> Option<OsEntityRole> {
 /// Error produced when an OS constraint requirement is violated.
 #[derive(Debug, Error)]
 pub enum OsError {
+    #[error(
+        "canonical OS record `{record}` must carry constraint `{}`",
+        OsConstraint::NAME
+    )]
+    MissingOsConstraintAnnotation { record: Path },
     #[error("{location}: OS record `{record}` must be used directly as an entity event field")]
     OsRecordNotDirectEventField { location: String, record: Path },
     #[error("{location}: OS record `{record}` may only be used by an entity event")]
