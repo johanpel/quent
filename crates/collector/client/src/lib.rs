@@ -20,7 +20,59 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use quent_collector_rpc::{EventBatch, collector_client::CollectorClient};
+use quent_collector_rpc::{
+    EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatch, MAX_EVENT_BATCH_ENCODED_LEN,
+    collector_client::CollectorClient,
+};
+
+#[derive(Debug)]
+struct EventBatchBuffer {
+    events: Vec<Vec<u8>>,
+    encoded_len: usize,
+    max_encoded_len: usize,
+}
+
+impl EventBatchBuffer {
+    fn new(max_encoded_len: usize) -> Self {
+        Self {
+            events: Vec::new(),
+            encoded_len: EVENT_BATCH_HEADER_LEN,
+            max_encoded_len,
+        }
+    }
+
+    fn push(&mut self, event: Vec<u8>) -> Result<Option<EventBatch>, usize> {
+        let payload_len = event.len();
+        let event_encoded_len = EVENT_LENGTH_HEADER_LEN
+            .checked_add(payload_len)
+            .ok_or(payload_len)?;
+        let single_event_batch_len = EVENT_BATCH_HEADER_LEN
+            .checked_add(event_encoded_len)
+            .ok_or(payload_len)?;
+        if single_event_batch_len > self.max_encoded_len {
+            return Err(payload_len);
+        }
+
+        let full_batch = if self.encoded_len + event_encoded_len > self.max_encoded_len {
+            self.take()
+        } else {
+            None
+        };
+        self.encoded_len += event_encoded_len;
+        self.events.push(event);
+        Ok(full_batch)
+    }
+
+    fn take(&mut self) -> Option<EventBatch> {
+        if self.events.is_empty() {
+            return None;
+        }
+        self.encoded_len = EVENT_BATCH_HEADER_LEN;
+        Some(EventBatch {
+            events: std::mem::take(&mut self.events),
+        })
+    }
+}
 
 /// A sink for serialized per-entity event streams.
 pub trait CollectorSink {
@@ -120,30 +172,38 @@ where
 
         // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
         let events_sender_handle = tokio::spawn(async move {
-            // Batch of serialized events.
-            let mut buffer = Vec::new();
-            // Number of bytes currently in the buffer.
-            let mut num_buffer_bytes = 0usize;
+            let mut buffer = EventBatchBuffer::new(MAX_EVENT_BATCH_ENCODED_LEN);
             // Interval by which to export even if the buffer isn't full.
             let mut ticker = tokio::time::interval(Duration::from_millis(128));
-            // Max bytes in the buffer.
-            // gRPC max default is 4 MiB, reserve 256 KiB for overhead.
-            const MAX_BUFFER_BYTES: usize = (4 * 1024 * 1024) - (256 * 1024);
 
-            /// function to flush the buffer
             async fn flush_buffer(
-                buffer: &mut Vec<Vec<u8>>,
-                num_buffer_bytes: &mut usize,
+                buffer: &mut EventBatchBuffer,
                 grpc_sender: &Sender<EventBatch>,
             ) -> Result<(), ()> {
-                if buffer.is_empty() {
-                    return Ok(());
+                if let Some(request) = buffer.take() {
+                    grpc_sender.send(request).await.map_err(|_| ())?;
                 }
-                let request = EventBatch {
-                    events: std::mem::take(buffer),
-                };
-                *num_buffer_bytes = 0;
-                grpc_sender.send(request).await.map_err(|_| ())
+                Ok(())
+            }
+
+            async fn buffer_event(
+                event: Vec<u8>,
+                buffer: &mut EventBatchBuffer,
+                grpc_sender: &Sender<EventBatch>,
+            ) -> Result<bool, ()> {
+                match buffer.push(event) {
+                    Ok(Some(full_batch)) => {
+                        grpc_sender.send(full_batch).await.map_err(|_| ())?;
+                        Ok(true)
+                    }
+                    Ok(None) => Ok(false),
+                    Err(payload_len) => {
+                        error!(
+                            "serialized event is {payload_len} bytes and exceeds the collector message limit; dropping event"
+                        );
+                        Ok(false)
+                    }
+                }
             }
 
             loop {
@@ -156,19 +216,19 @@ where
                                 continue;
                             }
                         };
-                        num_buffer_bytes += serialized_event.len();
-                        buffer.push(serialized_event);
-
-                        if num_buffer_bytes >= MAX_BUFFER_BYTES {
-                            if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
+                        match buffer_event(serialized_event, &mut buffer, &grpc_sender).await {
+                            Ok(true) => {
+                                ticker.reset();
+                            }
+                            Ok(false) => {}
+                            Err(()) => {
                                 error!("server disconnected");
                                 break;
                             }
-                            ticker.reset();
                         }
                     },
                     _ = ticker.tick() => {
-                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
+                        if flush_buffer(&mut buffer, &grpc_sender).await.is_err() {
                             error!("server disconnected");
                             break;
                         }
@@ -178,12 +238,17 @@ where
                         // drain events that are buffered
                         while let Some(event) = event_receiver.recv().await {
                             match serialize_event(&event) {
-                                Ok(bytes) => buffer.push(bytes),
+                                Ok(bytes) => {
+                                    if buffer_event(bytes, &mut buffer, &grpc_sender).await.is_err() {
+                                        error!("server disconnected during shutdown");
+                                        return;
+                                    }
+                                }
                                 Err(e) => error!("unable to serialize event: {e}"),
                             }
                         }
 
-                        if flush_buffer(&mut buffer, &mut num_buffer_bytes, &grpc_sender).await.is_err() {
+                        if flush_buffer(&mut buffer, &grpc_sender).await.is_err() {
                             error!("server disconnected during shutdown");
                         }
                         let pending = grpc_sender.max_capacity() - grpc_sender.capacity();
@@ -279,5 +344,33 @@ impl<T> Drop for Client<T> {
         // tasks are normally already joined. Cancel as a backstop; any handle
         // still present is detached (no blocking — `Drop` may run on a worker).
         self.cancellation_token.cancel();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatchBuffer};
+
+    #[test]
+    fn batch_splits_before_exceeding_encoded_limit() {
+        let event = vec![42; 3];
+        let one_event_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN + event.len();
+        let mut buffer = EventBatchBuffer::new(one_event_len);
+
+        assert!(buffer.push(event.clone()).unwrap().is_none());
+        let full_batch = buffer.push(event.clone()).unwrap().unwrap();
+
+        assert_eq!(full_batch.events, vec![event.clone()]);
+        assert_eq!(buffer.take().unwrap().events, vec![event]);
+    }
+
+    #[test]
+    fn event_larger_than_encoded_limit_is_rejected() {
+        let mut buffer = EventBatchBuffer::new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN);
+
+        let payload_len = buffer.push(vec![42]).unwrap_err();
+
+        assert_eq!(payload_len, 1);
+        assert!(buffer.take().is_none());
     }
 }

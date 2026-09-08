@@ -11,6 +11,15 @@ use tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
 };
 
+/// Maximum encoded size of an event batch sent by collector clients.
+pub const MAX_EVENT_BATCH_ENCODED_LEN: usize = 4 * 1024 * 1024;
+
+/// Encoded size of the event-count field at the start of a batch.
+pub const EVENT_BATCH_HEADER_LEN: usize = size_of::<u32>();
+
+/// Encoded size of the length field before each event payload.
+pub const EVENT_LENGTH_HEADER_LEN: usize = size_of::<u32>();
+
 /// A batch of serialized collector events.
 ///
 /// The wire representation is a big-endian `u32` event count followed by a
@@ -50,14 +59,14 @@ impl WireMessage for EventBatch {
     }
 
     fn decode(src: &mut impl Buf) -> Result<Self, Status> {
-        if src.remaining() < size_of::<u32>() {
+        if src.remaining() < EVENT_BATCH_HEADER_LEN {
             return Err(Status::invalid_argument(
                 "event batch is missing its event count",
             ));
         }
 
         let event_count = src.get_u32() as usize;
-        if event_count > src.remaining() / size_of::<u32>() {
+        if event_count > src.remaining() / EVENT_LENGTH_HEADER_LEN {
             return Err(Status::invalid_argument(
                 "event batch contains an invalid event count",
             ));
@@ -65,7 +74,7 @@ impl WireMessage for EventBatch {
 
         let mut events = Vec::with_capacity(event_count);
         for _ in 0..event_count {
-            if src.remaining() < size_of::<u32>() {
+            if src.remaining() < EVENT_LENGTH_HEADER_LEN {
                 return Err(Status::invalid_argument(
                     "event batch is missing an event length",
                 ));
