@@ -1,8 +1,8 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 806.46 425">
+<svg class="quent-architecture" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 806.46 425">
   <defs>
-    <style>path[fill="none"]{fill:none}@media (prefers-color-scheme:dark){use:not([fill]):not([stroke-width]){fill:#f0f6fc}[stroke="#000"]:not([fill]){fill:none}[fill="#fff"]{fill:#161b22}[stroke="#000"]{stroke:#f0f6fc}[fill="#3a414a"],[fill="#4c535d"]{fill:#c9d1d9}[stroke="#3a414a"]{stroke:#c9d1d9}[fill="#6f7681"]{fill:#b1bac4}[stroke="#6f7681"]{stroke:#b1bac4}[fill="#979ea8"]{fill:#8c959f}[stroke="#979ea8"]{stroke:#8c959f}[fill="#7400ff"]{fill:#a371f7}[stroke="#7400ff"]{stroke:#a371f7}}</style>
+    <style>.quent-architecture path[fill="none"]{fill:none}@media (prefers-color-scheme:dark){.quent-architecture use:not([fill]):not([stroke-width]){fill:#f0f6fc}.quent-architecture [stroke="#000"]:not([fill]){fill:none}.quent-architecture [fill="#fff"]{fill:#161b22}.quent-architecture [stroke="#000"]{stroke:#f0f6fc}.quent-architecture [fill="#3a414a"],.quent-architecture [fill="#4c535d"]{fill:#c9d1d9}.quent-architecture [stroke="#3a414a"]{stroke:#c9d1d9}.quent-architecture [fill="#6f7681"]{fill:#b1bac4}.quent-architecture [stroke="#6f7681"]{stroke:#b1bac4}.quent-architecture [fill="#979ea8"]{fill:#8c959f}.quent-architecture [stroke="#979ea8"]{stroke:#8c959f}.quent-architecture [fill="#7400ff"]{fill:#a371f7}.quent-architecture [stroke="#7400ff"]{stroke:#a371f7}}</style>
     <path id="i" stroke="#000" d="M1688.56 912.98h-1.07l.03-.97-.02-.98h1.06z"/>
     <path id="t" stroke="#000" d="M2050.03 1056.97H2049v-1.94h1.03z"/>
   </defs>

@@ -43,6 +43,58 @@
   fill: none;
 }
 
+.light .architecture-overview use:not([fill]):not([stroke-width]) {
+  fill: #000;
+}
+
+.light .architecture-overview [stroke="#000"]:not([fill]) {
+  fill: none;
+}
+
+.light .architecture-overview [fill="#fff"] {
+  fill: #fff;
+}
+
+.light .architecture-overview [stroke="#000"] {
+  stroke: #000;
+}
+
+.light .architecture-overview [fill="#3a414a"] {
+  fill: #3a414a;
+}
+
+.light .architecture-overview [fill="#4c535d"] {
+  fill: #4c535d;
+}
+
+.light .architecture-overview [stroke="#3a414a"] {
+  stroke: #3a414a;
+}
+
+.light .architecture-overview [fill="#6f7681"] {
+  fill: #6f7681;
+}
+
+.light .architecture-overview [stroke="#6f7681"] {
+  stroke: #6f7681;
+}
+
+.light .architecture-overview [fill="#979ea8"] {
+  fill: #979ea8;
+}
+
+.light .architecture-overview [stroke="#979ea8"] {
+  stroke: #979ea8;
+}
+
+.light .architecture-overview [fill="#7400ff"] {
+  fill: #7400ff;
+}
+
+.light .architecture-overview [stroke="#7400ff"] {
+  stroke: #7400ff;
+}
+
 :is(.navy, .ayu, .coal) .architecture-overview use:not([fill]):not([stroke-width]) {
   fill: #f0f6fc;
 }
@@ -199,10 +251,12 @@
   min-height: 1.5em;
 }
 
-.navy .badger-mark,
-.ayu .badger-mark,
-.coal .badger-mark {
-  filter: invert(1);
+.light .badger-mark .quent-logo path {
+  fill: #000;
+}
+
+:is(.navy, .ayu, .coal) .badger-mark .quent-logo path {
+  fill: #fff;
 }
 
 @media (max-width: 620px) {

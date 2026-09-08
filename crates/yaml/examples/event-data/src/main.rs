@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#[allow(unused)]
+#[allow(unused, clippy::too_many_arguments)]
 mod instrumentation {
     include!(concat!(env!("OUT_DIR"), "/event_data.rs"));
 }

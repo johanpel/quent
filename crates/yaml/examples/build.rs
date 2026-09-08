@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for relative_path in [
         "minimal-model/model.yaml",
         "event-data/model.yaml",
+        "dynamic-attributes/model.yaml",
         "repeated-events/model.yaml",
         "records/model.yaml",
         "untyped-entity-references/model.yaml",
@@ -31,10 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("cargo:warning={warning}");
         }
 
-        let generated = generate(&parsed.schema, &Options::default())?;
-        for warning in generated.warnings {
-            println!("cargo:warning={warning}");
-        }
+        generate(&parsed.schema, &Options::default())?;
     }
 
     Ok(())

@@ -6,7 +6,9 @@ on:
     paths:
       - "**/*.md"
       - "crates/yaml/examples/**"
+      - "docs/figures/overview.svg"
       - "docs/tutorial/**"
+      - "ui/public/logo.svg"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"
@@ -15,7 +17,9 @@ on:
     paths:
       - "**/*.md"
       - "crates/yaml/examples/**"
+      - "docs/figures/overview.svg"
       - "docs/tutorial/**"
+      - "ui/public/logo.svg"
       - ".rumdl.toml"
       - ".github/workflows/markdown.yml"
       - "pixi.toml"

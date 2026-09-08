@@ -22,6 +22,10 @@ name = "event-data"
 path = "event-data/src/main.rs"
 
 [[bin]]
+name = "dynamic-attributes"
+path = "dynamic-attributes/src/main.rs"
+
+[[bin]]
 name = "repeated-events"
 path = "repeated-events/src/main.rs"
 

@@ -24,7 +24,7 @@ Types can also be composed or refer to generated types:
 | `{ option: T }` | A value of type `T` that may be absent |
 | `{ list: T }` | An ordered collection of values of type `T` |
 | A record name | An instance of that [record](records.md) |
-| `dynamic` | String-keyed values whose names and types are chosen at runtime |
+| [`dynamic`](dynamic-attributes.md) | String-keyed values whose names and types are chosen at runtime |
 | `ref` | A reference to any entity instance |
 
 Semantic modules add more specific reference forms. These are introduced with

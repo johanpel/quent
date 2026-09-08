@@ -3,19 +3,17 @@
 Module constraints can be used together in one model. The job workload combines
 a finite-state lifecycle with bounded resource usage.
 
-## Job workload
-
 This example combines an FSM, event attributes, and measured resource usage. A
 worker publishes its thread limit. A job records how many threads it requests
 and how many it occupies while running.
 
-### YAML model
+## YAML model
 
 ```yaml
 {{#include ../../../../../../crates/yaml/examples/job-workload/model.yaml}}
 ```
 
-### Instrumentation API
+## Instrumentation API
 
 The generated API distinguishes the worker's `WorkerBounds` from the job's
 `WorkerUsage`. No event names or payload keys are assembled at runtime.
