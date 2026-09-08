@@ -37,15 +37,18 @@ pub use record::{process_record, thread_record};
 ///
 /// ## Platform-specific considerations
 ///
-/// Native IDs are correlation values within the originating operating-system
-/// context, not globally stable entity identifiers. Their uniqueness and
-/// lifetime follow the platform that produced them.
+/// Native IDs identify OS objects only within the context and lifetime defined
+/// by the platform. They are not globally stable entity identifiers.
 ///
 /// On Linux, [`getpid`] and [`gettid`] return the same value for the thread-group
-/// leader. An entity carrying both canonical records still has distinct process
-/// and thread roles even when their `native_id` values are equal. No numeric
-/// relationship between process and thread IDs is guaranteed by this contract
-/// on any platform.
+/// leader. On macOS, [`pthread_threadid_np`] returns a thread ID separately from
+/// the process ID, and [`pthread_main_np`] identifies the main thread. On Windows,
+/// [`GetCurrentProcessId`] and [`GetCurrentThreadId`] return separate system-wide
+/// IDs valid for the lifetime of the process or thread.
+///
+/// An event producer assigning both roles must verify that the thread is the
+/// process's main or primary thread. Producers and consumers must distinguish
+/// the IDs by their canonical record paths and must not rely on numeric equality.
 ///
 /// ## Requirements
 ///
@@ -60,6 +63,10 @@ pub use record::{process_record, thread_record};
 ///
 /// [`getpid`]: https://man7.org/linux/man-pages/man2/getpid.2.html
 /// [`gettid`]: https://man7.org/linux/man-pages/man2/gettid.2.html
+/// [`pthread_threadid_np`]: https://github.com/apple-oss-distributions/libpthread/blob/main/include/pthread/pthread.h
+/// [`pthread_main_np`]: https://github.com/apple-oss-distributions/libpthread/blob/main/include/pthread/pthread.h
+/// [`GetCurrentProcessId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentprocessid
+/// [`GetCurrentThreadId`]: https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthreadid
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
