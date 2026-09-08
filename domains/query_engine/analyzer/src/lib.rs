@@ -23,7 +23,6 @@ use quent_analyzer::{
     fsm::Fsm,
     resource::{ResourceGroup, Using},
 };
-use quent_query_engine_model::plan::{Edge, PlanParent};
 use quent_query_engine_ui as qe_ui;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use uuid::Uuid;
@@ -59,9 +58,10 @@ pub trait QueryEntity: Fsm + Using + ResourceGroup {
 
 /// Read-only analyzer API for a plan entity.
 pub trait PlanEntity: Entity + ResourceGroup {
-    fn parent(&self) -> Option<&PlanParent>;
+    fn parent_query_id(&self) -> Option<Uuid>;
+    fn parent_plan_id(&self) -> Option<Uuid>;
     fn worker_id(&self) -> Option<Uuid>;
-    fn edges(&self) -> &[Edge];
+    fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_;
     fn to_ui(&self) -> qe_ui::Plan;
 }
 

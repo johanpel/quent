@@ -3187,6 +3187,7 @@ dependencies = [
 name = "quent-query-engine-model"
 version = "0.1.0"
 dependencies = [
+ "quent-dynamic-attributes",
  "quent-model",
  "serde",
  "uuid",

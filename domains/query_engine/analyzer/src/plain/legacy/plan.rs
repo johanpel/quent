@@ -4,7 +4,7 @@
 use quent_analyzer::entity::EntityEvents;
 use quent_analyzer::{AnalyzerResult, Entity, resource::ResourceGroup};
 use quent_events::Event;
-use quent_query_engine_model::plan::{self, Edge, PlanParent};
+use quent_query_engine_model::plan;
 use quent_query_engine_ui as ui;
 use uuid::Uuid;
 
@@ -25,8 +25,20 @@ impl Plan {
 }
 
 impl PlanEntity for Plan {
-    fn parent(&self) -> Option<&PlanParent> {
-        self.0.data().declaration.as_ref().map(|d| &d.parent)
+    fn parent_query_id(&self) -> Option<Uuid> {
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.parent.query_id.map(|query| query.uuid()))
+    }
+
+    fn parent_plan_id(&self) -> Option<Uuid> {
+        self.0
+            .data()
+            .declaration
+            .as_ref()
+            .and_then(|declaration| declaration.parent.plan_id.map(|plan| plan.uuid()))
     }
 
     fn worker_id(&self) -> Option<Uuid> {
@@ -37,22 +49,19 @@ impl PlanEntity for Plan {
             .and_then(|d| d.worker_id.map(|r| r.uuid()))
     }
 
-    fn edges(&self) -> &[Edge] {
+    fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
         self.0
             .data()
             .declaration
             .as_ref()
-            .map(|d| d.edges.as_slice())
+            .map(|declaration| declaration.edges.as_slice())
             .unwrap_or_default()
+            .iter()
+            .map(|edge| (edge.source.uuid(), edge.target.uuid()))
     }
 
     fn to_ui(&self) -> ui::Plan {
-        let parent = self.parent().map(|p| {
-            p.query_id
-                .map(|r| r.uuid())
-                .or(p.plan_id.map(|r| r.uuid()))
-                .unwrap_or_default()
-        });
+        let parent = self.parent_query_id().or(self.parent_plan_id());
 
         ui::Plan {
             id: self.0.id(),
@@ -66,11 +75,7 @@ impl PlanEntity for Plan {
             worker_id: self.worker_id(),
             edges: self
                 .edges()
-                .iter()
-                .map(|e| ui::Edge {
-                    source: e.source.uuid(),
-                    target: e.target.uuid(),
-                })
+                .map(|(source, target)| ui::Edge { source, target })
                 .collect(),
         }
     }
@@ -97,11 +102,8 @@ impl Entity for Plan {
 
 impl ResourceGroup for Plan {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.worker_id().or(self.parent().and_then(|parent| {
-            parent
-                .query_id
-                .map(|r| r.uuid())
-                .or(parent.plan_id.map(|r| r.uuid()))
-        }))
+        self.worker_id()
+            .or(self.parent_query_id())
+            .or(self.parent_plan_id())
     }
 }

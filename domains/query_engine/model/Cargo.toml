@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+quent-dynamic-attributes.workspace = true
 quent-model = { path = "../../../crates/model" }
 serde.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
