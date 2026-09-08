@@ -142,7 +142,7 @@ impl FsmEntityBuilder {
                 .with_field(Field::new(
                     Identifier::try_new(SEQUENCE_FIELD_NAME)
                         .expect("the reserved sequence field name is valid"),
-                    DataType::U64,
+                    DataType::U16,
                     sequence_annotations.clone(),
                 ))
                 .with_fields(state.attributes)

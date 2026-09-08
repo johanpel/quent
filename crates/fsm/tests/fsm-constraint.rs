@@ -15,7 +15,7 @@ fn event(name: &str, cardinality: Cardinality) -> Event {
         cardinality,
         [Field::new(
             ident("seq"),
-            DataType::U64,
+            DataType::U16,
             Annotations::default(),
         )],
     )
@@ -385,7 +385,7 @@ fn builder_produces_entity_with_state_events() {
     for event in entity.events() {
         let fields: Vec<_> = event.fields().collect();
         assert_eq!(fields[0].name(), "seq");
-        assert_eq!(fields[0].ty(), &DataType::U64);
+        assert_eq!(fields[0].ty(), &DataType::U16);
         assert_eq!(
             fields[0].annotations().docs(),
             Some("The per-instance transition order.")
@@ -399,7 +399,7 @@ fn builder_rejects_reserved_sequence_attribute() {
     let mut initial = state("a", &["b"], true);
     initial.attributes.push(Field::new(
         ident("seq"),
-        DataType::U64,
+        DataType::U16,
         Annotations::default(),
     ));
     let error = FsmEntityBuilder::new(ident("E"))

@@ -174,8 +174,19 @@ impl Fsm {
 /// 5. The initial state is not a final state.
 /// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
-/// 7. Every state event has a `seq` field of type [`DataType::U64`] carrying
+/// 7. Every state event has a `seq` field of type [`DataType::U16`] carrying
 ///    its per-instance transition order.
+///
+/// The `seq` field separates logical transition order from timestamp order.
+/// Multiple transitions can have the same timestamp, and event delivery can
+/// reorder them, so timestamps alone cannot reliably reconstruct an FSM's
+/// lifecycle. Producers should assign monotonically increasing values within
+/// each FSM instance, conventionally beginning at zero. A `u16` supports up to
+/// 65,536 distinct sequence values per instance.
+///
+/// This constraint validates only that every state event declares the field
+/// with the required type. It does not inspect emitted values, so duplicate
+/// values, gaps, and nonzero initial values are not schema violations.
 #[derive(Default)]
 pub struct FsmConstraint {
     errors: Vec<FsmError>,
@@ -243,7 +254,7 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
                 entity: entity.path().clone(),
                 state: event.name().clone(),
             }),
-            Some(field) if field.ty() != &DataType::U64 => {
+            Some(field) if field.ty() != &DataType::U16 => {
                 errors.push(FsmError::SequenceFieldTypeMismatch {
                     entity: entity.path().clone(),
                     state: event.name().clone(),
@@ -388,7 +399,7 @@ pub enum FsmError {
     #[error("entity \"{entity}\" fsm: state \"{state}\" is missing reserved `seq` field")]
     MissingSequenceField { entity: Path, state: Identifier },
     #[error(
-        "entity \"{entity}\" fsm: state \"{state}\" expects reserved `seq` field type U64, but found {found:?}"
+        "entity \"{entity}\" fsm: state \"{state}\" expects reserved `seq` field type U16, but found {found:?}"
     )]
     SequenceFieldTypeMismatch {
         entity: Path,

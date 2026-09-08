@@ -53,7 +53,7 @@ fn fsm_builds_events_and_derives_cardinality() {
     for event in query.events() {
         let fields: Vec<_> = event.fields().collect();
         assert_eq!(fields[0].name(), "seq");
-        assert_eq!(fields[0].ty(), &DataType::U64);
+        assert_eq!(fields[0].ty(), &DataType::U16);
     }
 }
 
