@@ -5,9 +5,9 @@ fn main() {
     let collect_events = tonic_build::manual::Method::builder()
         .name("collect_events")
         .route_name("CollectEvents")
-        .input_type("crate::grpc::EventBatch")
-        .output_type("crate::grpc::CollectResponse")
-        .codec_path("crate::grpc::CollectorCodec")
+        .input_type("crate::protocol::EventBatch")
+        .output_type("crate::protocol::CollectResponse")
+        .codec_path("crate::protocol::CollectorCodec")
         .client_streaming()
         .build();
     let collector = tonic_build::manual::Service::builder()

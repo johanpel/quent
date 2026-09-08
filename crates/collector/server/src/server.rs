@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use quent_collector_client::{CollectorSink, grpc};
+use quent_collector_client::{CollectorSink, protocol};
 use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
@@ -93,15 +93,15 @@ impl<C> CollectorService<C> {
 }
 
 #[tonic::async_trait]
-impl<C> grpc::collector_server::Collector for CollectorService<C>
+impl<C> protocol::collector_server::Collector for CollectorService<C>
 where
     C: CollectorSink + Send + Sync + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
         &self,
-        request: Request<Streaming<grpc::EventBatch>>,
-    ) -> Result<Response<grpc::CollectResponse>, Status> {
+        request: Request<Streaming<protocol::EventBatch>>,
+    ) -> Result<Response<protocol::CollectResponse>, Status> {
         // The source identifies its stream with the `source-context-id` metadata.
         let source_context_id = request
             .metadata()
@@ -187,6 +187,6 @@ where
                 }
             }
         }
-        Ok(Response::new(grpc::CollectResponse))
+        Ok(Response::new(protocol::CollectResponse))
     }
 }

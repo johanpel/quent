@@ -7,7 +7,7 @@
 
 pub mod server;
 
-pub use quent_collector_client::grpc::collector_server::CollectorServer;
+pub use quent_collector_client::protocol::collector_server::CollectorServer;
 
 /// Re-exported so callers constructing a [`server::CollectorService`] over a
 /// generic context type can bound it, and decode ingested events, without
