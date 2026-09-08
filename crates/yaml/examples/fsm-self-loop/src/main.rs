@@ -12,13 +12,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FsmSelfLoop>::try_new(Noop)?;
     let mut task = context.observer::<Task>().handle();
 
-    task.running(0)?;
+    task.running(0, 0)?;
     // Direct self-loop: running -> running.
-    task.running(64)?;
+    task.running(1, 64)?;
     // Indirect cycle: running -> paused -> running.
-    task.paused()?;
-    task.running(128)?;
-    task.completed()?;
+    task.paused(2)?;
+    task.running(3, 128)?;
+    task.completed(4)?;
 
     Ok(())
 }

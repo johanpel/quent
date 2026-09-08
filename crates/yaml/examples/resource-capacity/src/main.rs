@@ -15,8 +15,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     memory.created()?;
 
     let mut task = context.observer::<Task>().handle();
-    task.running(memory.as_entity_ref_with(MemoryUsage { bytes: 512_000_000 }))?;
-    task.completed()?;
+    task.running(
+        0,
+        memory.as_entity_ref_with(MemoryUsage { bytes: 512_000_000 }),
+    )?;
+    task.completed(1)?;
 
     Ok(())
 }

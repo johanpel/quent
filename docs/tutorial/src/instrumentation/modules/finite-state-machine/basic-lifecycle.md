@@ -17,6 +17,12 @@ the topology.
 
 Entering a state emits its generated event. The parser validates the transition
 topology, while generated handles do not enforce transition order at runtime.
+Each state event takes a per-entity `u16` sequence number as its first argument.
+This counter normally begins at zero and increments with each transition. It
+orders transitions that receive the same timestamp and may wrap after its
+maximum value. Passing this counter explicitly is temporary. Automatic
+sequencing is work in progress in
+[#416](https://github.com/rapidsai/quent/issues/416).
 
 ```rust
 {{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs}}

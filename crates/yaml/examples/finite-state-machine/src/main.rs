@@ -12,10 +12,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FiniteStateMachine>::try_new(Noop)?;
     let mut job = context.observer::<Job>().handle();
 
-    job.queued()?;
-    job.loading_input()?;
-    job.running()?;
-    job.completed()?;
+    job.queued(0)?;
+    job.loading_input(1)?;
+    job.running(2)?;
+    job.completed(3)?;
 
     Ok(())
 }

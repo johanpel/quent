@@ -18,8 +18,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     thread.registered(pool.as_entity_ref())?;
 
     let mut task = context.observer::<Task>().handle();
-    task.running(thread.as_entity_ref_with(ThreadUsage))?;
-    task.completed()?;
+    task.running(0, thread.as_entity_ref_with(ThreadUsage))?;
+    task.completed(1)?;
 
     Ok(())
 }
