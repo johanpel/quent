@@ -5,6 +5,7 @@
 
 use std::time::Duration;
 
+use bytes::Bytes;
 use quent_events::Event;
 use serde::Serialize;
 use tokio::{
@@ -27,9 +28,15 @@ use quent_collector_rpc::{
 
 #[derive(Debug)]
 struct EventBatchBuffer {
-    events: Vec<Vec<u8>>,
+    events: Vec<Bytes>,
+    // Includes the batch header and every event-length prefix so emitted
+    // batches remain within the receiver's encoded-message limit.
     encoded_len: usize,
+    // Stored as a limit so boundary behavior can be tested without allocating
+    // production-sized batches.
     max_encoded_len: usize,
+    // Bounds per-event metadata and processing independently of payload bytes,
+    // which may all be empty.
     max_events: usize,
 }
 
@@ -67,7 +74,7 @@ impl EventBatchBuffer {
             None
         };
         self.encoded_len += event_encoded_len;
-        self.events.push(event);
+        self.events.push(event.into());
         Ok(full_batch)
     }
 
@@ -358,6 +365,8 @@ impl<T> Drop for Client<T> {
 
 #[cfg(test)]
 mod tests {
+    use bytes::Bytes;
+
     use super::{EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatchBuffer};
 
     #[test]
@@ -369,8 +378,8 @@ mod tests {
         assert!(buffer.push(event.clone()).unwrap().is_none());
         let full_batch = buffer.push(event.clone()).unwrap().unwrap();
 
-        assert_eq!(full_batch.events, vec![event.clone()]);
-        assert_eq!(buffer.take().unwrap().events, vec![event]);
+        assert_eq!(full_batch.events, vec![Bytes::from(event.clone())]);
+        assert_eq!(buffer.take().unwrap().events, vec![Bytes::from(event)]);
     }
 
     #[test]
@@ -391,7 +400,10 @@ mod tests {
         assert!(buffer.push(vec![1]).unwrap().is_none());
         let full_batch = buffer.push(vec![2]).unwrap().unwrap();
 
-        assert_eq!(full_batch.events, vec![vec![1]]);
-        assert_eq!(buffer.take().unwrap().events, vec![vec![2]]);
+        assert_eq!(full_batch.events, vec![Bytes::from_static(&[1])]);
+        assert_eq!(
+            buffer.take().unwrap().events,
+            vec![Bytes::from_static(&[2])]
+        );
     }
 }

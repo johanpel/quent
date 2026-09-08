@@ -5,7 +5,7 @@
 
 use std::marker::PhantomData;
 
-use bytes::{Buf, BufMut};
+use bytes::{Buf, BufMut, Bytes};
 use tonic::{
     Status,
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
@@ -29,7 +29,8 @@ pub const EVENT_LENGTH_HEADER_LEN: usize = size_of::<u32>();
 /// big-endian `u32` length and the raw bytes for each event.
 #[derive(Debug, Eq, PartialEq)]
 pub struct EventBatch {
-    pub events: Vec<Vec<u8>>,
+    /// Payloads decoded from the network share the received frame allocation.
+    pub events: Vec<Bytes>,
 }
 
 /// The empty response returned when the collector stream handler completes.
@@ -94,7 +95,7 @@ impl WireMessage for EventBatch {
             if event_len > src.remaining() {
                 return Err(Status::invalid_argument("event payload is truncated"));
             }
-            events.push(src.copy_to_bytes(event_len).to_vec());
+            events.push(src.copy_to_bytes(event_len));
         }
         if src.has_remaining() {
             return Err(Status::invalid_argument("event batch has trailing bytes"));
@@ -187,7 +188,7 @@ include!(concat!(
 
 #[cfg(test)]
 mod tests {
-    use bytes::BytesMut;
+    use bytes::{Bytes, BytesMut};
     use tonic::Code;
 
     use super::{CollectResponse, EventBatch, MAX_EVENTS_PER_BATCH, WireMessage};
@@ -195,7 +196,11 @@ mod tests {
     #[test]
     fn event_batch_round_trips() {
         let batch = EventBatch {
-            events: vec![vec![], vec![0, 1, 2], vec![255; 1024]],
+            events: vec![
+                Bytes::new(),
+                Bytes::from_static(&[0, 1, 2]),
+                Bytes::from(vec![255; 1024]),
+            ],
         };
         let mut encoded = BytesMut::new();
 
@@ -205,7 +210,11 @@ mod tests {
         assert_eq!(
             decoded,
             EventBatch {
-                events: vec![vec![], vec![0, 1, 2], vec![255; 1024]],
+                events: vec![
+                    Bytes::new(),
+                    Bytes::from_static(&[0, 1, 2]),
+                    Bytes::from(vec![255; 1024]),
+                ],
             }
         );
         assert!(encoded.is_empty());
@@ -251,7 +260,7 @@ mod tests {
     #[test]
     fn excessive_event_count_is_rejected_before_encoding() {
         let batch = EventBatch {
-            events: vec![Vec::new(); MAX_EVENTS_PER_BATCH + 1],
+            events: vec![Bytes::new(); MAX_EVENTS_PER_BATCH + 1],
         };
         let mut encoded = BytesMut::new();
 

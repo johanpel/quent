@@ -2612,6 +2612,7 @@ name = "quent-collector-client"
 version = "0.1.0"
 dependencies = [
  "bitcode",
+ "bytes",
  "http",
  "quent-collector-rpc",
  "quent-events",
