@@ -15,6 +15,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     worker.registered()?;
 
     let mut task = context.observer::<Task>().handle();
+    // A `Task` reference has the wrong target type, so this would not compile:
+    // let other_task = context.observer::<Task>().handle();
+    // task.started(other_task.as_entity_ref())?;
     task.started(worker.as_entity_ref())?;
     task.ended()?;
 

@@ -5,6 +5,12 @@ parent-child relationships. A `scope-ref` applies both the reference-target and
 reference-tree constraints. The parser validates all scoped references together
 as one tree.
 
+This gives analysis tools a preferred path from one root entity to every
+related entity and its events. In the model below, a task points to the pipeline
+that contains it. A user interface can open one pipeline and list its tasks,
+while analysis can associate each task's events with that pipeline. Other tools
+can use the same hierarchy for their own purposes.
+
 ## YAML model
 
 ```yaml
