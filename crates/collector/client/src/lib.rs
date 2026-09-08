@@ -52,17 +52,23 @@ struct EventBatchBuffer {
 }
 
 impl EventBatchBuffer {
-    fn new(max_encoded_len: usize, max_events: usize) -> Self {
-        assert!(
-            max_events > 0,
-            "event batches must allow at least one event"
-        );
-        Self {
+    fn try_new(max_encoded_len: usize, max_events: usize) -> Result<Self, CollectorError> {
+        let min_encoded_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN;
+        if max_encoded_len < min_encoded_len {
+            return Err(CollectorError::InvalidBatchEncodedLen {
+                actual: max_encoded_len,
+                minimum: min_encoded_len,
+            });
+        }
+        if max_events == 0 {
+            return Err(CollectorError::InvalidBatchEventCount);
+        }
+        Ok(Self {
             events: Vec::new(),
             encoded_len: EVENT_BATCH_HEADER_LEN,
             max_encoded_len,
             max_events,
-        }
+        })
     }
 
     fn push(&mut self, event: Vec<u8>) -> Result<Option<EventBatch>, usize> {
@@ -126,6 +132,10 @@ where
 
 #[derive(Debug, Error)]
 pub enum CollectorError {
+    #[error("maximum encoded batch length must be at least {minimum} bytes, got {actual}")]
+    InvalidBatchEncodedLen { actual: usize, minimum: usize },
+    #[error("maximum events per batch must be greater than zero")]
+    InvalidBatchEventCount,
     #[error("Unable to connect: {0}")]
     Connect(String),
     #[error("Send error: {0}")]
@@ -195,11 +205,11 @@ where
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
+        let mut buffer =
+            EventBatchBuffer::try_new(MAX_EVENT_BATCH_ENCODED_LEN, MAX_EVENTS_PER_BATCH)?;
 
         // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
         let events_sender_handle = tokio::spawn(async move {
-            let mut buffer =
-                EventBatchBuffer::new(MAX_EVENT_BATCH_ENCODED_LEN, MAX_EVENTS_PER_BATCH);
             // Interval by which to export even if the buffer isn't full.
             let mut ticker = tokio::time::interval(Duration::from_millis(128));
 
@@ -378,13 +388,15 @@ impl<T> Drop for Client<T> {
 mod tests {
     use bytes::Bytes;
 
-    use super::{EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatchBuffer};
+    use super::{
+        CollectorError, EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatchBuffer,
+    };
 
     #[test]
     fn batch_splits_before_exceeding_encoded_limit() {
         let event = vec![42; 3];
         let one_event_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN + event.len();
-        let mut buffer = EventBatchBuffer::new(one_event_len, usize::MAX);
+        let mut buffer = EventBatchBuffer::try_new(one_event_len, usize::MAX).unwrap();
 
         assert!(buffer.push(event.clone()).unwrap().is_none());
         let full_batch = buffer.push(event.clone()).unwrap().unwrap();
@@ -396,7 +408,8 @@ mod tests {
     #[test]
     fn event_larger_than_encoded_limit_is_rejected() {
         let mut buffer =
-            EventBatchBuffer::new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN, usize::MAX);
+            EventBatchBuffer::try_new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN, usize::MAX)
+                .unwrap();
 
         let payload_len = buffer.push(vec![42]).unwrap_err();
 
@@ -406,7 +419,7 @@ mod tests {
 
     #[test]
     fn batch_splits_at_event_count_limit() {
-        let mut buffer = EventBatchBuffer::new(usize::MAX, 1);
+        let mut buffer = EventBatchBuffer::try_new(usize::MAX, 1).unwrap();
 
         assert!(buffer.push(vec![1]).unwrap().is_none());
         let full_batch = buffer.push(vec![2]).unwrap().unwrap();
@@ -416,5 +429,22 @@ mod tests {
             buffer.take().unwrap().events,
             vec![Bytes::from_static(&[2])]
         );
+    }
+
+    #[test]
+    fn invalid_batch_limits_are_rejected() {
+        let min_encoded_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN;
+
+        assert!(matches!(
+            EventBatchBuffer::try_new(min_encoded_len - 1, 1),
+            Err(CollectorError::InvalidBatchEncodedLen {
+                actual,
+                minimum,
+            }) if actual == min_encoded_len - 1 && minimum == min_encoded_len
+        ));
+        assert!(matches!(
+            EventBatchBuffer::try_new(min_encoded_len, 0),
+            Err(CollectorError::InvalidBatchEventCount)
+        ));
     }
 }
