@@ -337,7 +337,7 @@ fn os_record_may_be_carried_by_only_one_field() {
 }
 
 #[test]
-fn entity_cannot_represent_both_process_and_thread() {
+fn entity_may_represent_process_and_main_thread() {
     let process = process_record();
     let thread = thread_record();
     let entity = entity(
@@ -352,11 +352,7 @@ fn entity_cannot_represent_both_process_and_thread() {
         )],
     );
 
-    assert!(
-        validate(&schema([entity], [process, thread]))
-            .iter()
-            .any(|error| matches!(error, OsError::ConflictingEntityRoles { .. }))
-    );
+    assert!(validate(&schema([entity], [process, thread])).is_empty());
 }
 
 #[test]

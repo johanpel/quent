@@ -4,9 +4,9 @@
 //! Constraint for relating Quent entities to operating-system processes and threads.
 //!
 //! An entity represents an OS process or thread when one of its `Once` events
-//! carries the canonical [`process_path`] or [`thread_path`] record. Each record
-//! provides a normalized native ID. The scope tree relates each thread to its
-//! containing process.
+//! carries the canonical [`process_path`] or [`thread_path`] record. An entity
+//! carrying both records represents a process and its main thread; otherwise,
+//! the scope tree relates each thread to its containing process.
 //!
 //! Event producers must enforce that reported IDs and scope references are
 //! correct for the captured runtime.
@@ -41,11 +41,10 @@ pub use record::{process_record, thread_record};
 ///    of an entity event.
 /// 2. An entity may carry each canonical record in only one field of one event,
 ///    whose cardinality must be [`Cardinality::Once`].
-/// 3. An entity may not carry both canonical records.
-/// 4. A thread entity must be transitively scoped under a process entity by
-///    tree-forming entity references.
-/// 5. Canonical record declarations must carry the [`OsConstraint`] annotation.
-/// 6. Canonical record declarations must match their required shape exactly.
+/// 3. A thread entity that does not also represent a process must be transitively
+///    scoped under a process entity by tree-forming entity references.
+/// 4. Canonical record declarations must carry the [`OsConstraint`] annotation.
+/// 5. Canonical record declarations must match their required shape exactly.
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
@@ -251,14 +250,6 @@ impl OsConstraint {
             }
         }
 
-        for (entity, roles) in &roles_by_entity {
-            if roles.len() > 1 {
-                self.errors.push(OsError::ConflictingEntityRoles {
-                    entity: entity.clone(),
-                });
-            }
-        }
-
         self.validate_thread_scopes(&roles_by_entity);
     }
 
@@ -275,6 +266,7 @@ impl OsConstraint {
         let invalid_threads: Vec<_> = roles_by_entity
             .iter()
             .filter(|(_, roles)| roles.contains(&OsEntityRole::Thread))
+            .filter(|(_, roles)| !roles.contains(&OsEntityRole::Process))
             .filter(|(entity, _)| !has_ancestor_in(entity, &parents, &process_entities))
             .map(|(entity, _)| entity.clone())
             .collect();
@@ -391,8 +383,6 @@ pub enum OsError {
         record: Path,
         event: Identifier,
     },
-    #[error("{entity}: an entity cannot represent both an OS process and an OS thread")]
-    ConflictingEntityRoles { entity: Path },
     #[error("{entity}: OS thread entity must be scoped under an OS process entity")]
     ThreadOutsideProcessScope { entity: Path },
     #[error(transparent)]
