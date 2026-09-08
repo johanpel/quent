@@ -65,6 +65,11 @@ impl WireMessage for EventBatch {
 
         let mut events = Vec::with_capacity(event_count);
         for _ in 0..event_count {
+            if src.remaining() < size_of::<u32>() {
+                return Err(Status::invalid_argument(
+                    "event batch is missing an event length",
+                ));
+            }
             let event_len = src.get_u32() as usize;
             if event_len > src.remaining() {
                 return Err(Status::invalid_argument("event payload is truncated"));
@@ -189,6 +194,15 @@ mod tests {
     #[test]
     fn truncated_event_is_rejected() {
         let mut encoded = BytesMut::from(&[0, 0, 0, 1, 0, 0, 0, 2, 42][..]);
+
+        let error = EventBatch::decode(&mut encoded).unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+    }
+
+    #[test]
+    fn missing_event_length_is_rejected() {
+        let mut encoded = BytesMut::from(&[0, 0, 0, 2, 0, 0, 0, 4, 1, 2, 3, 4][..]);
 
         let error = EventBatch::decode(&mut encoded).unwrap_err();
 
