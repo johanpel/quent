@@ -13,6 +13,8 @@
 //! Constraint and metadata payloads are opaque: attached as written, never
 //! interpreted.
 
+use std::collections::HashSet;
+
 use indexmap::IndexMap;
 use quent_constraints::Constraint;
 use quent_dag::DagRole;
@@ -58,6 +60,7 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
 
     let name = ident(&model.model, "model", sink);
     let resources = ResourceLowerer::new(model, sink);
+    let dag_targets = dag_targets(model);
 
     // Lower declared records.
     let mut records: Vec<Record> = model
@@ -69,7 +72,13 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
     // Lower entities and their generated resource records.
     let mut entities: Vec<Entity> = Vec::new();
     for (name, entity) in &model.entities {
-        if let Some((entity, generated)) = entity_of(name, entity, &resources, sink) {
+        if let Some((entity, generated)) = entity_of(
+            name,
+            entity,
+            &resources,
+            dag_targets.contains(name.as_str()),
+            sink,
+        ) {
             entities.push(entity);
             records.extend(generated);
         }
@@ -85,7 +94,13 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
             );
             continue;
         }
-        if let Some((entity, generated)) = fsm_entity_of(name, spec, &resources, sink) {
+        if let Some((entity, generated)) = fsm_entity_of(
+            name,
+            spec,
+            &resources,
+            dag_targets.contains(name.as_str()),
+            sink,
+        ) {
             entities.push(entity);
             records.extend(generated);
         }
@@ -151,6 +166,7 @@ fn entity_of(
     name: &str,
     entity: &ast::Entity,
     resources: &ResourceLowerer,
+    inferred_dag: bool,
     sink: &mut Diagnostics,
 ) -> Option<(Entity, Vec<Record>)> {
     let path = format!("entities.{name}");
@@ -172,7 +188,8 @@ fn entity_of(
         anns = anns.with_constraint(Resource::NAME, Some(data));
     }
 
-    let (dag_role, membership_target) = dag_entity_role(entity.dag.as_ref(), &path, sink);
+    let (dag_role, membership_target) =
+        dag_entity_role(entity.dag.as_ref(), inferred_dag, &path, sink);
     if let Some(role) = dag_role {
         anns = anns.with_constraint(DagRole::NAME, Some(role.to_string()));
     }
@@ -203,11 +220,6 @@ fn entity_of(
         && let Some(event) = dag_declaration_event(event_name, target, &path, sink)
     {
         events.push(event);
-    } else if dag_role == Some(DagRole::Dag)
-        && entity.events.is_empty()
-        && let Some(event) = empty_declaration_event(&path, sink)
-    {
-        events.push(event);
     }
     match EntityBuilder::new(id?)
         .with_events(events)
@@ -232,10 +244,12 @@ fn entity_of(
 
 fn dag_entity_role<'a>(
     declaration: Option<&'a ast::DagEntityDecl>,
+    inferred_dag: bool,
     path: &str,
     sink: &mut Diagnostics,
 ) -> (Option<DagRole>, Option<&'a str>) {
-    match declaration {
+    let result = match declaration {
+        None if inferred_dag => (Some(DagRole::Dag), None),
         None => (None, None),
         Some(ast::DagEntityDecl::Dag(true)) => (Some(DagRole::Dag), None),
         Some(ast::DagEntityDecl::Dag(false)) => {
@@ -248,6 +262,36 @@ fn dag_entity_role<'a>(
         Some(ast::DagEntityDecl::Edge(declaration)) => {
             (Some(DagRole::Edge), Some(declaration.edge.as_str()))
         }
+    };
+    if inferred_dag && matches!(result.0, Some(DagRole::Vertex | DagRole::Edge)) {
+        sink.error(
+            &format!("{path}.dag"),
+            "an entity cannot be both a DAG and one of its member types",
+            None,
+        );
+    }
+    result
+}
+
+fn dag_targets(model: &Model) -> HashSet<&str> {
+    model
+        .entities
+        .values()
+        .filter_map(|entity| dag_membership_target(entity.dag.as_ref()))
+        .chain(
+            model
+                .fsms
+                .values()
+                .filter_map(|fsm| dag_membership_target(fsm.dag.as_ref())),
+        )
+        .collect()
+}
+
+fn dag_membership_target(declaration: Option<&ast::DagEntityDecl>) -> Option<&str> {
+    match declaration? {
+        ast::DagEntityDecl::Dag(_) => None,
+        ast::DagEntityDecl::Vertex(declaration) => Some(&declaration.vertex),
+        ast::DagEntityDecl::Edge(declaration) => Some(&declaration.edge),
     }
 }
 
@@ -259,6 +303,7 @@ fn fsm_entity_of(
     name: &str,
     spec: &ast::FsmSpec,
     resources: &ResourceLowerer,
+    inferred_dag: bool,
     sink: &mut Diagnostics,
 ) -> Option<(Entity, Vec<Record>)> {
     let path = format!("fsms.{name}");
@@ -273,7 +318,8 @@ fn fsm_entity_of(
         anns = anns.with_constraint(Resource::NAME, Some(data));
     }
 
-    let (dag_role, membership_target) = dag_entity_role(spec.dag.as_ref(), &path, sink);
+    let (dag_role, membership_target) =
+        dag_entity_role(spec.dag.as_ref(), inferred_dag, &path, sink);
     if let Some(role) = dag_role {
         anns = anns.with_constraint(DagRole::NAME, Some(role.to_string()));
     }
@@ -503,18 +549,6 @@ fn dag_declaration_event(
         EventBuilder::new(ident(name, &path, sink)?, Cardinality::Once)
             .with_field(field)
             .build(),
-        &path,
-        sink,
-    )
-}
-
-fn empty_declaration_event(
-    entity_path: &str,
-    sink: &mut Diagnostics,
-) -> Option<quent_schema::Event> {
-    let path = format!("{entity_path}.events.declared");
-    build_or_diagnose(
-        EventBuilder::new(ident("declared", &path, sink)?, Cardinality::Once).build(),
         &path,
         sink,
     )

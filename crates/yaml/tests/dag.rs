@@ -11,7 +11,8 @@ quent: alpha
 model: SimplePlan
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
   Operator:
     dag:
       vertex: Plan
@@ -39,7 +40,7 @@ fn dag_sugar_builds_and_validates_schema() {
         DagRole::from_annotations(plan.annotations()),
         Ok(Some(DagRole::Dag))
     );
-    assert!(plan.event(&"declared".try_into().unwrap()).is_some());
+    assert!(plan.event(&"created".try_into().unwrap()).is_some());
 
     let operator = parsed.schema.entity(&path("Operator")).unwrap();
     let membership = operator
@@ -99,11 +100,37 @@ fn endpoint_target_must_be_a_vertex() {
 
 #[test]
 fn dag_marker_must_be_true() {
-    let invalid = MODEL.replace("dag: true", "dag: false");
-    let Err(Error::Invalid(diagnostics)) = parse_from_str(invalid, None) else {
-        panic!("expected invalid DAG model");
-    };
-    assert!(diagnostics.to_string().contains("`dag` must be `true`"));
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan:
+    dag: false
+    events:
+      created: {}
+",
+    );
+    assert!(errors.contains("`dag` must be `true`"));
+}
+
+#[test]
+fn inferred_dag_must_declare_an_event() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Plan: {}
+  Operator:
+    dag:
+      vertex: Plan
+",
+    );
+    assert!(
+        errors.contains("entity `Plan` declares no events"),
+        "{errors}"
+    );
 }
 
 #[test]
@@ -152,7 +179,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
   Operator:
     dag:
       vertex: Plan
@@ -178,7 +206,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
   Operator:
     dag:
       vertex: Plan
@@ -201,7 +230,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
 fsms:
   Operator:
     dag:
@@ -237,7 +267,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
   Operator:
     dag:
       vertex: Plan
@@ -283,7 +314,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
   Operator:
     dag:
       vertex: Plan
@@ -322,7 +354,8 @@ quent: alpha
 model: m
 entities:
   Plan:
-    dag: true
+    events:
+      created: {}
 fsms:
   Operator:
     dag:
