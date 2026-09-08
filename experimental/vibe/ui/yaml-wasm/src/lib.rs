@@ -5,7 +5,6 @@ use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 const NAMESPACE_SEPARATOR: &str = "QuentNamespaceSeparator";
-const ENCODED_OS_NAMESPACE: &str = "quentQuentNamespaceSeparatorosQuentNamespaceSeparator";
 
 /// Parse YAML and return the validated schema as JSON.
 ///
@@ -18,29 +17,41 @@ pub fn parse_schema_json(source: &str) -> Result<String, JsValue> {
 }
 
 fn parse_schema_value(source: &str) -> Result<Value, String> {
+    let namespace_separator = collision_free_namespace_separator(source);
+    let encoded_os_namespace = format!("quent{namespace_separator}os{namespace_separator}");
     let encoded = source
-        .replace("::", NAMESPACE_SEPARATOR)
-        .replace(ENCODED_OS_NAMESPACE, "quent::os::");
+        .replace("::", &namespace_separator)
+        .replace(&encoded_os_namespace, "quent::os::");
     let parsed = quent_yaml::parse_from_str(encoded, Some("editor.yaml"))
         .map_err(|error| error.to_string())?;
     let mut schema = serde_json::to_value(parsed.schema).map_err(|error| error.to_string())?;
-    restore_namespaces(&mut schema);
+    restore_namespaces(&mut schema, &namespace_separator);
     Ok(schema)
 }
 
-fn restore_namespaces(value: &mut Value) {
+fn collision_free_namespace_separator(source: &str) -> String {
+    let mut separator = NAMESPACE_SEPARATOR.to_owned();
+    while source.contains(&separator) {
+        separator.push('_');
+    }
+    separator
+}
+
+fn restore_namespaces(value: &mut Value, namespace_separator: &str) {
     match value {
-        Value::Array(values) => values.iter_mut().for_each(restore_namespaces),
+        Value::Array(values) => values
+            .iter_mut()
+            .for_each(|value| restore_namespaces(value, namespace_separator)),
         Value::Object(values) => {
             let restored_path = values
                 .get("name")
                 .and_then(Value::as_str)
                 .filter(|name| {
-                    values.contains_key("namespace") && name.contains(NAMESPACE_SEPARATOR)
+                    values.contains_key("namespace") && name.contains(namespace_separator)
                 })
                 .map(|name| {
                     let mut segments = name
-                        .split(NAMESPACE_SEPARATOR)
+                        .split(namespace_separator)
                         .map(str::to_owned)
                         .collect::<Vec<_>>();
                     let name = segments.pop().expect("a namespaced path has a name");
@@ -53,10 +64,12 @@ fn restore_namespaces(value: &mut Value) {
                     Value::Array(namespace.into_iter().map(Value::String).collect()),
                 );
             }
-            values.values_mut().for_each(restore_namespaces);
+            values
+                .values_mut()
+                .for_each(|value| restore_namespaces(value, namespace_separator));
         }
         Value::String(value) => {
-            *value = value.replace(NAMESPACE_SEPARATOR, "::");
+            *value = value.replace(namespace_separator, "::");
         }
         _ => {}
     }
@@ -140,5 +153,16 @@ entities:
             "namespace": ["quent", "os"],
             "name": "Thread",
         })));
+    }
+
+    #[test]
+    fn preserves_literal_namespace_separator() {
+        const LITERAL: &str = "literal-quentQuentNamespaceSeparatorosQuentNamespaceSeparator-value";
+        let schema = parse_schema_value(&format!(
+            "quent: alpha\nmodel: Literal\ndoc: {LITERAL}\nentities:\n  Item:\n    events:\n      created: {{}}\n"
+        ))
+        .expect("schema parses");
+
+        assert_eq!(schema["annotations"]["docs"].as_str(), Some(LITERAL));
     }
 }
