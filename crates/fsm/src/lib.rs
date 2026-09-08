@@ -180,16 +180,17 @@ impl Fsm {
 /// Analyzers order transitions by timestamp and then by `seq`. The sequence
 /// number disambiguates transitions that share a timestamp because of clock
 /// resolution or batched capture, while the timestamp preserves chronological
-/// order across sequence-number rollover and out-of-order delivery. Producers
-/// should use a wrapping counter scoped to each FSM instance, conventionally
-/// beginning at zero.
+/// order across sequence-number rollover and potential out-of-order exporting.
+/// Producers should use a wrapping counter scoped to each FSM instance,
+/// conventionally beginning at zero.
 ///
 /// Wrapping after 65,536 transitions is explicitly permitted. Ambiguous order
 /// would require one FSM instance to emit a full sequence-number cycle without
-/// its observed timestamp advancing. Equal timestamps are already uncommon,
-/// and that many transitions within one timestamp interval is not practical on
-/// current systems. Exact reconstruction across a rollover nevertheless
-/// requires the transitions on either side to have different timestamps.
+/// its nanosecond-precision timestamp advancing. Equal timestamps are already
+/// uncommon, and that many transitions within one timestamp interval is not
+/// practical on current systems. Exact reconstruction across a rollover
+/// nevertheless requires the transitions on either side to have different
+/// timestamps.
 ///
 /// This constraint validates only that every state event declares the field
 /// with the required type. It does not inspect emitted values, so duplicate
