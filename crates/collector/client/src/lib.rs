@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use quent_collector_rpc::{
     EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatch, MAX_EVENT_BATCH_ENCODED_LEN,
-    collector_client::CollectorClient,
+    MAX_EVENTS_PER_BATCH, collector_client::CollectorClient,
 };
 
 #[derive(Debug)]
@@ -30,14 +30,20 @@ struct EventBatchBuffer {
     events: Vec<Vec<u8>>,
     encoded_len: usize,
     max_encoded_len: usize,
+    max_events: usize,
 }
 
 impl EventBatchBuffer {
-    fn new(max_encoded_len: usize) -> Self {
+    fn new(max_encoded_len: usize, max_events: usize) -> Self {
+        assert!(
+            max_events > 0,
+            "event batches must allow at least one event"
+        );
         Self {
             events: Vec::new(),
             encoded_len: EVENT_BATCH_HEADER_LEN,
             max_encoded_len,
+            max_events,
         }
     }
 
@@ -53,7 +59,9 @@ impl EventBatchBuffer {
             return Err(payload_len);
         }
 
-        let full_batch = if self.encoded_len + event_encoded_len > self.max_encoded_len {
+        let full_batch = if self.events.len() >= self.max_events
+            || self.encoded_len + event_encoded_len > self.max_encoded_len
+        {
             self.take()
         } else {
             None
@@ -172,7 +180,8 @@ where
 
         // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
         let events_sender_handle = tokio::spawn(async move {
-            let mut buffer = EventBatchBuffer::new(MAX_EVENT_BATCH_ENCODED_LEN);
+            let mut buffer =
+                EventBatchBuffer::new(MAX_EVENT_BATCH_ENCODED_LEN, MAX_EVENTS_PER_BATCH);
             // Interval by which to export even if the buffer isn't full.
             let mut ticker = tokio::time::interval(Duration::from_millis(128));
 
@@ -355,7 +364,7 @@ mod tests {
     fn batch_splits_before_exceeding_encoded_limit() {
         let event = vec![42; 3];
         let one_event_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN + event.len();
-        let mut buffer = EventBatchBuffer::new(one_event_len);
+        let mut buffer = EventBatchBuffer::new(one_event_len, usize::MAX);
 
         assert!(buffer.push(event.clone()).unwrap().is_none());
         let full_batch = buffer.push(event.clone()).unwrap().unwrap();
@@ -366,11 +375,23 @@ mod tests {
 
     #[test]
     fn event_larger_than_encoded_limit_is_rejected() {
-        let mut buffer = EventBatchBuffer::new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN);
+        let mut buffer =
+            EventBatchBuffer::new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN, usize::MAX);
 
         let payload_len = buffer.push(vec![42]).unwrap_err();
 
         assert_eq!(payload_len, 1);
         assert!(buffer.take().is_none());
+    }
+
+    #[test]
+    fn batch_splits_at_event_count_limit() {
+        let mut buffer = EventBatchBuffer::new(usize::MAX, 1);
+
+        assert!(buffer.push(vec![1]).unwrap().is_none());
+        let full_batch = buffer.push(vec![2]).unwrap().unwrap();
+
+        assert_eq!(full_batch.events, vec![vec![1]]);
+        assert_eq!(buffer.take().unwrap().events, vec![vec![2]]);
     }
 }

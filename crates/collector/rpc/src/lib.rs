@@ -14,6 +14,9 @@ use tonic::{
 /// Maximum encoded size of an event batch sent by collector clients.
 pub const MAX_EVENT_BATCH_ENCODED_LEN: usize = 4 * 1024 * 1024;
 
+/// Maximum number of events in one batch.
+pub const MAX_EVENTS_PER_BATCH: usize = 65_536;
+
 /// Encoded size of the event-count field at the start of a batch.
 pub const EVENT_BATCH_HEADER_LEN: usize = size_of::<u32>();
 
@@ -40,6 +43,9 @@ trait WireMessage: Sized {
 
 impl WireMessage for EventBatch {
     fn encode(self, dst: &mut impl BufMut) -> Result<(), Status> {
+        if self.events.len() > MAX_EVENTS_PER_BATCH {
+            return Err(Status::out_of_range("event batch contains too many events"));
+        }
         let event_count = u32::try_from(self.events.len())
             .map_err(|_| Status::out_of_range("too many events in one batch"))?;
         if self
@@ -66,6 +72,11 @@ impl WireMessage for EventBatch {
         }
 
         let event_count = src.get_u32() as usize;
+        if event_count > MAX_EVENTS_PER_BATCH {
+            return Err(Status::invalid_argument(
+                "event batch contains too many events",
+            ));
+        }
         if event_count > src.remaining() / EVENT_LENGTH_HEADER_LEN {
             return Err(Status::invalid_argument(
                 "event batch contains an invalid event count",
@@ -179,7 +190,7 @@ mod tests {
     use bytes::BytesMut;
     use tonic::Code;
 
-    use super::{CollectResponse, EventBatch, WireMessage};
+    use super::{CollectResponse, EventBatch, MAX_EVENTS_PER_BATCH, WireMessage};
 
     #[test]
     fn event_batch_round_trips() {
@@ -225,5 +236,28 @@ mod tests {
         let error = CollectResponse::decode(&mut encoded).unwrap_err();
 
         assert_eq!(error.code(), Code::InvalidArgument);
+    }
+
+    #[test]
+    fn excessive_event_count_is_rejected_before_decoding_entries() {
+        let event_count = (MAX_EVENTS_PER_BATCH as u32 + 1).to_be_bytes();
+        let mut encoded = BytesMut::from(&event_count[..]);
+
+        let error = EventBatch::decode(&mut encoded).unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+    }
+
+    #[test]
+    fn excessive_event_count_is_rejected_before_encoding() {
+        let batch = EventBatch {
+            events: vec![Vec::new(); MAX_EVENTS_PER_BATCH + 1],
+        };
+        let mut encoded = BytesMut::new();
+
+        let error = batch.encode(&mut encoded).unwrap_err();
+
+        assert_eq!(error.code(), Code::OutOfRange);
+        assert!(encoded.is_empty());
     }
 }
