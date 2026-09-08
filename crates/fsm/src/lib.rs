@@ -22,7 +22,7 @@ mod builder;
 
 pub use builder::{FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
 
-/// Reserved state-event field carrying per-instance transition order.
+/// Reserved state-event field used to order equal-timestamp transitions.
 pub const SEQUENCE_FIELD_NAME: &str = "seq";
 
 /// A directed transition between two named states in an [`Fsm`].
@@ -174,15 +174,22 @@ impl Fsm {
 /// 5. The initial state is not a final state.
 /// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
-/// 7. Every state event has a `seq` field of type [`DataType::U16`] carrying
-///    its per-instance transition order.
+/// 7. Every state event has a `seq` field of type [`DataType::U16`] carrying a
+///    per-instance transition sequence number.
 ///
-/// The `seq` field separates logical transition order from timestamp order.
-/// Multiple transitions can have the same timestamp, and event delivery can
-/// reorder them, so timestamps alone cannot reliably reconstruct an FSM's
-/// lifecycle. Producers should assign monotonically increasing values within
-/// each FSM instance, conventionally beginning at zero. A `u16` supports up to
-/// 65,536 distinct sequence values per instance.
+/// Analyzers order transitions by timestamp and then by `seq`. The sequence
+/// number disambiguates transitions that share a timestamp because of clock
+/// resolution or batched capture, while the timestamp preserves chronological
+/// order across sequence-number rollover and out-of-order delivery. Producers
+/// should use a wrapping counter scoped to each FSM instance, conventionally
+/// beginning at zero.
+///
+/// Wrapping after 65,536 transitions is explicitly permitted. Ambiguous order
+/// would require one FSM instance to emit a full sequence-number cycle without
+/// its observed timestamp advancing. Equal timestamps are already uncommon,
+/// and that many transitions within one timestamp interval is not practical on
+/// current systems. Exact reconstruction across a rollover nevertheless
+/// requires the transitions on either side to have different timestamps.
 ///
 /// This constraint validates only that every state event declares the field
 /// with the required type. It does not inspect emitted values, so duplicate

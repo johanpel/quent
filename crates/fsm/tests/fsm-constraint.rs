@@ -388,7 +388,7 @@ fn builder_produces_entity_with_state_events() {
         assert_eq!(fields[0].ty(), &DataType::U16);
         assert_eq!(
             fields[0].annotations().docs(),
-            Some("The per-instance transition order.")
+            Some("The per-instance sequence number for equal-timestamp transitions.")
         );
     }
     assert!(entity.annotations().has_constraint(FsmConstraint::NAME));

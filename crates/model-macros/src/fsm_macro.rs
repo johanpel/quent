@@ -484,7 +484,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
         #[doc(alias = "handle")]
         pub struct #handle_name {
             id: quent_model::uuid::Uuid,
-            seq: u64,
+            seq: u16,
             exited: bool,
             inner: ::std::sync::Arc<quent_model::Observer<#event_type>>,
         }
@@ -507,7 +507,7 @@ pub fn expand(input: TokenStream) -> syn::Result<TokenStream> {
 
             fn emit_transition(&mut self, state: #transition_enum) {
                 let seq = self.seq;
-                self.seq += 1;
+                self.seq = self.seq.wrapping_add(1);
                 let event = quent_model::FsmEvent { seq, state };
                 self.inner.send(quent_model::Event::new(
                     self.id,

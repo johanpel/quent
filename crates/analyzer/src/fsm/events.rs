@@ -23,7 +23,7 @@ use crate::{
 /// A single transition in an analyzed FSM.
 pub struct TransitionEvent<T> {
     /// Per-instance transition sequence number.
-    pub seq: u64,
+    pub seq: u16,
     timestamp: TimeUnixNanoSec,
     state_name: &'static str,
     pub usages: SmallVec<[AnalyzedUsage; 1]>,
@@ -55,10 +55,10 @@ impl<T> Timestamp for TransitionEvent<T> {
 }
 
 impl<T> OrderKey for TransitionEvent<T> {
-    type Key = u64;
+    type Key = (TimeUnixNanoSec, u16);
 
     fn order_key(&self) -> Self::Key {
-        self.seq
+        (self.timestamp, self.seq)
     }
 }
 
@@ -357,6 +357,37 @@ mod tests {
                 .map(|transition| (transition.seq, transition.data.0))
                 .collect::<Vec<_>>(),
             [(0, 0), (1, 1)]
+        );
+    }
+
+    #[test]
+    fn sequence_wrap_is_ordered_by_timestamp() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
+        builder.push(Event::new(
+            id,
+            101,
+            FsmEvent {
+                seq: 0,
+                state: TestTransition(0),
+            },
+        ));
+        builder.push(Event::new(
+            id,
+            100,
+            FsmEvent {
+                seq: u16::MAX,
+                state: TestTransition(1),
+            },
+        ));
+
+        let fsm = builder.try_build().unwrap();
+        assert_eq!(
+            fsm.transitions()
+                .iter()
+                .map(|transition| (transition.timestamp(), transition.seq))
+                .collect::<Vec<_>>(),
+            [(100, u16::MAX), (101, 0)]
         );
     }
 }

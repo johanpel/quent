@@ -133,7 +133,7 @@ impl FsmEntityBuilder {
         let fsm = Fsm::new(initial, transitions);
 
         let sequence_annotations = AnnotationsBuilder::new()
-            .with_docs("The per-instance transition order.")
+            .with_docs("The per-instance sequence number for equal-timestamp transitions.")
             .build()?;
         let mut entity = EntityBuilder::new(path);
         for state in states {
