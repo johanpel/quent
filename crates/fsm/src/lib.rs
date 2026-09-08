@@ -12,7 +12,7 @@ use petgraph::{
 };
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
-    Cardinality, Entity, Identifier, Path,
+    Cardinality, DataType, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,9 @@ use thiserror::Error;
 mod builder;
 
 pub use builder::{FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
+
+/// Reserved state-event field carrying per-instance transition order.
+pub const SEQUENCE_FIELD_NAME: &str = "seq";
 
 /// A directed transition between two named states in an [`Fsm`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -171,6 +174,8 @@ impl Fsm {
 /// 5. The initial state is not a final state.
 /// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
+/// 7. Every state event has a `seq` field of type [`DataType::U64`] carrying
+///    its per-instance transition order.
 #[derive(Default)]
 pub struct FsmConstraint {
     errors: Vec<FsmError>,
@@ -228,6 +233,26 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         .events()
         .map(|e| (e.name(), e.cardinality()))
         .collect();
+
+    for event in entity.events() {
+        match event
+            .fields()
+            .find(|field| field.name() == SEQUENCE_FIELD_NAME)
+        {
+            None => errors.push(FsmError::MissingSequenceField {
+                entity: entity.path().clone(),
+                state: event.name().clone(),
+            }),
+            Some(field) if field.ty() != &DataType::U64 => {
+                errors.push(FsmError::SequenceFieldTypeMismatch {
+                    entity: entity.path().clone(),
+                    state: event.name().clone(),
+                    found: Box::new(field.ty().clone()),
+                });
+            }
+            Some(_) => {}
+        }
+    }
 
     // Gather every state named
     let states: HashSet<&Identifier> = fsm.states().collect();
@@ -359,6 +384,16 @@ pub enum FsmError {
         state: Identifier,
         expected: Cardinality,
         found: Cardinality,
+    },
+    #[error("entity \"{entity}\" fsm: state \"{state}\" is missing reserved `seq` field")]
+    MissingSequenceField { entity: Path, state: Identifier },
+    #[error(
+        "entity \"{entity}\" fsm: state \"{state}\" expects reserved `seq` field type U64, but found {found:?}"
+    )]
+    SequenceFieldTypeMismatch {
+        entity: Path,
+        state: Identifier,
+        found: Box<DataType>,
     },
     #[error("multiple fsm violations:\n{}", bullet_list(.0))]
     Multiple(Vec<FsmError>),

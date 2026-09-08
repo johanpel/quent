@@ -4,13 +4,21 @@
 use quent_constraints::Constraint as _;
 use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
-    Annotations, Cardinality, Entity, Event, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder},
+    Annotations, Cardinality, DataType, Entity, Event, Field, Schema,
+    builder::{AnnotationsBuilder, BuilderError, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
-    event_with(name, cardinality, vec![])
+    event_with(
+        name,
+        cardinality,
+        [Field::new(
+            ident("seq"),
+            DataType::U64,
+            Annotations::default(),
+        )],
+    )
 }
 
 fn state(name: &str, to: &[&str], initial: bool) -> StateDecl {
@@ -73,6 +81,54 @@ fn well_formed_linear_fsm_passes() {
         &fsm,
     );
     assert!(validate(&schema_with(entity)).is_empty());
+}
+
+#[test]
+fn missing_sequence_field_is_rejected() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event_with("a", Cardinality::Once, []),
+            event("b", Cardinality::Once),
+        ],
+        &data,
+    );
+
+    assert!(validate(&schema_with(entity)).iter().any(|error| matches!(
+        error,
+        FsmError::MissingSequenceField { state, .. } if state == "a"
+    )));
+}
+
+#[test]
+fn incorrectly_typed_sequence_field_is_rejected() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event_with(
+                "a",
+                Cardinality::Once,
+                [Field::new(
+                    ident("seq"),
+                    DataType::U32,
+                    Annotations::default(),
+                )],
+            ),
+            event("b", Cardinality::Once),
+        ],
+        &data,
+    );
+
+    assert!(validate(&schema_with(entity)).iter().any(|error| matches!(
+        error,
+        FsmError::SequenceFieldTypeMismatch {
+            state,
+            found,
+            ..
+        } if state == "a" && found.as_ref() == &DataType::U32
+    )));
 }
 
 #[test]
@@ -326,7 +382,35 @@ fn builder_produces_entity_with_state_events() {
 
     let names: Vec<_> = entity.events().map(|e| e.name().to_string()).collect();
     assert_eq!(names, vec!["a", "b"]);
+    for event in entity.events() {
+        let fields: Vec<_> = event.fields().collect();
+        assert_eq!(fields[0].name(), "seq");
+        assert_eq!(fields[0].ty(), &DataType::U64);
+        assert_eq!(
+            fields[0].annotations().docs(),
+            Some("The per-instance transition order.")
+        );
+    }
     assert!(entity.annotations().has_constraint(FsmConstraint::NAME));
+}
+
+#[test]
+fn builder_rejects_reserved_sequence_attribute() {
+    let mut initial = state("a", &["b"], true);
+    initial.attributes.push(Field::new(
+        ident("seq"),
+        DataType::U64,
+        Annotations::default(),
+    ));
+    let error = FsmEntityBuilder::new(ident("E"))
+        .with_states([initial, state("b", &[], false)])
+        .build()
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        FsmEntityBuilderError::Build(BuilderError::DuplicateName(name)) if name == "seq"
+    ));
 }
 
 #[test]

@@ -5,7 +5,7 @@
 
 mod entity_ref;
 
-use quent_time::{TimeUnixNanoSec, Timestamp, timestamp};
+use quent_time::{OrderKey, TimeUnixNanoSec, Timestamp, timestamp};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -79,6 +79,14 @@ impl<T> Event<T> {
 
 impl<T> Timestamp for Event<T> {
     fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
+    }
+}
+
+impl<T> OrderKey for Event<T> {
+    type Key = TimeUnixNanoSec;
+
+    fn order_key(&self) -> Self::Key {
         self.timestamp
     }
 }

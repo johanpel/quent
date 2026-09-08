@@ -118,37 +118,47 @@ pub trait Timestamp {
     fn timestamp(&self) -> TimeUnixNanoSec;
 }
 
-/// Maintains a timestamp-ordered sequence of items.
+/// Provides the key used to order an item in an [`OrderedCollector`].
+pub trait OrderKey {
+    /// The item's sortable key type.
+    type Key: Ord;
+
+    /// Return the key used to order this item.
+    fn order_key(&self) -> Self::Key;
+}
+
+/// Maintains an ordered sequence of items.
 ///
-/// Optimized for when the common case is that items arrive in timestamp order,
+/// Optimized for when the common case is that items arrive in key order,
 /// in which case [`Self::push`] is O(1). Out-of-order items are inserted via
 /// binary search (O(log n) search + O(n) insertion).
 ///
-/// Stable: items with equal timestamps keep their arrival order.
-pub struct TimeOrderedCollector<T>(Vec<T>);
+/// Stable: items with equal keys keep their arrival order.
+pub struct OrderedCollector<T>(Vec<T>);
 
-impl<T> Default for TimeOrderedCollector<T> {
+impl<T> Default for OrderedCollector<T> {
     fn default() -> Self {
         Self(Default::default())
     }
 }
 
-impl<T> TimeOrderedCollector<T>
+impl<T> OrderedCollector<T>
 where
-    T: Timestamp,
+    T: OrderKey,
 {
-    pub fn push(&mut self, state: T) {
+    pub fn push(&mut self, item: T) {
         if let Some(last) = self.0.last()
-            && last.timestamp() <= state.timestamp()
+            && last.order_key() <= item.order_key()
         {
-            self.0.push(state);
+            self.0.push(item);
         } else {
             // `<=` (upper bound): late arrivals land after ties, matching the fast path.
             // `<` (lower bound) would insert before ties, reversing arrival order.
+            let key = item.order_key();
             let pos = self
                 .0
-                .partition_point(|s| s.timestamp() <= state.timestamp());
-            self.0.insert(pos, state);
+                .partition_point(|existing| existing.order_key() <= key);
+            self.0.insert(pos, item);
         }
     }
 
@@ -157,9 +167,9 @@ where
     }
 }
 
-impl<T> Extend<T> for TimeOrderedCollector<T>
+impl<T> Extend<T> for OrderedCollector<T>
 where
-    T: Timestamp,
+    T: OrderKey,
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for transition in iter {
@@ -172,18 +182,20 @@ where
 mod collector_tests {
     use super::*;
 
-    /// Carries its timestamp plus a tag, so equal-timestamp ordering is visible.
+    /// Carries its order key plus a tag, so equal-key ordering is visible.
     #[derive(Debug, PartialEq, Eq)]
-    struct Tagged(TimeUnixNanoSec, &'static str);
+    struct Tagged(u8, &'static str);
 
-    impl Timestamp for Tagged {
-        fn timestamp(&self) -> TimeUnixNanoSec {
+    impl OrderKey for Tagged {
+        type Key = u8;
+
+        fn order_key(&self) -> Self::Key {
             self.0
         }
     }
 
-    fn collect(items: impl IntoIterator<Item = Tagged>) -> Vec<(TimeUnixNanoSec, &'static str)> {
-        let mut collector = TimeOrderedCollector::default();
+    fn collect(items: impl IntoIterator<Item = Tagged>) -> Vec<(u8, &'static str)> {
+        let mut collector = OrderedCollector::default();
         collector.extend(items);
         collector
             .into_inner()
@@ -209,7 +221,7 @@ mod collector_tests {
     }
 
     #[test]
-    fn equal_timestamps_keep_arrival_order_on_the_fast_path() {
+    fn equal_keys_keep_arrival_order_on_the_fast_path() {
         assert_eq!(
             collect([Tagged(10, "first"), Tagged(10, "second")]),
             [(10, "first"), (10, "second")]
@@ -218,8 +230,8 @@ mod collector_tests {
 
     /// Regression: `<` predicate (lower bound) reversed arrival order on the slow path.
     #[test]
-    fn equal_timestamps_keep_arrival_order_on_the_slow_path() {
-        // t=20 "later" triggers the slow path for the subsequent t=10 "second".
+    fn equal_keys_keep_arrival_order_on_the_slow_path() {
+        // Key 20 triggers the slow path for the subsequent second item at key 10.
         assert_eq!(
             collect([
                 Tagged(10, "first"),
@@ -231,7 +243,7 @@ mod collector_tests {
     }
 
     #[test]
-    fn equal_timestamps_keep_arrival_order_across_a_run() {
+    fn equal_keys_keep_arrival_order_across_a_run() {
         assert_eq!(
             collect([
                 Tagged(10, "a"),
