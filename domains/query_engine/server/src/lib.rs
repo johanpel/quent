@@ -5,8 +5,7 @@
 
 use crate::{analyzer_cache::AnalyzerCache, state::ServiceState, timeline_cache::TimelineCache};
 use axum::Router as AxumRouter;
-use quent_collector::server::CollectorService;
-use quent_collector_rpc::collector_server::CollectorServer;
+use quent_collector::{CollectorServer, server::CollectorService};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 
 use tonic::transport::{Server as GrpcServer, server::Router};

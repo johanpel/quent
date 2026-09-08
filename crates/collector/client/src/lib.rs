@@ -3,6 +3,9 @@
 
 //! A gRPC-based client that can send [`Event`]s to a collector.
 
+#[doc(hidden)]
+pub mod grpc;
+
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -21,7 +24,7 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use quent_collector_rpc::{
+use self::grpc::{
     EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatch, MAX_EVENT_BATCH_ENCODED_LEN,
     MAX_EVENTS_PER_BATCH, collector_client::CollectorClient,
 };

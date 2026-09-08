@@ -10,14 +10,12 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use quent_collector_client::CollectorSink;
+use quent_collector_client::{CollectorSink, grpc};
 use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
 use uuid::Uuid;
-
-use quent_collector_rpc as rpc;
 
 /// A remote source's locally mirrored context. `cell` builds it exactly once
 /// even when several of that source's entity streams reach the service
@@ -95,15 +93,15 @@ impl<C> CollectorService<C> {
 }
 
 #[tonic::async_trait]
-impl<C> rpc::collector_server::Collector for CollectorService<C>
+impl<C> grpc::collector_server::Collector for CollectorService<C>
 where
     C: CollectorSink + Send + Sync + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
         &self,
-        request: Request<Streaming<rpc::EventBatch>>,
-    ) -> Result<Response<rpc::CollectResponse>, Status> {
+        request: Request<Streaming<grpc::EventBatch>>,
+    ) -> Result<Response<grpc::CollectResponse>, Status> {
         // The source identifies its stream with the `source-context-id` metadata.
         let source_context_id = request
             .metadata()
@@ -189,6 +187,6 @@ where
                 }
             }
         }
-        Ok(Response::new(rpc::CollectResponse))
+        Ok(Response::new(grpc::CollectResponse))
     }
 }

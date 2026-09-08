@@ -23,8 +23,9 @@ use std::path::Path;
 
 use criterion::{BenchmarkGroup, Criterion, Throughput, measurement::WallTime, profiler::Profiler};
 use pprof::ProfilerGuard;
-use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
-use quent_collector_rpc::collector_server::CollectorServer;
+use quent_collector::{
+    CollectorServer, CollectorSink, deserialize_event, server::CollectorService,
+};
 use quent_events::EntityEvent;
 use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::filesystem::{self, Format};

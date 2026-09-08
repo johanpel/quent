@@ -13,8 +13,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use common::TestEvent;
-use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
-use quent_collector_rpc::collector_server::CollectorServer;
+use quent_collector::{
+    CollectorServer, CollectorSink, deserialize_event, server::CollectorService,
+};
 use quent_events::{EntityEvent, Event};
 use quent_instrumentation::ContextInner;
 use quent_io::{CollectorExporterOptions, ExporterOptions};

@@ -2599,7 +2599,6 @@ name = "quent-collector"
 version = "0.1.0"
 dependencies = [
  "quent-collector-client",
- "quent-collector-rpc",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2614,7 +2613,6 @@ dependencies = [
  "bitcode",
  "bytes",
  "http",
- "quent-collector-rpc",
  "quent-events",
  "serde",
  "thiserror",
@@ -2622,17 +2620,9 @@ dependencies = [
  "tokio-stream",
  "tokio-util",
  "tonic",
+ "tonic-build",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "quent-collector-rpc"
-version = "0.1.0"
-dependencies = [
- "bytes",
- "tonic",
- "tonic-build",
 ]
 
 [[package]]
@@ -2687,7 +2677,6 @@ dependencies = [
  "quent-build-info",
  "quent-collector",
  "quent-collector-client",
- "quent-collector-rpc",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
@@ -2989,7 +2978,6 @@ dependencies = [
  "moka",
  "quent-analyzer",
  "quent-collector",
- "quent-collector-rpc",
  "quent-events",
  "quent-io",
  "quent-query-engine-analyzer",
