@@ -84,9 +84,9 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     // FSMs will get typestate pattern handles in the future, also see
     // https://github.com/rapidsai/quent/issues/416
     let mut query = context.observer::<Query>().handle();
-    query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
-    query.running(10)?;
-    query.ready(true)?;
+    query.submitted(0, "select 1".to_owned(), conn.as_entity_ref())?;
+    query.running(1, 10)?;
+    query.ready(2, true)?;
 
     conn.closed()?;
 

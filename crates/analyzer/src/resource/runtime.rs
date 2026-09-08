@@ -3,7 +3,7 @@
 
 //! Run-time defined Resources and Resource Groups (in analysis)
 
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
@@ -33,6 +33,14 @@ impl Timestamp for RtResourceTransition {
     }
 }
 
+impl OrderKey for RtResourceTransition {
+    type Key = TimeUnixNanoSec;
+
+    fn order_key(&self) -> Self::Key {
+        self.timestamp()
+    }
+}
+
 impl Transition for RtResourceTransition {
     fn name(&self) -> &str {
         match self {
@@ -50,7 +58,7 @@ pub struct RtResourceBuilder {
     instance_name: Option<String>,
     type_name: Option<String>,
     parent_group_id: Option<Uuid>,
-    transitions: TimeOrderedCollector<RtResourceTransition>,
+    transitions: OrderedCollector<RtResourceTransition>,
 }
 
 impl RtResourceBuilder {

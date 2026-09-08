@@ -5,10 +5,10 @@ use std::collections::HashSet;
 
 use quent_constraints::Constraint;
 use quent_schema::builder::{AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder};
-use quent_schema::{Annotations, Cardinality, Entity, Field, Identifier, Path};
+use quent_schema::{Annotations, Cardinality, DataType, Entity, Field, Identifier, Path};
 use thiserror::Error;
 
-use crate::{Fsm, FsmConstraint, FsmError, Transition, check_entity};
+use crate::{Fsm, FsmConstraint, FsmError, SEQUENCE_FIELD_NAME, Transition, check_entity};
 
 /// A declared state of an FSM entity.
 pub struct StateDecl {
@@ -91,8 +91,8 @@ impl FsmEntityBuilder {
     ///
     /// Returns [`FsmEntityBuilderError`] if a state name is declared twice,
     /// there is not exactly one initial state, a state has a duplicate
-    /// attribute name, the topology fails to serialize, or the topology is
-    /// invalid.
+    /// attribute name (including the reserved `seq` name), the topology fails
+    /// to serialize, or the topology is invalid.
     pub fn build(self) -> Result<Entity, FsmEntityBuilderError> {
         let Self {
             path,
@@ -132,10 +132,19 @@ impl FsmEntityBuilder {
             .collect();
         let fsm = Fsm::new(initial, transitions);
 
+        let sequence_annotations = AnnotationsBuilder::new()
+            .with_docs("The per-instance sequence number for equal-timestamp transitions.")
+            .build()?;
         let mut entity = EntityBuilder::new(path);
         for state in states {
             let cardinality = fsm.cardinality(&state.name).unwrap_or(Cardinality::Once);
             let event = EventBuilder::new(state.name, cardinality)
+                .with_field(Field::new(
+                    Identifier::try_new(SEQUENCE_FIELD_NAME)
+                        .expect("the reserved sequence field name is valid"),
+                    DataType::U16,
+                    sequence_annotations.clone(),
+                ))
                 .with_fields(state.attributes)
                 .build()?;
             entity = entity.with_event(event);

@@ -48,8 +48,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn a thread.
     let mut thread = context.observer::<Thread>().handle();
-    thread.idle(worker.as_entity_ref())?;
-    thread.active()?;
+    thread.idle(0, worker.as_entity_ref())?;
+    thread.active(1)?;
 
     // Emit a structured log event.
     context.observer::<Info>().handle().recorded(
@@ -75,19 +75,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Queue and execute a task with typed resource usage claims.
     let mut task = context.observer::<Task>().handle();
     task.queued(
+        0,
         "my_task_31415".to_owned(),
         1,
         worker.as_entity_ref(),
         Some(queue.as_entity_ref_with(QueueUsage { entries: 1 })),
     )?;
-    task.computing(Some(thread.as_entity_ref_with(ThreadUsage)), None)?;
+    task.computing(1, Some(thread.as_entity_ref_with(ThreadUsage)), None)?;
     task.computing(
+        2,
         Some(thread.as_entity_ref_with(ThreadUsage)),
         Some(memory.as_entity_ref_with(MemoryPoolUsage { bytes: 1024 })),
     )?;
-    task.exit()?;
-    thread.idle(worker.as_entity_ref())?;
-    thread.exit()?;
+    task.exit(3)?;
+    thread.idle(2, worker.as_entity_ref())?;
+    thread.exit(3)?;
 
     // Flush all entity streams before reporting the output directory.
     drop((
