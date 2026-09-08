@@ -39,8 +39,8 @@ The task's reference to `Memory` carries the quantity it claims.
     <label><input type="radio" name="q11a" value="c"> A hierarchy depth</label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="c" data-explanation="MemoryUsage is generated from Memory's capacities and carries the claimed bytes.">
-    <legend>Where is the task's claimed byte quantity stored?</legend>
+  <fieldset data-answer="c" data-explanation="MemoryUsage is generated from Memory's capacities and declares the claimed bytes.">
+    <legend>Where is the task's claimed byte quantity declared?</legend>
     <label><input type="radio" name="q11b" value="a"> <code>ResourceCapacityContext</code></label>
     <label><input type="radio" name="q11b" value="b"> The task UUID</label>
     <label><input type="radio" name="q11b" value="c"> <code>MemoryUsage</code></label>

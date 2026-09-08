@@ -40,10 +40,10 @@ much of that capacity it claims.
     <label><input type="radio" name="q12a" value="c"> <code>MemoryContext</code></label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="b" data-explanation="sets-resource-bounds marks the attribute that carries the generated bounds record.">
+  <fieldset data-answer="b" data-explanation="sets-resource-bounds marks the event attribute that carries the generated bounds record.">
     <legend>What does <code>sets-resource-bounds: true</code> identify?</legend>
     <label><input type="radio" name="q12b" value="a"> The resource usage reference</label>
-    <label><input type="radio" name="q12b" value="b"> The attribute carrying the new bounds</label>
+    <label><input type="radio" name="q12b" value="b"> The event attribute carrying the new bounds</label>
     <label><input type="radio" name="q12b" value="c"> The FSM's initial state</label>
     <p class="question-feedback"></p>
   </fieldset>
