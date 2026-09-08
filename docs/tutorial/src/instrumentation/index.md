@@ -1,5 +1,7 @@
 # Instrumentation
 
-Instrumentation uses a generated, model-specific API to emit entity events and
-their typed attributes. The lessons are divided into the base schema and the
-constraints supplied by modules.
+To use Quent, first instrument your code with an application-specific
+instrumentation library. Quent generates this library entirely from an
+Application Event Schema. From here on, this tutorial refers to it simply as a
+schema. You can define a schema in several ways, including with a YAML-based DSL
+or programmatically. This tutorial focuses on the YAML-based approach.

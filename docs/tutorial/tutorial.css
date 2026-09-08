@@ -29,6 +29,69 @@
   margin: 0.25rem 0 0;
 }
 
+.architecture-overview {
+  margin: 1.5rem 0;
+}
+
+.architecture-overview svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.architecture-overview path[fill="none"] {
+  fill: none;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview use:not([fill]):not([stroke-width]) {
+  fill: #f0f6fc;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#000"]:not([fill]) {
+  fill: none;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#fff"] {
+  fill: #161b22;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#000"] {
+  stroke: #f0f6fc;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#3a414a"],
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#4c535d"] {
+  fill: #c9d1d9;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#3a414a"] {
+  stroke: #c9d1d9;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#6f7681"] {
+  fill: #b1bac4;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#6f7681"] {
+  stroke: #b1bac4;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#979ea8"] {
+  fill: #8c959f;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#979ea8"] {
+  stroke: #8c959f;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#7400ff"] {
+  fill: #a371f7;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#7400ff"] {
+  stroke: #a371f7;
+}
+
 .language-example {
   margin: 1rem 0;
 }
