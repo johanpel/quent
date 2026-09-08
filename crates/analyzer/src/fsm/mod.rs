@@ -32,10 +32,9 @@ pub trait Transition: Timestamp {
 
 /// Trait for types that represent a Finite State Machine (FSM).
 ///
-/// An FSM is modeled as a sequence of transitions between uniquely named
-/// states. Each FSM must have at least two transition, some entry transition
-/// and an exit transition. The number of states is always one less than the
-/// number of transitions.
+/// An FSM is modeled as a sequence of transitions into uniquely named states.
+/// Each state exposed by [`Self::state`] or [`Self::states`] is a bounded
+/// interval between two consecutive transitions.
 pub trait Fsm: Entity {
     /// The type of transitions stored by this FSM.
     ///
@@ -43,14 +42,10 @@ pub trait Fsm: Entity {
     /// data.
     type TransitionType: Transition;
 
-    /// Return the number of states in this FSM.
-    ///
-    /// This is always the number of transitions - 1, since the final transition
-    /// must be into the special exit state.
+    /// Return the number of states bounded by two consecutive transitions.
     fn len(&self) -> usize;
 
-    /// Return true if this FSM has no states (meaning the model of whatever it
-    /// represents is incomplete).
+    /// Return true if this FSM has no bounded states.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -59,6 +54,17 @@ pub trait Fsm: Entity {
     ///
     /// Returns `None` if the index is out of bounds.
     fn transition(&self, index: usize) -> Option<&Self::TransitionType>;
+
+    /// Return the last observed transition event.
+    ///
+    /// Unlike [`Self::last`], this returns the transition into the latest
+    /// observed state even when no following transition bounds that state.
+    /// Returns `None` if no transition has been observed. The FSM topology
+    /// determines whether the latest observed state is final, meaning it has no
+    /// outgoing transition, or is the current state of a partial trace.
+    fn last_transition(&self) -> Option<&Self::TransitionType> {
+        self.transition(self.len())
+    }
 
     /// Return a reference to the state at the given index.
     ///
@@ -80,9 +86,11 @@ pub trait Fsm: Entity {
         self.state(0)
     }
 
-    /// Return the last state, if the FSM is not empty.
+    /// Return the last bounded state, if the FSM is not empty.
     fn last<'a>(&'a self) -> Option<FsmStateRef<'a, Self, Self::TransitionType>> {
-        self.state(self.len() - 1)
+        self.len()
+            .checked_sub(1)
+            .and_then(|index| self.state(index))
     }
 }
 

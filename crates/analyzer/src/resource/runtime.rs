@@ -90,24 +90,20 @@ impl RtResourceBuilder {
     pub fn try_build(self) -> AnalyzerResult<RtResource> {
         let transitions: Vec<RtResourceTransition> = self.transitions.into_inner();
 
-        if transitions.len() < 4 {
-            return Err(AnalyzerError::Validation(format!(
-                "resource {} expected to have at least 4 transitions (init, operating, finalizing, exit), has {} instead",
-                self.id,
-                transitions.len()
-            )));
-        }
-        if !matches!(transitions.first().unwrap(), RtResourceTransition::Init(_),) {
-            return Err(AnalyzerError::Validation(format!(
-                "last state of resource {} is not exit",
-                self.id
-            )));
-        }
-        if !matches!(transitions.last().unwrap(), RtResourceTransition::Exit(_),) {
-            return Err(AnalyzerError::Validation(format!(
-                "last state of resource {} is not exit",
-                self.id
-            )));
+        match transitions.first() {
+            None => {
+                return Err(AnalyzerError::Validation(format!(
+                    "resource {} has no transitions",
+                    self.id
+                )));
+            }
+            Some(RtResourceTransition::Init(_)) => {}
+            Some(_) => {
+                return Err(AnalyzerError::Validation(format!(
+                    "first state of resource {} is not init",
+                    self.id
+                )));
+            }
         }
 
         // TODO(johanpel): validate more transition logic
@@ -166,7 +162,7 @@ impl Entity for RtResource {
 impl Fsm for RtResource {
     type TransitionType = RtResourceTransition;
     fn len(&self) -> usize {
-        self.transitions.len() - 1 // -1 for the exit transition.
+        self.transitions.len().saturating_sub(1)
     }
     fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
         self.transitions.get(index)
@@ -230,5 +226,47 @@ impl Entity for RtResourceGroup {
 impl ResourceGroup for RtResourceGroup {
     fn parent_group_id(&self) -> Option<Uuid> {
         self.parent_group_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn builder() -> RtResourceBuilder {
+        let mut builder = RtResourceBuilder::try_new(Uuid::from_u128(1)).unwrap();
+        builder.set_type_name("memory");
+        builder.set_instance_name(Some("host memory".to_owned()));
+        builder.set_parent_group_id(Uuid::from_u128(2));
+        builder
+    }
+
+    #[test]
+    fn resource_does_not_require_an_exit_transition() {
+        let mut builder = builder();
+        builder.push(RtResourceTransition::Init(10));
+        builder.push(RtResourceTransition::Operating(
+            20,
+            ResourceCapacities(Vec::new()),
+        ));
+
+        let resource = builder.try_build().unwrap();
+
+        assert_eq!(resource.len(), 1);
+        assert_eq!(resource.last().unwrap().name(), "init");
+        assert_eq!(resource.last_transition().unwrap().name(), "operating");
+    }
+
+    #[test]
+    fn resource_with_only_init_is_incomplete_but_valid() {
+        let mut builder = builder();
+        builder.push(RtResourceTransition::Init(10));
+
+        let resource = builder.try_build().unwrap();
+
+        assert!(resource.is_empty());
+        assert!(resource.first().is_none());
+        assert!(resource.last().is_none());
+        assert_eq!(resource.last_transition().unwrap().name(), "init");
     }
 }
