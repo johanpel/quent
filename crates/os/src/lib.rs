@@ -35,6 +35,18 @@ pub use record::{process_record, thread_record};
 /// identity; descriptive or mutable OS properties belong in ordinary event or
 /// resource attributes.
 ///
+/// ## Platform-specific considerations
+///
+/// Native IDs are correlation values within the originating operating-system
+/// context, not globally stable entity identifiers. Their uniqueness and
+/// lifetime follow the platform that produced them.
+///
+/// On Linux, [`getpid`] and [`gettid`] return the same value for the thread-group
+/// leader. An entity carrying both canonical records still has distinct process
+/// and thread roles even when their `native_id` values are equal. No numeric
+/// relationship between process and thread IDs is guaranteed by this contract
+/// on any platform.
+///
 /// ## Requirements
 ///
 /// 1. A canonical process or thread record may be used only as a direct field
@@ -45,6 +57,9 @@ pub use record::{process_record, thread_record};
 ///    scoped under a process entity by tree-forming entity references.
 /// 4. Canonical record declarations must carry the [`OsConstraint`] annotation.
 /// 5. Canonical record declarations must match their required shape exactly.
+///
+/// [`getpid`]: https://man7.org/linux/man-pages/man2/getpid.2.html
+/// [`gettid`]: https://man7.org/linux/man-pages/man2/gettid.2.html
 #[derive(Default)]
 pub struct OsConstraint {
     errors: Vec<OsError>,
