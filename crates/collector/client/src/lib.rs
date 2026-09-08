@@ -31,15 +31,23 @@ use self::protocol::{
 
 #[derive(Debug)]
 struct EventBatchBuffer {
+    /// Serialized events waiting for the next gRPC message.
+    ///
+    /// Batching amortizes the per-message transport overhead.
     events: Vec<Bytes>,
-    // Includes the batch header and every event-length prefix so emitted
-    // batches remain within the receiver's encoded-message limit.
+    /// Encoded size of the pending events plus their framing.
+    ///
+    /// Caching the size avoids rescanning the batch whenever an event is added.
     encoded_len: usize,
-    // Stored as a limit so boundary behavior can be tested without allocating
-    // production-sized batches.
+    /// Largest encoded batch accepted by the receiver.
+    ///
+    /// The client must flush before adding an event that would exceed this limit.
     max_encoded_len: usize,
-    // Bounds per-event metadata and processing independently of payload bytes,
-    // which may all be empty.
+    /// Largest event count accepted in one batch.
+    ///
+    /// The byte limit alone permits about one million zero-length events. The
+    /// count limit bounds the sender's and receiver's `Vec<Bytes>` storage and
+    /// decode work.
     max_events: usize,
 }
 
