@@ -5,8 +5,8 @@ publish.workspace = true
 version.workspace = true
 
 [dependencies]
-quent-collector-proto = { path = "../proto" }
 quent-collector-client = { path = "../client" }
+quent-collector-rpc = { path = "../rpc" }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true

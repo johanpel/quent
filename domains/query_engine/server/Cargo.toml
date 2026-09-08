@@ -13,7 +13,7 @@ axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future"] }
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-collector = { path = "../../../crates/collector/server" }
-quent-collector-proto = { path = "../../../crates/collector/proto" }
+quent-collector-rpc = { path = "../../../crates/collector/rpc" }
 quent-events = { path = "../../../crates/events" }
 quent-io = { path = "../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }

@@ -20,7 +20,7 @@ use thiserror::Error;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
+use quent_collector_rpc::{EventBatch, collector_client::CollectorClient};
 
 /// A sink for serialized per-entity event streams.
 pub trait CollectorSink {
@@ -112,10 +112,8 @@ where
         // TODO(johanpel): consider unbounded
         let (event_sender, mut event_receiver): (Sender<Event<T>>, Receiver<Event<T>>) =
             mpsc::channel(1024);
-        let (grpc_sender, grpc_receiver): (
-            Sender<CollectEventRequest>,
-            Receiver<CollectEventRequest>,
-        ) = mpsc::channel(1024);
+        let (grpc_sender, grpc_receiver): (Sender<EventBatch>, Receiver<EventBatch>) =
+            mpsc::channel(1024);
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
@@ -136,13 +134,13 @@ where
             async fn flush_buffer(
                 buffer: &mut Vec<Vec<u8>>,
                 num_buffer_bytes: &mut usize,
-                grpc_sender: &Sender<CollectEventRequest>,
+                grpc_sender: &Sender<EventBatch>,
             ) -> Result<(), ()> {
                 if buffer.is_empty() {
                     return Ok(());
                 }
-                let request = CollectEventRequest {
-                    event: std::mem::take(buffer),
+                let request = EventBatch {
+                    events: std::mem::take(buffer),
                 };
                 *num_buffer_bytes = 0;
                 grpc_sender.send(request).await.map_err(|_| ())

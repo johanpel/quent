@@ -7,7 +7,7 @@ publish.workspace = true
 [dependencies]
 bitcode.workspace = true
 http.workspace = true
-quent-collector-proto = { path = "../proto" }
+quent-collector-rpc = { path = "../rpc" }
 quent-events = { workspace = true, features = ["serde"] }
 serde.workspace = true
 thiserror.workspace = true

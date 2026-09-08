@@ -11,7 +11,7 @@ members = [
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
-    "crates/collector/proto",
+    "crates/collector/rpc",
     "crates/events",
     "crates/io",
     "crates/io/callback",
@@ -89,7 +89,7 @@ default-members = [
     "crates/codegen",
     "crates/collector/server",
     "crates/collector/client",
-    "crates/collector/proto",
+    "crates/collector/rpc",
     "crates/events",
     "crates/io",
     "crates/io/callback",
@@ -131,6 +131,7 @@ repository = "https://github.com/rapidsai/quent"
 async-trait = "0.1.89"
 bindgen = "0.72"
 bitcode = { version = "0.6.9", features = ["serde"] }
+bytes = "1"
 cargo_metadata = "0.23"
 cc = "1.2"
 http = "1"
@@ -140,8 +141,6 @@ nvtx = { version = "2", default-features = false, features = ["std"] }
 petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"
-prost = "0.14.1"
-protox = "0.9.1"
 pyo3 = "0.29"
 quent-collector-client = { path = "crates/collector/client" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
@@ -158,7 +157,7 @@ tokio = "1.48.0"
 tokio-stream = "0.1.17"
 tokio-util = "0.7.18"
 tonic = "0.14.2"
-tonic-prost = "0.14.2"
+tonic-build = "0.14.2"
 tracing = "0.1.43"
 tracing-subscriber = "0.3"
 ts-rs = "12.0.1"

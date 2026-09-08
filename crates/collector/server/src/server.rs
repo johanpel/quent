@@ -17,7 +17,7 @@ use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use quent_collector_proto as proto;
+use quent_collector_rpc as rpc;
 
 /// A remote source's locally mirrored context. `cell` builds it exactly once
 /// even when several of that source's entity streams reach the service
@@ -95,15 +95,15 @@ impl<C> CollectorService<C> {
 }
 
 #[tonic::async_trait]
-impl<C> proto::collector_server::Collector for CollectorService<C>
+impl<C> rpc::collector_server::Collector for CollectorService<C>
 where
     C: CollectorSink + Send + Sync + 'static,
 {
     #[tracing::instrument]
     async fn collect_events(
         &self,
-        request: Request<Streaming<proto::CollectEventRequest>>,
-    ) -> Result<Response<proto::CollectEventResponse>, Status> {
+        request: Request<Streaming<rpc::EventBatch>>,
+    ) -> Result<Response<rpc::CollectResponse>, Status> {
         // The source identifies its stream with the `source-context-id` metadata.
         let source_context_id = request
             .metadata()
@@ -172,9 +172,9 @@ where
                         }
                     };
 
-                    tracing::trace_span!("ingesting", num_events = request.event.len()).in_scope(
+                    tracing::trace_span!("ingesting", num_events = request.events.len()).in_scope(
                         || {
-                            for serialized_event in request.event {
+                            for serialized_event in request.events {
                                 if let Err(e) = context.ingest(&entity_type, &serialized_event[..])
                                 {
                                     warn!("collector: ingest error: {e}");
@@ -189,6 +189,6 @@ where
                 }
             }
         }
-        Ok(Response::new(proto::CollectEventResponse {}))
+        Ok(Response::new(rpc::CollectResponse))
     }
 }
