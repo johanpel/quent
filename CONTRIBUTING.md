@@ -114,7 +114,7 @@ All of the following checks must pass before a PR can be merged:
 
 - Conventional commit format
 
-### Rust (runs when Rust or proto sources change)
+### Rust (runs when Rust sources or build configuration change)
 
 - `cargo fmt` — formatting
 - `cargo clippy` — lints, no warnings allowed
@@ -131,7 +131,7 @@ All of the following checks must pass before a PR can be merged:
 - `pnpm audit` — dependency security audit
 - Production build
 
-### Markdown (runs when Rust or proto sources change)
+### Markdown (runs when Markdown sources or lint configuration change)
 
 - `rumdl` — markdown lint
 
