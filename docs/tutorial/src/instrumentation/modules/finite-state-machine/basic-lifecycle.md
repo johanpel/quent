@@ -41,11 +41,11 @@ topology, while generated handles do not enforce transition order at runtime.
     <label><input type="radio" name="q08a" value="c"> Runtime thread ownership</label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="c" data-explanation="The generated API emits state-entry events but does not enforce transition order at runtime.">
-    <legend>Does the Rust handle prevent calling <code>completed</code> before <code>running</code>?</legend>
-    <label><input type="radio" name="q08b" value="a"> Yes, through typestate</label>
-    <label><input type="radio" name="q08b" value="b"> Yes, by blocking the thread</label>
-    <label><input type="radio" name="q08b" value="c"> No</label>
+  <fieldset data-answer="b" data-explanation="Both loading_input and restoring_checkpoint declare running in their to lists.">
+    <legend>Which states can directly precede <code>running</code>?</legend>
+    <label><input type="radio" name="q08b" value="a"> Only <code>queued</code></label>
+    <label><input type="radio" name="q08b" value="b"> <code>loading_input</code> or <code>restoring_checkpoint</code></label>
+    <label><input type="radio" name="q08b" value="c"> Only <code>loading_input</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

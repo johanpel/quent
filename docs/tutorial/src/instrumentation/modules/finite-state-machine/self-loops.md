@@ -1,7 +1,9 @@
 # Self-loops
 
-A transition from a state back to itself makes repeated entry valid. The FSM
-topology therefore gives that state's generated event `multi` cardinality.
+A direct self-loop transitions from a state back to itself, such as
+`running → running`. A state can also be part of an indirect cycle, such as
+`running → paused → running`. Both forms allow states on the cycle to be
+entered repeatedly, so their generated events have `multi` cardinality.
 
 ## YAML model
 
@@ -11,7 +13,8 @@ topology therefore gives that state's generated event `multi` cardinality.
 
 ## Instrumentation API
 
-The task enters `running` repeatedly as its progress changes, then enters
+The task first repeats `running` through its direct self-loop. It then follows
+the indirect cycle through `paused` and back to `running` before entering
 `completed` once.
 
 ```rust
@@ -24,24 +27,24 @@ The task enters `running` repeatedly as its progress changes, then enters
   </div>
   <div>
     <strong>Key point</strong>
-    <p>A self-loop makes the corresponding state-entry event repeatable.</p>
+    <p>Every state on a direct or indirect cycle has a repeatable state-entry event.</p>
   </div>
 </div>
 
 <section class="check-yourself" data-lesson="09">
   <h2>Check yourself</h2>
-  <fieldset data-answer="a" data-explanation="The running-to-running transition means the state can be entered repeatedly, so its event is multi.">
-    <legend>Why can <code>running</code> be emitted more than once?</legend>
-    <label><input type="radio" name="q09a" value="a"> <code>running</code> has a self-loop</label>
-    <label><input type="radio" name="q09a" value="b"> It has an attribute</label>
-    <label><input type="radio" name="q09a" value="c"> It is the initial state</label>
+  <fieldset data-answer="a" data-explanation="The running state names itself in its to list, creating a direct self-loop.">
+    <legend>Which transition is a direct self-loop?</legend>
+    <label><input type="radio" name="q09a" value="a"> <code>running → running</code></label>
+    <label><input type="radio" name="q09a" value="b"> <code>running → paused</code></label>
+    <label><input type="radio" name="q09a" value="c"> <code>running → completed</code></label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="b" data-explanation="No cycle can re-enter completed, so its derived event cardinality is once.">
-    <legend>What cardinality is derived for <code>completed</code>?</legend>
-    <label><input type="radio" name="q09b" value="a"> <code>multi</code></label>
-    <label><input type="radio" name="q09b" value="b"> <code>once</code></label>
-    <label><input type="radio" name="q09b" value="c"> No event is generated</label>
+  <fieldset data-answer="b" data-explanation="The running-to-paused-to-running path places paused on an indirect cycle, so its event is multi.">
+    <legend>Why does <code>paused</code> have <code>multi</code> cardinality?</legend>
+    <label><input type="radio" name="q09b" value="a"> It has no attributes</label>
+    <label><input type="radio" name="q09b" value="b"> It is part of <code>running → paused → running</code></label>
+    <label><input type="radio" name="q09b" value="c"> It can transition to <code>completed</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

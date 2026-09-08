@@ -8,5 +8,7 @@ fsms:
         initial: true
         attributes:
           items_processed: u64
-        to: [running, completed]
+        to: [running, paused, completed]
+      paused:
+        to: [running]
       completed: {}

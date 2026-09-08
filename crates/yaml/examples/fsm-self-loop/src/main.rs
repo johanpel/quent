@@ -13,7 +13,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task = context.observer::<Task>().handle();
 
     task.running(0)?;
+    // Direct self-loop: running -> running.
     task.running(64)?;
+    // Indirect cycle: running -> paused -> running.
+    task.paused()?;
     task.running(128)?;
     task.completed()?;
 

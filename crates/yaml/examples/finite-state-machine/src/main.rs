@@ -6,14 +6,16 @@ mod instrumentation {
     include!(concat!(env!("OUT_DIR"), "/finite_state_machine.rs"));
 }
 
-use instrumentation::{Context, FiniteStateMachine, Noop, Task};
+use instrumentation::{Context, FiniteStateMachine, Job, Noop};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FiniteStateMachine>::try_new(Noop)?;
-    let mut task = context.observer::<Task>().handle();
+    let mut job = context.observer::<Job>().handle();
 
-    task.running()?;
-    task.completed()?;
+    job.queued()?;
+    job.loading_input()?;
+    job.running()?;
+    job.completed()?;
 
     Ok(())
 }
