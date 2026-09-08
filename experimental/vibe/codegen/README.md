@@ -1,8 +1,7 @@
 # Experimental schema binding generators
 
 This isolated Cargo workspace generates CXX and PyO3 bindings directly from a
-`quent_schema::Schema`. It does not depend on `quent-model` or
-`quent-model-macros`.
+`quent_schema::Schema`.
 
 ```sh
 cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace
