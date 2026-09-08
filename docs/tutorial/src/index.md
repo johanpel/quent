@@ -4,6 +4,9 @@ This tutorial builds a Quent model from basic events through finite-state
 machines and resources. Every lesson shows the complete YAML model beside the
 generated instrumentation API that uses it.
 
+Use the [Quent Schema Explorer](https://rapidsai.github.io/quent/schema/) to
+inspect an Application Event Schema interactively.
+
 ## How Quent fits together
 
 <div class="architecture-overview" role="img" aria-label="Quent architecture from an Application Event Schema through generated instrumentation and analysis libraries">
