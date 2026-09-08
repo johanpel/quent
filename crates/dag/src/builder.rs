@@ -175,7 +175,7 @@ pub struct DagEntityBuilder {
 }
 
 impl DagEntityBuilder {
-    /// Start a DAG entity named `name`.
+    /// Start a DAG entity at `path`.
     pub fn dag(path: impl Into<Path>) -> Self {
         Self {
             path: path.into(),
