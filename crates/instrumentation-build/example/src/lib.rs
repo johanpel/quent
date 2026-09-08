@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Emits a small generated instrumentation model through selectable exporters.
+//! Native thread IDs are supported on Linux, macOS, and Windows.
 
 use std::path::PathBuf;
 
