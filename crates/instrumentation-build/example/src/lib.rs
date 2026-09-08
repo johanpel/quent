@@ -152,8 +152,18 @@ fn current_native_thread_id() -> std::io::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn native_thread_id_is_nonzero() {
         assert_ne!(super::current_native_thread_id().unwrap(), 0);
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+    #[test]
+    fn native_thread_id_is_unsupported() {
+        assert_eq!(
+            super::current_native_thread_id().unwrap_err().kind(),
+            std::io::ErrorKind::Unsupported
+        );
     }
 }
