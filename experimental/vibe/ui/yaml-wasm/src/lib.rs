@@ -5,6 +5,7 @@ use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
 const NAMESPACE_SEPARATOR: &str = "QuentNamespaceSeparator";
+const ENCODED_OS_NAMESPACE: &str = "quentQuentNamespaceSeparatorosQuentNamespaceSeparator";
 
 /// Parse YAML and return the validated schema as JSON.
 ///
@@ -17,7 +18,9 @@ pub fn parse_schema_json(source: &str) -> Result<String, JsValue> {
 }
 
 fn parse_schema_value(source: &str) -> Result<Value, String> {
-    let encoded = source.replace("::", NAMESPACE_SEPARATOR);
+    let encoded = source
+        .replace("::", NAMESPACE_SEPARATOR)
+        .replace(ENCODED_OS_NAMESPACE, "quent::os::");
     let parsed = quent_yaml::parse_from_str(encoded, Some("editor.yaml"))
         .map_err(|error| error.to_string())?;
     let mut schema = serde_json::to_value(parsed.schema).map_err(|error| error.to_string())?;
@@ -99,5 +102,43 @@ entities:
         let json = schema.to_string();
         assert!(json.contains("Root::Parent"));
         assert!(!json.contains(NAMESPACE_SEPARATOR));
+    }
+
+    #[test]
+    fn parses_os_record_references() {
+        let schema = parse_schema_value(
+            "\
+quent: alpha
+model: OsRecords
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          process: quent::os::Process
+  Thread:
+    events:
+      started:
+        attributes:
+          thread: quent::os::Thread
+          process: { scope-ref: Process }
+",
+        )
+        .expect("schema parses");
+
+        let paths = schema["records"]
+            .as_array()
+            .expect("schema records")
+            .iter()
+            .map(|entry| &entry[0])
+            .collect::<Vec<_>>();
+        assert!(paths.contains(&&serde_json::json!({
+            "namespace": ["quent", "os"],
+            "name": "Process",
+        })));
+        assert!(paths.contains(&&serde_json::json!({
+            "namespace": ["quent", "os"],
+            "name": "Thread",
+        })));
     }
 }
