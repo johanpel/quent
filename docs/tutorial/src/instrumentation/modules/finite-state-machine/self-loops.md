@@ -28,20 +28,20 @@ The task enters `running` repeatedly as its progress changes, then enters
   </div>
 </div>
 
-<section class="check-yourself" data-lesson="08">
+<section class="check-yourself" data-lesson="09">
   <h2>Check yourself</h2>
   <fieldset data-answer="a" data-explanation="The running-to-running transition means the state can be entered repeatedly, so its event is multi.">
     <legend>Why can <code>running</code> be emitted more than once?</legend>
-    <label><input type="radio" name="q08a" value="a"> <code>running</code> has a self-loop</label>
-    <label><input type="radio" name="q08a" value="b"> It has an attribute</label>
-    <label><input type="radio" name="q08a" value="c"> It is the initial state</label>
+    <label><input type="radio" name="q09a" value="a"> <code>running</code> has a self-loop</label>
+    <label><input type="radio" name="q09a" value="b"> It has an attribute</label>
+    <label><input type="radio" name="q09a" value="c"> It is the initial state</label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="b" data-explanation="No cycle can re-enter completed, so its derived event cardinality is once.">
     <legend>What cardinality is derived for <code>completed</code>?</legend>
-    <label><input type="radio" name="q08b" value="a"> <code>multi</code></label>
-    <label><input type="radio" name="q08b" value="b"> <code>once</code></label>
-    <label><input type="radio" name="q08b" value="c"> No event is generated</label>
+    <label><input type="radio" name="q09b" value="a"> <code>multi</code></label>
+    <label><input type="radio" name="q09b" value="b"> <code>once</code></label>
+    <label><input type="radio" name="q09b" value="c"> No event is generated</label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

@@ -31,20 +31,20 @@ much of that capacity it claims.
   </div>
 </div>
 
-<section class="check-yourself" data-lesson="11">
+<section class="check-yourself" data-lesson="12">
   <h2>Check yourself</h2>
   <fieldset data-answer="a" data-explanation="A capacity with known bounds generates a bounds record in addition to its usage record.">
     <legend>What additional generated record comes from <code>known-bounds: true</code>?</legend>
-    <label><input type="radio" name="q11a" value="a"> <code>MemoryBounds</code></label>
-    <label><input type="radio" name="q11a" value="b"> <code>TaskBounds</code></label>
-    <label><input type="radio" name="q11a" value="c"> <code>MemoryContext</code></label>
+    <label><input type="radio" name="q12a" value="a"> <code>MemoryBounds</code></label>
+    <label><input type="radio" name="q12a" value="b"> <code>TaskBounds</code></label>
+    <label><input type="radio" name="q12a" value="c"> <code>MemoryContext</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="b" data-explanation="sets-resource-bounds marks the attribute that carries the generated bounds record.">
     <legend>What does <code>sets-resource-bounds: true</code> identify?</legend>
-    <label><input type="radio" name="q11b" value="a"> The resource usage reference</label>
-    <label><input type="radio" name="q11b" value="b"> The attribute carrying the new bounds</label>
-    <label><input type="radio" name="q11b" value="c"> The FSM's initial state</label>
+    <label><input type="radio" name="q12b" value="a"> The resource usage reference</label>
+    <label><input type="radio" name="q12b" value="b"> The attribute carrying the new bounds</label>
+    <label><input type="radio" name="q12b" value="c"> The FSM's initial state</label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

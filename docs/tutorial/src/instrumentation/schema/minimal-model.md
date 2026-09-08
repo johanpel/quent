@@ -15,6 +15,12 @@ entity instance unless the model says otherwise.
 The context provides an observer for each entity type. A handle represents one
 entity instance and exposes one method per event.
 
+Every context is created with an exporter, which determines where emitted
+events go. This example uses `Noop`, an exporter that discards every event. It
+keeps the example focused on the generated API without creating files or
+starting another service. Applications replace `Noop` with an exporter that
+stores or sends their events.
+
 ```rust
 {{#include ../../../../../crates/yaml/examples/minimal-model/src/main.rs}}
 ```

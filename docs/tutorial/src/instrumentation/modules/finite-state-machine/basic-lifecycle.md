@@ -32,20 +32,20 @@ topology, while generated handles do not enforce transition order at runtime.
   </div>
 </div>
 
-<section class="check-yourself" data-lesson="07">
+<section class="check-yourself" data-lesson="08">
   <h2>Check yourself</h2>
   <fieldset data-answer="b" data-explanation="The FSM validator checks the initial state, reachability, transition targets, and a final path.">
     <legend>Which property does the parser validate for this FSM?</legend>
-    <label><input type="radio" name="q07a" value="a"> Exporter throughput</label>
-    <label><input type="radio" name="q07a" value="b"> State reachability and a final path</label>
-    <label><input type="radio" name="q07a" value="c"> Runtime thread ownership</label>
+    <label><input type="radio" name="q08a" value="a"> Exporter throughput</label>
+    <label><input type="radio" name="q08a" value="b"> State reachability and a final path</label>
+    <label><input type="radio" name="q08a" value="c"> Runtime thread ownership</label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="c" data-explanation="The generated API emits state-entry events but does not enforce transition order at runtime.">
     <legend>Does the Rust handle prevent calling <code>completed</code> before <code>running</code>?</legend>
-    <label><input type="radio" name="q07b" value="a"> Yes, through typestate</label>
-    <label><input type="radio" name="q07b" value="b"> Yes, by blocking the thread</label>
-    <label><input type="radio" name="q07b" value="c"> No</label>
+    <label><input type="radio" name="q08b" value="a"> Yes, through typestate</label>
+    <label><input type="radio" name="q08b" value="b"> Yes, by blocking the thread</label>
+    <label><input type="radio" name="q08b" value="c"> No</label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

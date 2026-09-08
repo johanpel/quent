@@ -11,8 +11,8 @@ can use a record name wherever they can use a scalar type.
 
 ## Instrumentation API
 
-The generated API represents `TaskResult` as a Rust struct. Construct the
-record, then pass it to the event method.
+The generated API represents `WorkResult` as a target-language record type.
+Both `Task` and `Batch` accept that type when emitting `ended`.
 
 ```rust
 {{#include ../../../../../crates/yaml/examples/records/src/main.rs}}
@@ -30,11 +30,11 @@ record, then pass it to the event method.
 
 <section class="check-yourself" data-lesson="04">
   <h2>Check yourself</h2>
-  <fieldset data-answer="b" data-explanation="A YAML record is generated as a Rust struct with public typed fields.">
-    <legend>What Rust item is generated for <code>TaskResult</code>?</legend>
-    <label><input type="radio" name="q04a" value="a"> An enum variant</label>
-    <label><input type="radio" name="q04a" value="b"> A struct</label>
-    <label><input type="radio" name="q04a" value="c"> A trait</label>
+  <fieldset data-answer="b" data-explanation="An event attribute can use a record name wherever it can use a scalar type.">
+    <legend>What type do the <code>Task</code> and <code>Batch</code> <code>ended</code> events expect for <code>result</code>?</legend>
+    <label><input type="radio" name="q04a" value="a"> <code>bool</code></label>
+    <label><input type="radio" name="q04a" value="b"> <code>WorkResult</code></label>
+    <label><input type="radio" name="q04a" value="c"> <code>Task</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="a" data-explanation="Records give a group of related fields one reusable, generated type.">

@@ -2,7 +2,7 @@ quent: alpha
 model: records
 
 records:
-  TaskResult:
+  WorkResult:
     fields:
       success: bool
       items_processed: u64
@@ -13,4 +13,10 @@ entities:
       started: {}
       ended:
         attributes:
-          result: TaskResult
+          result: WorkResult
+  Batch:
+    events:
+      started: {}
+      ended:
+        attributes:
+          result: WorkResult

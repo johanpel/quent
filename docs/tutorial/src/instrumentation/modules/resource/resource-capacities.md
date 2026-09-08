@@ -30,20 +30,20 @@ The task's reference to `Memory` carries the quantity it claims.
   </div>
 </div>
 
-<section class="check-yourself" data-lesson="10">
+<section class="check-yourself" data-lesson="11">
   <h2>Check yourself</h2>
   <fieldset data-answer="b" data-explanation="Occupancy is a quantity held over a usage span, such as allocated bytes while running.">
     <legend>What does an <code>occupancy</code> capacity measure?</legend>
-    <label><input type="radio" name="q10a" value="a"> A one-time event count</label>
-    <label><input type="radio" name="q10a" value="b"> A quantity held during a usage span</label>
-    <label><input type="radio" name="q10a" value="c"> A hierarchy depth</label>
+    <label><input type="radio" name="q11a" value="a"> A one-time event count</label>
+    <label><input type="radio" name="q11a" value="b"> A quantity held during a usage span</label>
+    <label><input type="radio" name="q11a" value="c"> A hierarchy depth</label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="c" data-explanation="MemoryUsage is generated from Memory's capacities and carries the claimed bytes.">
     <legend>Where is the task's claimed byte quantity stored?</legend>
-    <label><input type="radio" name="q10b" value="a"> <code>ResourceCapacityContext</code></label>
-    <label><input type="radio" name="q10b" value="b"> The task UUID</label>
-    <label><input type="radio" name="q10b" value="c"> <code>MemoryUsage</code></label>
+    <label><input type="radio" name="q11b" value="a"> <code>ResourceCapacityContext</code></label>
+    <label><input type="radio" name="q11b" value="b"> The task UUID</label>
+    <label><input type="radio" name="q11b" value="c"> <code>MemoryUsage</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

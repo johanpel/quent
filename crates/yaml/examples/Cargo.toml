@@ -30,6 +30,10 @@ name = "records"
 path = "records/src/main.rs"
 
 [[bin]]
+name = "untyped-entity-references"
+path = "untyped-entity-references/src/main.rs"
+
+[[bin]]
 name = "entity-references"
 path = "entity-references/src/main.rs"
 

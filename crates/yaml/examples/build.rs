@@ -13,6 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "event-data/model.yaml",
         "repeated-events/model.yaml",
         "records/model.yaml",
+        "untyped-entity-references/model.yaml",
         "entity-references/model.yaml",
         "scoped-references/model.yaml",
         "finite-state-machine/model.yaml",

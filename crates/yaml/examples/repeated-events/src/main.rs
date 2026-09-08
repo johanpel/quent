@@ -13,6 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task = context.observer::<Task>().handle();
 
     task.started("compile".to_owned())?;
+    // `started` is a once event, so a second call would return an error.
+    // task.started("compile".to_owned())?;
     task.progress(64)?;
     task.progress(128)?;
     task.ended(true)?;
