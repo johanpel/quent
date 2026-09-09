@@ -1,0 +1,26 @@
+quent: alpha
+model: event_data
+
+entities:
+  Task:
+    events:
+      started:
+        attributes:
+          enabled: bool
+          byte: u8
+          short_count: u16
+          attempt: u32
+          item_count: u64
+          small_offset: i8
+          short_offset: i16
+          offset: i32
+          large_offset: i64
+      ended:
+        attributes:
+          ratio: f32
+          score: f64
+          message: string
+          run_id: uuid
+          retry_after: { option: u64 }
+          tags: { list: string }
+          extra: dynamic

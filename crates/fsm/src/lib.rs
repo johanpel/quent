@@ -12,7 +12,7 @@ use petgraph::{
 };
 use quent_constraints::{Constraint, utils::bullet_list};
 use quent_schema::{
-    Cardinality, Entity, Identifier, Path,
+    Cardinality, DataType, Entity, Identifier, Path,
     visitor::{Cursor, Element, Visitor},
 };
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,9 @@ use thiserror::Error;
 mod builder;
 
 pub use builder::{FsmEntityBuilder, FsmEntityBuilderError, StateDecl};
+
+/// Reserved state-event field used to order equal-timestamp transitions.
+pub const SEQUENCE_FIELD_NAME: &str = "seq";
 
 /// A directed transition between two named states in an [`Fsm`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -74,6 +77,36 @@ impl Fsm {
     /// The transitions of this FSM between states.
     pub fn transitions(&self) -> &[Transition] {
         &self.transitions
+    }
+
+    /// Decodes and validates the FSM constraint attached to `entity`.
+    ///
+    /// Returns `Ok(None)` when the entity has no [`FsmConstraint`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FsmError`] when the constraint payload is missing, cannot be
+    /// decoded, or does not define a valid FSM for `entity`.
+    pub fn try_from_entity(entity: &Entity) -> Result<Option<Self>, FsmError> {
+        let Some(constraint) = entity.annotations().constraint(FsmConstraint::NAME) else {
+            return Ok(None);
+        };
+        let raw = constraint.data().ok_or_else(|| FsmError::InvalidData {
+            entity: entity.path().clone(),
+            message: "constraint data is missing".to_string(),
+        })?;
+        let fsm = serde_json::from_str::<Self>(raw).map_err(|error| FsmError::InvalidData {
+            entity: entity.path().clone(),
+            message: format!("failed to decode fsm: {error}"),
+        })?;
+
+        let mut errors = Vec::new();
+        check_entity(entity, &fsm, &mut errors);
+        match errors.len() {
+            0 => Ok(Some(fsm)),
+            1 => Err(errors.into_iter().next().unwrap()),
+            _ => Err(FsmError::Multiple(errors)),
+        }
     }
 
     /// Whether `state` is a final state of this FSM.
@@ -171,6 +204,27 @@ impl Fsm {
 /// 5. The initial state is not a final state.
 /// 6. A state on a cycle has [`Cardinality::Multi`], otherwise
 ///    [`Cardinality::Once`].
+/// 7. Every state event has a `seq` field of type [`DataType::U16`] carrying a
+///    per-instance transition sequence number.
+///
+/// Analyzers order transitions by timestamp and then by `seq`. The sequence
+/// number disambiguates transitions that share a timestamp because of clock
+/// resolution or batched capture, while the timestamp preserves chronological
+/// order across sequence-number rollover and potential out-of-order exporting.
+/// Producers should use a wrapping counter scoped to each FSM instance,
+/// conventionally beginning at zero.
+///
+/// Wrapping after 65,536 transitions is explicitly permitted. Ambiguous order
+/// would require one FSM instance to emit a full sequence-number cycle without
+/// its nanosecond-precision timestamp advancing. Equal timestamps are already
+/// uncommon, and that many transitions within one timestamp interval is not
+/// practical on current systems. Exact reconstruction across a rollover
+/// nevertheless requires the transitions on either side to have different
+/// timestamps.
+///
+/// This constraint validates only that every state event declares the field
+/// with the required type. It does not inspect emitted values, so duplicate
+/// values, gaps, and nonzero initial values are not schema violations.
 #[derive(Default)]
 pub struct FsmConstraint {
     errors: Vec<FsmError>,
@@ -183,30 +237,12 @@ impl Visitor for FsmConstraint {
         let Element::Entity(entity) = cursor.current() else {
             return;
         };
-        let Some(constraint) = entity.annotations().constraint(FsmConstraint::NAME) else {
-            return;
-        };
-        let raw = match constraint.data() {
-            Some(s) => s,
-            None => {
-                self.errors.push(FsmError::InvalidData {
-                    entity: entity.path().clone(),
-                    message: "constraint data is missing".to_string(),
-                });
-                return;
+        if let Err(error) = Fsm::try_from_entity(entity) {
+            match error {
+                FsmError::Multiple(errors) => self.errors.extend(errors),
+                error => self.errors.push(error),
             }
-        };
-        let fsm = match serde_json::from_str::<Fsm>(raw) {
-            Ok(f) => f,
-            Err(e) => {
-                self.errors.push(FsmError::InvalidData {
-                    entity: entity.path().clone(),
-                    message: format!("failed to decode fsm: {e}"),
-                });
-                return;
-            }
-        };
-        check_entity(entity, &fsm, &mut self.errors);
+        }
     }
 
     fn finish(self) -> Self::Output {
@@ -228,6 +264,26 @@ pub(crate) fn check_entity(entity: &Entity, fsm: &Fsm, errors: &mut Vec<FsmError
         .events()
         .map(|e| (e.name(), e.cardinality()))
         .collect();
+
+    for event in entity.events() {
+        match event
+            .fields()
+            .find(|field| field.name() == SEQUENCE_FIELD_NAME)
+        {
+            None => errors.push(FsmError::MissingSequenceField {
+                entity: entity.path().clone(),
+                state: event.name().clone(),
+            }),
+            Some(field) if field.ty() != &DataType::U16 => {
+                errors.push(FsmError::SequenceFieldTypeMismatch {
+                    entity: entity.path().clone(),
+                    state: event.name().clone(),
+                    found: Box::new(field.ty().clone()),
+                });
+            }
+            Some(_) => {}
+        }
+    }
 
     // Gather every state named
     let states: HashSet<&Identifier> = fsm.states().collect();
@@ -359,6 +415,16 @@ pub enum FsmError {
         state: Identifier,
         expected: Cardinality,
         found: Cardinality,
+    },
+    #[error("entity \"{entity}\" fsm: state \"{state}\" is missing reserved `seq` field")]
+    MissingSequenceField { entity: Path, state: Identifier },
+    #[error(
+        "entity \"{entity}\" fsm: state \"{state}\" expects reserved `seq` field type U16, but found {found:?}"
+    )]
+    SequenceFieldTypeMismatch {
+        entity: Path,
+        state: Identifier,
+        found: Box<DataType>,
     },
     #[error("multiple fsm violations:\n{}", bullet_list(.0))]
     Multiple(Vec<FsmError>),

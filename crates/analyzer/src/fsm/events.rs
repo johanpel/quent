@@ -10,7 +10,7 @@
 use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_model::{FsmEvent, ModelBuilder, analyze::TransitionInfo};
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -22,6 +22,8 @@ use crate::{
 
 /// A single transition in an analyzed FSM.
 pub struct TransitionEvent<T> {
+    /// Per-instance transition sequence number.
+    pub seq: u16,
     timestamp: TimeUnixNanoSec,
     state_name: &'static str,
     pub usages: SmallVec<[AnalyzedUsage; 1]>,
@@ -32,6 +34,7 @@ pub struct TransitionEvent<T> {
 impl<T> std::fmt::Debug for TransitionEvent<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TransitionEvent")
+            .field("seq", &self.seq)
             .field("timestamp", &self.timestamp)
             .field("state_name", &self.state_name)
             .field("usages", &self.usages)
@@ -48,6 +51,14 @@ pub struct AnalyzedUsage {
 impl<T> Timestamp for TransitionEvent<T> {
     fn timestamp(&self) -> TimeUnixNanoSec {
         self.timestamp
+    }
+}
+
+impl<T> OrderKey for TransitionEvent<T> {
+    type Key = (TimeUnixNanoSec, u16);
+
+    fn order_key(&self) -> Self::Key {
+        (self.timestamp, self.seq)
     }
 }
 
@@ -86,7 +97,7 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 pub struct FsmEventsBuilder<T: TransitionInfo> {
     id: Uuid,
     instance_name: String,
-    transitions: TimeOrderedCollector<TransitionEvent<T>>,
+    transitions: OrderedCollector<TransitionEvent<T>>,
 }
 
 impl<T: TransitionInfo> FsmEventsBuilder<T> {
@@ -99,7 +110,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
             Ok(Self {
                 id,
                 instance_name: String::new(),
-                transitions: TimeOrderedCollector::default(),
+                transitions: OrderedCollector::default(),
             })
         }
     }
@@ -110,7 +121,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
     }
 
     pub fn push(&mut self, event: Event<FsmEvent<T>>) {
-        let state = event.data.state;
+        let FsmEvent { seq, state } = event.data;
         let state_name = state.state_name();
         // Capture instance name from the first transition that provides one.
         if self.instance_name.is_empty()
@@ -131,6 +142,7 @@ impl<T: TransitionInfo> FsmEventsBuilder<T> {
             })
             .collect();
         self.transitions.push(TransitionEvent {
+            seq,
             timestamp: event.timestamp,
             state_name,
             usages,
@@ -283,5 +295,99 @@ impl<T: TransitionInfo> FsmTypeDeclaration for FsmEvents<T> {
             states,
             transitions,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct TestTransition(u8);
+
+    impl TransitionInfo for TestTransition {
+        fn state_name(&self) -> &'static str {
+            "test"
+        }
+
+        fn usages(&self) -> Vec<quent_model::analyze::ExtractedUsage> {
+            Vec::new()
+        }
+
+        fn instance_name(&self) -> Option<&str> {
+            None
+        }
+
+        fn parent_group_id(&self) -> Option<Uuid> {
+            None
+        }
+
+        fn fsm_type_name() -> &'static str {
+            "test"
+        }
+
+        fn collect_model(_: &mut ModelBuilder) {}
+    }
+
+    #[test]
+    fn equal_timestamp_transitions_are_ordered_by_sequence() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
+        builder.push(Event::new(
+            id,
+            100,
+            FsmEvent {
+                seq: 1,
+                state: TestTransition(1),
+            },
+        ));
+        builder.push(Event::new(
+            id,
+            100,
+            FsmEvent {
+                seq: 0,
+                state: TestTransition(0),
+            },
+        ));
+
+        let fsm = builder.try_build().unwrap();
+        assert_eq!(
+            fsm.transitions()
+                .iter()
+                .map(|transition| (transition.seq, transition.data.0))
+                .collect::<Vec<_>>(),
+            [(0, 0), (1, 1)]
+        );
+    }
+
+    #[test]
+    fn sequence_wrap_is_ordered_by_timestamp() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
+        builder.push(Event::new(
+            id,
+            101,
+            FsmEvent {
+                seq: 0,
+                state: TestTransition(0),
+            },
+        ));
+        builder.push(Event::new(
+            id,
+            100,
+            FsmEvent {
+                seq: u16::MAX,
+                state: TestTransition(1),
+            },
+        ));
+
+        let fsm = builder.try_build().unwrap();
+        assert_eq!(
+            fsm.transitions()
+                .iter()
+                .map(|transition| (transition.timestamp(), transition.seq))
+                .collect::<Vec<_>>(),
+            [(100, u16::MAX), (101, 0)]
+        );
     }
 }

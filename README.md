@@ -17,6 +17,8 @@
   <a href="https://rapidsai.github.io/quent/simulator/#/profile/engine/01a07b4c-86ab-7971-97c1-24879c41910e/query/01a07b4c-86ab-7971-97c1-28ffb10dde0d/timeline">Try the query engine UI</a>
   &bull;
   <a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a>
+  &bull;
+  <a href="https://rapidsai.github.io/quent/tutorial/">Tutorial</a>
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
@@ -35,7 +37,7 @@ look up events by attribute values but also the means to convert events into
 something semantically enriched, leveraging _mods_.
 
 <p align="center">
-<img src="docs/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
+<img src="docs/figures/overview.svg" alt="Quent schema-driven instrumentation and analysis architecture" width="512">
 </p>
 
 Mods (short for "semantic modules") are curated vertical slices of Quent’s
@@ -134,7 +136,7 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [x] YAML-based DSL
 - Code generation
   - [x] Instrumentation library
-    - [ ] FSM typestate pattern API
+    - [x] FSM typestate pattern API
     - [x] Python integration
       - [ ] Packaging
         - [ ] Wheels
@@ -180,7 +182,12 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [x] Entity listing and filtering
   - [ ] Blueprints
 - [ ] Model Context Protocol
-- [ ] Tutorial
+- Tutorials
+  - Instrumentation
+    - [x] Rust
+    - [ ] C++
+    - [ ] Python
+  - [ ] Analysis
 
 ## Mods
 
@@ -454,4 +461,5 @@ fsms:
 - [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
 - [Development guide](DEVELOPMENT.md)
 - [Contributing guide](CONTRIBUTING.md)
-- [Documentation book](docs/) — outdated and may not match current APIs.
+- [Legacy documentation](docs/legacy/) — outdated and may not match current
+  APIs.

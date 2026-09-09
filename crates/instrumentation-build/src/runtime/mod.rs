@@ -25,7 +25,8 @@ pub(crate) fn entity_runtime_types(
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let handle = handle::entity_handle(entity, opts)?;
-    let entity_impl = entity_impl(schema, entity);
+    let entity_impl = entity_impl(schema, entity, &handle.associated_type);
+    let handle = handle.tokens;
     Ok(quote! {
         #handle
         #entity_impl
@@ -52,6 +53,7 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
     let model_name = schema.name().to_string();
     let handle_docs =
         format!("Handle to one entity instance in the `{model_name}` instrumentation model.");
+    let fsm_handle = handle::fsm_handle_type(schema);
     quote! {
         #[doc = #handle_docs]
         pub struct Handle<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> {
@@ -66,15 +68,38 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
             }
         }
 
-        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> ::core::ops::Deref
-            for Handle<E>
+        impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> Handle<E>
         {
-            type Target = ::quent_instrumentation::HandleInner<E>;
+            /// Returns the entity instance ID.
+            pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
+                self.inner.uuid()
+            }
 
-            fn deref(&self) -> &Self::Target {
-                &self.inner
+            /// Returns a typed reference to this instance carrying no data.
+            pub fn as_entity_ref(&self) -> ::quent_instrumentation::EntityRef<E> {
+                self.inner.as_entity_ref()
+            }
+
+            /// Returns a typed reference to this instance carrying `data`.
+            pub fn as_entity_ref_with<T>(&self, data: T) -> ::quent_instrumentation::EntityRef<E, T> {
+                self.inner.as_entity_ref_with(data)
+            }
+
+            /// Returns an untyped reference to this instance carrying no data.
+            pub fn as_any_entity_ref(&self) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity> {
+                self.inner.as_any_entity_ref()
+            }
+
+            /// Returns an untyped reference to this instance carrying `data`.
+            pub fn as_any_entity_ref_with<T>(
+                &self,
+                data: T,
+            ) -> ::quent_instrumentation::EntityRef<::quent_instrumentation::AnyEntity, T> {
+                self.inner.as_any_entity_ref_with(data)
             }
         }
+
+        #fsm_handle
     }
 }
 
@@ -105,17 +130,16 @@ pub(super) fn model_ident(schema: &Schema) -> Ident {
     raw_ident(to_case(schema.name(), Case::Pascal))
 }
 
-fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
+fn entity_impl(schema: &Schema, entity: &Entity, handle_type: &TokenStream) -> TokenStream {
     let namespace = entity.path().namespace();
     let marker = marker_ident(entity);
     let context = relative_root_type("Context", namespace);
     let model_name = model_ident(schema).to_string();
     let model = relative_root_type(&model_name, namespace);
-    let handle = relative_root_type("Handle", namespace);
     quote! {
         impl ::quent_instrumentation::InstrumentedEntity for #marker {
             type Context = #context<#model>;
-            type Handle = #handle<Self>;
+            type Handle = #handle_type;
         }
     }
 }
@@ -124,10 +148,20 @@ fn entity_impl(schema: &Schema, entity: &Entity) -> TokenStream {
 mod tests {
     use super::*;
     use crate::common::pretty;
+    use quent_fsm::{FsmEntityBuilder, StateDecl};
     use quent_schema::Cardinality;
     use quent_schema::DataType;
     use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
     use quent_schema::test_utils::{entity, event, field, ident};
+
+    fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
+        StateDecl {
+            name: ident(name),
+            attributes: vec![],
+            to: to.iter().map(|target| ident(target)).collect(),
+            initial,
+        }
+    }
 
     #[test]
     fn generate_assembles_event_impl_observer_handle_and_context() {
@@ -161,6 +195,27 @@ mod tests {
         assert!(src.contains("pub struct Demo"));
         assert!(src.contains("impl<P> ::quent_instrumentation::ObserverBuilder<P> for Demo"));
         assert!(src.contains("P: ::quent_instrumentation::ExporterProvider<ConnectionEvent>"));
+    }
+
+    #[test]
+    fn fsm_observers_deal_out_fsm_handles() {
+        let query = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
+            .with_states([
+                fsm_state("submitted", &["ready"], true),
+                fsm_state("ready", &[], false),
+            ])
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::new(ident("Demo"))
+            .with_entity(query)
+            .build()
+            .unwrap();
+
+        let source = crate::generate_str(&schema, &Options::default()).unwrap();
+
+        assert!(source.contains("pub struct FsmHandle<"));
+        assert!(source.contains("type Handle = FsmHandle<Self>"));
+        assert!(source.contains("impl ::quent_instrumentation::FsmEvent for QueryEvent"));
     }
 
     #[test]

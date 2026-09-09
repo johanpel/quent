@@ -13,24 +13,27 @@ function SelectedNode() {
 
   useEffect(() => {
     setSelectedNodeData({
-      nodeId: 'logical',
-      label: 'Logical join',
-      operationType: 'logicaljoin',
-      statistics: [{ key: 'logical_rows', value: 10 }],
-      relatedOperators: [
-        {
-          nodeId: 'physical-1',
-          label: 'Build hash table',
-          operationType: 'hashbuild',
-          statistics: [{ key: 'build_rows', value: 20 }],
-        },
-        {
-          nodeId: 'physical-2',
-          label: 'Probe hash table',
-          operationType: 'hashprobe',
-          statistics: [{ key: 'probe_rows', value: 30 }],
-        },
-      ],
+      selectionId: 'logical',
+      data: {
+        nodeId: 'logical',
+        label: 'Logical join',
+        operationType: 'logicaljoin',
+        statistics: [{ key: 'logical_rows', value: 10 }],
+        relatedOperators: [
+          {
+            nodeId: 'physical-1',
+            label: 'Build hash table',
+            operationType: 'hashbuild',
+            statistics: [{ key: 'build_rows', value: 20 }],
+          },
+          {
+            nodeId: 'physical-2',
+            label: 'Probe hash table',
+            operationType: 'hashprobe',
+            statistics: [{ key: 'probe_rows', value: 30 }],
+          },
+        ],
+      },
     });
   }, [setSelectedNodeData]);
 
@@ -42,21 +45,20 @@ function SwitchSelectedNode() {
   const setSelectedNodeData = useSetSelectedNodeData();
 
   useEffect(() => {
-    setSelectedNodeData(
-      showLogical
-        ? {
-            nodeId: 'logical',
-            label: 'Logical join',
-            operationType: 'logicaljoin',
-            statistics: [],
-          }
-        : {
-            nodeId: 'scan',
-            label: 'Table scan',
-            operationType: 'scan',
-            statistics: [],
-          }
-    );
+    const data = showLogical
+      ? {
+          nodeId: 'logical',
+          label: 'Logical join',
+          operationType: 'logicaljoin',
+          statistics: [],
+        }
+      : {
+          nodeId: 'scan',
+          label: 'Table scan',
+          operationType: 'scan',
+          statistics: [],
+        };
+    setSelectedNodeData({ selectionId: data.nodeId, data });
   }, [setSelectedNodeData, showLogical]);
 
   return (

@@ -10,7 +10,6 @@ exclude: |
     ^target/
     ^ui/node_modules/
     ^ui/.pnpm-store/
-    ^docs/
 
 repos:
 

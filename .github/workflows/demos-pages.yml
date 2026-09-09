@@ -40,11 +40,14 @@ jobs:
         run: pixi run --frozen pnpm --dir ui demo:build
         env:
           VITE_BASE_PATH: /quent/simulator/
+      - name: Build YAML tutorial
+        run: pixi run --frozen bash docs/tutorial/build.sh
       - name: Assemble Pages artifact
         run: |
-          mkdir -p pages/schema pages/simulator
+          mkdir -p pages/schema pages/simulator pages/tutorial
           cp -R experimental/vibe/ui/schema-explorer/dist/. pages/schema/
           cp -R ui/dist/. pages/simulator/
+          cp -R docs/tutorial/book/. pages/tutorial/
       - name: Set up Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
       - name: Upload artifact

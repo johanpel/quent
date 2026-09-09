@@ -1,0 +1,16 @@
+quent: alpha
+model: finite_state_machine
+
+fsms:
+  Job:
+    states:
+      queued:
+        initial: true
+        to: [loading_input, restoring_checkpoint]
+      loading_input:
+        to: [running]
+      restoring_checkpoint:
+        to: [running]
+      running:
+        to: [completed]
+      completed: {}

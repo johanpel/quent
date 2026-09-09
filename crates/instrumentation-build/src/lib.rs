@@ -35,7 +35,7 @@
 //! # Restrictions
 //!
 //! The schema does not limit how many events an entity declares, but the
-//! instrumentation surface caps once-cardinality
+//! instrumentation surface caps once-cardinality events on non-FSM entities
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
 //! entity; beyond that, generation fails with
 //! [`GenerateError::TooManyOnceEvents`].
@@ -56,6 +56,7 @@ use std::path::PathBuf;
 
 use convert_case::Case;
 use quent_constraints::{BaseConstraintsError, Report};
+use quent_fsm::{FsmConstraint, FsmError};
 use quent_schema::{Entity, Path, Schema};
 use quote::quote;
 
@@ -137,6 +138,8 @@ impl Options {
 pub enum GenerateError {
     #[error("base schema validation failed: {0}")]
     InvalidSchema(#[from] BaseConstraintsError),
+    #[error("fsm validation failed: {0}")]
+    InvalidFsm(#[from] FsmError),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive {
         /// The offending derive entry.
@@ -183,10 +186,12 @@ pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
     let Report {
         base_constraints,
         unregistered_constraints,
-        results: _,
-    } = quent_constraints::validate::<()>(schema);
+        results,
+    } = quent_constraints::validate::<(FsmConstraint,)>(schema);
 
     base_constraints?;
+    let (fsm,) = results;
+    fsm?;
     Ok(unregistered_constraints)
 }
 
@@ -215,7 +220,7 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
         .clone()
         .unwrap_or_else(|| format!("{}.rs", schema.name().to_string().to_lowercase()));
     let path = opts.out_dir.join(file_name);
-    std::fs::write(&path, generate_str(schema, opts)?)?;
+    std::fs::write(&path, generate_str_unvalidated(schema, opts)?)?;
     Ok(GenerateInfo { path, warnings })
 }
 
@@ -223,10 +228,16 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns [`GenerateError`] if a generated observer type conflicts with a
-/// schema type, a field type exceeds the supported nesting depth, a derive
-/// entry is not a parseable Rust path, or the generated code is not valid Rust.
+/// Returns [`GenerateError`] if schema validation fails, a generated observer
+/// type conflicts with a schema type, a field type exceeds the supported
+/// nesting depth, a derive entry is not a parseable Rust path, or the generated
+/// code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
+    validate_schema(schema)?;
+    generate_str_unvalidated(schema, opts)
+}
+
+fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     if opts.collector_sink && !opts.serde {
         return Err(GenerateError::CollectorSinkRequiresSerde);
     }
@@ -319,11 +330,21 @@ fn generate_namespace(
 mod path_tests {
     use super::*;
     use quent_constraints::Constraint;
+    use quent_fsm::{FsmEntityBuilder, StateDecl};
     use quent_ref_target::RefTargetConstraint;
     use quent_schema::builder::AnnotationsBuilder;
     use quent_schema::builder::SchemaBuilder;
     use quent_schema::test_utils::{entity, event, field, path, record, record_type};
     use quent_schema::{Annotations, DataType};
+
+    fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
+        StateDecl {
+            name: name.parse().unwrap(),
+            attributes: vec![],
+            to: to.iter().map(|target| target.parse().unwrap()).collect(),
+            initial,
+        }
+    }
 
     #[test]
     fn generates_event_only_umbrella_without_instrumentation() {
@@ -345,6 +366,62 @@ mod path_tests {
         assert!(!source.contains("quent_instrumentation"));
         assert!(!source.contains("pub struct Handle"));
         assert!(!source.contains("Observers"));
+    }
+
+    #[test]
+    fn registers_fsm_validation_while_preserving_unknown_warnings() {
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint("example.unknown.v1", None)
+            .build()
+            .unwrap();
+        let entity = FsmEntityBuilder::new(path("Query"))
+            .with_annotations(annotations)
+            .with_states([
+                fsm_state("submitted", &["ready"], true),
+                fsm_state("ready", &[], false),
+            ])
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            validate_schema(&schema).unwrap(),
+            vec!["example.unknown.v1"]
+        );
+    }
+
+    #[test]
+    fn invalid_fsm_is_a_generation_error() {
+        let annotations = AnnotationsBuilder::new()
+            .with_constraint(
+                FsmConstraint::NAME,
+                Some(r#"{"initial_state":"missing","transitions":[]}"#.to_string()),
+            )
+            .build()
+            .unwrap();
+        let entity = quent_schema::builder::EntityBuilder::new(path("Query"))
+            .with_event(event("ready", [field("seq", DataType::U16)]))
+            .with_annotations(annotations)
+            .build()
+            .unwrap();
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity)
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            validate_schema(&schema),
+            Err(GenerateError::InvalidFsm(_))
+        ));
+        assert!(matches!(
+            generate_str(&schema, &Options::default()),
+            Err(GenerateError::InvalidFsm(_))
+        ));
     }
 
     #[test]
@@ -395,6 +472,7 @@ mod path_tests {
         assert!(source.contains("pub enum QueryEvent"));
         assert!(!source.contains("pub type Observer"));
         assert!(source.contains("pub struct Handle<"));
+        assert!(!source.contains("pub struct FsmHandle<"));
         assert!(
             source.contains(
                 "E: ::quent_instrumentation::InstrumentedEntity<Context = Context<Demo>>"

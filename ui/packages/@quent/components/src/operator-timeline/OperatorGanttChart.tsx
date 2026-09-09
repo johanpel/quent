@@ -181,10 +181,13 @@ export function OperatorGanttChart({
           setSelectedNodeIds(new Set([op.operatorId]));
           setSelectedOperatorLabel(op.label);
           setSelectedNodeData({
-            nodeId: op.operatorId,
-            label: op.label,
-            operationType: op.typeName,
-            statistics: op.statistics,
+            selectionId: op.operatorId,
+            data: {
+              nodeId: op.operatorId,
+              label: op.label,
+              operationType: op.typeName,
+              statistics: op.statistics,
+            },
           });
           if (op.planId) {
             setSelectedPlanId(op.planId);

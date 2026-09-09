@@ -1,0 +1,271 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.badger-note {
+  align-items: center;
+  background: color-mix(in srgb, var(--quote-bg) 82%, #d9a441 18%);
+  border: 1px solid color-mix(in srgb, var(--quote-border) 65%, #d9a441 35%);
+  border-radius: 0.75rem;
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+}
+
+.badger-mark {
+  flex: 0 0 auto;
+  height: 4rem;
+  width: 4rem;
+}
+
+.badger-mark svg {
+  height: 100%;
+  width: 100%;
+}
+
+.badger-note p {
+  margin: 0.25rem 0 0;
+}
+
+.architecture-overview {
+  margin: 1.5rem 0;
+}
+
+.architecture-overview svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.architecture-overview path[fill="none"] {
+  fill: none;
+}
+
+.light .architecture-overview use:not([fill]):not([stroke-width]) {
+  fill: #000;
+}
+
+.light .architecture-overview [stroke="#000"]:not([fill]) {
+  fill: none;
+}
+
+.light .architecture-overview [fill="#fff"] {
+  fill: #fff;
+}
+
+.light .architecture-overview [stroke="#000"] {
+  stroke: #000;
+}
+
+.light .architecture-overview [fill="#3a414a"] {
+  fill: #3a414a;
+}
+
+.light .architecture-overview [fill="#4c535d"] {
+  fill: #4c535d;
+}
+
+.light .architecture-overview [stroke="#3a414a"] {
+  stroke: #3a414a;
+}
+
+.light .architecture-overview [fill="#6f7681"] {
+  fill: #6f7681;
+}
+
+.light .architecture-overview [stroke="#6f7681"] {
+  stroke: #6f7681;
+}
+
+.light .architecture-overview [fill="#979ea8"] {
+  fill: #979ea8;
+}
+
+.light .architecture-overview [stroke="#979ea8"] {
+  stroke: #979ea8;
+}
+
+.light .architecture-overview [fill="#7400ff"] {
+  fill: #7400ff;
+}
+
+.light .architecture-overview [stroke="#7400ff"] {
+  stroke: #7400ff;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview use:not([fill]):not([stroke-width]) {
+  fill: #f0f6fc;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#000"]:not([fill]) {
+  fill: none;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#fff"] {
+  fill: #161b22;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#000"] {
+  stroke: #f0f6fc;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#3a414a"],
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#4c535d"] {
+  fill: #c9d1d9;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#3a414a"] {
+  stroke: #c9d1d9;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#6f7681"] {
+  fill: #b1bac4;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#6f7681"] {
+  stroke: #b1bac4;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#979ea8"] {
+  fill: #8c959f;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#979ea8"] {
+  stroke: #8c959f;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [fill="#7400ff"] {
+  fill: #a371f7;
+}
+
+:is(.navy, .ayu, .coal) .architecture-overview [stroke="#7400ff"] {
+  stroke: #a371f7;
+}
+
+.language-example {
+  margin: 1rem 0;
+}
+
+.language-tabs {
+  border-bottom: 1px solid var(--table-border-color);
+  display: flex;
+  gap: 0.25rem;
+}
+
+.language-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 0.35rem 0.35rem 0 0;
+  color: var(--fg);
+  cursor: pointer;
+  font: inherit;
+  padding: 0.5rem 0.85rem;
+}
+
+.language-tab:hover {
+  background: var(--quote-bg);
+}
+
+.language-tab[aria-selected="true"] {
+  background: var(--quote-bg);
+  border-color: var(--table-border-color);
+  font-weight: 600;
+}
+
+.language-tab:focus-visible {
+  outline: 2px solid var(--links);
+  outline-offset: 2px;
+}
+
+.language-panel[hidden] {
+  display: none;
+}
+
+.language-panel > pre {
+  margin-top: 0;
+}
+
+.language-placeholder {
+  background: var(--quote-bg);
+  border: 1px solid var(--table-border-color);
+  border-top: 0;
+  margin: 0;
+  padding: 1rem;
+}
+
+.check-yourself {
+  border-top: 2px solid var(--table-border-color);
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+}
+
+.check-yourself fieldset {
+  border: 1px solid var(--table-border-color);
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+}
+
+.check-yourself fieldset.is-correct {
+  border-color: #2c8c55;
+}
+
+.check-yourself fieldset.is-incorrect {
+  border-color: #c54b4b;
+}
+
+.check-yourself legend {
+  font-weight: 600;
+  padding: 0 0.4rem;
+}
+
+.check-yourself label {
+  align-items: baseline;
+  cursor: pointer;
+  display: flex;
+  gap: 0.55rem;
+  margin: 0.55rem 0;
+}
+
+.question-feedback {
+  font-size: 0.92em;
+  margin-bottom: 0;
+}
+
+.check-answers {
+  background: var(--links);
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--bg);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 0.9rem;
+}
+
+.quiz-result {
+  font-weight: 600;
+  min-height: 1.5em;
+}
+
+.light .badger-mark .quent-logo path {
+  fill: #000;
+}
+
+:is(.navy, .ayu, .coal) .badger-mark .quent-logo path {
+  fill: #fff;
+}
+
+@media (max-width: 620px) {
+  .badger-note {
+    align-items: flex-start;
+  }
+
+  .badger-mark {
+    height: 3rem;
+    width: 3rem;
+  }
+}

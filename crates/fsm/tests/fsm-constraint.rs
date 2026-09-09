@@ -2,15 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
+use quent_fsm::{Fsm, FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
-    Annotations, Cardinality, Entity, Event, Schema,
-    builder::{AnnotationsBuilder, EntityBuilder},
+    Annotations, Cardinality, DataType, Entity, Event, Field, Schema,
+    builder::{AnnotationsBuilder, BuilderError, EntityBuilder},
     test_utils::{entity as bare_entity, event_with, ident, schema},
 };
 
 fn event(name: &str, cardinality: Cardinality) -> Event {
-    event_with(name, cardinality, vec![])
+    event_with(
+        name,
+        cardinality,
+        [Field::new(
+            ident("seq"),
+            DataType::U16,
+            Annotations::default(),
+        )],
+    )
 }
 
 fn state(name: &str, to: &[&str], initial: bool) -> StateDecl {
@@ -73,6 +81,89 @@ fn well_formed_linear_fsm_passes() {
         &fsm,
     );
     assert!(validate(&schema_with(entity)).is_empty());
+}
+
+#[test]
+fn fsm_can_be_read_from_an_entity() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
+        &data,
+    );
+
+    let decoded = Fsm::try_from_entity(&entity).unwrap().unwrap();
+
+    assert_eq!(decoded.initial_state(), "a");
+    assert_eq!(decoded.transitions().len(), 1);
+    assert_eq!(decoded.transitions()[0].source(), "a");
+    assert_eq!(decoded.transitions()[0].target(), "b");
+}
+
+#[test]
+fn fsm_read_returns_none_for_an_ordinary_entity() {
+    let entity = bare_entity("E", vec![event("a", Cardinality::Once)]);
+
+    assert!(Fsm::try_from_entity(&entity).unwrap().is_none());
+}
+
+#[test]
+fn fsm_read_rejects_invalid_topology() {
+    let data = fsm("a", &[("a", "missing")]);
+    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &data);
+
+    assert!(matches!(
+        Fsm::try_from_entity(&entity),
+        Err(FsmError::Multiple(_)) | Err(FsmError::UnknownState { .. })
+    ));
+}
+
+#[test]
+fn missing_sequence_field_is_rejected() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event_with("a", Cardinality::Once, []),
+            event("b", Cardinality::Once),
+        ],
+        &data,
+    );
+
+    assert!(validate(&schema_with(entity)).iter().any(|error| matches!(
+        error,
+        FsmError::MissingSequenceField { state, .. } if state == "a"
+    )));
+}
+
+#[test]
+fn incorrectly_typed_sequence_field_is_rejected() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![
+            event_with(
+                "a",
+                Cardinality::Once,
+                [Field::new(
+                    ident("seq"),
+                    DataType::U32,
+                    Annotations::default(),
+                )],
+            ),
+            event("b", Cardinality::Once),
+        ],
+        &data,
+    );
+
+    assert!(validate(&schema_with(entity)).iter().any(|error| matches!(
+        error,
+        FsmError::SequenceFieldTypeMismatch {
+            state,
+            found,
+            ..
+        } if state == "a" && found.as_ref() == &DataType::U32
+    )));
 }
 
 #[test]
@@ -326,7 +417,35 @@ fn builder_produces_entity_with_state_events() {
 
     let names: Vec<_> = entity.events().map(|e| e.name().to_string()).collect();
     assert_eq!(names, vec!["a", "b"]);
+    for event in entity.events() {
+        let fields: Vec<_> = event.fields().collect();
+        assert_eq!(fields[0].name(), "seq");
+        assert_eq!(fields[0].ty(), &DataType::U16);
+        assert_eq!(
+            fields[0].annotations().docs(),
+            Some("The per-instance sequence number for equal-timestamp transitions.")
+        );
+    }
     assert!(entity.annotations().has_constraint(FsmConstraint::NAME));
+}
+
+#[test]
+fn builder_rejects_reserved_sequence_attribute() {
+    let mut initial = state("a", &["b"], true);
+    initial.attributes.push(Field::new(
+        ident("seq"),
+        DataType::U16,
+        Annotations::default(),
+    ));
+    let error = FsmEntityBuilder::new(ident("E"))
+        .with_states([initial, state("b", &[], false)])
+        .build()
+        .unwrap_err();
+
+    assert!(matches!(
+        error,
+        FsmEntityBuilderError::Build(BuilderError::DuplicateName(name)) if name == "seq"
+    ));
 }
 
 #[test]

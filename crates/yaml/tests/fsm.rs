@@ -5,7 +5,7 @@
 //! deriving their cardinality from the topology and validating it.
 
 use quent_schema::test_utils::{ident, path};
-use quent_schema::{Cardinality, Schema};
+use quent_schema::{Cardinality, DataType, Schema};
 use quent_yaml::{Error, parse_from_str};
 
 const FSM: &str = "quent.fsm.v0.1.0";
@@ -50,6 +50,30 @@ fn fsm_builds_events_and_derives_cardinality() {
     assert!(matches!(card("progress"), Cardinality::Multi));
     assert!(matches!(card("submitted"), Cardinality::Once));
     assert!(matches!(card("finished"), Cardinality::Once));
+    for event in query.events() {
+        let fields: Vec<_> = event.fields().collect();
+        assert_eq!(fields[0].name(), "seq");
+        assert_eq!(fields[0].ty(), &DataType::U16);
+    }
+}
+
+#[test]
+fn reserved_sequence_attribute_is_rejected() {
+    let errors = errors_of(
+        "\
+quent: alpha
+model: m
+fsms:
+  E:
+    states:
+      a:
+        initial: true
+        attributes: { seq: u64 }
+        to: [b]
+      b: {}
+",
+    );
+    assert!(errors.contains("duplicate name \"seq\""), "{errors}");
 }
 
 #[test]
