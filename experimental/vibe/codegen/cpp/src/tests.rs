@@ -134,6 +134,29 @@ entities:
 }
 
 #[test]
+fn supports_boolean_list_conversion() {
+    let schema = parse_from_str(
+        r#"
+quent: alpha
+model: lists
+entities:
+  Batch:
+    events:
+      recorded:
+        attributes:
+          flags: { list: bool }
+"#,
+        None,
+    )
+    .unwrap()
+    .schema;
+    let files = emit(&schema, &Options::default()).unwrap();
+    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
+    assert!(facade.content.contains("std::vector<bool>"));
+    assert!(facade.content.contains("for (auto&& item : input)"));
+}
+
+#[test]
 fn rejects_invalid_options() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
     for options in [

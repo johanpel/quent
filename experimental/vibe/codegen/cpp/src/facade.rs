@@ -753,7 +753,7 @@ fn conversion(ty: &DataType, expression: &str, entity: &Entity, options: &Option
                 converted
             };
             format!(
-                "[] ({} input) {{ ::rust::Vec<{raw_item}> output; output.reserve(input.size()); for (auto& item : input) {{ output.push_back({converted}); }} return output; }}({expression})",
+                "[] ({} input) {{ ::rust::Vec<{raw_item}> output; output.reserve(input.size()); for (auto&& item : input) {{ output.push_back({converted}); }} return output; }}({expression})",
                 public_type(ty, options)
             )
         }
