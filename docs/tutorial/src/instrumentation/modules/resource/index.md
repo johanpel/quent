@@ -18,6 +18,9 @@ its work consumes:
 - A **bound** is a reported upper limit for a capacity. Bounds belong to the
   resource and may be updated by its events.
 
+A resource can be declared on an entity under either `entities` or `fsms`. An
+FSM can therefore provide a resource while also modeling its own lifecycle.
+
 Only entities modeled as FSMs can use resources.
 
 ## Why can only FSMs use resources?
