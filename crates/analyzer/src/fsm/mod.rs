@@ -141,7 +141,7 @@ where
     }
 }
 
-/// Trait for FSM types to deliver a run-time definition of their states and possible transitions.
+/// Provides type-erased declarations for FSM types.
 pub trait FsmTypeDeclaration {
     fn fsm_type_declaration() -> FsmTypeDecl;
 }

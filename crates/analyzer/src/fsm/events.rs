@@ -32,12 +32,16 @@ pub trait FsmDescriptor<T> {
     fn usages(transition: &T) -> SmallVec<[AnalyzedUsage; 1]>;
 
     /// Returns dynamically typed attributes for `transition`.
-    fn attributes(transition: &T) -> Vec<DynamicAttribute>;
+    fn dynamic_attributes(transition: &T) -> Vec<DynamicAttribute>;
 
     /// Returns the FSM entity type name.
     fn type_name() -> &'static str;
 
-    /// Returns the run-time FSM declaration.
+    /// Returns the FSM declaration as type-erased data.
+    ///
+    /// This allows consumers without the generated FSM types, such as a UI, to inspect its
+    /// topology.
+    // TODO(johanpel): Replace this adapter by passing schema data directly; tracked in #191.
     fn declaration() -> FsmTypeDecl;
 }
 
@@ -97,7 +101,7 @@ impl<T: TransitionInfo> FsmDescriptor<T> for LegacyFsmDescriptor {
             .collect()
     }
 
-    fn attributes(transition: &T) -> Vec<DynamicAttribute> {
+    fn dynamic_attributes(transition: &T) -> Vec<DynamicAttribute> {
         transition.attributes()
     }
 
@@ -174,7 +178,7 @@ impl<T, D: FsmDescriptor<T>> Transition for TransitionEvent<T, D> {
     }
 
     fn attributes(&self) -> Vec<DynamicAttribute> {
-        D::attributes(&self.data)
+        D::dynamic_attributes(&self.data)
     }
 }
 
