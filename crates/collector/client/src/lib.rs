@@ -225,6 +225,23 @@ impl EventBatchBuffer {
     }
 }
 
+#[derive(Debug)]
+struct BatchChannelClosed {
+    /// Events in the batch that the closed channel did not accept.
+    ///
+    /// The count is retained to quantify the minimum delivery loss in logs.
+    unsent_events: usize,
+}
+
+impl BatchChannelClosed {
+    fn log(self) {
+        error!(
+            unsent_events = self.unsent_events,
+            "collector stream ended before a batch could be queued; the batch and any remaining buffered events will not be delivered"
+        );
+    }
+}
+
 /// A sink for serialized per-entity event streams.
 pub trait CollectorSink {
     /// Ingest a serialized `event` belonging to the entity event stream named
@@ -368,12 +385,24 @@ where
             // Interval by which to export even if the buffer isn't full.
             let mut ticker = tokio::time::interval(options.batch_flush_interval);
 
+            async fn queue_batch(
+                batch: EventBatch,
+                grpc_sender: &Sender<EventBatch>,
+            ) -> Result<(), BatchChannelClosed> {
+                grpc_sender
+                    .send(batch)
+                    .await
+                    .map_err(|error| BatchChannelClosed {
+                        unsent_events: error.0.events.len(),
+                    })
+            }
+
             async fn flush_buffer(
                 buffer: &mut EventBatchBuffer,
                 grpc_sender: &Sender<EventBatch>,
-            ) -> Result<(), ()> {
+            ) -> Result<(), BatchChannelClosed> {
                 if let Some(request) = buffer.take() {
-                    grpc_sender.send(request).await.map_err(|_| ())?;
+                    queue_batch(request, grpc_sender).await?;
                 }
                 Ok(())
             }
@@ -382,17 +411,17 @@ where
                 event: Vec<u8>,
                 buffer: &mut EventBatchBuffer,
                 grpc_sender: &Sender<EventBatch>,
-            ) -> Result<bool, ()> {
+            ) -> Result<bool, BatchChannelClosed> {
                 let payload_len = event.len();
                 let (full_batch, exceeds_target) = buffer.push(event);
                 if exceeds_target {
                     let target_encoded_len = buffer.target_encoded_len;
                     warn!(
-                        "serialized event has {payload_len} payload bytes and cannot fit within the {target_encoded_len}-byte collector batch target after framing; sending it intact in a dedicated message, which may increase peak memory use"
+                        "serialized event has {payload_len} payload bytes and cannot fit within the {target_encoded_len}-byte collector batch target after framing; sending it intact in a dedicated message"
                     );
                 }
                 if let Some(full_batch) = full_batch {
-                    grpc_sender.send(full_batch).await.map_err(|_| ())?;
+                    queue_batch(full_batch, grpc_sender).await?;
                     return Ok(true);
                 }
                 Ok(false)
@@ -413,15 +442,15 @@ where
                                 ticker.reset();
                             }
                             Ok(false) => {}
-                            Err(()) => {
-                                error!("server disconnected");
+                            Err(error) => {
+                                error.log();
                                 break;
                             }
                         }
                     },
                     _ = ticker.tick() => {
-                        if flush_buffer(&mut buffer, &grpc_sender).await.is_err() {
-                            error!("server disconnected");
+                        if let Err(error) = flush_buffer(&mut buffer, &grpc_sender).await {
+                            error.log();
                             break;
                         }
                     },
@@ -431,8 +460,8 @@ where
                         while let Some(event) = event_receiver.recv().await {
                             match serialize_event(&event) {
                                 Ok(bytes) => {
-                                    if buffer_event(bytes, &mut buffer, &grpc_sender).await.is_err() {
-                                        error!("server disconnected during shutdown");
+                                    if let Err(error) = buffer_event(bytes, &mut buffer, &grpc_sender).await {
+                                        error.log();
                                         return;
                                     }
                                 }
@@ -440,8 +469,8 @@ where
                             }
                         }
 
-                        if flush_buffer(&mut buffer, &grpc_sender).await.is_err() {
-                            error!("server disconnected during shutdown");
+                        if let Err(error) = flush_buffer(&mut buffer, &grpc_sender).await {
+                            error.log();
                         }
                         let pending = grpc_sender.max_capacity() - grpc_sender.capacity();
                         info!(
