@@ -2940,7 +2940,6 @@ dependencies = [
  "quent-instrumentation-build",
  "quent-yaml",
  "serde",
- "trybuild",
 ]
 
 [[package]]

@@ -1,9 +1,0 @@
-error[E0599]: no method named `running` found for struct `FsmHandle<quent_instrumentation_build_example::demo::Query, quent_instrumentation_build_example::demo::query_state::Ready>` in the current scope
-  --> tests/ui/final_transition.rs:12:24
-   |
-12 |     let _query = query.running(20);
-   |                        ^^^^^^^ method not found in `FsmHandle<quent_instrumentation_build_example::demo::Query, quent_instrumentation_build_example::demo::query_state::Ready>`
-   |
-   = note: the method was found for
-           - `FsmHandle<quent_instrumentation_build_example::demo::Query, quent_instrumentation_build_example::demo::query_state::Running>`
-           - `FsmHandle<quent_instrumentation_build_example::demo::Query, quent_instrumentation_build_example::demo::query_state::Submitted>`

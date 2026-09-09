@@ -11,6 +11,3 @@ serde = { version = "1", features = ["derive"] }
 [build-dependencies]
 quent-instrumentation-build = { path = ".." }
 quent-yaml = { path = "../../yaml" }
-
-[dev-dependencies]
-trybuild = "1"

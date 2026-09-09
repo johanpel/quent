@@ -79,7 +79,7 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
 
     // FSM transitions consume the prior handle and return the target state's
-    // handle. The generated methods assign per-instance sequence numbers.
+    // handle.
     let query = context
         .observer::<Query>()
         .handle()
