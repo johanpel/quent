@@ -11,6 +11,7 @@ entities:
       resized:
         multi: true
         attributes:
+          # MemoryBounds is generated because bytes has known bounds.
           limits: { sets-resource-bounds: true }
 
 fsms:

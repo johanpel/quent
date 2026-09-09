@@ -2,6 +2,7 @@ quent: alpha
 model: records
 
 records:
+  # Reused by events on both Task and Batch.
   WorkResult:
     fields:
       success: bool

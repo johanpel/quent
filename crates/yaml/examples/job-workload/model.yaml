@@ -3,6 +3,7 @@ model: job_workload
 
 entities:
   Worker:
+    # Generates WorkerUsage and WorkerBounds.
     resource:
       threads:
         kind: occupancy

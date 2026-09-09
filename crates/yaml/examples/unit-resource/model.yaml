@@ -19,6 +19,7 @@ fsms:
       running:
         initial: true
         attributes:
+          # ThreadUsage is generated from the Thread resource declaration.
           thread: { scope-ref: Thread, data: ThreadUsage }
         to: [completed]
       completed: {}
