@@ -1,0 +1,23 @@
+quent: alpha
+model: records
+
+records:
+  # Reused by events on both Task and Batch.
+  WorkResult:
+    fields:
+      success: bool
+      items_processed: u64
+
+entities:
+  Task:
+    events:
+      started: {}
+      ended:
+        attributes:
+          result: WorkResult
+  Batch:
+    events:
+      started: {}
+      ended:
+        attributes:
+          result: WorkResult

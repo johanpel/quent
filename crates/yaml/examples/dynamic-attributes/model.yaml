@@ -1,0 +1,12 @@
+quent: alpha
+model: dynamic_data
+
+entities:
+  Task:
+    events:
+      started:
+        attributes:
+          details: dynamic
+      ended:
+        attributes:
+          details: dynamic

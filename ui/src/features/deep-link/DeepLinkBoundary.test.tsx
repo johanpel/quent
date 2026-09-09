@@ -6,12 +6,14 @@ import { Provider as JotaiProvider, createStore, useAtomValue, useSetAtom } from
 import {
   useDebouncedZoomRange,
   useHydrateTimelineAtoms,
+  useOperatorSelection,
   useSerializableViewState,
   useSetDebouncedZoomRange,
   useSetZoomRange,
   useZoomRange,
 } from '@quent/hooks';
 import { NVTX_SECTION_ID, toast, Toaster } from '@quent/components';
+import type { Operator } from '@quent/utils';
 import { render, screen, waitFor, userEvent } from '@/test/test-utils';
 import {
   expandedIdsAtom,
@@ -40,10 +42,33 @@ const BOUNDARY_PROPS = {
   activeTab: 'timeline' as const,
   durationSeconds: 100,
   isQueryReady: true,
+  operators: [],
 };
 
 const RESOURCE_A_ID = '01a025ff-ea8b-7881-9d31-72a275872c9d';
 const RESOURCE_B_ID = '01a025ff-ea8b-7881-9d31-72a275872c9e';
+const DEEP_LINK_OPERATORS: Operator[] = [
+  {
+    id: 'operator-a',
+    plan_id: null,
+    parent_operator_ids: [],
+    instance_name: 'Operator A',
+    operator_type_name: null,
+    custom_attributes: {},
+    statistics: null,
+    active_span: null,
+  },
+  {
+    id: 'operator-child',
+    plan_id: null,
+    parent_operator_ids: ['operator-a'],
+    instance_name: 'Operator Child',
+    operator_type_name: null,
+    custom_attributes: {},
+    statistics: null,
+    active_span: null,
+  },
+];
 
 function ViewportProbe() {
   const immediate = useZoomRange();
@@ -65,6 +90,7 @@ function SerializableStateProbe() {
   const { read } = useSerializableViewState({
     operatorTablePersistKey: OPERATOR_TABLE_PERSIST_KEY,
     operatorTableGroupKeys: OPERATOR_TABLE_INDEX_ORDER,
+    operators: [],
   });
   const expandedIds = useAtomValue(expandedIdsAtom);
   const selectedTypes = useAtomValue(selectedTypesAtom);
@@ -83,6 +109,21 @@ function SerializableStateProbe() {
           resourceFilter,
         },
       })}
+    </output>
+  );
+}
+
+function OperatorSelectionProbe() {
+  const selection = useOperatorSelection();
+  return (
+    <output data-testid="operator-selection">
+      {JSON.stringify(
+        [...selection.selections].map(([id, value]) => ({
+          id,
+          label: value.label,
+          operatorIds: [...value.operatorIds],
+        }))
+      )}
     </output>
   );
 }
@@ -111,6 +152,7 @@ function SeedEmptyDataFlowDimensions() {
   const { hydrate } = useSerializableViewState({
     operatorTablePersistKey: OPERATOR_TABLE_PERSIST_KEY,
     operatorTableGroupKeys: OPERATOR_TABLE_INDEX_ORDER,
+    operators: [],
   });
 
   useLayoutEffect(() => {
@@ -224,7 +266,10 @@ describe('DeepLinkBoundary', () => {
     const encoded = encodeDeepLinkState({
       route: { engineId: 'e', queryId: 'q', tab: 'timeline' },
       timeline: { zoomRange: { start: 10, end: 40 } },
-      selection: { planId: 'plan-a', operatorNodeIds: ['operator-a'] },
+      selection: {
+        planId: 'plan-a',
+        operatorNodeIds: ['operator-a', 'operator-child', 'operator-unknown'],
+      },
       resources: {
         expandedRowIds: ['worker-a'],
         resourceFilter: {
@@ -268,8 +313,13 @@ describe('DeepLinkBoundary', () => {
 
     render(
       <JotaiProvider>
-        <DeepLinkBoundary {...BOUNDARY_PROPS} encodedState={encoded.value}>
+        <DeepLinkBoundary
+          {...BOUNDARY_PROPS}
+          operators={DEEP_LINK_OPERATORS}
+          encodedState={encoded.value}
+        >
           <SerializableStateProbe />
+          <OperatorSelectionProbe />
         </DeepLinkBoundary>
       </JotaiProvider>
     );
@@ -277,7 +327,10 @@ describe('DeepLinkBoundary', () => {
     const value = JSON.parse(screen.getByTestId('serializable-state').textContent ?? '{}');
     expect(value).toMatchObject({
       view: {
-        selection: { planId: 'plan-a', operatorNodeIds: ['operator-a'] },
+        selection: {
+          planId: 'plan-a',
+          operatorNodeIds: ['operator-a', 'operator-child', 'operator-unknown'],
+        },
         dag: {
           nodeColorField: 'duration_s',
           nodeColorPalette: 'viridis',
@@ -315,6 +368,20 @@ describe('DeepLinkBoundary', () => {
         },
       },
     });
+    expect(screen.getByTestId('operator-selection')).toHaveTextContent(
+      JSON.stringify([
+        {
+          id: 'operator-a',
+          label: 'Operator A',
+          operatorIds: ['operator-a', 'operator-child'],
+        },
+        {
+          id: 'operator-unknown',
+          label: 'operator-unknown',
+          operatorIds: ['operator-unknown'],
+        },
+      ])
+    );
   });
 
   it('clears an existing resource filter when shared state omits resources', () => {

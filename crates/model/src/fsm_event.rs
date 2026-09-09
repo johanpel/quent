@@ -14,9 +14,9 @@
 /// `S` is the transition enum (one variant per state + exit).
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct FsmEvent<S> {
-    /// Per-instance sequence number, monotonically increasing.
-    /// Establishes total ordering of transitions within a single FSM instance.
-    pub seq: u64,
+    /// Wrapping per-instance sequence number used to order transitions that
+    /// have the same event timestamp.
+    pub seq: u16,
     /// The state being entered and its attributes.
     pub state: S,
 }

@@ -95,15 +95,16 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     // `as_entity_ref_with` produces an entity ref that also carries data:
     conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
 
-    // An FSM entity's events are transitions into its states.
-    // Their cardinality is derived from the topology at build time.
-    //
-    // FSMs will get typestate pattern handles in the future, also see
-    // https://github.com/rapidsai/quent/issues/416
-    let mut query = context.observer::<Query>().handle();
-    query.submitted("select 1".to_owned(), conn.as_entity_ref())?;
-    query.running(10, thread.as_entity_ref_with(ThreadUsage))?;
-    query.ready(true)?;
+    // FSM transitions consume the prior handle and return the target state's
+    // handle.
+    let query = context
+        .observer::<Query>()
+        .handle()
+        .submitted("select 1".to_owned(), conn.as_entity_ref())
+        .running(10, thread.as_entity_ref_with(ThreadUsage))
+        .running(20, thread.as_entity_ref_with(ThreadUsage))
+        .ready(true);
+    let _query_id = query.uuid();
 
     conn.closed()?;
 

@@ -402,7 +402,7 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
     function SelectNode({ value }: { value: InspectedNodeData }) {
       const setSelectedNodeData = useSetSelectedNodeData();
       useEffect(() => {
-        setSelectedNodeData(value);
+        setSelectedNodeData({ selectionId: value.nodeId, data: value });
       }, [setSelectedNodeData, value]);
       return <DAGNodeInfoPanel />;
     }

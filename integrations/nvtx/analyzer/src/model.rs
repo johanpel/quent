@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::NvtxEvent;
 use quent_events::Event;
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec};
+use quent_time::{OrderedCollector, TimeUnixNanoSec};
 
 use crate::anomalies::ReconstructionAnomalies;
 use crate::ranges::{PushPopRanges, StartEndRanges};
@@ -179,7 +179,7 @@ impl NvtxModelBuilder {
     pub fn build(events: impl IntoIterator<Item = Event<NvtxEventEntity>>) -> NvtxModel {
         // Pass 1a — materialize in timestamp order. Equal timestamps keep
         // arrival order, so replay is deterministic.
-        let mut collector = TimeOrderedCollector::default();
+        let mut collector = OrderedCollector::default();
         collector.extend(events);
         let ordered = collector.into_inner();
 

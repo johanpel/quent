@@ -4,8 +4,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import { useSetSelectedNodeIds } from '@quent/hooks';
-import type { EntityRef, QueryBundle } from '@quent/utils';
+import {
+  useOperatorSelection,
+  useOperatorSelectionActions,
+  useSelectedNodeIds,
+} from '@quent/hooks';
+import type { EntityRef, Operator, QueryBundle } from '@quent/utils';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EntitiesTable } from './EntitiesTable';
 
@@ -26,27 +30,92 @@ vi.mock('@quent/client', () => ({
   useEntityList: (...args: unknown[]) => useEntityList(...args),
 }));
 
+function makeOperator(
+  id: string,
+  instanceName: string,
+  typeName: string,
+  parentOperatorIds: string[] = []
+): Operator {
+  return {
+    id,
+    plan_id: null,
+    parent_operator_ids: parentOperatorIds,
+    instance_name: instanceName,
+    operator_type_name: typeName,
+    custom_attributes: {},
+    statistics: null,
+    active_span: null,
+  };
+}
+
 const queryBundle = {
   query_id: 'query-1',
   duration_s: 10,
   entities: {
-    operators: {
-      'operator-1': {
-        id: 'operator-1',
-        instance_name: 'Operator One',
-        operator_type_name: 'Scan',
-      },
+    engine: {
+      id: 'engine-1',
+      start_time_unix_ns: null,
+      duration_s: null,
+      instance_name: null,
+      implementation: null,
     },
+    query_group: {
+      id: 'query-group-1',
+      instance_name: null,
+      engine_id: 'engine-1',
+    },
+    query: {
+      id: 'query-1',
+      query_group_id: 'query-group-1',
+      instance_name: null,
+      start_unix_ns: null,
+      planning_s: null,
+      executing_s: null,
+      completed_s: null,
+    },
+    workers: {},
+    plans: {},
+    operators: {
+      'operator-1': makeOperator('operator-1', 'Operator One', 'Scan'),
+    },
+    ports: {},
+    resource_types: {},
+    resource_group_types: {},
     resources: {
       'resource-1': {
         id: 'resource-1',
         instance_name: 'GPU 1',
         type_name: 'GPU',
+        parent_group_id: '',
       },
     },
+    resource_groups: {},
     fsm_types: { Task: { name: 'Task', states: [], transitions: [] } },
   },
-} as unknown as QueryBundle<EntityRef>;
+  plan_tree: { id: 'plan-1', worker: null, children: [] },
+  resource_tree: { Resource: { Resource: 'resource-1' } },
+  unique_operator_names: [],
+  quantity_specs: {},
+  start_time_unix_ns: 0n,
+} satisfies QueryBundle<EntityRef>;
+
+function withOperators(
+  operators: QueryBundle<EntityRef>['entities']['operators']
+): QueryBundle<EntityRef> {
+  return {
+    ...queryBundle,
+    entities: {
+      ...queryBundle.entities,
+      operators,
+    },
+  };
+}
+
+const logicalOperatorQueryBundle = withOperators({
+  logical: makeOperator('logical', 'Logical Operator', 'Logical'),
+  'child-one': makeOperator('child-one', 'Child One', 'Physical', ['logical']),
+  'child-two': makeOperator('child-two', 'Child Two', 'Physical', ['logical']),
+});
 
 const fsm = {
   id: 'entity-1',
@@ -71,11 +140,40 @@ const fsm = {
 };
 
 function DagSelectionControl() {
-  const setSelectedNodeIds = useSetSelectedNodeIds();
+  const updateOperatorSelection = useOperatorSelectionActions();
   return (
-    <button type="button" onClick={() => setSelectedNodeIds(new Set(['operator-1']))}>
+    <button
+      type="button"
+      onClick={() =>
+        updateOperatorSelection({
+          type: 'add',
+          selectionId: 'operator-1',
+          label: 'Operator One',
+          operatorIds: ['operator-1'],
+          inspectedData: {
+            nodeId: 'operator-1',
+            label: 'Operator One',
+            operationType: 'scan',
+            statistics: [],
+          },
+        })
+      }
+    >
       Select DAG operator
     </button>
+  );
+}
+
+function OperatorSelectionProbe() {
+  const operatorIds = useSelectedNodeIds();
+  const selection = useOperatorSelection();
+  return (
+    <>
+      <output data-testid="selected-operator-ids">{JSON.stringify([...operatorIds].sort())}</output>
+      <output data-testid="operator-selection-labels">
+        {JSON.stringify([...selection.selections.values()].map(value => value.label).sort())}
+      </output>
+    </>
   );
 }
 
@@ -187,23 +285,22 @@ describe('EntitiesTable', () => {
   });
 
   it('supports selecting multiple operators from the dropdown', () => {
-    const multiOperatorQueryBundle = {
-      ...queryBundle,
-      entities: {
-        ...queryBundle.entities,
-        operators: {
-          ...queryBundle.entities.operators,
-          'operator-2': {
-            id: 'operator-2',
-            instance_name: 'Operator Two',
-            operator_type_name: 'Filter',
-          },
-        },
-      },
-    } as unknown as QueryBundle<EntityRef>;
+    const store = createStore();
+    const multiOperatorQueryBundle = withOperators({
+      ...queryBundle.entities.operators,
+      'operator-2': makeOperator('operator-2', 'Operator Two', 'Filter'),
+    });
 
     renderTable(
-      <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={multiOperatorQueryBundle} />
+      <>
+        <OperatorSelectionProbe />
+        <EntitiesTable
+          engineId="engine-1"
+          queryId="query-1"
+          queryBundle={multiOperatorQueryBundle}
+        />
+      </>,
+      { store }
     );
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
@@ -217,6 +314,50 @@ describe('EntitiesTable', () => {
     );
     expect(params.request.entry.application.operator_ids).toHaveLength(2);
     expect(screen.getByRole('combobox', { name: 'Operator' })).toHaveTextContent('2 selected');
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Operator One', 'Operator Two'])
+    );
+  });
+
+  it('groups logical operators and splits the group when a child is deselected', () => {
+    const store = createStore();
+    renderTable(
+      <>
+        <OperatorSelectionProbe />
+        <EntitiesTable
+          engineId="engine-1"
+          queryId="query-1"
+          queryBundle={logicalOperatorQueryBundle}
+        />
+      </>,
+      { store }
+    );
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Logical Operator' }));
+
+    let params = useEntities.mock.lastCall?.[0];
+    expect(params.request.entry.application.operator_ids).toEqual(
+      expect.arrayContaining(['logical', 'child-one', 'child-two'])
+    );
+    expect(params.request.entry.application.operator_ids).toHaveLength(3);
+    expect(screen.getByTestId('selected-operator-ids')).toHaveTextContent(
+      JSON.stringify(['child-one', 'child-two', 'logical'])
+    );
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Logical Operator'])
+    );
+
+    fireEvent.click(screen.getByRole('option', { name: 'Child One' }));
+
+    params = useEntities.mock.lastCall?.[0];
+    expect(params.request.entry.application.operator_ids).toEqual(
+      expect.arrayContaining(['logical', 'child-two'])
+    );
+    expect(params.request.entry.application.operator_ids).toHaveLength(2);
+    expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
+      JSON.stringify(['Child Two', 'Logical Operator'])
+    );
   });
 
   it('shows empty state when the response contains no entities', () => {

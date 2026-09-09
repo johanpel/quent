@@ -1,0 +1,25 @@
+quent: alpha
+model: unit_resource
+
+entities:
+  ThreadPool:
+    events:
+      created: {}
+
+  Thread:
+    resource: true
+    events:
+      registered:
+        attributes:
+          pool: { scope-ref: ThreadPool }
+
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        attributes:
+          # ThreadUsage is generated from the Thread resource declaration.
+          thread: { scope-ref: Thread, data: ThreadUsage }
+        to: [completed]
+      completed: {}

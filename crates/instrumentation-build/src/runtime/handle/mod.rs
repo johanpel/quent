@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of per-entity handles — the per-instance emit surface.
+//! Generation of per-entity instrumentation handles.
 
 use convert_case::Case;
 use proc_macro2::{Literal, TokenStream};
-use quent_schema::{Cardinality, Entity};
+use quent_schema::{Cardinality, Entity, Event, Schema};
 use quote::quote;
 
 use super::{event_ident, marker_ident};
@@ -13,24 +13,44 @@ use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::data_type::map_data_type;
 use crate::{GenerateError, Options};
 
-/// The maximum once-events an entity may declare: one bit per event in the
-/// handle's `u64` once-flag word.
+mod fsm;
+
+/// The maximum once-events an ordinary entity may declare: one bit per event
+/// in the handle's `u64` once-flag word.
 pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;
 
-/// Generate entity-specific methods on the generic handle.
-///
-/// # Errors
-///
-/// Returns [`GenerateError::TooManyOnceEvents`] if the entity declares more
-/// once-cardinality events than fit the once-flag word.
-pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
+pub(super) struct GeneratedHandle {
+    pub(super) tokens: TokenStream,
+    pub(super) associated_type: TokenStream,
+}
+
+pub(super) fn fsm_handle_type(schema: &Schema) -> TokenStream {
+    fsm::handle_type(schema)
+}
+
+/// Generates entity-specific methods on the generic handle.
+pub(super) fn entity_handle(
+    entity: &Entity,
+    opts: &Options,
+) -> Result<GeneratedHandle, GenerateError> {
+    if let Some(handle) = fsm::entity_handle(entity, opts)? {
+        return Ok(handle);
+    }
+    let handle_ty = relative_root_type("Handle", entity.path().namespace());
+    Ok(GeneratedHandle {
+        tokens: ordinary_handle(entity, opts)?,
+        associated_type: quote! { #handle_ty<Self> },
+    })
+}
+
+fn ordinary_handle(entity: &Entity, opts: &Options) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
     let handle_ty = relative_root_type("Handle", entity.path().namespace());
 
     let once_count = entity
         .events()
-        .filter(|e| e.cardinality() == Cardinality::Once)
+        .filter(|event| event.cardinality() == Cardinality::Once)
         .count();
     if once_count > MAX_ONCE_EVENTS {
         return Err(GenerateError::TooManyOnceEvents {
@@ -58,26 +78,9 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
             };
             let docs = doc_attr_or(event.annotations().docs(), &fallback);
 
-            let params = event
-                .fields()
-                .map(|f| {
-                    let name = raw_ident(to_case(f.name(), Case::Snake));
-                    let ty = map_data_type(f.ty(), 0, entity.path().namespace(), opts)?;
-                    Ok::<_, GenerateError>(quote! { #name: #ty })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let field_names: Vec<TokenStream> = event
-                .fields()
-                .map(|f| {
-                    let name = raw_ident(to_case(f.name(), Case::Snake));
-                    quote! { #name }
-                })
-                .collect();
-            let construct = if field_names.is_empty() {
-                quote! { #event_ty::#variant }
-            } else {
-                quote! { #event_ty::#variant { #(#field_names),* } }
-            };
+            let params = event_params(entity, event, opts, None)?;
+            let fields = event_fields(event, None);
+            let construct = event_construct(&event_ty, &variant, &fields);
 
             Ok(match event.cardinality() {
                 Cardinality::Once => {
@@ -125,4 +128,46 @@ pub(super) fn entity_handle(entity: &Entity, opts: &Options) -> Result<TokenStre
             #(#methods)*
         }
     })
+}
+
+fn event_params(
+    entity: &Entity,
+    event: &Event,
+    opts: &Options,
+    omitted_field: Option<&str>,
+) -> Result<Vec<TokenStream>, GenerateError> {
+    event
+        .fields()
+        .filter(|field| omitted_field.is_none_or(|omitted| field.name() != omitted))
+        .map(|field| {
+            let name = raw_ident(to_case(field.name(), Case::Snake));
+            let ty = map_data_type(field.ty(), 0, entity.path().namespace(), opts)?;
+            Ok(quote! { #name: #ty })
+        })
+        .collect()
+}
+
+fn event_fields(event: &Event, replaced_field: Option<(&str, &TokenStream)>) -> Vec<TokenStream> {
+    event
+        .fields()
+        .map(|field| {
+            let name = raw_ident(to_case(field.name(), Case::Snake));
+            match replaced_field.filter(|(replaced, _)| field.name() == *replaced) {
+                Some((_, replacement)) => quote! { #name: #replacement },
+                None => quote! { #name },
+            }
+        })
+        .collect()
+}
+
+fn event_construct(
+    event_ty: &syn::Ident,
+    variant: &syn::Ident,
+    fields: &[TokenStream],
+) -> TokenStream {
+    if fields.is_empty() {
+        quote! { #event_ty::#variant }
+    } else {
+        quote! { #event_ty::#variant { #(#fields),* } }
+    }
 }

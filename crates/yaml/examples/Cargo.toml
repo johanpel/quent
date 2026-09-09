@@ -1,0 +1,70 @@
+[workspace]
+
+[package]
+name = "quent-yaml-examples"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../instrumentation-build" }
+quent-yaml = { path = ".." }
+
+[[bin]]
+name = "minimal-model"
+path = "minimal-model/src/main.rs"
+
+[[bin]]
+name = "event-data"
+path = "event-data/src/main.rs"
+
+[[bin]]
+name = "dynamic-attributes"
+path = "dynamic-attributes/src/main.rs"
+
+[[bin]]
+name = "repeated-events"
+path = "repeated-events/src/main.rs"
+
+[[bin]]
+name = "records"
+path = "records/src/main.rs"
+
+[[bin]]
+name = "untyped-entity-references"
+path = "untyped-entity-references/src/main.rs"
+
+[[bin]]
+name = "entity-references"
+path = "entity-references/src/main.rs"
+
+[[bin]]
+name = "scoped-references"
+path = "scoped-references/src/main.rs"
+
+[[bin]]
+name = "finite-state-machine"
+path = "finite-state-machine/src/main.rs"
+
+[[bin]]
+name = "fsm-self-loop"
+path = "fsm-self-loop/src/main.rs"
+
+[[bin]]
+name = "unit-resource"
+path = "unit-resource/src/main.rs"
+
+[[bin]]
+name = "resource-capacity"
+path = "resource-capacity/src/main.rs"
+
+[[bin]]
+name = "bounded-resource"
+path = "bounded-resource/src/main.rs"
+
+[[bin]]
+name = "job-workload"
+path = "job-workload/src/main.rs"

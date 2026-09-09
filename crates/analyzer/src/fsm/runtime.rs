@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_dynamic_attributes::DynamicAttribute;
-use quent_time::{TimeOrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
 
@@ -55,6 +55,14 @@ impl Timestamp for RtFsmTransition {
     }
 }
 
+impl OrderKey for RtFsmTransition {
+    type Key = TimeUnixNanoSec;
+
+    fn order_key(&self) -> Self::Key {
+        self.timestamp
+    }
+}
+
 impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
         self.name.as_str()
@@ -69,7 +77,7 @@ pub struct RtFsmBuilder<T> {
     id: Uuid,
     type_name: Option<String>,
     instance_name: Option<String>,
-    transitions: TimeOrderedCollector<T>,
+    transitions: OrderedCollector<T>,
 }
 
 impl<T> RtFsmBuilder<T> {
@@ -78,7 +86,7 @@ impl<T> RtFsmBuilder<T> {
             id,
             type_name: None,
             instance_name: None,
-            transitions: TimeOrderedCollector::default(),
+            transitions: OrderedCollector::default(),
         }
     }
     pub fn set_type_name(&mut self, type_name: String) -> &mut Self {
@@ -93,7 +101,7 @@ impl<T> RtFsmBuilder<T> {
 
 impl<T> RtFsmBuilder<T>
 where
-    T: Timestamp,
+    T: OrderKey,
 {
     pub fn push(&mut self, state: T) {
         self.transitions.push(state)
@@ -102,7 +110,7 @@ where
 
 impl<T> Extend<T> for RtFsmBuilder<T>
 where
-    T: Timestamp,
+    T: OrderKey,
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {

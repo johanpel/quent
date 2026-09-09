@@ -1,5 +1,8 @@
 exclude = [".cargo", "CONTRIBUTING.md", "SECURITY.md"]
 
+[per-file-ignores]
+"docs/tutorial/src/*.md" = ["MD033", "MD046"]
+
 [MD013]
 code-blocks = false
 tables = false

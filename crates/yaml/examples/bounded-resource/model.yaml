@@ -1,0 +1,25 @@
+quent: alpha
+model: bounded_resource
+
+entities:
+  Memory:
+    resource:
+      bytes:
+        kind: occupancy
+        known-bounds: true
+    events:
+      resized:
+        multi: true
+        attributes:
+          # MemoryBounds is generated because bytes has known bounds.
+          limits: { sets-resource-bounds: true }
+
+fsms:
+  Task:
+    states:
+      running:
+        initial: true
+        attributes:
+          memory: { uses: Memory }
+        to: [completed]
+      completed: {}

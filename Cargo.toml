@@ -80,9 +80,10 @@ members = [
     "crates/store-build/example"
 ]
 
-# default-members excludes any crate that activates `quent-time/__test-clock-override`.
-# `cargo build` and `cargo test` (no -p, no --workspace) skip those crates, preserving
-# the zero-cost guarantee for everything else. Use `cargo build -p <crate>` to opt in.
+# default-members excludes crates that activate `quent-time/__test-clock-override`
+# and Linux-only NVTX injection. `cargo build` and `cargo test` (no -p, no
+# --workspace) skip those crates, preserving the zero-cost guarantee and working
+# across supported platforms. Use `cargo build -p <crate>` to opt in.
 default-members = [
     "crates/analyzer",
     "crates/dynamic-attributes",
@@ -110,9 +111,7 @@ default-members = [
     "domains/query_engine/model",
     "domains/query_engine/server",
     "domains/query_engine/ui",
-    "examples/legacy/cpp-integration/bridge",
     "domains/query_engine/tests/cpp/instrumentation",
-    "domains/query_engine/tests/cpp/bridge",
     "examples/readme",
     "experimental/vibe/simulator/analyzer",
     "experimental/vibe/simulator/application",
@@ -142,6 +141,7 @@ petgraph = "0.8.3"
 postcard = { version = "1", default-features = false, features = ["alloc"] }
 prettyplease = "0.3.0"
 prost = "0.14.1"
+protox = "0.9.1"
 pyo3 = "0.29"
 quent-collector-client = { path = "crates/collector/client" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }

@@ -1,0 +1,14 @@
+quent: alpha
+model: references
+
+entities:
+  Worker:
+    events:
+      registered: {}
+
+  Task:
+    events:
+      started:
+        attributes:
+          worker: { ref: Worker }
+      ended: {}

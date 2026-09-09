@@ -1,0 +1,30 @@
+quent: alpha
+model: job_workload
+
+entities:
+  Worker:
+    # Generates WorkerUsage and WorkerBounds.
+    resource:
+      threads:
+        kind: occupancy
+        known-bounds: true
+    events:
+      ready:
+        attributes:
+          name: string
+          limits: { sets-resource-bounds: true }
+
+fsms:
+  Job:
+    states:
+      queued:
+        initial: true
+        attributes:
+          name: string
+          requested_threads: u64
+        to: [running]
+      running:
+        attributes:
+          worker: { uses: Worker }
+        to: [completed]
+      completed: {}

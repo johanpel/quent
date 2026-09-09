@@ -1,0 +1,16 @@
+quent: alpha
+model: repeated_events
+
+entities:
+  Task:
+    events:
+      started:
+        attributes:
+          command: string
+      progress:
+        multi: true
+        attributes:
+          items_processed: u64
+      ended:
+        attributes:
+          success: bool

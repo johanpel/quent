@@ -1,0 +1,15 @@
+quent: alpha
+model: untyped_references
+
+entities:
+  Worker:
+    events:
+      started: {}
+      ended: {}
+
+  Task:
+    events:
+      started:
+        attributes:
+          source: ref
+      ended: {}
