@@ -54,6 +54,7 @@ fn generates_schema_driven_bridge() {
     let reference = facade.content.find("struct QueueUsageRef {").unwrap();
     assert!(usage < reference);
     for file in files.iter().filter(|file| file.name.ends_with(".rs")) {
+        assert!(!file.content.contains("crate::bridge"));
         syn::parse_file(&file.content).unwrap_or_else(|error| panic!("{}: {error}", file.name));
     }
 }

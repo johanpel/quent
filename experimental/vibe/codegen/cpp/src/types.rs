@@ -171,12 +171,12 @@ pub mod ffi {{
     #[namespace = "{uuid_namespace}"]
     unsafe extern "C++" {{
         include!("{uuid_include}");
-        type UUID = crate::bridge::uuid::ffi::UUID;
+        type UUID = super::super::uuid::ffi::UUID;
     }}
     #[namespace = "{base_namespace}"]
     unsafe extern "C++" {{
         include!("{context_include}");
-        type Context = crate::bridge::context::Context;
+        type Context = super::super::context::Context;
     }}
 {aliases}
 {definitions}    extern "Rust" {{
@@ -382,12 +382,12 @@ pub mod ffi {{
     #[namespace = "{uuid_namespace}"]
     unsafe extern "C++" {{
         include!("{uuid_include}");
-        type UUID = crate::bridge::uuid::ffi::UUID;
+        type UUID = super::super::uuid::ffi::UUID;
     }}
     #[namespace = "{base_namespace}"]
     unsafe extern "C++" {{
         include!("{context_include}");
-        type Context = crate::bridge::context::Context;
+        type Context = super::super::context::Context;
     }}
 {aliases}
 {definitions}    extern "Rust" {{
@@ -442,9 +442,9 @@ fn dynamic_aliases(include: &str, namespace: &str) -> String {
         r#"    #[namespace = "{namespace}"]
     unsafe extern "C++" {{
         include!("{include}");
-        type DynamicAttributeKind = crate::bridge::dynamic_attributes::ffi::DynamicAttributeKind;
-        type DynamicAttribute = crate::bridge::dynamic_attributes::ffi::DynamicAttribute;
-        type DynamicAttributes = crate::bridge::dynamic_attributes::ffi::DynamicAttributes;
+        type DynamicAttributeKind = super::super::dynamic_attributes::ffi::DynamicAttributeKind;
+        type DynamicAttribute = super::super::dynamic_attributes::ffi::DynamicAttribute;
+        type DynamicAttributes = super::super::dynamic_attributes::ffi::DynamicAttributes;
     }}
 "#
     )

@@ -21,6 +21,15 @@ build.std("c++20").compile("application_bridge");
 println!("cargo:include={}", include_dir.display());
 ```
 
+Include the generated sibling modules once in the bridge crate. The containing
+module name is not fixed:
+
+```rust
+mod application_bridge {
+    include!(concat!(env!("OUT_DIR"), "/bridge_mod.rs"));
+}
+```
+
 Generated Rust and C++ files are written below `OUT_DIR`. Public headers are
 staged under `OUT_DIR/cxxbridge/include`; export or install that directory for
 the target C++ build. `stage_cxx_headers` must run after `cxx_build::bridges`

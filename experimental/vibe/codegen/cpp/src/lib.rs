@@ -506,7 +506,7 @@ pub mod ffi {{
     #[namespace = "{uuid_namespace}"]
     unsafe extern "C++" {{
         include!("{include}");
-        type UUID = crate::bridge::uuid::ffi::UUID;
+        type UUID = super::super::uuid::ffi::UUID;
     }}
     extern "Rust" {{
         type ExporterOptions;
@@ -621,6 +621,9 @@ fn entity_file(
 }
 
 /// Write bridge modules and the module include file used by a bridge crate.
+///
+/// The bridge crate must include `bridge_mod.rs` within one module. The module
+/// may have any valid Rust identifier.
 pub fn write_bridge_files(
     files: &[GeneratedFile],
     options: &Options,
