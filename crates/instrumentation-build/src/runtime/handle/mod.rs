@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of per-entity handles — the per-instance emit surface.
+//! Generation of per-entity instrumentation handles.
 
 use convert_case::Case;
 use proc_macro2::{Literal, TokenStream};
