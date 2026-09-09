@@ -12,8 +12,9 @@ entity instance unless the model says otherwise.
 
 ## Instrumentation API
 
-The context provides an observer for each entity type. A handle represents one
-entity instance and exposes one method per event.
+The context provides an observer for each entity type. Calling `.handle()` on
+an observer creates a handle for a new entity instance and assigns it a fresh
+UUID. The handle exposes one method per event.
 
 Every context is created with an exporter, which determines where emitted
 events go. This example uses `Noop`, an exporter that discards every event. It
