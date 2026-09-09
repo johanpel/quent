@@ -21,8 +21,7 @@ Entities exist to group related events around the thing they describe.
 ## Events
 
 An **event** is something that happens to an entity at a particular point in
-time, such as a task starting or ending. Each emitted event captures its
-timestamp as the number of nanoseconds elapsed since the Unix epoch.
+time, such as a task starting or ending.
 
 For each event, the generated instrumentation API provides a named call that
 application code uses to emit it. Depending on the target language, this call
