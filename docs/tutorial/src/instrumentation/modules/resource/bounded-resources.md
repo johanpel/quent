@@ -10,7 +10,9 @@ generated bounds record whenever that limit changes.
 {{#include ../../../../../../crates/yaml/examples/bounded-resource/model.yaml}}
 ```
 
-The resource declaration generates both `MemoryUsage` and `MemoryBounds`.
+The resource declaration generates both `MemoryUsage` and `MemoryBounds`. Both
+records use `u64` for the `bytes` field. Resource declarations do not currently
+support selecting another numeric width.
 
 ## Instrumentation API
 
