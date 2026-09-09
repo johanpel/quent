@@ -9,7 +9,7 @@ mod types;
 
 use std::path::{Component, Path, PathBuf};
 
-use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, to_case};
+use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, raw_ident, to_case};
 use convert_case::Case;
 use quent_constraints::{Report, validate};
 use quent_fsm::FsmConstraint;
@@ -637,15 +637,16 @@ pub fn write_bridge_files(
         std::fs::write(generated_dir.join(&file.name), &file.content)?;
         if file.name.ends_with(".rs") {
             bridge_files.push(generated_dir.join(&file.name));
-            let module = file.name.trim_end_matches(".rs");
-            modules.push_str(&format!(
-                "#[path = \"{}/{}\"]\npub mod {};\n",
-                options.bridge_path, file.name, module
-            ));
+            modules.push_str(&bridge_module_declaration(&file.name, &options.bridge_path));
         }
     }
     std::fs::write(out_dir.join("bridge_mod.rs"), modules)?;
     Ok(bridge_files)
+}
+
+fn bridge_module_declaration(file_name: &str, bridge_path: &str) -> String {
+    let module = raw_ident(file_name.trim_end_matches(".rs"));
+    format!("#[path = \"{bridge_path}/{file_name}\"]\npub mod {module};\n")
 }
 
 /// Stage generated headers under stable public include paths.

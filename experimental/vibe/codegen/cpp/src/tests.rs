@@ -5,7 +5,7 @@ use quent_schema::builder::SchemaBuilder;
 use quent_schema::test_utils::{entity, event};
 use quent_yaml::parse_from_str;
 
-use crate::{Exporters, GenerateError, Options, emit};
+use crate::{Exporters, GenerateError, Options, bridge_module_declaration, emit};
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
@@ -154,6 +154,27 @@ entities:
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
     assert!(facade.content.contains("std::vector<bool>"));
     assert!(facade.content.contains("for (auto&& item : input)"));
+}
+
+#[test]
+fn escapes_rust_keyword_bridge_modules() {
+    let schema = parse_from_str(
+        r#"
+quent: alpha
+model: keywords
+entities:
+  Type: { events: { emitted: {} } }
+"#,
+        None,
+    )
+    .unwrap()
+    .schema;
+    let files = emit(&schema, &Options::default()).unwrap();
+    assert!(files.iter().any(|file| file.name == "type.rs"));
+    assert_eq!(
+        bridge_module_declaration("type.rs", "gen"),
+        "#[path = \"gen/type.rs\"]\npub mod r#type;\n"
+    );
 }
 
 #[test]
