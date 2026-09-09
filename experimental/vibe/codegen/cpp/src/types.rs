@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
+use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 use quent_ref_target::RefTarget;
 use quent_schema::{Cardinality, DataType, Entity, Path, Schema};
 use quote::{format_ident, quote};
@@ -15,6 +16,21 @@ use crate::common::{
 use crate::{GenerateError, GeneratedFile, Options};
 
 pub(crate) fn entity_file(
+    schema: &Schema,
+    entity: &Entity,
+    options: &Options,
+    instrumentation: &syn::Path,
+    runtime: &syn::Path,
+) -> Result<GeneratedFile, GenerateError> {
+    if let Some(fsm) = Fsm::try_from_entity(entity)
+        .map_err(|error| GenerateError::InvalidSchema(error.to_string()))?
+    {
+        return fsm_entity_file(schema, entity, &fsm, options, instrumentation, runtime);
+    }
+    regular_entity_file(schema, entity, options, instrumentation, runtime)
+}
+
+fn regular_entity_file(
     schema: &Schema,
     entity: &Entity,
     options: &Options,
@@ -188,6 +204,229 @@ pub mod ffi {{
 
         impl #handle_ident {
             pub fn uuid(&self) -> ffi::UUID { self.inner.uuid().into() }
+            #(#methods)*
+        }
+    };
+
+    Ok(GeneratedFile {
+        name: format!("{}.rs", path_snake(entity.path())),
+        content: format!("{ffi}\n{}", pretty(tokens)?),
+    })
+}
+
+fn fsm_entity_file(
+    schema: &Schema,
+    entity: &Entity,
+    fsm: &Fsm,
+    options: &Options,
+    instrumentation: &syn::Path,
+    runtime: &syn::Path,
+) -> Result<GeneratedFile, GenerateError> {
+    let mut registry = TypeRegistry::new(schema, instrumentation, runtime);
+    let mut payloads = Vec::new();
+    for event in entity.events() {
+        let fields = event
+            .fields()
+            .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
+            .collect::<Vec<_>>();
+        if fields.is_empty() {
+            continue;
+        }
+        let name = to_case(event.name(), Case::Pascal);
+        let mut rendered_fields = Vec::new();
+        for field in fields {
+            let ty =
+                registry.cxx_type(field.ty(), &format!("{}.{}", entity.path(), field.name()))?;
+            rendered_fields.push((cxx_safe(&to_case(field.name(), Case::Snake)), ty));
+        }
+        registry.reserve(&name, &format!("event:{}.{}", entity.path(), event.name()))?;
+        payloads.push(render_struct(&name, &rendered_fields));
+    }
+
+    let entity_name = path_pascal(entity.path());
+    let observer_name = format!("{entity_name}Observer");
+    let handle_name = format!("{entity_name}Handle");
+    let state_name = format!("{entity_name}FsmState");
+    let detail_namespace = format!("{}::detail", options.namespace);
+    let namespace = cxx_namespace(&detail_namespace, entity.path());
+    let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
+    let context_include = format!(
+        "{}/{}/context.rs.h",
+        options.crate_name, options.bridge_path
+    );
+    let dynamic_include = format!(
+        "{}/{}/dynamic_attributes.rs.h",
+        options.crate_name, options.bridge_path
+    );
+    let mut extern_body = format!(
+        "        type {observer_name};\n        type {handle_name};\n\n\
+         fn create_observer(ctx: &Context) -> Box<{observer_name}>;\n\
+         fn create(self: &{observer_name}) -> Box<{handle_name}>;\n\
+         fn create_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
+         fn uuid(self: &{handle_name}) -> UUID;\n"
+    );
+
+    let entity_ty = rust_path(instrumentation, entity.path(), "");
+    let observer_ident = format_ident!("{observer_name}");
+    let handle_ident = format_ident!("{handle_name}");
+    let state_ident = format_ident!("{state_name}");
+    let modules = entity
+        .path()
+        .namespace()
+        .iter()
+        .map(|part| raw_ident(to_case(part, Case::Snake)));
+    let state_module = raw_ident(format!(
+        "{}_state",
+        to_case(entity.path().name(), Case::Snake)
+    ));
+    let state_module = quote! { #instrumentation::#(#modules::)*#state_module };
+    let state_variants = entity.events().map(|event| {
+        let variant = raw_ident(to_case(event.name(), Case::Pascal));
+        let marker = raw_ident(to_case(event.name(), Case::Pascal));
+        quote! {
+            #variant(#instrumentation::FsmHandle<#entity_ty, #state_module::#marker>)
+        }
+    });
+    let uuid_arms = std::iter::once(quote! { #state_ident::New(inner) => inner.uuid() }).chain(
+        entity.events().map(|event| {
+            let variant = raw_ident(to_case(event.name(), Case::Pascal));
+            quote! { #state_ident::#variant(inner) => inner.uuid() }
+        }),
+    );
+
+    let mut methods = Vec::new();
+    for event in entity.events() {
+        let rust_method = raw_ident(to_case(event.name(), Case::Snake));
+        let exported = cxx_safe(&to_case(event.name(), Case::Snake));
+        let cxx_name = if rust_method != exported {
+            format!("        #[cxx_name = \"{exported}\"]\n")
+        } else {
+            String::new()
+        };
+        let fields = event
+            .fields()
+            .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
+            .collect::<Vec<_>>();
+        let call_args = fields
+            .iter()
+            .map(|field| {
+                let ffi_name = raw_ident(cxx_safe(&to_case(field.name(), Case::Snake)));
+                registry.convert(field.ty(), quote! { data.#ffi_name })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let target = raw_ident(to_case(event.name(), Case::Pascal));
+        let mut transition_arms = Vec::new();
+        if event.name() == fsm.initial_state() {
+            transition_arms.push(quote! {
+                #state_ident::New(inner) => #state_ident::#target(inner.#rust_method(#(#call_args),*))
+            });
+        }
+        for transition in fsm
+            .transitions()
+            .iter()
+            .filter(|transition| transition.target() == event.name())
+        {
+            let source = raw_ident(to_case(transition.source(), Case::Pascal));
+            transition_arms.push(quote! {
+                #state_ident::#source(inner) => #state_ident::#target(inner.#rust_method(#(#call_args),*))
+            });
+        }
+        let invalid = format!("invalid `{}` FSM transition", event.name());
+        let implementation = if fields.is_empty() {
+            extern_body.push_str(&format!(
+                "{cxx_name}        fn {rust_method}(self: &mut {handle_name}) -> Result<()>;\n"
+            ));
+            quote! {
+                pub fn #rust_method(&mut self) -> Result<(), String> {
+                    let current = self.inner.take().ok_or_else(|| "FSM handle is unavailable".to_owned())?;
+                    self.inner = Some(match current {
+                        #(#transition_arms,)*
+                        current => {
+                            self.inner = Some(current);
+                            return Err(#invalid.to_owned());
+                        }
+                    });
+                    Ok(())
+                }
+            }
+        } else {
+            let payload_name = format_ident!("{}", to_case(event.name(), Case::Pascal));
+            extern_body.push_str(&format!(
+                "{cxx_name}        fn {rust_method}(self: &mut {handle_name}, data: {payload_name}) -> Result<()>;\n"
+            ));
+            quote! {
+                pub fn #rust_method(&mut self, data: ffi::#payload_name) -> Result<(), String> {
+                    let current = self.inner.take().ok_or_else(|| "FSM handle is unavailable".to_owned())?;
+                    self.inner = Some(match current {
+                        #(#transition_arms,)*
+                        current => {
+                            self.inner = Some(current);
+                            return Err(#invalid.to_owned());
+                        }
+                    });
+                    Ok(())
+                }
+            }
+        };
+        methods.push(implementation);
+    }
+
+    let aliases = dynamic_aliases(&dynamic_include, &detail_namespace);
+    let definitions = format!("{}{}", registry.definitions.join(""), payloads.join(""));
+    let base_namespace = &detail_namespace;
+    let uuid_namespace = format!("{detail_namespace}::uuid");
+    let ffi = format!(
+        r#"#[cxx::bridge(namespace = "{namespace}")]
+pub mod ffi {{
+    unsafe extern "C++" {{ include!("rust/cxx.h"); }}
+    #[namespace = "{uuid_namespace}"]
+    unsafe extern "C++" {{
+        include!("{uuid_include}");
+        type UUID = crate::bridge::uuid::ffi::UUID;
+    }}
+    #[namespace = "{base_namespace}"]
+    unsafe extern "C++" {{
+        include!("{context_include}");
+        type Context = crate::bridge::context::Context;
+    }}
+{aliases}
+{definitions}    extern "Rust" {{
+{extern_body}    }}
+}}
+"#
+    );
+    let tokens = quote! {
+        enum #state_ident {
+            New(#instrumentation::FsmHandle<#entity_ty>),
+            #(#state_variants,)*
+        }
+
+        pub struct #observer_ident { inner: #instrumentation::Observer<#entity_ty> }
+        pub struct #handle_ident { inner: Option<#state_ident> }
+
+        pub fn create_observer(ctx: &super::context::Context) -> Box<#observer_ident> {
+            Box::new(#observer_ident { inner: ctx.inner.observer::<#entity_ty>() })
+        }
+
+        impl #observer_ident {
+            pub fn create(&self) -> Box<#handle_ident> {
+                Box::new(#handle_ident { inner: Some(#state_ident::New(self.inner.handle())) })
+            }
+            pub fn create_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
+                Box::new(#handle_ident {
+                    inner: Some(#state_ident::New(
+                        self.inner.handle_with_id(#runtime::Uuid::from(id))
+                    )),
+                })
+            }
+        }
+
+        impl #handle_ident {
+            pub fn uuid(&self) -> ffi::UUID {
+                match self.inner.as_ref().expect("FSM handle is available") {
+                    #(#uuid_arms,)*
+                }.into()
+            }
             #(#methods)*
         }
     };

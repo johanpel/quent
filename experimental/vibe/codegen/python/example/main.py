@@ -46,8 +46,14 @@ def main() -> None:
         memory.resized(limits={"bytes": 2048})
 
         thread = context.thread_observer().create()
-        thread.idle(seq=0, worker=worker)
-        thread.active(seq=1)
+        try:
+            thread.active()
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("invalid FSM transition was accepted")
+        thread.idle(worker=worker)
+        thread.active()
 
         info = context.info_observer().create()
         info.recorded(
@@ -68,7 +74,6 @@ def main() -> None:
 
         task = context.task_observer().create()
         task.queued(
-            seq=0,
             instance_name="my_task_31415",
             index=1,
             worker=worker,
@@ -80,18 +85,16 @@ def main() -> None:
             ),
         )
         task.computing(
-            seq=1,
             use_thread={"target": thread, "data": {}},
             use_memory=None,
         )
         task.computing(
-            seq=2,
             use_thread={"target": thread, "data": {}},
             use_memory={"target": memory, "data": {"bytes": 1024}},
         )
-        task.exit(seq=3)
-        thread.idle(seq=2, worker=worker)
-        thread.exit(seq=3)
+        task.exit()
+        thread.idle(worker=worker)
+        thread.exit()
 
         try:
             worker.declaration("worker_1", cluster, {"version": "1", "custom": {}})

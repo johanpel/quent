@@ -62,9 +62,10 @@ int run_example() {
       .limits = quent::records::MemoryPoolBounds{.bytes = 2048},
   });
 
-  auto thread = context.thread_observer()->create();
-  thread.idle(quent::thread::Idle{.seq = 0, .worker = worker.id()});
-  thread.active(quent::thread::Active{.seq = 1});
+  auto thread = context.thread_observer()
+                    ->create()
+                    .idle(quent::thread::Idle{.worker = worker.id()})
+                    .active();
 
   auto info = context.info_observer()->create();
   info.recorded(quent::info::Recorded{
@@ -89,39 +90,38 @@ int run_example() {
       },
   });
 
-  auto task = context.task_observer()->create();
-  task.queued(quent::task::Queued{
-      .seq = 0,
-      .instance_name = "my_task_31415",
-      .index = 1,
-      .worker = worker.id(),
-      .use_queue = quent::refs::QueueUsageRef{
-          .target = queue.id(),
-          .data = quent::records::QueueUsage{.entries = 1},
-      },
-  });
-  task.computing(quent::task::Computing{
-      .seq = 1,
-      .use_thread = quent::refs::ThreadUsageRef{
-          .target = thread.id(),
-          .data = quent::records::ThreadUsage{},
-      },
-      .use_memory = std::nullopt,
-  });
-  task.computing(quent::task::Computing{
-      .seq = 2,
-      .use_thread = quent::refs::ThreadUsageRef{
-          .target = thread.id(),
-          .data = quent::records::ThreadUsage{},
-      },
-      .use_memory = quent::refs::MemoryPoolUsageRef{
-          .target = memory.id(),
-          .data = quent::records::MemoryPoolUsage{.bytes = 1024},
-      },
-  });
-  task.exit(quent::task::Exit{.seq = 3});
-  thread.idle(quent::thread::Idle{.seq = 2, .worker = worker.id()});
-  thread.exit(quent::thread::Exit{.seq = 3});
+  context.task_observer()
+      ->create()
+      .queued(quent::task::Queued{
+          .instance_name = "my_task_31415",
+          .index = 1,
+          .worker = worker.id(),
+          .use_queue = quent::refs::QueueUsageRef{
+              .target = queue.id(),
+              .data = quent::records::QueueUsage{.entries = 1},
+          },
+      })
+      .computing(quent::task::Computing{
+          .use_thread = quent::refs::ThreadUsageRef{
+              .target = thread.id(),
+              .data = quent::records::ThreadUsage{},
+          },
+          .use_memory = std::nullopt,
+      })
+      .computing(quent::task::Computing{
+          .use_thread = quent::refs::ThreadUsageRef{
+              .target = thread.id(),
+              .data = quent::records::ThreadUsage{},
+          },
+          .use_memory = quent::refs::MemoryPoolUsageRef{
+              .target = memory.id(),
+              .data = quent::records::MemoryPoolUsage{.bytes = 1024},
+          },
+      })
+      .exit();
+  auto idle_thread = std::move(thread).idle(
+      quent::thread::Idle{.worker = worker.id()});
+  std::move(idle_thread).exit();
 
   auto detached_observer = [] {
     auto detached_context = quent::Context::none();

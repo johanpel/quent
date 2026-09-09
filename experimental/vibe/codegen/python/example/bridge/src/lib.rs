@@ -36,11 +36,16 @@ worker.declaration(
 queue = context.queue_observer().create()
 queue.declaration(instance_name="queue", worker=worker)
 thread = context.thread_observer().create()
-thread.idle(seq=0, worker=worker)
-thread.active(seq=1)
+try:
+    thread.active()
+except RuntimeError:
+    pass
+else:
+    raise AssertionError("invalid FSM transition was accepted")
+thread.idle(worker=worker)
+thread.active()
 task = context.task_observer().create()
 task.queued(
-    seq=0,
     instance_name="task",
     index=1,
     worker=worker,
@@ -49,8 +54,8 @@ task.queued(
         "data": UserDict({"entries": 1}),
     }),
 )
-task.computing(seq=1, use_thread={"target": thread, "data": {}}, use_memory=None)
-task.exit(seq=2)
+task.computing(use_thread={"target": thread, "data": {}}, use_memory=None)
+task.exit()
 context.close()
 detached_cluster = cluster_observer.create()
 detached_cluster.declaration(instance_name="detached")

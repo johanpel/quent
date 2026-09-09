@@ -7,6 +7,7 @@ use quent_schema::{DataType, Schema};
 use crate::common::{path_pascal, path_snake, py_safe, to_case};
 use crate::{GeneratedFile, Options};
 use convert_case::Case;
+use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 
 pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
     let mut output = String::from(concat!(
@@ -99,6 +100,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
 
     for entity in schema.entities() {
         let name = path_pascal(entity.path());
+        let is_fsm = Fsm::try_from_entity(entity).ok().flatten().is_some();
         output.push_str(&format!(
             "\nclass {name}Observer:\n    def create(self, id: Uuid | None = None) -> {name}Handle: ...\n"
         ));
@@ -108,6 +110,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         for event in entity.events() {
             let params = event
                 .fields()
+                .filter(|field| !is_fsm || field.name() != SEQUENCE_FIELD_NAME)
                 .map(|field| {
                     format!(
                         "{}: {}",
@@ -125,7 +128,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
                 "    def {}(self{suffix}) -> None: ...\n",
                 py_safe(&to_case(event.name(), Case::Snake)),
             ));
-            if event.cardinality() == quent_schema::Cardinality::Once {
+            if !is_fsm && event.cardinality() == quent_schema::Cardinality::Once {
                 let emitted = py_safe(&format!("{}_emitted", to_case(event.name(), Case::Snake)));
                 output.push_str(&format!("    def {emitted}(self) -> bool: ...\n",));
             }

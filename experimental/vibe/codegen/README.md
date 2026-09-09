@@ -9,8 +9,7 @@ cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace
 
 The target-language examples under `cpp/example` and `python/example` define
 the intended public API. Both examples bind directly to the schema-generated
-instrumentation in `examples/readme` and exercise once-event enforcement at
-runtime.
+instrumentation in `examples/readme` and exercise event-order enforcement.
 
 ## Git dependencies
 

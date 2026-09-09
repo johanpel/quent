@@ -37,6 +37,15 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("namespace quent::records"));
     assert_eq!(facade.content.matches("struct Details {").count(), 1);
     assert!(facade.content.contains("class WorkerObserver final"));
+    assert!(facade.content.contains("class ThreadActiveHandle final"));
+    assert!(
+        facade
+            .content
+            .contains("ThreadIdleHandle idle(Idle data) &&")
+    );
+    assert!(facade.content.contains("ThreadActiveHandle active() &&"));
+    assert!(!facade.content.contains("struct Active {"));
+    assert!(!facade.content.contains("std::uint16_t seq"));
     assert!(facade.content.contains("struct QueueUsageRef {"));
     assert!(facade.content.contains("declaration_emitted() const"));
     assert!(facade.content.contains("static Context ndjson"));

@@ -12,6 +12,7 @@ use std::path::{Component, Path, PathBuf};
 use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, to_case};
 use convert_case::Case;
 use quent_constraints::{Report, validate};
+use quent_fsm::FsmConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_schema::Schema;
 use quote::quote;
@@ -140,11 +141,12 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
 fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
     let Report {
         base_constraints,
-        results: (ref_targets,),
+        results: (ref_targets, fsms),
         ..
-    } = validate::<(RefTargetConstraint,)>(schema);
+    } = validate::<(RefTargetConstraint, FsmConstraint)>(schema);
     base_constraints.map_err(|error| GenerateError::InvalidSchema(error.to_string()))?;
-    ref_targets.map_err(|error| GenerateError::InvalidReferenceTarget(error.to_string()))
+    ref_targets.map_err(|error| GenerateError::InvalidReferenceTarget(error.to_string()))?;
+    fsms.map_err(|error| GenerateError::InvalidSchema(error.to_string()))
 }
 
 fn validate_options(options: &Options) -> Result<(), GenerateError> {

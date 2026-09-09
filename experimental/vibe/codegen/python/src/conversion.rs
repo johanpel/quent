@@ -92,7 +92,7 @@ pub(crate) fn convert(
                 let handle = format_ident!("Py{}Handle", path_pascal(target.as_ref()));
                 quote! {{
                     if let Ok(value) = target_value.extract::<PyRef<'_, #handle>>() {
-                        value.inner.uuid()
+                        value.raw_uuid()?
                     } else {
                         __extract_uuid(&target_value)?
                     }

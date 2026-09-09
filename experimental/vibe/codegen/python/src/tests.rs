@@ -21,6 +21,9 @@ fn generates_schema_driven_bridge_and_stubs() {
     let bridge = emit(&schema, &options).unwrap().remove(0);
     syn::parse_file(&bridge.content).unwrap();
     assert!(bridge.content.contains("pub struct PyWorkerHandle"));
+    assert!(bridge.content.contains("enum PyThreadState"));
+    assert!(bridge.content.contains("invalid `active` FSM transition"));
+    assert!(!bridge.content.contains("pub fn active(&mut self, seq:"));
     assert!(bridge.content.contains(".declaration("));
     assert!(bridge.content.contains("PyClusterHandle"));
     assert!(
@@ -44,6 +47,8 @@ fn generates_schema_driven_bridge_and_stubs() {
     );
     assert!(stubs[0].content.contains("class WorkerHandle:"));
     assert!(stubs[0].content.contains("class WorkerObserver:"));
+    assert!(stubs[0].content.contains("def active(self) -> None"));
+    assert!(!stubs[0].content.contains("def active(self, *, seq:"));
     assert!(
         stubs[0]
             .content

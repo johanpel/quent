@@ -43,7 +43,14 @@ schema-derived struct in `quent::refs`; an existing target prefix in the data
 record name is not repeated. CXX-specific representations remain under
 `quent::detail`.
 
+FSMs generate one move-only handle type per state. Their `&&`-qualified
+transition methods consume the current handle and return the target-state
+handle, so transitions that are not present in the schema do not compile.
+Transition sequence numbers are assigned by the instrumentation runtime and
+are not part of the C++ payload types.
+
 Observers and handles retain their scoped telemetry runtime independently of
 `Context`. Destroying a context prevents obtaining new observers, but exporter
 shutdown waits until the last observer or handle is destroyed. Once-cardinality
-events expose `<event>_emitted()` predicates on their handles.
+events on non-FSM entities expose `<event>_emitted()` predicates on their
+handles.

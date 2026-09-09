@@ -23,8 +23,12 @@ Records are accepted as mappings. Targeted entity references accept either a
 `Uuid` or the matching generated handle; references carrying data accept a
 mapping with `target` and `data` fields.
 
+FSM handles expose only schema transitions. Invalid transitions raise
+`RuntimeError`; transition sequence numbers are assigned by the
+instrumentation runtime and are not Python parameters.
+
 `Context()` creates a no-op context. Observers and handles retain their scoped
 telemetry runtime after `Context.close()`; exporter shutdown waits until the
-last observer or handle is released. Once-cardinality events expose
-`<event>_emitted()` predicates. Nested options are rejected during generation
-because Python cannot distinguish `None` from `Some(None)`.
+last observer or handle is released. Once-cardinality events on non-FSM
+entities expose `<event>_emitted()` predicates. Nested options are rejected
+during generation because Python cannot distinguish `None` from `Some(None)`.
