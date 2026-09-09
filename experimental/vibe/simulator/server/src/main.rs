@@ -18,6 +18,8 @@ use tokio::net::TcpListener;
 mod defaults {
     /// Default collector socket address to listen on.
     pub(crate) const QUENT_COLLECTOR_ADDRESS: &str = "[::]:7836";
+    /// Default maximum encoded gRPC message size accepted by the collector.
+    pub(crate) const QUENT_COLLECTOR_MAX_DECODING_MESSAGE_SIZE: usize = u32::MAX as usize;
     /// Default analyzer socket address to listen on.
     pub(crate) const QUENT_ANALYZER_ADDRESS: &str = "[::]:8080";
 }
@@ -27,6 +29,9 @@ mod env {
     pub(crate) const QUENT_COLLECTOR_ADDRESS: &str = "QUENT_COLLECTOR_ADDRESS";
     /// Collector output directory environment variable name.
     pub(crate) const QUENT_COLLECTOR_OUTPUT_DIR: &str = "QUENT_COLLECTOR_OUTPUT_DIR";
+    /// Collector maximum encoded gRPC message size environment variable name.
+    pub(crate) const QUENT_COLLECTOR_MAX_DECODING_MESSAGE_SIZE: &str =
+        "QUENT_COLLECTOR_MAX_DECODING_MESSAGE_SIZE";
     /// Exporter type environment variable name.
     pub(crate) const QUENT_COLLECTOR_EXPORTER: &str = "QUENT_COLLECTOR_EXPORTER";
     /// Analyzer socket address environment variable name.
@@ -46,6 +51,15 @@ struct Args {
     /// Overridden by the QUENT_COLLECTOR_ADDRESS environment variable if set.
     #[arg(long, default_value = defaults::QUENT_COLLECTOR_ADDRESS, env = env::QUENT_COLLECTOR_ADDRESS)]
     collector_address: String,
+
+    /// Maximum encoded gRPC message size accepted by the collector in bytes.
+    /// Messages exceeding this value are dropped, and the client does not retry them.
+    #[arg(
+        long,
+        default_value_t = defaults::QUENT_COLLECTOR_MAX_DECODING_MESSAGE_SIZE,
+        env = env::QUENT_COLLECTOR_MAX_DECODING_MESSAGE_SIZE
+    )]
+    collector_max_decoding_message_size: usize,
 
     /// Exporter format for collected event data (ndjson, msgpack, postcard).
     /// Overridden by the QUENT_COLLECTOR_EXPORTER environment variable if set.
@@ -75,6 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log_level,
         cors_address,
         collector_address,
+        collector_max_decoding_message_size,
         exporter,
         output_dir,
         analyzer_address,
@@ -101,9 +116,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ExporterOptions::FileSystem(filesystem::exporter::Options::new(format, output_dir));
 
     let collector = async {
-        collector_service::<SimulatorContext, _>(move |id| {
-            SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
-        })?
+        collector_service::<SimulatorContext, _>(
+            move |id| {
+                SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
+            },
+            collector_max_decoding_message_size,
+        )?
         .serve(collector_addr)
         .await
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })

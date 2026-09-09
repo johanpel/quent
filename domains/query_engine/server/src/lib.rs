@@ -40,13 +40,23 @@ pub fn initialize_tracing(log_level: &str) {
         .init();
 }
 
-pub fn collector_service<C, F>(make: F) -> Result<Router, Box<dyn std::error::Error>>
+/// Builds a collector service with a hard incoming gRPC message-size limit.
+///
+/// Events in a message larger than `max_decoding_message_size` are dropped.
+/// Later batches queued on the same stream may also be dropped because the
+/// current client does not retry rejected streams.
+pub fn collector_service<C, F>(
+    make: F,
+    max_decoding_message_size: usize,
+) -> Result<Router, Box<dyn std::error::Error>>
 where
     C: quent_collector::CollectorSink + Send + Sync + 'static,
     F: Fn(Uuid) -> Result<C, String> + Send + Sync + 'static,
 {
     let collector = CollectorService::<C>::new(make);
-    Ok(GrpcServer::builder().add_service(CollectorServer::new(collector)))
+    Ok(GrpcServer::builder().add_service(
+        CollectorServer::new(collector).max_decoding_message_size(max_decoding_message_size),
+    ))
 }
 
 pub fn analyzer_service_router<A>(

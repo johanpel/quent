@@ -25,9 +25,131 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use self::protocol::{
-    EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatch, MAX_EVENT_BATCH_ENCODED_LEN,
-    MAX_EVENTS_PER_BATCH, collector_client::CollectorClient,
+    EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatch, MAX_EVENTS_PER_BATCH,
+    collector_client::CollectorClient,
 };
+
+const DEFAULT_EVENT_CHANNEL_CAPACITY: usize = 1024;
+const DEFAULT_BATCH_CHANNEL_CAPACITY: usize = 1024;
+const DEFAULT_BATCH_TARGET_ENCODED_LEN: usize = 4 * 1024 * 1024;
+const DEFAULT_MAX_EVENTS_PER_BATCH: usize = MAX_EVENTS_PER_BATCH;
+const DEFAULT_BATCH_FLUSH_INTERVAL: Duration = Duration::from_millis(128);
+
+/// Controls collector client buffering and batching.
+///
+/// Defaults to 1,024 events and batches per channel, a 4 MiB batch target,
+/// 65,536 events per batch, and a 128 ms flush interval.
+#[derive(Clone, Copy, Debug)]
+pub struct ClientOptions {
+    /// Maximum events waiting to be serialized.
+    ///
+    /// The bounded channel applies backpressure to the background exporter when
+    /// serialization cannot keep up. The instrumentation API publishes into a
+    /// separate unbounded queue, so this capacity does not make event emission
+    /// wait for collector progress.
+    event_channel_capacity: usize,
+    /// Maximum encoded batches waiting to enter the gRPC stream.
+    ///
+    /// The bounded channel limits memory retained when network delivery is
+    /// slower than encoding.
+    batch_channel_capacity: usize,
+    /// Preferred maximum encoded size of an ordinary batch.
+    ///
+    /// Events larger than this target are sent intact in a dedicated batch.
+    batch_target_encoded_len: usize,
+    /// Maximum number of events placed in one batch.
+    ///
+    /// This bounds per-batch metadata allocation and decode work independently
+    /// of payload size.
+    max_events_per_batch: usize,
+    /// Maximum time a non-empty partial batch waits before being sent.
+    ///
+    /// Periodic flushing bounds delivery latency when traffic does not fill
+    /// batches.
+    batch_flush_interval: Duration,
+}
+
+impl Default for ClientOptions {
+    fn default() -> Self {
+        Self {
+            event_channel_capacity: DEFAULT_EVENT_CHANNEL_CAPACITY,
+            batch_channel_capacity: DEFAULT_BATCH_CHANNEL_CAPACITY,
+            batch_target_encoded_len: DEFAULT_BATCH_TARGET_ENCODED_LEN,
+            max_events_per_batch: DEFAULT_MAX_EVENTS_PER_BATCH,
+            batch_flush_interval: DEFAULT_BATCH_FLUSH_INTERVAL,
+        }
+    }
+}
+
+impl ClientOptions {
+    /// Sets the maximum number of events waiting to be serialized.
+    ///
+    /// A zero capacity is rejected by [`Client::new_with_options`].
+    pub fn with_event_channel_capacity(mut self, capacity: usize) -> Self {
+        self.event_channel_capacity = capacity;
+        self
+    }
+
+    /// Sets the maximum number of encoded batches waiting to enter the gRPC stream.
+    ///
+    /// A zero capacity is rejected by [`Client::new_with_options`].
+    pub fn with_batch_channel_capacity(mut self, capacity: usize) -> Self {
+        self.batch_channel_capacity = capacity;
+        self
+    }
+
+    /// Sets the preferred encoded size of an ordinary batch.
+    ///
+    /// The target must fit the `u32` gRPC length prefix and have room for one
+    /// empty framed event.
+    pub fn with_batch_target_encoded_len(mut self, target_encoded_len: usize) -> Self {
+        self.batch_target_encoded_len = target_encoded_len;
+        self
+    }
+
+    /// Sets the maximum number of events placed in one batch.
+    ///
+    /// The value must be between 1 and 65,536 inclusive.
+    pub fn with_max_events_per_batch(mut self, max_events: usize) -> Self {
+        self.max_events_per_batch = max_events;
+        self
+    }
+
+    /// Sets the maximum time a non-empty partial batch waits before being sent.
+    ///
+    /// A zero duration is rejected by [`Client::new_with_options`].
+    pub fn with_batch_flush_interval(mut self, interval: Duration) -> Self {
+        self.batch_flush_interval = interval;
+        self
+    }
+
+    fn validate(&self) -> Result<(), CollectorError> {
+        if self.event_channel_capacity == 0 {
+            return Err(CollectorError::InvalidEventChannelCapacity);
+        }
+        if self.batch_channel_capacity == 0 {
+            return Err(CollectorError::InvalidBatchChannelCapacity);
+        }
+        let min_batch_encoded_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN;
+        if !(min_batch_encoded_len..=u32::MAX as usize).contains(&self.batch_target_encoded_len) {
+            return Err(CollectorError::InvalidBatchEncodedLen {
+                actual: self.batch_target_encoded_len,
+                minimum: min_batch_encoded_len,
+                maximum: u32::MAX as usize,
+            });
+        }
+        if !(1..=MAX_EVENTS_PER_BATCH).contains(&self.max_events_per_batch) {
+            return Err(CollectorError::InvalidBatchEventCount {
+                actual: self.max_events_per_batch,
+                maximum: MAX_EVENTS_PER_BATCH,
+            });
+        }
+        if self.batch_flush_interval.is_zero() {
+            return Err(CollectorError::InvalidBatchFlushInterval);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug)]
 struct EventBatchBuffer {
@@ -39,60 +161,57 @@ struct EventBatchBuffer {
     ///
     /// Caching the size avoids rescanning the batch whenever an event is added.
     encoded_len: usize,
-    /// Largest encoded batch accepted by the receiver.
+    /// Encoded size at which a batch should be flushed.
     ///
-    /// The client must flush before adding an event that would exceed this limit.
-    max_encoded_len: usize,
+    /// This bounds ordinary message sizes without rejecting a larger individual event.
+    target_encoded_len: usize,
     /// Largest event count accepted in one batch.
     ///
-    /// The byte limit alone permits about one million zero-length events. The
+    /// The byte target alone permits about one million zero-length events. The
     /// count limit bounds the sender's and receiver's `Vec<Bytes>` storage and
     /// decode work.
     max_events: usize,
 }
 
 impl EventBatchBuffer {
-    fn try_new(max_encoded_len: usize, max_events: usize) -> Result<Self, CollectorError> {
+    fn try_new(target_encoded_len: usize, max_events: usize) -> Result<Self, CollectorError> {
         let min_encoded_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN;
-        if max_encoded_len < min_encoded_len {
+        if target_encoded_len < min_encoded_len {
             return Err(CollectorError::InvalidBatchEncodedLen {
-                actual: max_encoded_len,
+                actual: target_encoded_len,
                 minimum: min_encoded_len,
+                maximum: u32::MAX as usize,
             });
         }
         if max_events == 0 {
-            return Err(CollectorError::InvalidBatchEventCount);
+            return Err(CollectorError::InvalidBatchEventCount {
+                actual: max_events,
+                maximum: MAX_EVENTS_PER_BATCH,
+            });
         }
         Ok(Self {
             events: Vec::new(),
             encoded_len: EVENT_BATCH_HEADER_LEN,
-            max_encoded_len,
+            target_encoded_len,
             max_events,
         })
     }
 
-    fn push(&mut self, event: Vec<u8>) -> Result<Option<EventBatch>, usize> {
-        let payload_len = event.len();
-        let event_encoded_len = EVENT_LENGTH_HEADER_LEN
-            .checked_add(payload_len)
-            .ok_or(payload_len)?;
-        let single_event_batch_len = EVENT_BATCH_HEADER_LEN
-            .checked_add(event_encoded_len)
-            .ok_or(payload_len)?;
-        if single_event_batch_len > self.max_encoded_len {
-            return Err(payload_len);
-        }
+    fn push(&mut self, event: Vec<u8>) -> (Option<EventBatch>, bool) {
+        let event_encoded_len = EVENT_LENGTH_HEADER_LEN.saturating_add(event.len());
+        let single_event_batch_len = EVENT_BATCH_HEADER_LEN.saturating_add(event_encoded_len);
+        let exceeds_target = single_event_batch_len > self.target_encoded_len;
 
         let full_batch = if self.events.len() >= self.max_events
-            || self.encoded_len + event_encoded_len > self.max_encoded_len
+            || self.encoded_len.saturating_add(event_encoded_len) > self.target_encoded_len
         {
             self.take()
         } else {
             None
         };
-        self.encoded_len += event_encoded_len;
+        self.encoded_len = self.encoded_len.saturating_add(event_encoded_len);
         self.events.push(event.into());
-        Ok(full_batch)
+        (full_batch, exceeds_target)
     }
 
     fn take(&mut self) -> Option<EventBatch> {
@@ -132,10 +251,22 @@ where
 
 #[derive(Debug, Error)]
 pub enum CollectorError {
-    #[error("maximum encoded batch length must be at least {minimum} bytes, got {actual}")]
-    InvalidBatchEncodedLen { actual: usize, minimum: usize },
-    #[error("maximum events per batch must be greater than zero")]
-    InvalidBatchEventCount,
+    #[error(
+        "encoded batch size target must be between {minimum} and {maximum} bytes, got {actual}"
+    )]
+    InvalidBatchEncodedLen {
+        actual: usize,
+        minimum: usize,
+        maximum: usize,
+    },
+    #[error("maximum events per batch must be between 1 and {maximum}, got {actual}")]
+    InvalidBatchEventCount { actual: usize, maximum: usize },
+    #[error("event channel capacity must be greater than zero")]
+    InvalidEventChannelCapacity,
+    #[error("batch channel capacity must be greater than zero")]
+    InvalidBatchChannelCapacity,
+    #[error("batch flush interval must be greater than zero")]
+    InvalidBatchFlushInterval,
     #[error("Unable to connect: {0}")]
     Connect(String),
     #[error("Send error: {0}")]
@@ -175,6 +306,33 @@ where
         entity_type: &str,
         address: http::Uri,
     ) -> CollectorResult<Client<T>> {
+        Self::new_with_options(
+            source_context_id,
+            entity_type,
+            address,
+            ClientOptions::default(),
+        )
+        .await
+    }
+
+    /// Connects to a collector using the supplied buffering and batching options.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error before connecting if a channel capacity or flush interval
+    /// is zero, or a batch setting is outside the supported wire-format range.
+    pub async fn new_with_options(
+        source_context_id: Uuid,
+        entity_type: &str,
+        address: http::Uri,
+        options: ClientOptions,
+    ) -> CollectorResult<Client<T>> {
+        options.validate()?;
+        let mut buffer = EventBatchBuffer::try_new(
+            options.batch_target_encoded_len,
+            options.max_events_per_batch,
+        )?;
+
         debug!("connecting to {address}");
         // Try to connect.
         // TODO(johanpel): figure out whether this can also go through health check
@@ -197,21 +355,18 @@ where
         let client = client?;
 
         debug!("connected, preparing channels and spawning control thread ...");
-        // TODO(johanpel): consider unbounded
         let (event_sender, mut event_receiver): (Sender<Event<T>>, Receiver<Event<T>>) =
-            mpsc::channel(1024);
+            mpsc::channel(options.event_channel_capacity);
         let (grpc_sender, grpc_receiver): (Sender<EventBatch>, Receiver<EventBatch>) =
-            mpsc::channel(1024);
+            mpsc::channel(options.batch_channel_capacity);
 
         let cancellation_token = CancellationToken::new();
         let cloned_token = cancellation_token.clone();
-        let mut buffer =
-            EventBatchBuffer::try_new(MAX_EVENT_BATCH_ENCODED_LEN, MAX_EVENTS_PER_BATCH)?;
 
         // Spawn a task that takes events, converts them, and sends them as gRPC messages to the collector.
         let events_sender_handle = tokio::spawn(async move {
             // Interval by which to export even if the buffer isn't full.
-            let mut ticker = tokio::time::interval(Duration::from_millis(128));
+            let mut ticker = tokio::time::interval(options.batch_flush_interval);
 
             async fn flush_buffer(
                 buffer: &mut EventBatchBuffer,
@@ -228,19 +383,19 @@ where
                 buffer: &mut EventBatchBuffer,
                 grpc_sender: &Sender<EventBatch>,
             ) -> Result<bool, ()> {
-                match buffer.push(event) {
-                    Ok(Some(full_batch)) => {
-                        grpc_sender.send(full_batch).await.map_err(|_| ())?;
-                        Ok(true)
-                    }
-                    Ok(None) => Ok(false),
-                    Err(payload_len) => {
-                        error!(
-                            "serialized event is {payload_len} bytes and exceeds the collector message limit; dropping event"
-                        );
-                        Ok(false)
-                    }
+                let payload_len = event.len();
+                let (full_batch, exceeds_target) = buffer.push(event);
+                if exceeds_target {
+                    let target_encoded_len = buffer.target_encoded_len;
+                    warn!(
+                        "serialized event has {payload_len} payload bytes and cannot fit within the {target_encoded_len}-byte collector batch target after framing; sending it intact in a dedicated message, which may increase peak memory use"
+                    );
                 }
+                if let Some(full_batch) = full_batch {
+                    grpc_sender.send(full_batch).await.map_err(|_| ())?;
+                    return Ok(true);
+                }
+                Ok(false)
             }
 
             loop {
@@ -386,10 +541,13 @@ impl<T> Drop for Client<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use bytes::Bytes;
 
     use super::{
-        CollectorError, EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN, EventBatchBuffer,
+        ClientOptions, CollectorError, EVENT_BATCH_HEADER_LEN, EVENT_LENGTH_HEADER_LEN,
+        EventBatchBuffer, MAX_EVENTS_PER_BATCH,
     };
 
     #[test]
@@ -398,31 +556,35 @@ mod tests {
         let one_event_len = EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN + event.len();
         let mut buffer = EventBatchBuffer::try_new(one_event_len, usize::MAX).unwrap();
 
-        assert!(buffer.push(event.clone()).unwrap().is_none());
-        let full_batch = buffer.push(event.clone()).unwrap().unwrap();
+        assert!(buffer.push(event.clone()).0.is_none());
+        let full_batch = buffer.push(event.clone()).0.unwrap();
 
         assert_eq!(full_batch.events, vec![Bytes::from(event.clone())]);
         assert_eq!(buffer.take().unwrap().events, vec![Bytes::from(event)]);
     }
 
     #[test]
-    fn event_larger_than_encoded_limit_is_rejected() {
+    fn event_larger_than_encoded_target_is_retained() {
         let mut buffer =
             EventBatchBuffer::try_new(EVENT_BATCH_HEADER_LEN + EVENT_LENGTH_HEADER_LEN, usize::MAX)
                 .unwrap();
 
-        let payload_len = buffer.push(vec![42]).unwrap_err();
+        let (full_batch, exceeds_target) = buffer.push(vec![42]);
 
-        assert_eq!(payload_len, 1);
-        assert!(buffer.take().is_none());
+        assert!(full_batch.is_none());
+        assert!(exceeds_target);
+        assert_eq!(
+            buffer.take().unwrap().events,
+            vec![Bytes::from_static(&[42])]
+        );
     }
 
     #[test]
     fn batch_splits_at_event_count_limit() {
         let mut buffer = EventBatchBuffer::try_new(usize::MAX, 1).unwrap();
 
-        assert!(buffer.push(vec![1]).unwrap().is_none());
-        let full_batch = buffer.push(vec![2]).unwrap().unwrap();
+        assert!(buffer.push(vec![1]).0.is_none());
+        let full_batch = buffer.push(vec![2]).0.unwrap();
 
         assert_eq!(full_batch.events, vec![Bytes::from_static(&[1])]);
         assert_eq!(
@@ -440,11 +602,53 @@ mod tests {
             Err(CollectorError::InvalidBatchEncodedLen {
                 actual,
                 minimum,
+                ..
             }) if actual == min_encoded_len - 1 && minimum == min_encoded_len
         ));
         assert!(matches!(
             EventBatchBuffer::try_new(min_encoded_len, 0),
-            Err(CollectorError::InvalidBatchEventCount)
+            Err(CollectorError::InvalidBatchEventCount { actual: 0, .. })
+        ));
+    }
+
+    #[test]
+    fn invalid_client_options_are_rejected() {
+        assert!(matches!(
+            ClientOptions::default()
+                .with_event_channel_capacity(0)
+                .validate(),
+            Err(CollectorError::InvalidEventChannelCapacity)
+        ));
+        assert!(matches!(
+            ClientOptions::default()
+                .with_batch_channel_capacity(0)
+                .validate(),
+            Err(CollectorError::InvalidBatchChannelCapacity)
+        ));
+        #[cfg(target_pointer_width = "64")]
+        assert!(matches!(
+            ClientOptions::default()
+                .with_batch_target_encoded_len(usize::MAX)
+                .validate(),
+            Err(CollectorError::InvalidBatchEncodedLen { .. })
+        ));
+        assert!(matches!(
+            ClientOptions::default()
+                .with_max_events_per_batch(0)
+                .validate(),
+            Err(CollectorError::InvalidBatchEventCount { .. })
+        ));
+        assert!(matches!(
+            ClientOptions::default()
+                .with_max_events_per_batch(MAX_EVENTS_PER_BATCH + 1)
+                .validate(),
+            Err(CollectorError::InvalidBatchEventCount { .. })
+        ));
+        assert!(matches!(
+            ClientOptions::default()
+                .with_batch_flush_interval(Duration::ZERO)
+                .validate(),
+            Err(CollectorError::InvalidBatchFlushInterval)
         ));
     }
 }

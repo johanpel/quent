@@ -19,7 +19,10 @@ pub use crate::filesystem::{
     Format as FileSystemFormat, exporter::Options as FileSystemExporterOptions,
 };
 #[cfg(feature = "collector")]
-pub use quent_io_collector::{CollectorAddressError, Options as CollectorExporterOptions};
+pub use quent_io_collector::{
+    ClientOptions as CollectorClientOptions, CollectorAddressError,
+    Options as CollectorExporterOptions,
+};
 
 // Featue-gated mods.
 #[cfg(feature = "clap")]

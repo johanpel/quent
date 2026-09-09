@@ -4,6 +4,7 @@
 //! Exporter sending events to a Collector service
 
 use quent_collector_client::Client;
+pub use quent_collector_client::ClientOptions;
 use quent_events::{EntityEvent, Event};
 use quent_io_types::{Exporter, ExporterError, ExporterProvider, ExporterResult};
 use serde::Serialize;
@@ -15,6 +16,7 @@ use uuid::Uuid;
 #[derive(Debug, Default, Clone)]
 pub struct Options {
     address: http::Uri,
+    client: ClientOptions,
 }
 
 /// Error returned when a collector address is not a valid URI.
@@ -27,7 +29,10 @@ pub struct CollectorAddressError {
 
 impl Options {
     pub fn new(address: http::Uri) -> Self {
-        Self { address }
+        Self {
+            address,
+            client: ClientOptions::default(),
+        }
     }
 
     /// Parses a collector address into exporter options.
@@ -36,6 +41,12 @@ impl Options {
             .parse()
             .map_err(|source| CollectorAddressError { source })?;
         Ok(Self::new(address))
+    }
+
+    /// Sets the collector client's buffering and batching options.
+    pub fn with_client_options(mut self, options: ClientOptions) -> Self {
+        self.client = options;
+        self
     }
 }
 
@@ -47,9 +58,13 @@ where
 {
     async fn create_exporter(&self, context_id: Uuid) -> ExporterResult<Box<dyn Exporter<T>>> {
         Ok(Box::new(
-            CollectorExporter::<T>::try_new(self.address.clone(), context_id)
-                .await
-                .map_err(ExporterError::Other)?,
+            CollectorExporter::<T>::try_new_with_options(
+                self.address.clone(),
+                context_id,
+                self.client,
+            )
+            .await
+            .map_err(ExporterError::Other)?,
         ) as Box<dyn Exporter<T>>)
     }
 }
@@ -73,7 +88,16 @@ where
         address: http::Uri,
         source_context_id: Uuid,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let client = Client::new(source_context_id, T::NAME, address).await?;
+        Self::try_new_with_options(address, source_context_id, ClientOptions::default()).await
+    }
+
+    /// Connects an exporter with explicit collector client options.
+    pub async fn try_new_with_options(
+        address: http::Uri,
+        source_context_id: Uuid,
+        options: ClientOptions,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        let client = Client::new_with_options(source_context_id, T::NAME, address, options).await?;
         Ok(Self {
             client: Some(client),
         })

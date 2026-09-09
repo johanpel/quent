@@ -11,9 +11,6 @@ use tonic::{
     codec::{Codec, DecodeBuf, Decoder, EncodeBuf, Encoder},
 };
 
-/// Maximum encoded size of an event batch sent by collector clients.
-pub const MAX_EVENT_BATCH_ENCODED_LEN: usize = 4 * 1024 * 1024;
-
 /// Maximum number of events in one batch.
 pub const MAX_EVENTS_PER_BATCH: usize = 65_536;
 

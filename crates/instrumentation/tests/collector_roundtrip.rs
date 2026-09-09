@@ -19,11 +19,22 @@ use quent_collector::{
 use quent_events::{EntityEvent, Event};
 use quent_instrumentation::ContextInner;
 use quent_io::{CollectorExporterOptions, ExporterOptions};
+use serde::{Deserialize, Serialize};
 use tokio_stream::wrappers::TcpListenerStream;
 use tonic::transport::Server as GrpcServer;
 use uuid::Uuid;
 
 const EVENTS: usize = 100;
+const OVERSIZED_EVENT_BYTES: usize = 4 * 1024 * 1024;
+
+#[derive(Debug, Deserialize, Serialize)]
+struct OversizedTestEvent {
+    bytes: Vec<u8>,
+}
+
+impl EntityEvent for OversizedTestEvent {
+    const NAME: &'static str = "OversizedTestEvent";
+}
 
 /// Collector-side sink: decodes each event and counts it.
 struct CountingSink {
@@ -32,10 +43,18 @@ struct CountingSink {
 
 impl CollectorSink for CountingSink {
     fn ingest(&self, entity: &str, event: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        if entity != TestEvent::NAME {
-            return Err(format!("unexpected entity `{entity}`").into());
+        match entity {
+            TestEvent::NAME => {
+                let _: Event<TestEvent> = deserialize_event(event)?;
+            }
+            OversizedTestEvent::NAME => {
+                let event: Event<OversizedTestEvent> = deserialize_event(event)?;
+                if event.data.bytes.len() != OVERSIZED_EVENT_BYTES {
+                    return Err("oversized event payload was truncated".into());
+                }
+            }
+            _ => return Err(format!("unexpected entity `{entity}`").into()),
         }
-        let _: Event<TestEvent> = deserialize_event(event)?;
         self.received.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -65,7 +84,7 @@ fn start_server(received: Arc<AtomicUsize>) -> (http::Uri, tokio::runtime::Runti
             })
         });
         let _ = GrpcServer::builder()
-            .add_service(CollectorServer::new(service))
+            .add_service(CollectorServer::new(service).max_decoding_message_size(u32::MAX as usize))
             .serve_with_incoming(TcpListenerStream::new(listener))
             .await;
     });
@@ -105,5 +124,36 @@ fn collector_client_flushes_all_events_on_drop() {
         received.load(Ordering::SeqCst),
         EVENTS,
         "collector did not receive all events"
+    );
+}
+
+#[test]
+fn collector_client_delivers_event_larger_than_batch_target() {
+    let received = Arc::new(AtomicUsize::new(0));
+    let (address, _server) = start_server(received.clone());
+
+    let ctx = ContextInner::try_new(Uuid::now_v7()).unwrap();
+    let options = ExporterOptions::Collector(CollectorExporterOptions::new(address));
+    {
+        let observer = ctx
+            .block_on(async { ctx.observer::<OversizedTestEvent>(&options).await })
+            .unwrap();
+        observer.emit(
+            Uuid::now_v7(),
+            OversizedTestEvent {
+                bytes: vec![42; OVERSIZED_EVENT_BYTES],
+            },
+        );
+    }
+    drop(ctx);
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while received.load(Ordering::SeqCst) == 0 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(
+        received.load(Ordering::SeqCst),
+        1,
+        "collector did not receive the oversized event"
     );
 }

@@ -152,7 +152,7 @@ fn start_collector_server(backing_dir: &Path) -> BenchResult<http::Uri> {
             BenchSink::new(id, Some(backing.clone())).map_err(|e| e.to_string())
         });
         let _ = GrpcServer::builder()
-            .add_service(CollectorServer::new(service))
+            .add_service(CollectorServer::new(service).max_decoding_message_size(u32::MAX as usize))
             .serve_with_incoming(incoming)
             .await;
     });
