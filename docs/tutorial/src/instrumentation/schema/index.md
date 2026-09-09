@@ -50,9 +50,10 @@ Attributes exist to record the details needed to interpret an event.
 
 ## Records
 
-A **record** is a named, reusable group of typed fields. The generated API
-represents a record as a struct in Rust and C++. In Python, records are
-dictionaries with generated `TypedDict` type hints.
+A **field** is a named, typed value inside a record. A **record** is a named,
+reusable group of fields. The generated API represents a record as a `struct`
+in Rust and C++. In Python, records are dictionaries with generated `TypedDict`
+type hints.
 
 Records exist to keep related values together and avoid repeating the same
 field definitions.
