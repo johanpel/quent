@@ -1,0 +1,9 @@
+use quent_instrumentation_build_example::demo::{Connection, Context, Demo, Noop, Query};
+
+fn main() {
+    let context = Context::<Demo>::try_new(Noop).unwrap();
+    let connection = context.observer::<Connection>().handle();
+    let query = context.observer::<Query>().handle();
+    let _submitted = query.submitted("select 1".to_string(), connection.as_entity_ref());
+    let _reused = query.submitted("select 2".to_string(), connection.as_entity_ref());
+}

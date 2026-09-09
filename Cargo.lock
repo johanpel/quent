@@ -2924,6 +2924,7 @@ dependencies = [
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
+ "quent-fsm",
  "quent-ref-target",
  "quent-schema",
  "quote",
@@ -2939,6 +2940,7 @@ dependencies = [
  "quent-instrumentation-build",
  "quent-yaml",
  "serde",
+ "trybuild",
 ]
 
 [[package]]

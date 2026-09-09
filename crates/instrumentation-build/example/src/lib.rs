@@ -12,7 +12,7 @@ use quent_instrumentation::{
 use demo::{Connection, Context, Demo, DemoEvent, Handle, Observer, Query, Server, Uuid};
 
 #[allow(unused)]
-mod demo {
+pub mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
 
@@ -78,15 +78,16 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     // `as_entity_ref_with` produces an entity ref that also carries data:
     conn.routed(server.as_entity_ref_with(demo::Route { hops: 3 }))?;
 
-    // An FSM entity's events are transitions into its states.
-    // Their cardinality is derived from the topology at build time.
-    //
-    // FSMs will get typestate pattern handles in the future, also see
-    // https://github.com/rapidsai/quent/issues/416
-    let mut query = context.observer::<Query>().handle();
-    query.submitted(0, "select 1".to_owned(), conn.as_entity_ref())?;
-    query.running(1, 10)?;
-    query.ready(2, true)?;
+    // FSM transitions consume the prior handle and return the target state's
+    // handle. The generated methods assign per-instance sequence numbers.
+    let query = context
+        .observer::<Query>()
+        .handle()
+        .submitted("select 1".to_owned(), conn.as_entity_ref())
+        .running(10)
+        .running(20)
+        .ready(true);
+    let _query_id = query.uuid();
 
     conn.closed()?;
 

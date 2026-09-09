@@ -79,6 +79,36 @@ impl Fsm {
         &self.transitions
     }
 
+    /// Decodes and validates the FSM constraint attached to `entity`.
+    ///
+    /// Returns `Ok(None)` when the entity has no [`FsmConstraint`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FsmError`] when the constraint payload is missing, cannot be
+    /// decoded, or does not define a valid FSM for `entity`.
+    pub fn try_from_entity(entity: &Entity) -> Result<Option<Self>, FsmError> {
+        let Some(constraint) = entity.annotations().constraint(FsmConstraint::NAME) else {
+            return Ok(None);
+        };
+        let raw = constraint.data().ok_or_else(|| FsmError::InvalidData {
+            entity: entity.path().clone(),
+            message: "constraint data is missing".to_string(),
+        })?;
+        let fsm = serde_json::from_str::<Self>(raw).map_err(|error| FsmError::InvalidData {
+            entity: entity.path().clone(),
+            message: format!("failed to decode fsm: {error}"),
+        })?;
+
+        let mut errors = Vec::new();
+        check_entity(entity, &fsm, &mut errors);
+        match errors.len() {
+            0 => Ok(Some(fsm)),
+            1 => Err(errors.into_iter().next().unwrap()),
+            _ => Err(FsmError::Multiple(errors)),
+        }
+    }
+
     /// Whether `state` is a final state of this FSM.
     ///
     /// A final state is named by the topology and has no outgoing transition.
@@ -207,30 +237,12 @@ impl Visitor for FsmConstraint {
         let Element::Entity(entity) = cursor.current() else {
             return;
         };
-        let Some(constraint) = entity.annotations().constraint(FsmConstraint::NAME) else {
-            return;
-        };
-        let raw = match constraint.data() {
-            Some(s) => s,
-            None => {
-                self.errors.push(FsmError::InvalidData {
-                    entity: entity.path().clone(),
-                    message: "constraint data is missing".to_string(),
-                });
-                return;
+        if let Err(error) = Fsm::try_from_entity(entity) {
+            match error {
+                FsmError::Multiple(errors) => self.errors.extend(errors),
+                error => self.errors.push(error),
             }
-        };
-        let fsm = match serde_json::from_str::<Fsm>(raw) {
-            Ok(f) => f,
-            Err(e) => {
-                self.errors.push(FsmError::InvalidData {
-                    entity: entity.path().clone(),
-                    message: format!("failed to decode fsm: {e}"),
-                });
-                return;
-            }
-        };
-        check_entity(entity, &fsm, &mut self.errors);
+        }
     }
 
     fn finish(self) -> Self::Output {
