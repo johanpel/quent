@@ -60,8 +60,8 @@ field definitions.
 
 ## Event cardinality
 
-**Event cardinality** defines how often an event may occur for one entity
-instance. A once event may occur at most once. A multi event may occur
+**Event cardinality** defines how often an event can occur for one entity
+instance. A `once` event occurs at most once. A `multi` event may occur
 repeatedly.
 
 Cardinality exists to distinguish unique events from repeatable events.
