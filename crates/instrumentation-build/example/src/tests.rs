@@ -3,10 +3,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use quent_instrumentation::EventCallback;
-use quent_instrumentation_build_example::demo::{
+use crate::demo::{
     Connection, Context, Demo, DemoEvent, Handle, Noop, Query, QueryEvent, Server, Uuid,
 };
+use quent_instrumentation::EventCallback;
 
 #[test]
 fn ordinary_handles_preserve_size_and_once_event_behavior() {
