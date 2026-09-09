@@ -3,8 +3,12 @@
 
 from collections import UserDict
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 import quent_demo as quent
+
+if TYPE_CHECKING:
+    from quent_demo import DetailsDict, QueueUsageRefDict
 
 
 def main() -> None:
@@ -26,11 +30,14 @@ def main() -> None:
         worker.declaration(
             instance_name="worker_0",
             cluster=cluster,
-            details=UserDict(
-                {
-                    "version": "42.1.2",
-                    "custom": UserDict({"threads": 256}),
-                }
+            details=cast(
+                "DetailsDict",
+                UserDict(
+                    {
+                        "version": "42.1.2",
+                        "custom": UserDict({"threads": 256}),
+                    }
+                ),
             ),
         )
 
@@ -77,11 +84,14 @@ def main() -> None:
             instance_name="my_task_31415",
             index=1,
             worker=worker,
-            use_queue=UserDict(
-                {
-                    "target": queue,
-                    "data": UserDict({"entries": 1}),
-                }
+            use_queue=cast(
+                "QueueUsageRefDict",
+                UserDict(
+                    {
+                        "target": queue,
+                        "data": UserDict({"entries": 1}),
+                    }
+                ),
             ),
         )
         task.computing(
@@ -97,7 +107,9 @@ def main() -> None:
         thread.exit()
 
         try:
-            worker.declaration("worker_1", cluster, {"version": "1", "custom": {}})
+            cast(Any, worker.declaration)(
+                "worker_1", cluster, {"version": "1", "custom": {}}
+            )
         except TypeError:
             pass
         else:
