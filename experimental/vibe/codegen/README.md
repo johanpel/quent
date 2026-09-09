@@ -4,7 +4,8 @@ This isolated Cargo workspace generates CXX and PyO3 bindings directly from a
 `quent_schema::Schema`.
 
 ```sh
-cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace
+pixi run env DYLD_LIBRARY_PATH="$PWD/.pixi/envs/default/lib" \
+  cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace
 ```
 
 The target-language examples under `cpp/example` and `python/example` define
