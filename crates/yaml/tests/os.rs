@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! OS tests: canonical process and thread records are included when referenced.
+//! OS tests: OS field types add and use canonical process and thread records.
 
 use quent_constraints::Constraint as _;
 use quent_os::{OsConstraint, process_path, thread_path};
@@ -21,7 +21,7 @@ fn errors_of(src: &str) -> String {
 }
 
 #[test]
-fn process_record_is_added_when_referenced() {
+fn process_type_adds_canonical_record() {
     let schema = schema_of(
         "\
 quent: alpha
@@ -31,7 +31,7 @@ entities:
     events:
       init:
         attributes:
-          process: quent::os::Process
+          process: { os: process }
 ",
     );
 
@@ -54,7 +54,7 @@ entities:
 }
 
 #[test]
-fn thread_record_is_added_when_scoped_under_process() {
+fn os_type_may_be_used_in_an_annotated_field() {
     let schema = schema_of(
         "\
 quent: alpha
@@ -64,18 +64,80 @@ entities:
     events:
       init:
         attributes:
-          process: quent::os::Process
+          process:
+            type: { os: process }
+            doc: Platform process identity.
+",
+    );
+
+    let field = schema
+        .entity(&path("MyProcess"))
+        .unwrap()
+        .event(&ident("init"))
+        .unwrap()
+        .field(&ident("process"))
+        .unwrap();
+    assert_eq!(field.ty(), &DataType::Record(process_path()));
+    assert_eq!(
+        field.annotations().docs(),
+        Some("Platform process identity.")
+    );
+}
+
+#[test]
+fn thread_type_adds_canonical_record_when_scoped_under_process() {
+    let schema = schema_of(
+        "\
+quent: alpha
+model: m
+entities:
+  MyProcess:
+    events:
+      init:
+        attributes:
+          process: { os: process }
   MyThread:
     events:
       init:
         attributes:
-          thread: quent::os::Thread
+          thread: { os: thread }
           process: { scope-ref: MyProcess }
 ",
     );
 
     assert!(schema.record(&thread_path()).is_some());
     assert!(schema.record(&process_path()).is_some());
+}
+
+#[test]
+fn process_and_main_thread_may_share_an_entity_without_a_scope_reference() {
+    let schema = schema_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Main:
+    events:
+      started:
+        attributes:
+          process: { os: process }
+          thread: { os: thread }
+",
+    );
+
+    let event = schema
+        .entity(&path("Main"))
+        .unwrap()
+        .event(&ident("started"))
+        .unwrap();
+    assert_eq!(
+        event.field(&ident("process")).unwrap().ty(),
+        &DataType::Record(process_path())
+    );
+    assert_eq!(
+        event.field(&ident("thread")).unwrap().ty(),
+        &DataType::Record(thread_path())
+    );
 }
 
 #[test]
@@ -90,7 +152,7 @@ entities:
       observed:
         multi: true
         attributes:
-          process: quent::os::Process
+          process: { os: process }
 ",
     );
 
@@ -108,7 +170,7 @@ entities:
     events:
       started:
         attributes:
-          thread: quent::os::Thread
+          thread: { os: thread }
 ",
     );
 
@@ -129,9 +191,9 @@ entities:
     events:
       init:
         attributes:
-          optional: { option: quent::os::Process }
-          processes: { list: quent::os::Process }
-          target: { ref: Target, data: quent::os::Process }
+          optional: { option: { os: process } }
+          processes: { list: { os: process } }
+          target: { ref: Target, data: { os: process } }
 ",
     );
 
@@ -155,8 +217,8 @@ entities:
     events:
       init:
         attributes:
-          first: quent::os::Process
-          second: quent::os::Process
+          first: { os: process }
+          second: { os: process }
 ",
     );
 

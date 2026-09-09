@@ -326,7 +326,7 @@ pub(crate) fn type_of(
         )?))),
 
         // Built-in extension type expressions.
-        TypeExpr::Ref(_) | TypeExpr::Scope(_) | TypeExpr::Uses(_) => {
+        TypeExpr::Os(_) | TypeExpr::Ref(_) | TypeExpr::Scope(_) | TypeExpr::Uses(_) => {
             extensions.elaborate_type(expr, path, sink)
         }
     }

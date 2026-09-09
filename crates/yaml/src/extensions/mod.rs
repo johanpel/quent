@@ -177,6 +177,7 @@ impl Elaborator {
         sink: &mut Diagnostics,
     ) -> Option<DataType> {
         match expr {
+            TypeExpr::Os(form) => Some(os::elaborate_type(form)),
             TypeExpr::Ref(form) => {
                 reference::elaborate(&form.r#ref, form.data.as_deref(), false, path, self, sink)
             }

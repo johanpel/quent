@@ -5,6 +5,30 @@
 
 use quent_os::{process_path, process_record, thread_path, thread_record};
 use quent_schema::{DataType, Entity, Field, Record};
+use serde::Deserialize;
+
+/// An operating-system identity type.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct OsType {
+    pub(crate) os: OsRole,
+}
+
+/// The operating-system identity represented by a field.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum OsRole {
+    Process,
+    Thread,
+}
+
+/// Elaborate an operating-system identity type into its canonical record reference.
+pub(super) fn elaborate_type(os: &OsType) -> DataType {
+    DataType::Record(match os.os {
+        OsRole::Process => process_path(),
+        OsRole::Thread => thread_path(),
+    })
+}
 
 /// Return canonical OS records referenced by the lowered schema but not declared.
 pub(super) fn referenced_records(records: &[Record], entities: &[Entity]) -> Vec<Record> {
