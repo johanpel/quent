@@ -25,10 +25,13 @@ function SeedOperatorFilter() {
     setNodeIds(new Set(['operator-1']));
     setLabel('Scan');
     setNodeData({
-      nodeId: 'operator-1',
-      label: 'Scan',
-      operationType: 'logical',
-      statistics: [],
+      selectionId: 'operator-1',
+      data: {
+        nodeId: 'operator-1',
+        label: 'Scan',
+        operationType: 'logical',
+        statistics: [],
+      },
     });
   }, [setLabel, setNodeData, setNodeIds]);
   return null;

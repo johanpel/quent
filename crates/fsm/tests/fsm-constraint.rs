@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_fsm::{FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
+use quent_fsm::{Fsm, FsmConstraint, FsmEntityBuilder, FsmEntityBuilderError, FsmError, StateDecl};
 use quent_schema::{
     Annotations, Cardinality, DataType, Entity, Event, Field, Schema,
     builder::{AnnotationsBuilder, BuilderError, EntityBuilder},
@@ -81,6 +81,41 @@ fn well_formed_linear_fsm_passes() {
         &fsm,
     );
     assert!(validate(&schema_with(entity)).is_empty());
+}
+
+#[test]
+fn fsm_can_be_read_from_an_entity() {
+    let data = fsm("a", &[("a", "b")]);
+    let entity = entity_with(
+        "E",
+        vec![event("a", Cardinality::Once), event("b", Cardinality::Once)],
+        &data,
+    );
+
+    let decoded = Fsm::try_from_entity(&entity).unwrap().unwrap();
+
+    assert_eq!(decoded.initial_state(), "a");
+    assert_eq!(decoded.transitions().len(), 1);
+    assert_eq!(decoded.transitions()[0].source(), "a");
+    assert_eq!(decoded.transitions()[0].target(), "b");
+}
+
+#[test]
+fn fsm_read_returns_none_for_an_ordinary_entity() {
+    let entity = bare_entity("E", vec![event("a", Cardinality::Once)]);
+
+    assert!(Fsm::try_from_entity(&entity).unwrap().is_none());
+}
+
+#[test]
+fn fsm_read_rejects_invalid_topology() {
+    let data = fsm("a", &[("a", "missing")]);
+    let entity = entity_with("E", vec![event("a", Cardinality::Once)], &data);
+
+    assert!(matches!(
+        Fsm::try_from_entity(&entity),
+        Err(FsmError::Multiple(_)) | Err(FsmError::UnknownState { .. })
+    ));
 }
 
 #[test]
