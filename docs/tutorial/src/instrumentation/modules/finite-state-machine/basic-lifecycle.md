@@ -21,9 +21,8 @@ handle and returns a handle for the target state. Only transitions allowed from
 the current state are available as methods, so an invalid transition does not
 compile. This pattern is called typestate.
 
-The handle also assigns each transition a sequence number automatically. This
-per-entity counter orders transitions that receive the same timestamp. It
-begins at zero and wraps after the maximum `u16` value.
+The comments after each call show how the handle's type changes after every
+transition.
 
 ```rust
 {{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs}}

@@ -8,15 +8,16 @@ mod instrumentation {
 
 use instrumentation::{Context, FiniteStateMachine, Job, Noop};
 
+#[rustfmt::skip]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FiniteStateMachine>::try_new(Noop)?;
     let _job = context
         .observer::<Job>()
-        .handle()
-        .queued()
-        .loading_input()
-        .running()
-        .completed();
+        .handle()         // FsmHandle<Job>
+        .queued()         // FsmHandle<Job, job_state::Queued>
+        .loading_input()  // FsmHandle<Job, job_state::LoadingInput>
+        .running()        // FsmHandle<Job, job_state::Running>
+        .completed();     // FsmHandle<Job, job_state::Completed>
 
     Ok(())
 }
