@@ -10,15 +10,13 @@ use instrumentation::{Context, FsmSelfLoop, Noop, Task};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FsmSelfLoop>::try_new(Noop)?;
-    let mut task = context.observer::<Task>().handle();
+    let task = context.observer::<Task>().handle().running(0);
 
-    task.running(0, 0)?;
     // Direct self-loop: running -> running.
-    task.running(1, 64)?;
+    let task = task.running(64);
     // Indirect cycle: running -> paused -> running.
-    task.paused(2)?;
-    task.running(3, 128)?;
-    task.completed(4)?;
+    let task = task.paused().running(128);
+    let _task = task.completed();
 
     Ok(())
 }

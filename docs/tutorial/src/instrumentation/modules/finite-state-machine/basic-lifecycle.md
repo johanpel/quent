@@ -15,14 +15,15 @@ the topology.
 
 ## Instrumentation API
 
-Entering a state emits its generated event. The parser validates the transition
-topology, while generated handles do not enforce transition order at runtime.
-Each state event takes a per-entity `u16` sequence number as its first argument.
-This counter normally begins at zero and increments with each transition. It
-orders transitions that receive the same timestamp and may wrap after its
-maximum value. Passing this counter explicitly is temporary. Automatic
-sequencing is work in progress in
-[#416](https://github.com/rapidsai/quent/issues/416).
+Entering a state emits its generated event. The generated Rust API represents
+the current FSM state in the handle's type. Each transition consumes that
+handle and returns a handle for the target state. Only transitions allowed from
+the current state are available as methods, so an invalid transition does not
+compile. This pattern is called typestate.
+
+The handle also assigns each transition a sequence number automatically. This
+per-entity counter orders transitions that receive the same timestamp. It
+begins at zero and wraps after the maximum `u16` value.
 
 ```rust
 {{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs}}
@@ -34,7 +35,7 @@ sequencing is work in progress in
   </div>
   <div>
     <strong>Key point</strong>
-    <p>The model declares valid transitions, reachable states, and the path to a final state.</p>
+    <p>The generated handle exposes only the transitions allowed from its current state.</p>
   </div>
 </div>
 

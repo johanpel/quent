@@ -368,6 +368,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quent-constraints",
+ "quent-fsm",
  "quent-ref-target",
  "quent-schema",
  "quote",

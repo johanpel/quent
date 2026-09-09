@@ -14,10 +14,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut worker = context.observer::<Worker>().handle();
     worker.ready("worker-1".to_owned(), WorkerBounds { threads: 16 })?;
 
-    let mut job = context.observer::<Job>().handle();
-    job.queued(0, "compile".to_owned(), 4)?;
-    job.running(1, worker.as_entity_ref_with(WorkerUsage { threads: 4 }))?;
-    job.completed(2)?;
+    let _job = context
+        .observer::<Job>()
+        .handle()
+        .queued("compile".to_owned(), 4)
+        .running(worker.as_entity_ref_with(WorkerUsage { threads: 4 }))
+        .completed();
 
     Ok(())
 }

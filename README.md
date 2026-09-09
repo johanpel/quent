@@ -136,7 +136,7 @@ Polars](https://docs.rapids.ai/api/cudf/stable/cudf_polars/).
   - [x] YAML-based DSL
 - Code generation
   - [x] Instrumentation library
-    - [ ] FSM typestate pattern API
+    - [x] FSM typestate pattern API
     - [x] Python integration
       - [ ] Packaging
         - [ ] Wheels

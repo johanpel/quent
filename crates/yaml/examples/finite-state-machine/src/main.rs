@@ -10,12 +10,13 @@ use instrumentation::{Context, FiniteStateMachine, Job, Noop};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<FiniteStateMachine>::try_new(Noop)?;
-    let mut job = context.observer::<Job>().handle();
-
-    job.queued(0)?;
-    job.loading_input(1)?;
-    job.running(2)?;
-    job.completed(3)?;
+    let _job = context
+        .observer::<Job>()
+        .handle()
+        .queued()
+        .loading_input()
+        .running()
+        .completed();
 
     Ok(())
 }
