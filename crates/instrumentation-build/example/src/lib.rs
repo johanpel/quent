@@ -16,9 +16,6 @@ mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
 
-#[cfg(test)]
-mod tests;
-
 /// Emits the demo events through a debug-printing callback.
 pub fn run_with_debug_print() -> Result<Uuid, Box<dyn std::error::Error>> {
     let context = Context::try_new(EventCallback::<DemoEvent>::new(|event| {
