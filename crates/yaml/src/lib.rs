@@ -5,8 +5,7 @@
 //!
 //! [`parse_from_file`] takes a path, [`parse_from_str`] a string; both return
 //! the schema plus any warnings, or the diagnostics explaining why it could not
-//! be parsed. Referencing a canonical `quent::os` record automatically adds its
-//! definition to the schema.
+//! be parsed.
 
 use std::path::Path;
 

@@ -25,7 +25,7 @@ entities:
     events:
       booted:
         attributes:
-          process: quent::os::Process
+          process: { os: process }
 
   ThreadPool:
     doc: A pool of threads owned by the server process.
@@ -40,7 +40,7 @@ entities:
     events:
       started:
         attributes:
-          thread: quent::os::Thread
+          thread: { os: thread }
           pool: { scope-ref: ThreadPool }
 
   Connection:

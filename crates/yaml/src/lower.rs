@@ -414,6 +414,10 @@ fn type_of(
         TypeExpr::Option(t) => Some(DataType::Option(Box::new(type_of(
             &t.option, path, resources, sink,
         )?))),
+        TypeExpr::Os(os) => Some(DataType::Record(match os.os {
+            ast::OsRole::Process => process_path(),
+            ast::OsRole::Thread => thread_path(),
+        })),
         TypeExpr::Ref(f) => entity_ref(&f.r#ref, f.data.as_deref(), false, path, resources, sink),
         TypeExpr::Scope(f) => {
             entity_ref(&f.scope_ref, f.data.as_deref(), true, path, resources, sink)

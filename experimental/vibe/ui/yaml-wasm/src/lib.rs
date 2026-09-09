@@ -18,10 +18,7 @@ pub fn parse_schema_json(source: &str) -> Result<String, JsValue> {
 
 fn parse_schema_value(source: &str) -> Result<Value, String> {
     let namespace_separator = collision_free_namespace_separator(source);
-    let encoded_os_namespace = format!("quent{namespace_separator}os{namespace_separator}");
-    let encoded = source
-        .replace("::", &namespace_separator)
-        .replace(&encoded_os_namespace, "quent::os::");
+    let encoded = source.replace("::", &namespace_separator);
     let parsed = quent_yaml::parse_from_str(encoded, Some("editor.yaml"))
         .map_err(|error| error.to_string())?;
     let mut schema = serde_json::to_value(parsed.schema).map_err(|error| error.to_string())?;
@@ -118,7 +115,7 @@ entities:
     }
 
     #[test]
-    fn parses_os_record_references() {
+    fn parses_os_types() {
         let schema = parse_schema_value(
             "\
 quent: alpha
@@ -128,12 +125,12 @@ entities:
     events:
       started:
         attributes:
-          process: quent::os::Process
+          process: { os: process }
   Thread:
     events:
       started:
         attributes:
-          thread: quent::os::Thread
+          thread: { os: thread }
           process: { scope-ref: Process }
 ",
         )
