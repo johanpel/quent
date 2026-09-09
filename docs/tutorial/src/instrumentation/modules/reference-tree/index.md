@@ -5,6 +5,17 @@ parent-child relationships. A `scope-ref` applies both the reference-target and
 reference-tree constraints. The parser validates all scoped references together
 as one tree.
 
+## Why is a target type required?
+
+A type-erased [`ref`](../../schema/entity-references.md) cannot form part of the
+Reference Tree. A `scope-ref` must name its target entity type so Quent can
+validate the complete tree when it processes the schema.
+
+Without a declared target type, different instances of the same child entity
+type could refer to different parent entity types at runtime. The generated
+instrumentation API could then no longer guarantee that the resulting
+relationships form the tree declared by the schema.
+
 This gives analysis tools a preferred path from one root entity to every
 related entity and its events. In the model below, a task points to the pipeline
 that contains it. A user interface can open one pipeline and list its tasks,
