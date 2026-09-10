@@ -94,16 +94,21 @@ fn indexes_engine_and_workers_from_schema_streams() {
     drop(ctx);
 
     let inventory = Viewer::context_inventory(&output.path().join(context_id.to_string())).unwrap();
-    assert_eq!(inventory.engine_ids, [fixed::ENGINE]);
-    let mut workers = inventory
-        .workers
+    let mut entities = inventory
+        .analysis_targets
         .into_iter()
-        .map(|worker| (worker.id, worker.engine_id))
+        .flat_map(|target| {
+            target
+                .entity_ids
+                .into_iter()
+                .map(move |entity_id| (entity_id, target.analysis_target_id))
+        })
         .collect::<Vec<_>>();
-    workers.sort_unstable();
+    entities.sort_unstable();
     assert_eq!(
-        workers,
+        entities,
         [
+            (fixed::ENGINE, fixed::ENGINE),
             (fixed::WORKER_0, fixed::ENGINE),
             (fixed::WORKER_1, fixed::ENGINE),
         ]
