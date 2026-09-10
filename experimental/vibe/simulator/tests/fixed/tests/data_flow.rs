@@ -13,10 +13,10 @@
 use quent_events::Event;
 use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
 use quent_query_engine_analyzer::ui::UiAnalyzer;
-use quent_simulator_fixed as fixed;
 use quent_query_engine_ui::DataFlowTimelineBinned;
 use quent_query_engine_ui::QueryFilter;
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
+use quent_simulator_fixed as fixed;
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
 use quent_store::event::{ModelEventStore, filesystem::Store};

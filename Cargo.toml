@@ -32,6 +32,7 @@ members = [
     "domains/query_engine/analyzer",
     "domains/query_engine/server",
     "domains/query_engine/ui",
+    "domains/query_engine/ui-bindings",
     # README example
     "examples/readme",
     # Simulator crates
@@ -40,8 +41,6 @@ members = [
     "experimental/vibe/simulator/instrumentation",
     "experimental/vibe/simulator/server",
     "experimental/vibe/simulator/store",
-    "experimental/vibe/simulator/ui",
-    "experimental/vibe/simulator/ui-bindings",
     "experimental/vibe/simulator/wasm",
     # Deterministic query-engine event emitter (opt-in via `-p`).
     # Activates `quent-time/__test-clock-override`; excluded from default-members
@@ -88,14 +87,13 @@ default-members = [
     "domains/query_engine/analyzer",
     "domains/query_engine/server",
     "domains/query_engine/ui",
+    "domains/query_engine/ui-bindings",
     "examples/readme",
     "experimental/vibe/simulator/analyzer",
     "experimental/vibe/simulator/application",
     "experimental/vibe/simulator/instrumentation",
     "experimental/vibe/simulator/server",
     "experimental/vibe/simulator/store",
-    "experimental/vibe/simulator/ui",
-    "experimental/vibe/simulator/ui-bindings",
 ]
 
 [workspace.package]

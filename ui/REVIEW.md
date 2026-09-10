@@ -144,7 +144,7 @@ When reviewing:
   (`import type { … } from '@quent/utils'`).
 - Changing a Rust `Serialize`/`Deserialize` API type: update the Rust type with
   `#[derive(TS)]`, regenerate bindings with
-  `cargo run -p quent-simulator-ui-bindings`, and re-export from `@quent/utils`
+  `cargo run -p quent-query-engine-ui-bindings`, and re-export from `@quent/utils`
   if the type is newly public.
 - Do not invent parallel interfaces for request/response payloads in app or
   package code.

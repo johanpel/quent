@@ -12,7 +12,6 @@ quent-io = { path = "../../../../crates/io" }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
 quent-query-engine-ui = { path = "../../../../domains/query_engine/ui" }
 quent-simulator-store = { path = "../store" }
-quent-simulator-ui = { path = "../ui" }
 quent-store = { path = "../../../../crates/store", features = [
     "io-msgpack",
     "io-ndjson",

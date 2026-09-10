@@ -2925,7 +2925,7 @@ dependencies = [
  "quent-io",
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
- "quent-simulator-ui-bindings",
+ "quent-query-engine-ui-bindings",
  "quent-time",
  "quent-ui",
  "rust-embed",
@@ -2953,6 +2953,16 @@ dependencies = [
  "serde",
  "ts-rs",
  "uuid",
+]
+
+[[package]]
+name = "quent-query-engine-ui-bindings"
+version = "0.1.0"
+dependencies = [
+ "nvtx-ui",
+ "quent-query-engine-ui",
+ "quent-ui",
+ "ts-rs",
 ]
 
 [[package]]
@@ -3039,7 +3049,6 @@ dependencies = [
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
  "quent-simulator-store",
- "quent-simulator-ui",
  "quent-store",
  "quent-time",
  "quent-ui",
@@ -3113,27 +3122,6 @@ dependencies = [
  "quent-yaml",
  "serde",
  "smallvec",
-]
-
-[[package]]
-name = "quent-simulator-ui"
-version = "0.1.0"
-dependencies = [
- "quent-analyzer",
- "serde",
- "ts-rs",
- "uuid",
-]
-
-[[package]]
-name = "quent-simulator-ui-bindings"
-version = "0.1.0"
-dependencies = [
- "nvtx-ui",
- "quent-query-engine-ui",
- "quent-simulator-ui",
- "quent-ui",
- "ts-rs",
 ]
 
 [[package]]

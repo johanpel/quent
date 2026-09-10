@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! TypeScript binding generation for the simulator UI.
+//! TypeScript binding generation for the query-engine UI.
 
 use std::path::Path;
 
 use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
-use quent_query_engine_ui::DataFlowTimelineBinned;
-use quent_query_engine_ui::{EngineContexts, OperatorFilter, QueryBundle, QueryFilter};
-use quent_simulator_ui::EntityRef;
+use quent_query_engine_ui::{
+    DataFlowTimelineBinned, EngineContexts, EntityRef, OperatorFilter, QueryBundle, QueryFilter,
+};
 use quent_ui::entities::{request::EntityListRequest, response::EntityListResponse};
 use quent_ui::timeline::{
     categorical::CategoricalTimelineRequest,
@@ -17,7 +17,7 @@ use quent_ui::timeline::{
 };
 use ts_rs::{Config, TS};
 
-/// Generates simulator UI TypeScript bindings in `output_dir`.
+/// Generates query-engine UI TypeScript bindings in `output_dir`.
 ///
 /// Existing contents of `output_dir` are removed before generation.
 pub fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
