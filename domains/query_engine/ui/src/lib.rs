@@ -10,7 +10,6 @@ pub use server::ServerContract;
 
 use quent_analyzer::fsm::FsmTypeDecl;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
-use quent_query_engine_model as qe;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
@@ -54,16 +53,6 @@ pub struct EngineImplementationAttributes {
     pub version: Option<String>,
     /// Arbitrary attributes defined at run time.
     pub custom_attributes: Vec<DynamicAttribute>,
-}
-
-impl From<&qe::engine::EngineImplementationAttributes> for EngineImplementationAttributes {
-    fn from(value: &qe::engine::EngineImplementationAttributes) -> Self {
-        Self {
-            name: value.name.clone(),
-            version: value.version.clone(),
-            custom_attributes: value.custom_attributes.0.clone(),
-        }
-    }
 }
 
 /// The engine that executed a [`Query`].

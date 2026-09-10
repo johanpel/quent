@@ -200,7 +200,13 @@ fn main_rs(spec: &ViewerSpec, nvtx_routes: NvtxRoutes) -> String {
                 Ok(<Viewer as QuentViewer>::import_events(&import_root.join(id.to_string()))?)
             };
             let lister_root = root.clone();
-            let lister = move || index_query_engines(&lister_root);
+            let lister = move || {
+                index_query_engines(&lister_root, |id| {
+                    Ok(<Viewer as QuentViewer>::context_inventory(
+                        &lister_root.join(id.to_string()),
+                    )?)
+                })
+            };
             #route_setup
 
             let router = #router_call?;
