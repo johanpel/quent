@@ -35,7 +35,9 @@ pub use sidecar::{ContextExporter, write_sidecar};
 // consumer needs only the `quent-instrumentation` dependency, selecting an
 // exporter backend through its `io-*` features.
 pub use quent_build_info as build_info;
-pub use quent_dynamic_attributes::DynamicAttributes;
+pub use quent_dynamic_attributes::{
+    DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct, DynamicValue,
+};
 #[doc(hidden)]
 pub use quent_events as events;
 pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
@@ -68,7 +70,9 @@ mod tests {
     }
 
     #[derive(Debug, serde::Serialize)]
-    struct TestEvent;
+    struct TestEvent {
+        attributes: DynamicAttributes,
+    }
 
     impl EntityEvent for TestEvent {
         const NAME: &'static str = "TestEvent";
@@ -95,7 +99,15 @@ mod tests {
             let observer = ctx
                 .block_on(async { ctx.observer::<TestEvent>(&options).await })
                 .unwrap();
-            observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
+            let mut attributes = DynamicAttributes::new();
+            attributes.add_list(
+                "matrix",
+                DynamicList::List(vec![
+                    DynamicList::U64(vec![1, 2]),
+                    DynamicList::U64(vec![3, 4]),
+                ]),
+            );
+            observer.send(Event::new_now(Uuid::now_v7(), TestEvent { attributes }));
             // Drop the observer to drain and flush before asserting.
         }
 
@@ -114,5 +126,16 @@ mod tests {
             1,
             "one UUID-named ndjson batch file in the entity subdirectory"
         );
+    }
+
+    #[test]
+    fn dynamic_attribute_types_are_available_through_instrumentation() {
+        let mut attributes = DynamicAttributes::new();
+        attributes.add_list(
+            "matrix",
+            DynamicList::List(vec![DynamicList::U8(vec![1, 2])]),
+        );
+
+        assert_eq!(attributes.len(), 1);
     }
 }

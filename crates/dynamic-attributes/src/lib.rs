@@ -39,6 +39,7 @@ pub enum DynamicList {
     F64(Vec<f64>),
     String(Vec<String>),
     Struct(Vec<DynamicStruct>),
+    List(Vec<DynamicList>),
 }
 
 /// A [`DynamicAttribute`] value.
@@ -225,6 +226,10 @@ impl DynamicAttributes {
         });
     }
 
+    pub fn add_list(&mut self, key: impl Into<String>, value: DynamicList) {
+        self.0.push(DynamicAttribute::list(key, value));
+    }
+
     pub fn into_vec(self) -> Vec<DynamicAttribute> {
         self.0
     }
@@ -290,5 +295,33 @@ impl TryFrom<&DynamicValue> for f64 {
             DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
             DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_lists_are_supported() {
+        let mut attributes = DynamicAttributes::new();
+        attributes.add_list(
+            "matrix",
+            DynamicList::List(vec![
+                DynamicList::U64(vec![1, 2]),
+                DynamicList::U64(vec![3, 4]),
+            ]),
+        );
+
+        assert_eq!(
+            attributes[0],
+            DynamicAttribute::list(
+                "matrix",
+                DynamicList::List(vec![
+                    DynamicList::U64(vec![1, 2]),
+                    DynamicList::U64(vec![3, 4]),
+                ]),
+            ),
+        );
     }
 }
