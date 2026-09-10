@@ -16,7 +16,7 @@ use quent_ui::{
     quantity::QuantitySpec,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -55,8 +55,8 @@ impl EntityId for EntityRef {
 #[derive(TS, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EngineContexts {
     pub engine_id: Uuid,
-    /// Resource-group entities observed in each context, keyed by context ID.
-    pub context_resources: BTreeMap<Uuid, Vec<Uuid>>,
+    /// Contexts whose telemetry contributes to this engine view.
+    pub context_ids: Vec<Uuid>,
 }
 
 /// Global timeline-request parameter identifying the query to report on.

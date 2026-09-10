@@ -39,7 +39,7 @@ use tracing::debug;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    context::{ContextAnalysisTarget, ContextInventory},
+    context::ContextInventory,
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
@@ -164,42 +164,27 @@ impl QuentViewer for Viewer {
             .map(|event| event.map(|event| event.id))
             .collect::<Result<HashSet<_>, _>>()
             .map_err(quent_io::ImporterError::other)?;
-        let workers = store
+        let worker_analysis_target_ids = store
             .entity_events::<schema::Worker>(context_id)
             .map_err(quent_io::ImporterError::other)?
             .filter_map(|event| match event {
                 Ok(Event {
-                    id,
                     data:
                         schema::WorkerEvent::Init {
                             parent_engine_id, ..
                         },
                     ..
-                }) => Some(Ok((id, parent_engine_id.target))),
+                }) => Some(Ok(parent_engine_id.target)),
                 Ok(_) => None,
                 Err(error) => Some(Err(error)),
             })
-            .collect::<Result<HashMap<_, _>, _>>()
+            .collect::<Result<HashSet<_>, _>>()
             .map_err(quent_io::ImporterError::other)?;
 
-        let mut entity_ids_by_analysis_target: HashMap<Uuid, HashSet<Uuid>> = engine_ids
-            .into_iter()
-            .map(|engine_id| (engine_id, HashSet::from_iter([engine_id])))
-            .collect();
-        for (worker_id, engine_id) in workers {
-            entity_ids_by_analysis_target
-                .entry(engine_id)
-                .or_default()
-                .insert(worker_id);
-        }
-
         Ok(ContextInventory {
-            analysis_targets: entity_ids_by_analysis_target
+            analysis_target_ids: engine_ids
                 .into_iter()
-                .map(|(analysis_target_id, entity_ids)| ContextAnalysisTarget {
-                    analysis_target_id,
-                    entity_ids: entity_ids.into_iter().collect(),
-                })
+                .chain(worker_analysis_target_ids)
                 .collect(),
         })
     }

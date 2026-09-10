@@ -112,10 +112,10 @@ where
             let index = lister()?;
             Ok(ui::EngineContexts {
                 engine_id,
-                context_resources: index
-                    .entities_by_context_of_analysis_target(engine_id)
+                context_ids: index
+                    .contexts_of_analysis_target(engine_id)
                     .into_iter()
-                    .map(|(context_id, entity_ids)| (context_id.into_uuid(), entity_ids))
+                    .map(ContextId::into_uuid)
                     .collect(),
             })
         })
@@ -168,8 +168,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quent_analyzer::context::ContextAnalysisTarget;
-
     #[test]
     fn engine_context_inventory_is_deduplicated_and_sorted() {
         let engine_id = Uuid::from_u128(1);
@@ -177,10 +175,7 @@ mod tests {
         let later = Uuid::from_u128(3);
         let mut index = ContextIndex::default();
         let inventory = || ContextInventory {
-            analysis_targets: vec![ContextAnalysisTarget {
-                analysis_target_id: engine_id,
-                entity_ids: vec![engine_id],
-            }],
+            analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
         };
         index.add_inventory(later.into(), inventory());
         index.add_inventory(earlier.into(), inventory());
@@ -198,37 +193,27 @@ mod tests {
     }
 
     #[test]
-    fn context_inventory_retains_entity_ownership() {
+    fn context_inventory_associates_all_contexts_with_the_analysis_target() {
         let engine_id = Uuid::from_u128(1);
         let engine_context = Uuid::from_u128(2);
         let worker_context = Uuid::from_u128(3);
-        let worker_id = Uuid::from_u128(4);
         let mut index = ContextIndex::default();
         index.add_inventory(
             engine_context.into(),
             ContextInventory {
-                analysis_targets: vec![ContextAnalysisTarget {
-                    analysis_target_id: engine_id,
-                    entity_ids: vec![engine_id],
-                }],
+                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
             },
         );
         index.add_inventory(
             worker_context.into(),
             ContextInventory {
-                analysis_targets: vec![ContextAnalysisTarget {
-                    analysis_target_id: engine_id,
-                    entity_ids: vec![worker_id],
-                }],
+                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
             },
         );
 
         assert_eq!(
-            index.entities_by_context_of_analysis_target(engine_id),
-            std::collections::BTreeMap::from([
-                (engine_context.into(), vec![engine_id]),
-                (worker_context.into(), vec![worker_id]),
-            ])
+            index.contexts_of_analysis_target(engine_id),
+            vec![engine_context.into(), worker_context.into()]
         );
     }
 }
