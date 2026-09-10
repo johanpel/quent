@@ -94,25 +94,7 @@ fn indexes_engine_and_workers_from_schema_streams() {
     drop(ctx);
 
     let inventory = Viewer::context_inventory(&output.path().join(context_id.to_string())).unwrap();
-    let mut entities = inventory
-        .analysis_targets
-        .into_iter()
-        .flat_map(|target| {
-            target
-                .entity_ids
-                .into_iter()
-                .map(move |entity_id| (entity_id, target.analysis_target_id))
-        })
-        .collect::<Vec<_>>();
-    entities.sort_unstable();
-    assert_eq!(
-        entities,
-        [
-            (fixed::ENGINE, fixed::ENGINE),
-            (fixed::WORKER_0, fixed::ENGINE),
-            (fixed::WORKER_1, fixed::ENGINE),
-        ]
-    );
+    assert_eq!(inventory.analysis_target_ids, [fixed::ENGINE].into());
 }
 
 /// An entity-list entry over the whole query window, ranked by usage duration.

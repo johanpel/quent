@@ -157,7 +157,7 @@ impl ServerContract for DemoServer {
         self.analyzer(engine_id)?;
         Ok(EngineContexts {
             engine_id,
-            context_resources: Default::default(),
+            context_ids: Vec::new(),
         })
     }
 
