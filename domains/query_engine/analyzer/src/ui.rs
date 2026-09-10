@@ -41,7 +41,6 @@ pub struct ContextWorker {
 /// visualization in a UI.
 pub trait UiAnalyzer {
     type Event;
-    type EntityRef;
 
     fn try_new(
         engine_id: Uuid,
@@ -68,7 +67,7 @@ pub trait UiAnalyzer {
 
     /// Deliver a UI-friendly `QueryBundle` with all high-level yet
     /// non-volumous information related to this query.
-    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle<Self::EntityRef>>;
+    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<ui::QueryBundle>;
 
     /// Access the underlying query engine model of this analyzer.
     fn query_engine_model(&self) -> &impl QueryEngineModel;

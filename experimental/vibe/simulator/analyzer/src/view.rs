@@ -12,7 +12,7 @@ use quent_analyzer::{
 use quent_query_engine_analyzer::{
     QueryEngineEntityId as QeEntityRef, QueryEngineModel, plan_tree::PlanTree,
 };
-use quent_simulator_ui::EntityRef;
+use quent_query_engine_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
@@ -172,8 +172,11 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
             Ok(EntityRef::ResourceGroup(entity_id))
         } else {
             self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
+                .get(&entity_id)
+                .map(|task| EntityRef::Application {
+                    type_name: task.type_name().to_owned(),
+                    id: entity_id,
+                })
                 .ok_or(AnalyzerError::InvalidId(entity_id))
         }
     }

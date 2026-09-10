@@ -12,7 +12,7 @@ use quent_query_engine_analyzer::{
     ui::{ContextInventory, ContextWorker, UiAnalyzer},
 };
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
+    DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
     FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
@@ -53,7 +53,6 @@ use quent_analyzer::{
     },
 };
 use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
-use quent_simulator_ui::EntityRef;
 use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
@@ -254,7 +253,6 @@ struct PerStateEntry<'a> {
 
 impl UiAnalyzer for SimulatorUiAnalyzer {
     type Event = SimulatorEvent;
-    type EntityRef = EntityRef;
 
     fn extract_engine(
         engine_id: Uuid,
@@ -316,7 +314,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         Ok(Self { model })
     }
 
-    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle<EntityRef>> {
+    fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle> {
         debug!("constructing view");
         // TODO(johanpel): A query view could be cached in an analyzer so
         // subsequent calls into the analyzer for that query could benefit from

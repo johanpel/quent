@@ -21,8 +21,8 @@ use quent_query_engine_analyzer::{
     OperatorEntityMut, QueryEngineEntityId, QueryEngineModel, QueryEngineModelMut,
     plan_tree::PlanTree,
 };
+use quent_query_engine_ui::EntityRef;
 use quent_simulator_store::{self as schema, SimulatorEvent};
-use quent_simulator_ui::EntityRef;
 use uuid::Uuid;
 
 use crate::{
@@ -65,8 +65,11 @@ impl Model for SimulatorModel {
             Ok(EntityRef::ResourceGroup(entity_id))
         } else {
             self.tasks
-                .contains_key(&entity_id)
-                .then_some(EntityRef::Task(entity_id))
+                .get(&entity_id)
+                .map(|task| EntityRef::Application {
+                    type_name: task.type_name().to_owned(),
+                    id: entity_id,
+                })
                 .ok_or(AnalyzerError::InvalidId(entity_id))
         }
     }

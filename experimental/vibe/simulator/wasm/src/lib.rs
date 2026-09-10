@@ -136,7 +136,6 @@ impl DemoServer {
 #[async_trait::async_trait]
 impl ServerContract for DemoServer {
     type Error = ApiError;
-    type EntityRef = <SimulatorUiAnalyzer as UiAnalyzer>::EntityRef;
 
     async fn list_engines(&self, with_metadata: bool) -> Result<Vec<ui::Engine>, ApiError> {
         if with_metadata {
@@ -185,11 +184,7 @@ impl ServerContract for DemoServer {
             .map_err(Into::into)
     }
 
-    async fn query(
-        &self,
-        engine_id: Uuid,
-        query_id: Uuid,
-    ) -> Result<ui::QueryBundle<Self::EntityRef>, ApiError> {
+    async fn query(&self, engine_id: Uuid, query_id: Uuid) -> Result<ui::QueryBundle, ApiError> {
         self.analyzer(engine_id)?
             .query_bundle(query_id)
             .map_err(Into::into)
