@@ -533,7 +533,7 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
                     .to_str()?
                     .to_owned();
                 if value.is_none() {
-                    attrs.add_null(key);
+                    attrs.add(key, #q::attributes::DynamicNull);
                 } else if let Ok(value) = value.cast::<PyBool>() {
                     attrs.add(key, value.is_true());
                 } else if let Ok(value) = value.cast::<PyInt>() {

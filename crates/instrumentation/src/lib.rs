@@ -36,7 +36,7 @@ pub use sidecar::{ContextExporter, write_sidecar};
 // exporter backend through its `io-*` features.
 pub use quent_build_info as build_info;
 pub use quent_dynamic_attributes::{
-    DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct, DynamicValue,
+    DynamicAttribute, DynamicAttributes, DynamicList, DynamicNull, DynamicStruct, DynamicValue,
 };
 #[doc(hidden)]
 pub use quent_events as events;

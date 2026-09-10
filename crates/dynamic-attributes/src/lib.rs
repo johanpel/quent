@@ -54,6 +54,31 @@ pub enum DynamicValue {
     List(DynamicList),
 }
 
+/// Marks a dynamic attribute as having no value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DynamicNull;
+
+/// Converts a value for insertion into [`DynamicAttributes`].
+pub trait IntoDynamicAttributeValue {
+    /// Converts the input to a nullable dynamic value.
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue>;
+}
+
+impl<T> IntoDynamicAttributeValue for T
+where
+    T: Into<DynamicValue>,
+{
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue> {
+        Some(self.into())
+    }
+}
+
+impl IntoDynamicAttributeValue for DynamicNull {
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue> {
+        None
+    }
+}
+
 macro_rules! impl_from_dynamic_value {
     ($($ty:ty => $variant:ident),* $(,)?) => {
         $(
@@ -261,19 +286,11 @@ impl DynamicAttributes {
         Self(Vec::new())
     }
 
-    pub fn add(&mut self, key: impl Into<String>, value: impl Into<DynamicValue>) {
+    pub fn add(&mut self, key: impl Into<String>, value: impl IntoDynamicAttributeValue) {
         self.0.push(DynamicAttribute {
             key: key.into(),
-            value: Some(value.into()),
+            value: value.into_dynamic_attribute_value(),
         });
-    }
-
-    pub fn add_attribute(&mut self, attr: DynamicAttribute) {
-        self.0.push(attr);
-    }
-
-    pub fn add_null(&mut self, key: impl Into<String>) {
-        self.0.push(DynamicAttribute::null(key));
     }
 
     pub fn into_vec(self) -> Vec<DynamicAttribute> {
@@ -339,7 +356,7 @@ mod tests {
             "structure",
             DynamicStruct(vec![DynamicAttribute::string("field", "value")]),
         );
-        attributes.add_null("missing");
+        attributes.add("missing", DynamicNull);
 
         assert_eq!(attributes[0].value, Some(DynamicValue::U8(1)));
         assert_eq!(attributes[1].value, Some(DynamicValue::U64(42)));

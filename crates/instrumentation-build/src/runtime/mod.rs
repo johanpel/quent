@@ -111,7 +111,7 @@ pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
             AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
-            DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
+            DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
         };
     }
 }
@@ -173,6 +173,7 @@ mod tests {
             "DynamicList",
             "DynamicStruct",
             "DynamicValue",
+            "DynamicNull",
         ] {
             assert!(source.contains(name), "missing re-export for {name}");
         }
