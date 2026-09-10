@@ -30,7 +30,10 @@ use crate::{
 /// read from the payload when needed.
 // TODO(johanpel): Split this adapter into semantic-module-specific traits and
 // generate their implementations from the schema.
-pub trait AnalyzableTransition {
+pub trait AnalyzableTransition: quent_events::EntityEvent {
+    /// Returns the entity type name exposed by analysis APIs.
+    fn entity_type_name() -> &'static str;
+
     /// Returns the per-entity ordering key for equal timestamps.
     fn sequence(&self) -> u16;
 
@@ -146,13 +149,12 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 /// Builder for reconstructing an `FsmEvents` from model events.
 pub struct FsmEventsBuilder<T> {
     id: Uuid,
-    type_name: &'static str,
     instance_name: String,
     transitions: OrderedCollector<AnalyzedTransition<T>>,
 }
 
 impl<T: AnalyzableTransition> FsmEventsBuilder<T> {
-    pub fn try_new(id: Uuid, type_name: &'static str) -> AnalyzerResult<Self> {
+    pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
                 "fsm id cannot be nil".to_string(),
@@ -160,7 +162,6 @@ impl<T: AnalyzableTransition> FsmEventsBuilder<T> {
         } else {
             Ok(Self {
                 id,
-                type_name,
                 instance_name: String::new(),
                 transitions: OrderedCollector::default(),
             })
@@ -206,12 +207,12 @@ impl<T: AnalyzableTransition> FsmEventsBuilder<T> {
         {
             return Err(AnalyzerError::IncompleteFsm(format!(
                 "fsm '{}' (id={}) has no final transition",
-                self.type_name, self.id
+                T::entity_type_name(),
+                self.id
             )));
         }
         Ok(FsmEvents {
             id: self.id,
-            type_name: self.type_name,
             instance_name: self.instance_name,
             transitions,
         })
@@ -223,7 +224,6 @@ impl<T: AnalyzableTransition> FsmEventsBuilder<T> {
 /// Application-specific data remains available through [`Self::transitions`].
 pub struct FsmEvents<T> {
     id: Uuid,
-    type_name: &'static str,
     instance_name: String,
     transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
 }
@@ -266,13 +266,13 @@ impl<T: AnalyzableTransition> Fsm for FsmEvents<T> {
     }
 }
 
-impl<T> Entity for FsmEvents<T> {
+impl<T: AnalyzableTransition> Entity for FsmEvents<T> {
     fn id(&self) -> Uuid {
         self.id
     }
 
     fn type_name(&self) -> &str {
-        self.type_name
+        T::entity_type_name()
     }
 
     fn instance_name(&self) -> &str {
@@ -326,7 +326,15 @@ mod tests {
         is_final: bool,
     }
 
+    impl quent_events::EntityEvent for TestTransition {
+        const NAME: &'static str = "TestTransition";
+    }
+
     impl AnalyzableTransition for TestTransition {
+        fn entity_type_name() -> &'static str {
+            "test"
+        }
+
         fn sequence(&self) -> u16 {
             self.sequence
         }
@@ -343,7 +351,7 @@ mod tests {
     #[test]
     fn equal_timestamp_transitions_are_ordered_by_sequence() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmEventsBuilder::try_new(id, "test").unwrap();
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             100,
@@ -362,6 +370,7 @@ mod tests {
         ));
 
         let fsm = builder.try_build().unwrap();
+        assert_eq!(fsm.type_name(), "test");
         assert_eq!(
             fsm.transitions()
                 .iter()
@@ -374,7 +383,7 @@ mod tests {
     #[test]
     fn sequence_wrap_is_ordered_by_timestamp() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmEventsBuilder::try_new(id, "test").unwrap();
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             101,
@@ -405,7 +414,7 @@ mod tests {
     #[test]
     fn incomplete_fsm_is_rejected() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmEventsBuilder::try_new(id, "test").unwrap();
+        let mut builder = FsmEventsBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             100,

@@ -948,7 +948,7 @@ impl QueryEngineBuilder {
         let query = match self.queries.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(QueryBuilder::try_new(event.id, "query")?)
+                entry.insert(QueryBuilder::try_new(event.id)?)
             }
         };
         query.push_transition(event);

@@ -124,8 +124,8 @@ fsms:
       planning:
         to: [executing]
       executing:
-        to: [exit]
-      exit: {}
+        to: [done]
+      done: {}
 
   HostMemory:
     doc: Host memory owned by a worker.

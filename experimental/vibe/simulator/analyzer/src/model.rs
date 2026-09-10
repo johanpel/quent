@@ -260,7 +260,7 @@ impl SimulatorModelBuilder {
                 let task_builder = self
                     .tasks
                     .entry(id)
-                    .or_insert_with(|| TaskBuilder::try_new(id, "task").unwrap());
+                    .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
                 task_builder.push_transition(Event::new(id, timestamp, t));
                 Ok(())
             }
