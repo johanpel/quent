@@ -262,13 +262,13 @@ fn emit_dynamic_attributes_bridge(model_name: &str, options: &CxxOptions) -> Gen
             pub fn into_model(self) -> #q::attributes::DynamicAttributes {
                 let mut attrs = #q::attributes::DynamicAttributes::new();
                 for a in self.string_attrs {
-                    attrs.add_string(a.key, a.value);
+                    attrs.add(a.key, a.value);
                 }
                 for a in self.i64_attrs {
-                    attrs.add_i64(a.key, a.value);
+                    attrs.add(a.key, a.value);
                 }
                 for a in self.f64_attrs {
-                    attrs.add_f64(a.key, a.value);
+                    attrs.add(a.key, a.value);
                 }
                 attrs
             }

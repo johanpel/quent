@@ -535,13 +535,13 @@ fn emit_helpers(q: &syn::Path) -> TokenStream {
                 if value.is_none() {
                     attrs.add_null(key);
                 } else if let Ok(value) = value.cast::<PyBool>() {
-                    attrs.add_bool(key, value.is_true());
+                    attrs.add(key, value.is_true());
                 } else if let Ok(value) = value.cast::<PyInt>() {
-                    attrs.add_i64(key, value.extract::<i64>()?);
+                    attrs.add(key, value.extract::<i64>()?);
                 } else if let Ok(value) = value.cast::<PyFloat>() {
-                    attrs.add_f64(key, value.value());
+                    attrs.add(key, value.value());
                 } else if let Ok(value) = value.cast::<PyString>() {
-                    attrs.add_string(key, value.to_str()?);
+                    attrs.add(key, value.to_str()?);
                 } else {
                     return Err(pyo3::exceptions::PyTypeError::new_err(format!(
                         "unsupported dynamic attribute value for `{key}`"

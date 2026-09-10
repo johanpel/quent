@@ -276,37 +276,6 @@ impl DynamicAttributes {
         self.0.push(DynamicAttribute::null(key));
     }
 
-    pub fn add_string(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.0.push(DynamicAttribute::string(key, value));
-    }
-
-    pub fn add_u64(&mut self, key: impl Into<String>, value: u64) {
-        self.0.push(DynamicAttribute::u64(key, value));
-    }
-
-    pub fn add_i64(&mut self, key: impl Into<String>, value: i64) {
-        self.0.push(DynamicAttribute::i64(key, value));
-    }
-
-    pub fn add_f64(&mut self, key: impl Into<String>, value: f64) {
-        self.0.push(DynamicAttribute::f64(key, value));
-    }
-
-    pub fn add_bool(&mut self, key: impl Into<String>, value: bool) {
-        self.0.push(DynamicAttribute {
-            key: key.into(),
-            value: Some(if value {
-                DynamicValue::U8(1)
-            } else {
-                DynamicValue::U8(0)
-            }),
-        });
-    }
-
-    pub fn add_list(&mut self, key: impl Into<String>, value: DynamicList) {
-        self.0.push(DynamicAttribute::list(key, value));
-    }
-
     pub fn into_vec(self) -> Vec<DynamicAttribute> {
         self.0
     }
