@@ -5,18 +5,8 @@
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
-
-/// Error returned when converting a [`DynamicValue`].
-#[derive(Error, Debug)]
-pub enum DynamicValueError {
-    #[error("not numeric: {0}")]
-    NotNumeric(String),
-    #[error("not exactly representable as f64: {0}")]
-    InexactF64(String),
-}
 
 /// A group of [`DynamicAttribute`]s.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
@@ -341,56 +331,6 @@ impl From<DynamicAttributes> for Vec<DynamicAttribute> {
     }
 }
 
-impl TryFrom<DynamicValue> for f64 {
-    type Error = DynamicValueError;
-
-    fn try_from(value: DynamicValue) -> Result<Self, Self::Error> {
-        Self::try_from(&value)
-    }
-}
-
-impl TryFrom<&DynamicValue> for f64 {
-    type Error = DynamicValueError;
-
-    fn try_from(value: &DynamicValue) -> Result<Self, Self::Error> {
-        match value {
-            DynamicValue::U8(v) => Ok(*v as f64),
-            DynamicValue::U16(v) => Ok(*v as f64),
-            DynamicValue::U32(v) => Ok(*v as f64),
-            DynamicValue::U64(v) => exact_integer_as_f64(*v, *v, *v as f64),
-            DynamicValue::I8(v) => Ok(*v as f64),
-            DynamicValue::I16(v) => Ok(*v as f64),
-            DynamicValue::I32(v) => Ok(*v as f64),
-            DynamicValue::I64(v) => exact_integer_as_f64(v.unsigned_abs(), *v, *v as f64),
-            DynamicValue::F32(v) => Ok(*v as f64),
-            DynamicValue::F64(v) => Ok(*v),
-            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
-            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
-            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
-        }
-    }
-}
-
-fn exact_integer_as_f64<T>(
-    magnitude: u64,
-    value: T,
-    converted: f64,
-) -> Result<f64, DynamicValueError>
-where
-    T: std::fmt::Display,
-{
-    let significant_bits = if magnitude == 0 {
-        0
-    } else {
-        u64::BITS - magnitude.leading_zeros() - magnitude.trailing_zeros()
-    };
-    if significant_bits <= f64::MANTISSA_DIGITS {
-        Ok(converted)
-    } else {
-        Err(DynamicValueError::InexactF64(value.to_string()))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -444,40 +384,5 @@ mod tests {
             Some(DynamicValue::List(DynamicList::I32(vec![1, 2])))
         );
         assert_eq!(attributes[6].value, None);
-    }
-
-    #[test]
-    fn integer_to_f64_requires_exact_representation() {
-        let largest_consecutive_integer = 1_u64 << f64::MANTISSA_DIGITS;
-        assert_eq!(
-            f64::try_from(DynamicValue::U64(largest_consecutive_integer)).unwrap(),
-            largest_consecutive_integer as f64
-        );
-        assert!(matches!(
-            f64::try_from(DynamicValue::U64(largest_consecutive_integer + 1)),
-            Err(DynamicValueError::InexactF64(_))
-        ));
-        assert_eq!(
-            f64::try_from(DynamicValue::U64(1_u64 << 63)).unwrap(),
-            (1_u64 << 63) as f64
-        );
-        assert!(matches!(
-            f64::try_from(DynamicValue::U64(u64::MAX)),
-            Err(DynamicValueError::InexactF64(_))
-        ));
-
-        let smallest_consecutive_integer = -(1_i64 << f64::MANTISSA_DIGITS);
-        assert_eq!(
-            f64::try_from(DynamicValue::I64(smallest_consecutive_integer)).unwrap(),
-            smallest_consecutive_integer as f64
-        );
-        assert!(matches!(
-            f64::try_from(&DynamicValue::I64(smallest_consecutive_integer - 1)),
-            Err(DynamicValueError::InexactF64(_))
-        ));
-        assert_eq!(
-            f64::try_from(DynamicValue::I64(i64::MIN)).unwrap(),
-            i64::MIN as f64
-        );
     }
 }
