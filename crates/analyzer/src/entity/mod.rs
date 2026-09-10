@@ -1,24 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generic entity event storage reconstructed from model-generated events.
+//! Generic entity event storage.
 
 use quent_events::Event;
-use quent_model::EntityData;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
 use crate::{AnalyzerError, AnalyzerResult};
 
-/// Event storage for a model-defined entity.
-///
-/// `M` is the model marker type (e.g., `engine::Engine`). The data struct
-/// `M::Data` stores one `Option<T>` per event type, populated by `push()`.
-///
-/// ```ignore
-/// let engine: EntityEvents<engine::Engine> = ...;
-/// let name = engine.data().init.as_ref().unwrap().instance_name.clone();
-/// ```
+/// Associates an entity marker with its event accumulator.
+pub trait EntityData: quent_events::Entity {
+    type Data: Default;
+
+    /// Stores an event in the accumulator.
+    fn push(data: &mut Self::Data, event: Self::Event);
+}
+
+/// Event storage for an entity.
 pub struct EntityEvents<M: EntityData> {
     id: Uuid,
     earliest_timestamp: Option<TimeUnixNanoSec>,
@@ -40,7 +39,7 @@ impl<M: EntityData> EntityEvents<M> {
     pub fn new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
-                "entity id cannot be nil".to_string(),
+                "entity id cannot be nil".to_owned(),
             ))
         } else {
             Ok(Self {
@@ -53,15 +52,15 @@ impl<M: EntityData> EntityEvents<M> {
     }
 
     pub fn push(&mut self, event: Event<M::Event>) {
-        let ts = event.timestamp;
-        self.earliest_timestamp = Some(match self.earliest_timestamp {
-            Some(prev) => prev.min(ts),
-            None => ts,
-        });
-        self.latest_timestamp = Some(match self.latest_timestamp {
-            Some(prev) => prev.max(ts),
-            None => ts,
-        });
+        let timestamp = event.timestamp;
+        self.earliest_timestamp = Some(
+            self.earliest_timestamp
+                .map_or(timestamp, |previous| previous.min(timestamp)),
+        );
+        self.latest_timestamp = Some(
+            self.latest_timestamp
+                .map_or(timestamp, |previous| previous.max(timestamp)),
+        );
         M::push(&mut self.data, event.data);
     }
 

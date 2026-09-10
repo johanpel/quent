@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_model::io::ImporterResult;
+use quent_io::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},
@@ -22,6 +22,20 @@ use quent_ui::{
 use uuid::Uuid;
 
 use crate::QueryEngineModel;
+
+/// Query-engine entities needed to associate one context with an engine.
+#[derive(Debug, Default)]
+pub struct ContextInventory {
+    pub engine_ids: Vec<Uuid>,
+    pub workers: Vec<ContextWorker>,
+}
+
+/// A worker and the engine to which it belongs.
+#[derive(Debug)]
+pub struct ContextWorker {
+    pub id: Uuid,
+    pub engine_id: Uuid,
+}
 
 /// Trait for types that can analyze query engine telemetry for the purpose of
 /// visualization in a UI.
@@ -155,6 +169,9 @@ pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>:
 pub trait QuentViewer {
     /// The analyzer that renders this model's events.
     type Analyzer: UiAnalyzer + Send + Sync + 'static;
+
+    /// Extracts the entities needed to associate one context with an engine.
+    fn context_inventory(dir: &Path) -> ImporterResult<ContextInventory>;
 
     /// Reconstruct the model's event stream from one context directory, yielding
     /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model

@@ -1,16 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use quent_events::{EntityEvent, Event};
-use quent_io::filesystem::{self, Format};
-use quent_io::{ImporterOptions, ImporterProvider};
-use quent_query_engine_analyzer::ui::UiAnalyzer;
-use quent_query_engine_model::{engine::EngineEvent, worker::WorkerEvent};
+use quent_events::Event;
+use quent_query_engine_analyzer::ui::{ContextInventory, UiAnalyzer};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
@@ -107,14 +104,15 @@ impl EngineIndex {
     }
 }
 
-/// A dumb lister for query-engine-domain models: scan every `<output_dir>/<ctx>/`
-/// directory and, from its engine and worker streams, index each engine to the
-/// contexts that make up its telemetry (the engine's own context plus the
-/// contexts of its workers, found via each worker's `parent_engine_id`).
+/// Scans every `<output_dir>/<ctx>/` directory and indexes each engine to the
+/// contexts that make up its telemetry.
 ///
-/// "Dumb" because it re-scans and rebuilds from scratch on every call — a real
-/// history/indexing service replaces this later.
-pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
+/// The supplied importer determines the event schema and serialization format.
+/// The index is rebuilt from scratch on every call.
+pub fn index_query_engines(
+    output_dir: &Path,
+    inventory: impl Fn(Uuid) -> ServerResult<ContextInventory>,
+) -> ServerResult<EngineIndex> {
     let mut index = EngineIndex::default();
     for entry in std::fs::read_dir(output_dir)? {
         let context_dir = entry?.path();
@@ -125,47 +123,13 @@ pub fn index_query_engines(output_dir: &Path) -> ServerResult<EngineIndex> {
         else {
             continue;
         };
-        // Each context's serialization format is detected from its own streams.
-        let Some(format) = Format::detect(&context_dir) else {
-            continue;
-        };
 
-        // Engines living in this context.
-        let engine_dir = context_dir.join(<EngineEvent as EntityEvent>::NAME);
-        if engine_dir.is_dir() {
-            let importer = <ImporterOptions as ImporterProvider<EngineEvent>>::create_importer(
-                &ImporterOptions::FileSystem(filesystem::importer::Options {
-                    format,
-                    path: engine_dir,
-                }),
-            )?;
-            let mut seen = HashSet::new();
-            for event in importer {
-                let event = event?;
-                if seen.insert(event.id) {
-                    index.attribute_resource(event.id, context_id, event.id);
-                }
-            }
+        let inventory = inventory(context_id)?;
+        for engine_id in inventory.engine_ids {
+            index.attribute_resource(engine_id, context_id, engine_id);
         }
-
-        // Workers living in this context attribute it to their parent engine.
-        let worker_dir = context_dir.join(<WorkerEvent as EntityEvent>::NAME);
-        if worker_dir.is_dir() {
-            let importer = <ImporterOptions as ImporterProvider<WorkerEvent>>::create_importer(
-                &ImporterOptions::FileSystem(filesystem::importer::Options {
-                    format,
-                    path: worker_dir,
-                }),
-            )?;
-            let mut seen = HashSet::new();
-            for event in importer {
-                let event = event?;
-                if let WorkerEvent::Init(init) = &event.data
-                    && seen.insert(event.id)
-                {
-                    index.add_worker(init.parent_engine_id.uuid(), event.id, context_id);
-                }
-            }
+        for worker in inventory.workers {
+            index.add_worker(worker.engine_id, worker.id, context_id);
         }
     }
     Ok(index)

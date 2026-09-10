@@ -11,7 +11,7 @@ use quent_query_engine_ui::{
     self as ui, EngineContexts, OperatorFilter, QueryFilter, ServerContract,
 };
 use quent_simulator_analyzer::SimulatorUiAnalyzer;
-use quent_simulator_instrumentation::SimulatorEvent;
+use quent_simulator_store::SimulatorEvent;
 use quent_ui::{
     entities::request::EntityListRequest,
     timeline::{
