@@ -100,7 +100,7 @@ mod tests {
                 .block_on(async { ctx.observer::<TestEvent>(&options).await })
                 .unwrap();
             let mut attributes = DynamicAttributes::new();
-            attributes.add_list(
+            attributes.add(
                 "matrix",
                 DynamicList::List(vec![
                     DynamicList::U64(vec![1, 2]),
@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn dynamic_attribute_types_are_available_through_instrumentation() {
         let mut attributes = DynamicAttributes::new();
-        attributes.add_list(
+        attributes.add(
             "matrix",
             DynamicList::List(vec![DynamicList::U8(vec![1, 2])]),
         );

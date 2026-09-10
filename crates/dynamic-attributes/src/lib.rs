@@ -14,6 +14,8 @@ use ts_rs::TS;
 pub enum DynamicValueError {
     #[error("not numeric: {0}")]
     NotNumeric(String),
+    #[error("not exactly representable as f64: {0}")]
+    InexactF64(String),
 }
 
 /// A group of [`DynamicAttribute`]s.
@@ -60,6 +62,80 @@ pub enum DynamicValue {
     String(String),
     Struct(DynamicStruct),
     List(DynamicList),
+}
+
+macro_rules! impl_from_dynamic_value {
+    ($($ty:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<$ty> for DynamicValue {
+                fn from(value: $ty) -> Self {
+                    Self::$variant(value)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_dynamic_value! {
+    u8 => U8,
+    u16 => U16,
+    u32 => U32,
+    u64 => U64,
+    i8 => I8,
+    i16 => I16,
+    i32 => I32,
+    i64 => I64,
+    f32 => F32,
+    f64 => F64,
+    String => String,
+    DynamicStruct => Struct,
+    DynamicList => List,
+}
+
+impl From<&str> for DynamicValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
+}
+
+impl From<bool> for DynamicValue {
+    fn from(value: bool) -> Self {
+        Self::U8(u8::from(value))
+    }
+}
+
+macro_rules! impl_from_dynamic_list {
+    ($($ty:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<Vec<$ty>> for DynamicValue {
+                fn from(value: Vec<$ty>) -> Self {
+                    Self::List(DynamicList::$variant(value))
+                }
+            }
+        )*
+    };
+}
+
+impl_from_dynamic_list! {
+    u8 => U8,
+    u16 => U16,
+    u32 => U32,
+    u64 => U64,
+    i8 => I8,
+    i16 => I16,
+    i32 => I32,
+    i64 => I64,
+    f32 => F32,
+    f64 => F64,
+    String => String,
+    DynamicStruct => Struct,
+    DynamicList => List,
+}
+
+impl From<Vec<bool>> for DynamicValue {
+    fn from(value: Vec<bool>) -> Self {
+        Self::List(DynamicList::U8(value.into_iter().map(u8::from).collect()))
+    }
 }
 
 /// A key-value pair.
@@ -195,8 +271,19 @@ impl DynamicAttributes {
         Self(Vec::new())
     }
 
-    pub fn add(&mut self, attr: DynamicAttribute) {
+    pub fn add(&mut self, key: impl Into<String>, value: impl Into<DynamicValue>) {
+        self.0.push(DynamicAttribute {
+            key: key.into(),
+            value: Some(value.into()),
+        });
+    }
+
+    pub fn add_attribute(&mut self, attr: DynamicAttribute) {
         self.0.push(attr);
+    }
+
+    pub fn add_null(&mut self, key: impl Into<String>) {
+        self.0.push(DynamicAttribute::null(key));
     }
 
     pub fn add_string(&mut self, key: impl Into<String>, value: impl Into<String>) {
@@ -258,21 +345,7 @@ impl TryFrom<DynamicValue> for f64 {
     type Error = DynamicValueError;
 
     fn try_from(value: DynamicValue) -> Result<Self, Self::Error> {
-        match value {
-            DynamicValue::U8(v) => Ok(v as f64),
-            DynamicValue::U16(v) => Ok(v as f64),
-            DynamicValue::U32(v) => Ok(v as f64),
-            DynamicValue::U64(v) => Ok(v as f64),
-            DynamicValue::I8(v) => Ok(v as f64),
-            DynamicValue::I16(v) => Ok(v as f64),
-            DynamicValue::I32(v) => Ok(v as f64),
-            DynamicValue::I64(v) => Ok(v as f64),
-            DynamicValue::F32(v) => Ok(v as f64),
-            DynamicValue::F64(v) => Ok(v),
-            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
-            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
-            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
-        }
+        Self::try_from(&value)
     }
 }
 
@@ -284,17 +357,37 @@ impl TryFrom<&DynamicValue> for f64 {
             DynamicValue::U8(v) => Ok(*v as f64),
             DynamicValue::U16(v) => Ok(*v as f64),
             DynamicValue::U32(v) => Ok(*v as f64),
-            DynamicValue::U64(v) => Ok(*v as f64),
+            DynamicValue::U64(v) => exact_integer_as_f64(*v, *v, *v as f64),
             DynamicValue::I8(v) => Ok(*v as f64),
             DynamicValue::I16(v) => Ok(*v as f64),
             DynamicValue::I32(v) => Ok(*v as f64),
-            DynamicValue::I64(v) => Ok(*v as f64),
+            DynamicValue::I64(v) => exact_integer_as_f64(v.unsigned_abs(), *v, *v as f64),
             DynamicValue::F32(v) => Ok(*v as f64),
             DynamicValue::F64(v) => Ok(*v),
             DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
             DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
             DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
         }
+    }
+}
+
+fn exact_integer_as_f64<T>(
+    magnitude: u64,
+    value: T,
+    converted: f64,
+) -> Result<f64, DynamicValueError>
+where
+    T: std::fmt::Display,
+{
+    let significant_bits = if magnitude == 0 {
+        0
+    } else {
+        u64::BITS - magnitude.leading_zeros() - magnitude.trailing_zeros()
+    };
+    if significant_bits <= f64::MANTISSA_DIGITS {
+        Ok(converted)
+    } else {
+        Err(DynamicValueError::InexactF64(value.to_string()))
     }
 }
 
@@ -305,7 +398,7 @@ mod tests {
     #[test]
     fn nested_lists_are_supported() {
         let mut attributes = DynamicAttributes::new();
-        attributes.add_list(
+        attributes.add(
             "matrix",
             DynamicList::List(vec![
                 DynamicList::U64(vec![1, 2]),
@@ -322,6 +415,69 @@ mod tests {
                     DynamicList::U64(vec![3, 4]),
                 ]),
             ),
+        );
+    }
+
+    #[test]
+    fn generic_add_converts_supported_values() {
+        let mut attributes = DynamicAttributes::new();
+        attributes.add("boolean", true);
+        attributes.add("integer", 42_u64);
+        attributes.add("float", 1.5_f64);
+        attributes.add("string", "value");
+        attributes.add("list", vec![1_i32, 2]);
+        attributes.add(
+            "structure",
+            DynamicStruct(vec![DynamicAttribute::string("field", "value")]),
+        );
+        attributes.add_null("missing");
+
+        assert_eq!(attributes[0].value, Some(DynamicValue::U8(1)));
+        assert_eq!(attributes[1].value, Some(DynamicValue::U64(42)));
+        assert_eq!(attributes[2].value, Some(DynamicValue::F64(1.5)));
+        assert_eq!(
+            attributes[3].value,
+            Some(DynamicValue::String("value".to_string()))
+        );
+        assert_eq!(
+            attributes[4].value,
+            Some(DynamicValue::List(DynamicList::I32(vec![1, 2])))
+        );
+        assert_eq!(attributes[6].value, None);
+    }
+
+    #[test]
+    fn integer_to_f64_requires_exact_representation() {
+        let largest_consecutive_integer = 1_u64 << f64::MANTISSA_DIGITS;
+        assert_eq!(
+            f64::try_from(DynamicValue::U64(largest_consecutive_integer)).unwrap(),
+            largest_consecutive_integer as f64
+        );
+        assert!(matches!(
+            f64::try_from(DynamicValue::U64(largest_consecutive_integer + 1)),
+            Err(DynamicValueError::InexactF64(_))
+        ));
+        assert_eq!(
+            f64::try_from(DynamicValue::U64(1_u64 << 63)).unwrap(),
+            (1_u64 << 63) as f64
+        );
+        assert!(matches!(
+            f64::try_from(DynamicValue::U64(u64::MAX)),
+            Err(DynamicValueError::InexactF64(_))
+        ));
+
+        let smallest_consecutive_integer = -(1_i64 << f64::MANTISSA_DIGITS);
+        assert_eq!(
+            f64::try_from(DynamicValue::I64(smallest_consecutive_integer)).unwrap(),
+            smallest_consecutive_integer as f64
+        );
+        assert!(matches!(
+            f64::try_from(&DynamicValue::I64(smallest_consecutive_integer - 1)),
+            Err(DynamicValueError::InexactF64(_))
+        ));
+        assert_eq!(
+            f64::try_from(DynamicValue::I64(i64::MIN)).unwrap(),
+            i64::MIN as f64
         );
     }
 }

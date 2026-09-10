@@ -13,13 +13,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut task = context.observer::<Task>().handle();
 
     let mut started_details = DynamicAttributes::new();
-    started_details.add_string("queue", "priority");
-    started_details.add_u64("attempt", 2);
+    started_details.add("queue", "priority");
+    started_details.add("attempt", 2_u64);
     task.started(started_details)?;
 
     let mut ended_details = DynamicAttributes::new();
-    ended_details.add_bool("cached", false);
-    ended_details.add_u64("items_processed", 128);
+    ended_details.add("cached", false);
+    ended_details.add("items_processed", 128_u64);
     task.ended(ended_details)?;
 
     Ok(())
