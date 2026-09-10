@@ -23,20 +23,6 @@ use uuid::Uuid;
 
 use crate::QueryEngineModel;
 
-/// Query-engine entities needed to associate one context with an engine.
-#[derive(Debug, Default)]
-pub struct ContextInventory {
-    pub engine_ids: Vec<Uuid>,
-    pub workers: Vec<ContextWorker>,
-}
-
-/// A worker and the engine to which it belongs.
-#[derive(Debug)]
-pub struct ContextWorker {
-    pub id: Uuid,
-    pub engine_id: Uuid,
-}
-
 /// Trait for types that can analyze query engine telemetry for the purpose of
 /// visualization in a UI.
 pub trait UiAnalyzer {
@@ -169,8 +155,11 @@ pub trait QuentViewer {
     /// The analyzer that renders this model's events.
     type Analyzer: UiAnalyzer + Send + Sync + 'static;
 
-    /// Extracts the entities needed to associate one context with an engine.
-    fn context_inventory(dir: &Path) -> ImporterResult<ContextInventory>;
+    /// Returns lightweight entity associations used to index one runtime context.
+    ///
+    /// This must avoid full event import and analyzer construction because it is called while
+    /// discovering every available context.
+    fn context_inventory(dir: &Path) -> ImporterResult<quent_analyzer::context::ContextInventory>;
 
     /// Reconstruct the model's event stream from one context directory, yielding
     /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model

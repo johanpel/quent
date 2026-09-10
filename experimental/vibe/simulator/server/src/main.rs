@@ -9,7 +9,7 @@ use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_analyzer::ui::QuentViewer;
 use quent_query_engine_server::{
-    analyzer_cache::index_query_engines, analyzer_service_router_with_routes, collector_service,
+    analyzer_cache::index_contexts, analyzer_service_router_with_routes, collector_service,
     initialize_tracing,
 };
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
@@ -122,7 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Index the exported contexts by engine instance: each engine's telemetry is
     // the engine's own context plus its workers' contexts.
     let lister = move || {
-        index_query_engines(&lister_output_dir, |context_id| {
+        index_contexts(&lister_output_dir, |context_id| {
             Ok(Viewer::context_inventory(
                 &lister_output_dir.join(context_id.to_string()),
             )?)

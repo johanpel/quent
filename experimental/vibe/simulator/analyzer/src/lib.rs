@@ -8,8 +8,7 @@ pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities,
-    ui::{ContextInventory, ContextWorker, UiAnalyzer},
+    WorkerEntity, entities, ui::UiAnalyzer,
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -40,6 +39,7 @@ use tracing::debug;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, Span,
+    context::{ContextAnalysisTarget, ContextInventory},
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
@@ -182,11 +182,24 @@ impl QuentViewer for Viewer {
             .collect::<Result<HashMap<_, _>, _>>()
             .map_err(quent_io::ImporterError::other)?;
 
+        let mut entity_ids_by_analysis_target: HashMap<Uuid, HashSet<Uuid>> = engine_ids
+            .into_iter()
+            .map(|engine_id| (engine_id, HashSet::from_iter([engine_id])))
+            .collect();
+        for (worker_id, engine_id) in workers {
+            entity_ids_by_analysis_target
+                .entry(engine_id)
+                .or_default()
+                .insert(worker_id);
+        }
+
         Ok(ContextInventory {
-            engine_ids: engine_ids.into_iter().collect(),
-            workers: workers
+            analysis_targets: entity_ids_by_analysis_target
                 .into_iter()
-                .map(|(id, engine_id)| ContextWorker { id, engine_id })
+                .map(|(analysis_target_id, entity_ids)| ContextAnalysisTarget {
+                    analysis_target_id,
+                    entity_ids: entity_ids.into_iter().collect(),
+                })
                 .collect(),
         })
     }
