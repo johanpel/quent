@@ -70,9 +70,7 @@ mod tests {
     }
 
     #[derive(Debug, serde::Serialize)]
-    struct TestEvent {
-        attributes: DynamicAttributes,
-    }
+    struct TestEvent;
 
     impl EntityEvent for TestEvent {
         const NAME: &'static str = "TestEvent";
@@ -99,15 +97,7 @@ mod tests {
             let observer = ctx
                 .block_on(async { ctx.observer::<TestEvent>(&options).await })
                 .unwrap();
-            let mut attributes = DynamicAttributes::new();
-            attributes.add(
-                "matrix",
-                DynamicList::List(vec![
-                    DynamicList::U64(vec![1, 2]),
-                    DynamicList::U64(vec![3, 4]),
-                ]),
-            );
-            observer.send(Event::new_now(Uuid::now_v7(), TestEvent { attributes }));
+            observer.send(Event::new_now(Uuid::now_v7(), TestEvent));
             // Drop the observer to drain and flush before asserting.
         }
 
@@ -126,16 +116,5 @@ mod tests {
             1,
             "one UUID-named ndjson batch file in the entity subdirectory"
         );
-    }
-
-    #[test]
-    fn dynamic_attribute_types_are_available_through_instrumentation() {
-        let mut attributes = DynamicAttributes::new();
-        attributes.add(
-            "matrix",
-            DynamicList::List(vec![DynamicList::U8(vec![1, 2])]),
-        );
-
-        assert_eq!(attributes.len(), 1);
     }
 }

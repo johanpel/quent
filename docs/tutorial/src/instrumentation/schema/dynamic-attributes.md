@@ -27,7 +27,9 @@ the individual keys that the containers will hold.
 The generic `add` method converts each supported Rust value into its dynamic
 representation. The application adds a string and an integer to the `started`
 event, then a boolean and an integer to the `ended` event. Each value retains
-its runtime type; integer suffixes such as `_u64` select the intended type.
+its runtime type; integer suffixes such as `_u64` select the intended type. Use
+`add_null` for a key with no value, or `add_attribute` to insert a
+preconstructed `DynamicAttribute`.
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
