@@ -9,7 +9,7 @@
 //! - 0–1s: init (engine, 2 workers, memories, task executors, threads, channel)
 //! - 1–2s: query planning (logical plan + two physical sub-plans)
 //! - 2–3s / 3–4s / 4–5s / 5–6s: ScanFilter / PartialAggregate / FinalAggregate / Limit tasks
-//! - 6–7s: statistics, query exit, resource teardown
+//! - 6–7s: statistics, query completion, resource teardown
 //!
 //! Plan is split across workers: W0 (driver) owns FinalAggregate → Limit →
 //! Output. W1's PartialAggregate tasks ship their partition to W0's
@@ -269,9 +269,9 @@ pub fn emit(ctx: &SimulatorContext) {
     emit_operator_statistics(ctx);
     emit_port_statistics(ctx);
 
-    // Teardown: query exit @ 6.3s; all resource finalizing @ 6.5s; all
+    // Teardown: query done @ 6.3s; all resource finalizing @ 6.5s; all
     // resource exit @ 6.7s; both worker exits @ 6.9s; engine exit @ 7s.
-    ts!(6_300_000_000, drop(query.exit()));
+    ts!(6_300_000_000, drop(query.done()));
 
     let channel = ts!(6_500_000_000, channel.finalizing());
     let th_w1_t1 = ts!(6_500_000_000, th_w1_t1.finalizing());

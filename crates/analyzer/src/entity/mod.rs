@@ -39,7 +39,7 @@ impl<M: EntityData> EntityEvents<M> {
     pub fn new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
-                "entity id cannot be nil".to_owned(),
+                "entity id cannot be nil".to_string(),
             ))
         } else {
             Ok(Self {
@@ -52,15 +52,15 @@ impl<M: EntityData> EntityEvents<M> {
     }
 
     pub fn push(&mut self, event: Event<M::Event>) {
-        let timestamp = event.timestamp;
-        self.earliest_timestamp = Some(
-            self.earliest_timestamp
-                .map_or(timestamp, |previous| previous.min(timestamp)),
-        );
-        self.latest_timestamp = Some(
-            self.latest_timestamp
-                .map_or(timestamp, |previous| previous.max(timestamp)),
-        );
+        let ts = event.timestamp;
+        self.earliest_timestamp = Some(match self.earliest_timestamp {
+            Some(prev) => prev.min(ts),
+            None => ts,
+        });
+        self.latest_timestamp = Some(match self.latest_timestamp {
+            Some(prev) => prev.max(ts),
+            None => ts,
+        });
         M::push(&mut self.data, event.data);
     }
 

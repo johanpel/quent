@@ -1683,7 +1683,7 @@ pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
                 }
             });
 
-            drop(query.exit());
+            drop(query.done());
         }
     }
 

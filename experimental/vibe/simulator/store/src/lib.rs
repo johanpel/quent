@@ -11,18 +11,24 @@ use quent_analyzer::{
 };
 use smallvec::{SmallVec, smallvec};
 
+// TODO(johanpel): Generate these `AnalyzableTransition` implementations from
+// schema metadata.
 impl AnalyzableTransition for QueryEvent {
+    fn entity_type_name() -> &'static str {
+        "query"
+    }
+
     fn sequence(&self) -> u16 {
         match self {
             Self::Init { seq, .. }
             | Self::Planning { seq }
             | Self::Executing { seq }
-            | Self::Exit { seq } => *seq,
+            | Self::Done { seq } => *seq,
         }
     }
 
     fn is_final(&self) -> bool {
-        matches!(self, Self::Exit { .. })
+        matches!(self, Self::Done { .. })
     }
 
     fn state_name(&self) -> &'static str {
@@ -30,7 +36,7 @@ impl AnalyzableTransition for QueryEvent {
             Self::Init { .. } => "init",
             Self::Planning { .. } => "planning",
             Self::Executing { .. } => "executing",
-            Self::Exit { .. } => "exit",
+            Self::Done { .. } => "done",
         }
     }
 
@@ -43,6 +49,10 @@ impl AnalyzableTransition for QueryEvent {
 }
 
 impl AnalyzableTransition for TaskEvent {
+    fn entity_type_name() -> &'static str {
+        "task"
+    }
+
     fn sequence(&self) -> u16 {
         match self {
             Self::Queueing { seq, .. }
