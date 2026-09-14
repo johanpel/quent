@@ -1,12 +1,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Constraint for relating Quent entities to operating-system processes and threads.
+//! Constraint that identifies Quent entities as operating-system processes and threads.
 //!
-//! An entity represents an OS process or thread when one of its `Once` events
-//! carries the canonical [`process_path`] or [`thread_path`] record. An entity
-//! carrying both records represents a process and its main thread; otherwise,
-//! the scope tree relates each thread to its containing process.
+//! The constraint asserts that an entity represents a specific OS process or
+//! thread. This identity lets consumers correlate data about the same runtime
+//! object using its native ID.
+//!
+//! For example, integrations can correlate entities with external event streams
+//! from profilers such as NVTX. Such streams may be scoped by thread ID within
+//! one process or by process ID across multiple processes in one operating system
+//! context.
+//!
+//! The constraint is not intended to attach process or thread IDs to arbitrary
+//! events. Model those values as ordinary typed or `dynamic` attributes.
+//!
+//! An entity is identified as an OS process or thread when one of its `Once`
+//! events carries the canonical [`process_path`] or [`thread_path`] record. An
+//! entity carrying both records represents a process and its main thread. An
+//! entity representing only a thread must be transitively scoped under an entity
+//! representing its containing process.
 //!
 //! Event producers must enforce that reported IDs and scope references are
 //! correct for the captured runtime.
@@ -31,9 +44,7 @@ pub use record::{process_record, thread_record};
 /// Validates the canonical process and thread records and their event usage.
 ///
 /// The canonical record definitions are documented by [`process_record`] and
-/// [`thread_record`]. They are intentionally limited to correlation-critical
-/// identity; descriptive or mutable OS properties belong in ordinary event or
-/// resource attributes.
+/// [`thread_record`].
 ///
 /// ## Platform-specific considerations
 ///
