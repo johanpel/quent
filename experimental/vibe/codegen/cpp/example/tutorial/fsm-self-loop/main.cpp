@@ -7,8 +7,8 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto task = std::move(context.task_observer()->create())
-                  .running(quent::task::Running{.items_processed = 0});
+  auto task = context.task_observer()->create().running(
+      quent::task::Running{.items_processed = 0});
   task = std::move(task).running(
       quent::task::Running{.items_processed = 64});
   auto paused = std::move(task).paused();

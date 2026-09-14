@@ -13,11 +13,10 @@ int main() {
       .limits = quent::records::WorkerBounds{.threads = 16},
   });
 
-  auto queued = std::move(context.job_observer()->create())
-                    .queued(quent::job::Queued{
-                        .name = "compile",
-                        .requested_threads = 4,
-                    });
+  auto queued = context.job_observer()->create().queued(quent::job::Queued{
+      .name = "compile",
+      .requested_threads = 4,
+  });
   auto running = std::move(queued).running(quent::job::Running{
       .worker = quent::refs::WorkerUsageRef{
           .target = worker.id(),
