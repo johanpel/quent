@@ -6,6 +6,7 @@ publish.workspace = true
 
 [lib]
 crate-type = ["staticlib"]
+test = false
 
 [dependencies]
 cxx = "1"

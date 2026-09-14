@@ -42,7 +42,7 @@ Client code includes only the façade:
 
 auto context = quent::Context::ndjson("./events");
 auto request_observer = context.request_observer();
-auto request = request_observer->create();
+quent::Handle<quent::Request> request = request_observer->create();
 ```
 
 The public API uses `std::shared_ptr`, `std::optional`, `std::vector`, and
@@ -58,11 +58,13 @@ list variant, plus strings, nulls, structures, and lists of structures.
 Attributes and nested structure members retain insertion order; list elements
 retain their input order.
 
-FSMs generate one move-only handle type per state. Their `&&`-qualified
-transition methods consume the current handle and return the target-state
-handle, so transitions that are not present in the schema do not compile.
-Transition sequence numbers are assigned by the instrumentation runtime and
-are not part of the C++ payload types.
+Plain entities specialize `Handle<Entity>` with their event methods. FSMs
+specialize `FsmHandle<Entity>` for a new instance and
+`FsmHandle<Entity, entity_state::State>` for every state. Their
+`&&`-qualified transition methods consume the current handle and return the
+target-state specialization, so transitions that are not present in the
+schema do not compile. Transition sequence numbers are assigned by the
+instrumentation runtime and are not part of the C++ payload types.
 
 Observers and handles retain their scoped telemetry runtime independently of
 `Context`. Destroying a context prevents obtaining new observers, but exporter

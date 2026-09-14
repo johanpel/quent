@@ -70,7 +70,23 @@ class EntityId final {{
   Uuid value_;
 }};
 
-namespace facade_detail {{ struct DynamicAttributesAccess; }}
+namespace facade_detail {{ struct InitialFsmState final {{}}; }}
+
+template <typename Entity>
+class Handle;
+
+template <typename Entity, typename State = facade_detail::InitialFsmState>
+class FsmHandle;
+
+namespace facade_detail {{
+struct DynamicAttributesAccess;
+struct HandleAccess final {{
+  template <typename PublicHandle, typename Inner>
+  static PublicHandle make(Inner&& inner) {{
+    return PublicHandle(std::forward<Inner>(inner));
+  }}
+}};
+}}
 
 class DynamicAttributes final {{
  public:
@@ -458,20 +474,28 @@ fn emit_conversion_declarations(schema: &Schema, options: &Options, output: &mut
 fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String) {
     for entity in schema.entities() {
         let namespace = public_entity_namespace(entity, options);
+        let parent_namespace = public_entity_parent_namespace(entity, options);
         let name = path_pascal(entity.path());
+        let marker = to_case(entity.path().name(), Case::Pascal);
+        let entity_type = public_entity_type(entity, options);
         output.push_str(&format!(
-            "namespace {namespace} {{ struct {name}Tag; using {name}Id = ::{}::EntityId<{name}Tag>; class {name}Observer; class {name}Handle;",
-            options.namespace,
+            "namespace {parent_namespace} {{ struct {marker} final {{}}; }}\n"
         ));
         if is_fsm(entity) {
+            let state_namespace = public_fsm_state_namespace(entity, options);
+            output.push_str(&format!("namespace {state_namespace} {{"));
             for event in entity.events() {
                 output.push_str(&format!(
-                    " class {name}{}Handle;",
+                    " struct {} final {{}};",
                     to_case(event.name(), Case::Pascal)
                 ));
             }
+            output.push_str(" }\n");
         }
-        output.push_str(" }\n");
+        output.push_str(&format!(
+            "namespace {namespace} {{ using {name}Id = ::{}::EntityId<{entity_type}>; class {name}Observer; }}\n",
+            options.namespace,
+        ));
     }
     output.push('\n');
 }
@@ -600,8 +624,10 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
         let raw_observer = format!("{name}Observer");
         let raw_handle = format!("{name}Handle");
         let prefix = path_snake(entity.path());
+        let entity_type = public_entity_type(entity, options);
+        let public_handle = format!("::{base_namespace}::Handle<{entity_type}>");
         output.push_str(&format!(
-            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {name}Handle create() const;\n  {name}Handle create({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n\nclass {name}Handle final {{\n public:\n  {name}Handle({name}Handle&&) = default;\n  {name}Handle& operator=({name}Handle&&) = default;\n  {name}Id id() const {{ return {name}Id(inner_->uuid()); }}\n"
+            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} create() const;\n  {public_handle} create({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n"
         ));
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));
@@ -615,9 +641,10 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
                     "  void {method}(){constness} {{ inner_->{method}(); }}\n"
                 ));
             } else {
-                let payload = to_case(event.name(), Case::Pascal);
+                let payload_name = to_case(event.name(), Case::Pascal);
+                let payload = format!("::{namespace}::{payload_name}");
                 output.push_str(&format!(
-                    "  void {method}({payload} data){constness} {{ inner_->{method}(::{base_namespace}::facade_detail::{prefix}_to_raw_{payload}(std::move(data))); }}\n"
+                    "  void {method}({payload} data){constness} {{ inner_->{method}(::{base_namespace}::facade_detail::{prefix}_to_raw_{payload_name}(std::move(data))); }}\n"
                 ));
             }
             if event.cardinality() == Cardinality::Once {
@@ -628,7 +655,7 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
             }
         }
         output.push_str(&format!(
-            "\n private:\n  explicit {name}Handle(::rust::Box<::{raw_namespace}::{raw_handle}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_handle}> inner_;\n  friend class {name}Observer;\n}};\n\ninline {name}Handle {name}Observer::create() const {{\n  return {name}Handle(inner_->create());\n}}\ninline {name}Handle {name}Observer::create({name}Id id) const {{\n  return {name}Handle(inner_->create_with_id(id.raw()));\n}}\n}}  // namespace {namespace}\n\n"
+            "\n private:\n  explicit Handle(::rust::Box<::{raw_namespace}::{raw_handle}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_handle}> inner_;\n  friend struct facade_detail::HandleAccess;\n}};\n}}  // namespace {base_namespace}\n\nnamespace {namespace} {{\ninline {public_handle} {name}Observer::create() const {{\n  return ::{base_namespace}::facade_detail::HandleAccess::make<{public_handle}>(inner_->create());\n}}\ninline {public_handle} {name}Observer::create({name}Id id) const {{\n  return ::{base_namespace}::facade_detail::HandleAccess::make<{public_handle}>(inner_->create_with_id(id.raw()));\n}}\n}}  // namespace {namespace}\n\n"
         ));
     }
 }
@@ -641,41 +668,23 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
     let raw_observer = format!("{name}Observer");
     let raw_handle = format!("{name}Handle");
     let prefix = path_snake(entity.path());
-    let all_handles = std::iter::once(format!("{name}Handle"))
-        .chain(
-            entity
-                .events()
-                .map(|event| format!("{name}{}Handle", to_case(event.name(), Case::Pascal))),
-        )
-        .collect::<Vec<_>>();
-    let friends = all_handles
-        .iter()
-        .map(|handle| format!("  friend class {handle};\n"))
-        .collect::<String>();
+    let entity_type = public_entity_type(entity, options);
+    let initial_handle = public_fsm_handle_type(entity, None, options);
 
     output.push_str(&format!(
-        "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {name}Handle create() const;\n  {name}Handle create({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n\n"
+        "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {initial_handle} create() const;\n  {initial_handle} create({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\n"
     ));
 
-    for handle in &all_handles {
+    output.push_str(&format!("namespace {base_namespace} {{\n"));
+    for state in std::iter::once(None).chain(entity.events().map(Some)) {
+        let state_type = state.map_or_else(
+            || format!("::{base_namespace}::facade_detail::InitialFsmState"),
+            |event| public_fsm_state_type(entity, event, options),
+        );
         output.push_str(&format!(
-            "class {handle} final {{\n public:\n  {handle}({handle}&&) = default;\n  {handle}& operator=({handle}&&) = default;\n  {name}Id id() const {{ return {name}Id(inner_->uuid()); }}\n"
+            "template <>\nclass FsmHandle<{entity_type}, {state_type}> final {{\n public:\n  FsmHandle(FsmHandle&&) = default;\n  FsmHandle& operator=(FsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n"
         ));
-        if handle == &format!("{name}Handle") {
-            let initial = entity
-                .events()
-                .find(|event| event.name() == fsm.initial_state())
-                .expect("validated FSM initial state");
-            emit_fsm_method_declaration(entity, &name, initial, output);
-        } else {
-            let state_name = handle
-                .strip_prefix(&name)
-                .and_then(|value| value.strip_suffix("Handle"))
-                .expect("generated FSM state handle name");
-            let state = entity
-                .events()
-                .find(|event| to_case(event.name(), Case::Pascal) == state_name)
-                .expect("generated FSM state handle has event");
+        if let Some(state) = state {
             for transition in fsm
                 .transitions()
                 .iter()
@@ -685,11 +694,17 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
                     .events()
                     .find(|event| event.name() == transition.target())
                     .expect("validated FSM transition target");
-                emit_fsm_method_declaration(entity, &name, target, output);
+                emit_fsm_method_declaration(entity, target, options, output);
             }
+        } else {
+            let initial = entity
+                .events()
+                .find(|event| event.name() == fsm.initial_state())
+                .expect("validated FSM initial state");
+            emit_fsm_method_declaration(entity, initial, options, output);
         }
         output.push_str(&format!(
-            "\n private:\n  explicit {handle}(::rust::Box<::{raw_namespace}::{raw_handle}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_handle}> inner_;\n{friends}  friend class {name}Observer;\n}};\n\n"
+            "\n private:\n  explicit FsmHandle(::rust::Box<::{raw_namespace}::{raw_handle}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_handle}> inner_;\n  friend struct facade_detail::HandleAccess;\n}};\n\n"
         ));
     }
 
@@ -697,49 +712,42 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
         .events()
         .find(|event| event.name() == fsm.initial_state())
         .expect("validated FSM initial state");
-    emit_fsm_method_definition(
-        entity,
-        &name,
-        &format!("{name}Handle"),
-        initial,
-        base_namespace,
-        &prefix,
-        output,
-    );
+    emit_fsm_method_definition(entity, &initial_handle, initial, options, &prefix, output);
     for transition in fsm.transitions() {
-        let source = format!("{name}{}Handle", to_case(transition.source(), Case::Pascal));
+        let source_event = entity
+            .events()
+            .find(|event| event.name() == transition.source())
+            .expect("validated FSM transition source");
+        let source = public_fsm_handle_type(entity, Some(source_event), options);
         let target = entity
             .events()
             .find(|event| event.name() == transition.target())
             .expect("validated FSM transition target");
-        emit_fsm_method_definition(
-            entity,
-            &name,
-            &source,
-            target,
-            base_namespace,
-            &prefix,
-            output,
-        );
+        emit_fsm_method_definition(entity, &source, target, options, &prefix, output);
     }
+    output.push_str(&format!("}}  // namespace {base_namespace}\n\n"));
 
     output.push_str(&format!(
-        "inline {name}Handle {name}Observer::create() const {{\n  return {name}Handle(inner_->create());\n}}\ninline {name}Handle {name}Observer::create({name}Id id) const {{\n  return {name}Handle(inner_->create_with_id(id.raw()));\n}}\n}}  // namespace {namespace}\n\n"
+        "namespace {namespace} {{\ninline {initial_handle} {name}Observer::create() const {{\n  return ::{base_namespace}::facade_detail::HandleAccess::make<{initial_handle}>(inner_->create());\n}}\ninline {initial_handle} {name}Observer::create({name}Id id) const {{\n  return ::{base_namespace}::facade_detail::HandleAccess::make<{initial_handle}>(inner_->create_with_id(id.raw()));\n}}\n}}  // namespace {namespace}\n\n"
     ));
 }
 
 fn emit_fsm_method_declaration(
     entity: &Entity,
-    entity_name: &str,
     event: &Event,
+    options: &Options,
     output: &mut String,
 ) {
     let method = cxx_safe(&to_case(event.name(), Case::Snake));
-    let target = format!("{entity_name}{}Handle", to_case(event.name(), Case::Pascal));
+    let target = public_fsm_handle_type(entity, Some(event), options);
     if public_event_fields(entity, event).next().is_none() {
         output.push_str(&format!("  {target} {method}() &&;\n"));
     } else {
-        let payload = to_case(event.name(), Case::Pascal);
+        let payload = format!(
+            "::{}::{}",
+            public_entity_namespace(entity, options),
+            to_case(event.name(), Case::Pascal)
+        );
         output.push_str(&format!("  {target} {method}({payload} data) &&;\n"));
     }
 }
@@ -747,23 +755,30 @@ fn emit_fsm_method_declaration(
 #[allow(clippy::too_many_arguments)]
 fn emit_fsm_method_definition(
     entity: &Entity,
-    entity_name: &str,
     source: &str,
     event: &Event,
-    base_namespace: &str,
+    options: &Options,
     prefix: &str,
     output: &mut String,
 ) {
+    let base_namespace = &options.namespace;
     let method = cxx_safe(&to_case(event.name(), Case::Snake));
-    let target = format!("{entity_name}{}Handle", to_case(event.name(), Case::Pascal));
+    let target = public_fsm_handle_type(entity, Some(event), options);
+    let source = source
+        .strip_prefix(&format!("::{base_namespace}::"))
+        .expect("FSM handle belongs to the base namespace");
     if public_event_fields(entity, event).next().is_none() {
         output.push_str(&format!(
-            "inline {target} {source}::{method}() && {{\n  inner_->{method}();\n  return {target}(std::move(inner_));\n}}\n"
+            "inline {target} {source}::{method}() && {{\n  inner_->{method}();\n  return facade_detail::HandleAccess::make<{target}>(std::move(inner_));\n}}\n"
         ));
     } else {
-        let payload = to_case(event.name(), Case::Pascal);
+        let payload_name = to_case(event.name(), Case::Pascal);
+        let payload = format!(
+            "::{}::{payload_name}",
+            public_entity_namespace(entity, options)
+        );
         output.push_str(&format!(
-            "inline {target} {source}::{method}({payload} data) && {{\n  inner_->{method}(::{base_namespace}::facade_detail::{prefix}_to_raw_{payload}(std::move(data)));\n  return {target}(std::move(inner_));\n}}\n"
+            "inline {target} {source}::{method}({payload} data) && {{\n  inner_->{method}(::{base_namespace}::facade_detail::{prefix}_to_raw_{payload_name}(std::move(data)));\n  return facade_detail::HandleAccess::make<{target}>(std::move(inner_));\n}}\n"
         ));
     }
 }
@@ -1100,6 +1115,55 @@ fn type_key(ty: &DataType) -> String {
 
 fn public_entity_namespace(entity: &Entity, options: &Options) -> String {
     entity_namespace(&options.namespace, entity.path())
+}
+
+fn public_entity_parent_namespace(entity: &Entity, options: &Options) -> String {
+    std::iter::once(options.namespace.clone())
+        .chain(
+            entity
+                .path()
+                .namespace()
+                .iter()
+                .map(|part| cxx_safe(&to_case(part, Case::Snake))),
+        )
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+fn public_entity_type(entity: &Entity, options: &Options) -> String {
+    format!(
+        "::{}::{}",
+        public_entity_parent_namespace(entity, options),
+        to_case(entity.path().name(), Case::Pascal)
+    )
+}
+
+fn public_fsm_state_namespace(entity: &Entity, options: &Options) -> String {
+    format!(
+        "{}::{}_state",
+        public_entity_parent_namespace(entity, options),
+        cxx_safe(&to_case(entity.path().name(), Case::Snake))
+    )
+}
+
+fn public_fsm_state_type(entity: &Entity, event: &Event, options: &Options) -> String {
+    format!(
+        "::{}::{}",
+        public_fsm_state_namespace(entity, options),
+        to_case(event.name(), Case::Pascal)
+    )
+}
+
+fn public_fsm_handle_type(entity: &Entity, state: Option<&Event>, options: &Options) -> String {
+    let entity_type = public_entity_type(entity, options);
+    match state {
+        Some(state) => format!(
+            "::{}::FsmHandle<{entity_type}, {}>",
+            options.namespace,
+            public_fsm_state_type(entity, state, options)
+        ),
+        None => format!("::{}::FsmHandle<{entity_type}>", options.namespace),
+    }
 }
 
 fn raw_entity_namespace(entity: &Entity, options: &Options) -> String {

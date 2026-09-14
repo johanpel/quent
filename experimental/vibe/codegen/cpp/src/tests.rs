@@ -37,13 +37,27 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("namespace quent::records"));
     assert_eq!(facade.content.matches("struct Details {").count(), 1);
     assert!(facade.content.contains("class WorkerObserver final"));
-    assert!(facade.content.contains("class ThreadActiveHandle final"));
+    assert!(facade.content.contains("struct Worker final {}"));
     assert!(
         facade
             .content
-            .contains("ThreadIdleHandle idle(Idle data) &&")
+            .contains("class Handle<::quent::Worker> final")
     );
-    assert!(facade.content.contains("ThreadActiveHandle active() &&"));
+    assert!(facade.content.contains("struct Thread final {}"));
+    assert!(facade.content.contains("namespace quent::thread_state {"));
+    assert!(
+        facade
+            .content
+            .contains("class FsmHandle<::quent::Thread, ::quent::thread_state::Active> final")
+    );
+    assert!(facade.content.contains(
+        "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Idle> idle(::quent::thread::Idle data) &&"
+    ));
+    assert!(facade.content.contains(
+        "::quent::FsmHandle<::quent::Thread, ::quent::thread_state::Active> active() &&"
+    ));
+    assert!(!facade.content.contains("ThreadActiveHandle"));
+    assert!(!facade.content.contains("friend class ThreadHandle"));
     assert!(!facade.content.contains("struct Active {"));
     assert!(!facade.content.contains("std::uint16_t seq"));
     assert!(facade.content.contains("struct QueueUsageRef {"));
@@ -297,5 +311,16 @@ fn preserves_schema_namespaces() {
         entity
             .content
             .contains("instrumentation::namespaced::api::Request")
+    );
+    let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
+    assert!(
+        facade
+            .content
+            .contains("namespace quent::api { struct Request final {}; }")
+    );
+    assert!(
+        facade
+            .content
+            .contains("class Handle<::quent::api::Request> final")
     );
 }

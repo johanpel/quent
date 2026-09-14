@@ -5,6 +5,38 @@
 
 #include QUENT_CPP_BRIDGE_HEADER
 
+#include <type_traits>
+#include <utility>
+
+using JobQueued = quent::FsmHandle<quent::Job, quent::job_state::Queued>;
+using JobRunning = quent::FsmHandle<quent::Job, quent::job_state::Running>;
+
+template <typename Handle>
+concept CanFinish = requires(Handle handle) {
+  std::move(handle).done();
+};
+
+template <typename Handle>
+concept CanDeclareWorker = requires(Handle &handle,
+                                    quent::worker::Declaration event) {
+  handle.declaration(std::move(event));
+};
+
+static_assert(std::is_same_v<
+              decltype(std::declval<const quent::worker::WorkerObserver &>()
+                           .create()),
+              quent::Handle<quent::Worker>>);
+static_assert(CanDeclareWorker<quent::Handle<quent::Worker>>);
+static_assert(!CanDeclareWorker<quent::Handle<quent::Cluster>>);
+static_assert(!std::is_copy_constructible_v<quent::Handle<quent::Worker>>);
+static_assert(std::is_move_constructible_v<quent::Handle<quent::Worker>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<quent::FsmHandle<quent::Job>>()
+                           .queued(std::declval<quent::job::Queued>())),
+              JobQueued>);
+static_assert(!CanFinish<JobQueued>);
+static_assert(CanFinish<JobRunning>);
+
 quent::DynamicAttributes make_dynamic_attributes();
 int run_example();
 
