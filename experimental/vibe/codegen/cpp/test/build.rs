@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let files = quent_schema_codegen_cpp::emit(&schema, &options)?;
     let bridges = quent_schema_codegen_cpp::write_bridge_files(&files, &options)?;
-    let example = manifest_dir.join("../example/main.cpp");
+    let example = manifest_dir.join("../example/readme/main.cpp");
     let test = manifest_dir.join("test.cpp");
     println!("cargo:rerun-if-changed={}", example.display());
     println!("cargo:rerun-if-changed={}", test.display());

@@ -3,7 +3,7 @@
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../../examples/readme/model.yaml");
+        .join("../../../../../../../examples/readme/model.yaml");
     println!("cargo:rerun-if-changed={}", model.display());
     let schema = quent_yaml::parse_from_file(model)?.schema;
     let options = quent_schema_codegen_python::Options {

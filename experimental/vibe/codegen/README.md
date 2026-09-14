@@ -8,7 +8,8 @@ pixi run env DYLD_LIBRARY_PATH="$PWD/.pixi/envs/default/lib" \
   cargo test --manifest-path experimental/vibe/codegen/Cargo.toml --workspace
 ```
 
-The target-language examples under `cpp/example` and `python/example` define
+The target-language examples under `cpp/example/readme` and
+`python/example/readme` define
 the intended public API. Both examples bind directly to the schema-generated
 instrumentation in `examples/readme` and exercise event-order enforcement.
 
