@@ -5,7 +5,10 @@ use quent_schema::builder::SchemaBuilder;
 use quent_schema::test_utils::{entity, event};
 use quent_yaml::parse_from_str;
 
-use crate::{Exporters, GenerateError, Options, bridge_module_declaration, emit};
+use crate::{
+    Exporters, GenerateError, GeneratedFile, Options, bridge_module_declaration, emit,
+    write_bridge_files_to,
+};
 
 const DEMO: &str = include_str!("../../../../../examples/readme/model.yaml");
 
@@ -98,6 +101,7 @@ fn generates_schema_driven_bridge() {
         "add_f64_list",
         "add_string_list",
         "add_struct_list",
+        "add_list",
     ] {
         assert!(facade.content.contains(&format!("void {method}(")));
     }
@@ -130,6 +134,7 @@ fn generates_schema_driven_bridge() {
         "F64List",
         "StringList",
         "StructList",
+        "ListList",
     ] {
         assert!(
             dynamic
@@ -187,6 +192,29 @@ entities:
       fooBar: {}
       foo_bar: {}
 "#,
+        r#"
+quent: alpha
+model: collision
+entities:
+  Handle: { events: { emitted: {} } }
+"#,
+        r#"
+quent: alpha
+model: collision
+entities:
+  Worker:
+    events:
+      worker_id: { attributes: { value: u32 } }
+"#,
+        r#"
+quent: alpha
+model: collision
+fsms:
+  Job:
+    states:
+      new: { initial: true, to: [done] }
+      done: {}
+"#,
     ] {
         let schema = parse_from_str(schema, None).unwrap().schema;
         assert!(matches!(
@@ -194,6 +222,54 @@ entities:
             Err(GenerateError::NameCollision { .. })
         ));
     }
+}
+
+#[test]
+fn prunes_stale_generated_bridge_files() {
+    let out_dir = std::env::temp_dir().join(format!(
+        "quent-cpp-generated-files-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos(),
+    ));
+    std::fs::create_dir(&out_dir).unwrap();
+    let options = Options::default();
+    write_bridge_files_to(
+        &out_dir,
+        &[
+            GeneratedFile {
+                name: "old.rs".to_owned(),
+                content: String::new(),
+            },
+            GeneratedFile {
+                name: "quent.hpp".to_owned(),
+                content: String::new(),
+            },
+        ],
+        &options,
+    )
+    .unwrap();
+    write_bridge_files_to(
+        &out_dir,
+        &[
+            GeneratedFile {
+                name: "current.rs".to_owned(),
+                content: String::new(),
+            },
+            GeneratedFile {
+                name: "quent.hpp".to_owned(),
+                content: String::new(),
+            },
+        ],
+        &options,
+    )
+    .unwrap();
+
+    assert!(!out_dir.join("gen/old.rs").exists());
+    assert!(out_dir.join("gen/current.rs").is_file());
+    std::fs::remove_dir_all(out_dir).unwrap();
 }
 
 #[test]

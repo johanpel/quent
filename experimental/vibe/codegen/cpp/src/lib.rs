@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 use common::{cxx_safe, model_path, path_pascal, path_snake, pretty, raw_ident, to_case};
 use convert_case::Case;
 use quent_constraints::{Report, validate};
-use quent_fsm::FsmConstraint;
+use quent_fsm::{Fsm, FsmConstraint};
 use quent_ref_target::RefTargetConstraint;
 use quent_schema::Schema;
 use quote::quote;
@@ -209,12 +209,31 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         reserve_name(&mut context_methods, path_snake(entity.path()))?;
 
         let entity_name = path_pascal(entity.path());
+        if entity.path().namespace().is_empty()
+            && [
+                "Uuid",
+                "EntityId",
+                "Handle",
+                "FsmHandle",
+                "DynamicAttributes",
+                "DynamicList",
+                "Context",
+            ]
+            .contains(&entity_name.as_str())
+        {
+            return Err(GenerateError::NameCollision { name: entity_name });
+        }
         let mut scope = [
+            format!("{entity_name}Id"),
             format!("{entity_name}Observer"),
             format!("{entity_name}Handle"),
         ]
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
+        let mut fsm_variants = Fsm::try_from_entity(entity)
+            .ok()
+            .flatten()
+            .map(|_| std::collections::BTreeSet::from(["New".to_owned()]));
         let mut methods = ["id".to_owned(), "uuid".to_owned()]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
@@ -233,6 +252,9 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
                     return Err(GenerateError::NameCollision { name });
                 }
                 reserve_name(&mut scope, name)?;
+            }
+            if let Some(variants) = &mut fsm_variants {
+                reserve_name(variants, to_case(event.name(), Case::Pascal))?;
             }
             validate_fields(event.fields().map(|field| field.name().as_ref()))?;
             for field in event.fields() {
@@ -428,6 +450,7 @@ fn dynamic_attributes_file(
                 F64List,
                 StringList,
                 StructList,
+                ListList,
                 Bool,
             }
 
@@ -495,13 +518,48 @@ fn dynamic_attributes_file(
             #dynamic::DynamicStruct(decode_dynamic_attributes(values, marker.child_count))
         }
 
+        fn decode_dynamic_list(
+            value: ffi::DynamicAttribute,
+            values: &mut std::vec::IntoIter<ffi::DynamicAttribute>,
+        ) -> #dynamic::DynamicList {
+            match value.kind {
+                ffi::DynamicAttributeKind::U8List => #dynamic::DynamicList::U8(value.u8_values),
+                ffi::DynamicAttributeKind::U16List => #dynamic::DynamicList::U16(value.u16_values),
+                ffi::DynamicAttributeKind::U32List => #dynamic::DynamicList::U32(value.u32_values),
+                ffi::DynamicAttributeKind::U64List => #dynamic::DynamicList::U64(value.u64_values),
+                ffi::DynamicAttributeKind::I8List => #dynamic::DynamicList::I8(value.i8_values),
+                ffi::DynamicAttributeKind::I16List => #dynamic::DynamicList::I16(value.i16_values),
+                ffi::DynamicAttributeKind::I32List => #dynamic::DynamicList::I32(value.i32_values),
+                ffi::DynamicAttributeKind::I64List => #dynamic::DynamicList::I64(value.i64_values),
+                ffi::DynamicAttributeKind::F32List => #dynamic::DynamicList::F32(value.f32_values),
+                ffi::DynamicAttributeKind::F64List => #dynamic::DynamicList::F64(value.f64_values),
+                ffi::DynamicAttributeKind::StringList => #dynamic::DynamicList::String(value.string_values),
+                ffi::DynamicAttributeKind::StructList => #dynamic::DynamicList::Struct(
+                    (0..value.child_count)
+                        .map(|_| decode_dynamic_struct(values))
+                        .collect(),
+                ),
+                ffi::DynamicAttributeKind::ListList => #dynamic::DynamicList::List(
+                    (0..value.child_count)
+                        .map(|_| {
+                            let value = values
+                                .next()
+                                .expect("C++ nested dynamic list omitted a list value");
+                            decode_dynamic_list(value, values)
+                        })
+                        .collect(),
+                ),
+                _ => panic!("C++ nested dynamic list contained a non-list value"),
+            }
+        }
+
         fn decode_dynamic_attribute(
             values: &mut std::vec::IntoIter<ffi::DynamicAttribute>,
         ) -> #dynamic::DynamicAttribute {
             let value = values
                 .next()
                 .expect("C++ dynamic attribute tree ended unexpectedly");
-            let key = value.key;
+            let key = value.key.clone();
             match value.kind {
                 ffi::DynamicAttributeKind::Null => #dynamic::DynamicAttribute::null(key),
                 ffi::DynamicAttributeKind::U8 => #dynamic::DynamicAttribute::u8(key, value.u8_value),
@@ -521,36 +579,21 @@ fn dynamic_attributes_file(
                     key,
                     #dynamic::DynamicStruct(decode_dynamic_attributes(values, value.child_count)),
                 ),
-                ffi::DynamicAttributeKind::U8List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::U8(value.u8_values)),
-                ffi::DynamicAttributeKind::U16List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::U16(value.u16_values)),
-                ffi::DynamicAttributeKind::U32List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::U32(value.u32_values)),
-                ffi::DynamicAttributeKind::U64List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::U64(value.u64_values)),
-                ffi::DynamicAttributeKind::I8List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::I8(value.i8_values)),
-                ffi::DynamicAttributeKind::I16List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::I16(value.i16_values)),
-                ffi::DynamicAttributeKind::I32List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::I32(value.i32_values)),
-                ffi::DynamicAttributeKind::I64List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::I64(value.i64_values)),
-                ffi::DynamicAttributeKind::F32List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::F32(value.f32_values)),
-                ffi::DynamicAttributeKind::F64List => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::F64(value.f64_values)),
-                ffi::DynamicAttributeKind::StringList => #dynamic::DynamicAttribute::list(
-                    key, #dynamic::DynamicList::String(value.string_values)),
-                ffi::DynamicAttributeKind::StructList => #dynamic::DynamicAttribute::list(
-                    key,
-                    #dynamic::DynamicList::Struct(
-                        (0..value.child_count)
-                            .map(|_| decode_dynamic_struct(values))
-                            .collect(),
-                    ),
-                ),
+                ffi::DynamicAttributeKind::U8List
+                | ffi::DynamicAttributeKind::U16List
+                | ffi::DynamicAttributeKind::U32List
+                | ffi::DynamicAttributeKind::U64List
+                | ffi::DynamicAttributeKind::I8List
+                | ffi::DynamicAttributeKind::I16List
+                | ffi::DynamicAttributeKind::I32List
+                | ffi::DynamicAttributeKind::I64List
+                | ffi::DynamicAttributeKind::F32List
+                | ffi::DynamicAttributeKind::F64List
+                | ffi::DynamicAttributeKind::StringList
+                | ffi::DynamicAttributeKind::StructList
+                | ffi::DynamicAttributeKind::ListList => {
+                    #dynamic::DynamicAttribute::list(key, decode_dynamic_list(value, values))
+                }
                 ffi::DynamicAttributeKind::Bool => #dynamic::DynamicAttribute {
                     key,
                     value: Some(#dynamic::DynamicValue::U8(u8::from(value.bool_value))),
@@ -746,8 +789,24 @@ pub fn write_bridge_files(
         std::env::var("OUT_DIR")
             .map_err(|error| std::io::Error::new(std::io::ErrorKind::NotFound, error))?,
     );
+    write_bridge_files_to(&out_dir, files, options)
+}
+
+fn write_bridge_files_to(
+    out_dir: &Path,
+    files: &[GeneratedFile],
+    options: &Options,
+) -> Result<Vec<PathBuf>, GenerateError> {
     let generated_dir = out_dir.join(&options.bridge_path);
     std::fs::create_dir_all(&generated_dir)?;
+    let expected = files
+        .iter()
+        .map(|file| std::ffi::OsString::from(&file.name))
+        .collect::<std::collections::BTreeSet<_>>();
+    prune_files(&generated_dir, &expected, |path| {
+        path.extension().is_some_and(|extension| extension == "rs")
+            || path.file_name().is_some_and(|name| name == "quent.hpp")
+    })?;
     let mut bridge_files = Vec::new();
     let mut modules = String::new();
     for file in files {
@@ -759,6 +818,23 @@ pub fn write_bridge_files(
     }
     std::fs::write(out_dir.join("bridge_mod.rs"), modules)?;
     Ok(bridge_files)
+}
+
+fn prune_files(
+    directory: &Path,
+    expected: &std::collections::BTreeSet<std::ffi::OsString>,
+    generated: impl Fn(&Path) -> bool,
+) -> Result<(), std::io::Error> {
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        if entry.file_type()?.is_file()
+            && generated(&entry.path())
+            && !expected.contains(&entry.file_name())
+        {
+            std::fs::remove_file(entry.path())?;
+        }
+    }
+    Ok(())
 }
 
 fn bridge_module_declaration(file_name: &str, bridge_path: &str) -> String {
@@ -781,6 +857,25 @@ pub fn stage_cxx_headers(options: &Options) -> Result<PathBuf, GenerateError> {
         .join(&options.crate_name)
         .join(&options.bridge_path);
     std::fs::create_dir_all(&public_dir)?;
+    let expected = std::fs::read_dir(&generated_dir)?
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "rs")
+        })
+        .map(|entry| {
+            let mut name = entry.file_name();
+            name.push(".h");
+            name
+        })
+        .chain(std::iter::once(std::ffi::OsString::from("quent.hpp")))
+        .collect::<std::collections::BTreeSet<_>>();
+    prune_files(&public_dir, &expected, |path| {
+        path.file_name()
+            .is_some_and(|name| name == "quent.hpp" || name.to_string_lossy().ends_with(".rs.h"))
+    })?;
     for entry in std::fs::read_dir(&generated_dir)? {
         let entry = entry?;
         if entry

@@ -500,6 +500,26 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
                     inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::Struct(output)),
                 })
             }
+            #[staticmethod]
+            pub fn list(values: &Bound<'_, PyAny>) -> PyResult<Self> {
+                let mut output = Vec::new();
+                for value in values.try_iter()? {
+                    let value = value?.extract::<PyRef<'_, PyDynamicValue>>().map_err(|_| {
+                        pyo3::exceptions::PyTypeError::new_err(
+                            "nested dynamic lists require DynamicValue list elements",
+                        )
+                    })?;
+                    let #dynamic::DynamicValue::List(value) = &value.inner else {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(
+                            "nested dynamic lists require DynamicValue list elements",
+                        ));
+                    };
+                    output.push(value.clone());
+                }
+                Ok(Self {
+                    inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::List(output)),
+                })
+            }
         }
 
         fn __extract_dynamic_struct(

@@ -67,6 +67,11 @@ mod tests {
             "f64_list",
             "string_list",
             "struct_list",
+            "nested_list",
+            "moved_to",
+            "before_move",
+            "moved_from",
+            "after_move",
         ];
         let mut previous = 0;
         for key in keys {
@@ -104,6 +109,9 @@ mod tests {
             r#""F32":[1.5,2.5]"#,
             r#""F64":[1.5,2.5]"#,
             r#""String":["first","second"]"#,
+            r#""List":[{"U8":[1,2]},{"List":[{"String":["nested"]}]}]"#,
+            r#""String":"retained""#,
+            r#""String":"valid""#,
         ] {
             assert!(serialized.contains(value), "missing dynamic value {value}");
         }

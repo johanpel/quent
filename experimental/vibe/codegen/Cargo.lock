@@ -525,6 +525,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-cpp-list-test"
+version = "0.0.0"
+dependencies = [
+ "cxx",
+ "cxx-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-schema-codegen-cpp",
+ "quent-yaml",
+]
+
+[[package]]
 name = "quent-demo-cpp-bridge"
 version = "0.0.0"
 dependencies = [

@@ -25,7 +25,8 @@ carrying data accept a mapping with `target` and `data` fields.
 
 Dynamic-attribute fields accept mappings. `None`, `bool`, `int`, `float`,
 `str`, and nested mappings have natural conversions; `DynamicValue` selects an
-exact numeric width or constructs a typed list, structure, or structure list.
+exact numeric width or constructs a typed list, structure, structure list, or
+recursive list with `DynamicValue.list`.
 Mapping iteration order is retained for attributes and nested structure
 members; sequence order is retained for lists.
 

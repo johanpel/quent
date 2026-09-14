@@ -46,6 +46,14 @@ def main() -> None:
             "struct_list": quent.DynamicValue.struct_list(
                 [{"name": "first"}, {"name": "second"}]
             ),
+            "nested_list": quent.DynamicValue.list(
+                [
+                    quent.DynamicValue.u8_list([1, 2]),
+                    quent.DynamicValue.list(
+                        [quent.DynamicValue.string_list(["nested"])]
+                    ),
+                ]
+            ),
         }
         worker.declaration(
             instance_name="worker_0",

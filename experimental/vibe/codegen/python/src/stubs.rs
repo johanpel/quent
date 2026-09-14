@@ -51,6 +51,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         "    @staticmethod\n    def f64_list(values: Sequence[float]) -> DynamicValue: ...\n",
         "    @staticmethod\n    def string_list(values: Sequence[str]) -> DynamicValue: ...\n",
         "    @staticmethod\n    def struct_list(values: Sequence[DynamicAttributes]) -> DynamicValue: ...\n\n",
+        "    @staticmethod\n    def list(values: Sequence[DynamicValue]) -> DynamicValue: ...\n\n",
         "DynamicAttributeValue: TypeAlias = bool | int | float | str | DynamicValue | Mapping[str, 'DynamicAttributeValue'] | None\n",
         "DynamicAttributes: TypeAlias = Mapping[str, DynamicAttributeValue]\n\n",
         "class ExporterOptions:\n",

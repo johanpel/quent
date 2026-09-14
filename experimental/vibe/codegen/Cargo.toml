@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "cpp",
     "cpp/test",
+    "cpp/test/lists",
     "python",
     "tutorial-build",
     "cpp/example/readme/bridge",

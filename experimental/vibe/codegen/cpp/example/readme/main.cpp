@@ -57,6 +57,21 @@ quent::DynamicAttributes make_dynamic_attributes() {
   second_structure.add_string("name", "second");
   structures.push_back(std::move(second_structure));
   custom.add_struct_list("struct_list", std::move(structures));
+
+  std::vector<quent::DynamicList> inner_lists;
+  inner_lists.push_back(quent::DynamicList::string({"nested"}));
+  std::vector<quent::DynamicList> nested_lists;
+  nested_lists.push_back(quent::DynamicList::u8({1, 2}));
+  nested_lists.push_back(quent::DynamicList::list(std::move(inner_lists)));
+  custom.add_list(
+      "nested_list", quent::DynamicList::list(std::move(nested_lists)));
+
+  quent::DynamicAttributes moved_from;
+  moved_from.add_string("before_move", "retained");
+  auto moved_to = std::move(moved_from);
+  moved_from.add_string("after_move", "valid");
+  custom.add_structure("moved_to", std::move(moved_to));
+  custom.add_structure("moved_from", std::move(moved_from));
   return custom;
 }
 

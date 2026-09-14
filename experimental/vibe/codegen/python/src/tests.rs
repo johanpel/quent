@@ -62,6 +62,7 @@ fn generates_schema_driven_bridge_and_stubs() {
         "pub fn f64_list(",
         "pub fn string_list(",
         "pub fn struct_list(",
+        "pub fn list(",
     ] {
         assert!(bridge.content.contains(constructor));
     }
@@ -120,6 +121,11 @@ fn generates_schema_driven_bridge_and_stubs() {
             .contains("QueueUsageRefInput: TypeAlias = QueueUsageRefDict | Mapping[str, object]")
     );
     assert!(stubs[0].content.contains("class DynamicValue:"));
+    assert!(
+        stubs[0]
+            .content
+            .contains("def list(values: Sequence[DynamicValue]) -> DynamicValue")
+    );
     assert!(stubs[0].content.contains("custom: DynamicAttributes"));
     assert!(
         stubs[0]

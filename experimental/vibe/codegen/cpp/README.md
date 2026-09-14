@@ -55,6 +55,8 @@ record name is not repeated. CXX-specific representations remain under
 `DynamicAttributes` has width-specific builders for every numeric scalar and
 list variant, plus strings, nulls, structures, and lists of structures.
 `add_bool` is a convenience that uses the runtime's `u8` boolean convention.
+`DynamicList` factories and `DynamicAttributes::add_list` construct recursive
+lists.
 Attributes and nested structure members retain insertion order; list elements
 retain their input order.
 
