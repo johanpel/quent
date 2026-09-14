@@ -33,6 +33,34 @@ fn generates_schema_driven_bridge_and_stubs() {
     );
     assert!(bridge.content.contains("cast::<PyMapping>()"));
     assert!(!bridge.content.contains("cast::<PyDict>()"));
+    for constructor in [
+        "pub fn u8(",
+        "pub fn u16(",
+        "pub fn u32(",
+        "pub fn u64(",
+        "pub fn i8(",
+        "pub fn i16(",
+        "pub fn i32(",
+        "pub fn i64(",
+        "pub fn f32(",
+        "pub fn f64(",
+        "pub fn string(",
+        "pub fn structure(",
+        "pub fn u8_list(",
+        "pub fn u16_list(",
+        "pub fn u32_list(",
+        "pub fn u64_list(",
+        "pub fn i8_list(",
+        "pub fn i16_list(",
+        "pub fn i32_list(",
+        "pub fn i64_list(",
+        "pub fn f32_list(",
+        "pub fn f64_list(",
+        "pub fn string_list(",
+        "pub fn struct_list(",
+    ] {
+        assert!(bridge.content.contains(constructor));
+    }
 
     let stubs = emit_stubs(&schema, &options).unwrap();
     assert!(
@@ -65,7 +93,8 @@ fn generates_schema_driven_bridge_and_stubs() {
             .content
             .contains("use_queue: QueueUsageRefDict | None")
     );
-    assert!(stubs[0].content.contains("custom: Mapping[str,"));
+    assert!(stubs[0].content.contains("class DynamicValue:"));
+    assert!(stubs[0].content.contains("custom: DynamicAttributes"));
     assert!(
         stubs[0]
             .content

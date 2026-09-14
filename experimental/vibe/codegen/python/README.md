@@ -23,6 +23,12 @@ Records are accepted as mappings. Targeted entity references accept either a
 `Uuid` or the matching generated handle; references carrying data accept a
 mapping with `target` and `data` fields.
 
+Dynamic-attribute fields accept mappings. `None`, `bool`, `int`, `float`,
+`str`, and nested mappings have natural conversions; `DynamicValue` selects an
+exact numeric width or constructs a typed list, structure, or structure list.
+Mapping iteration order is retained for attributes and nested structure
+members; sequence order is retained for lists.
+
 FSM handles expose only schema transitions. Invalid transitions raise
 `RuntimeError`; transition sequence numbers are assigned by the
 instrumentation runtime and are not Python parameters.

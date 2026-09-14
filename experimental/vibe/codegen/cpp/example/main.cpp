@@ -3,7 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "quent-demo-cpp-bridge/gen/quent.hpp"
+#ifndef QUENT_CPP_BRIDGE_HEADER
+#define QUENT_CPP_BRIDGE_HEADER "quent-demo-cpp-bridge/gen/quent.hpp"
+#endif
+#include QUENT_CPP_BRIDGE_HEADER
 
 #include <type_traits>
 
@@ -12,6 +15,50 @@ static_assert(
 static_assert(
     !std::is_convertible_v<quent::cluster::ClusterId,
                            quent::worker::WorkerId>);
+
+quent::DynamicAttributes make_dynamic_attributes() {
+  quent::DynamicAttributes custom;
+  custom.add_null("null");
+  custom.add_bool("bool", true);
+  custom.add_u8("u8", 8);
+  custom.add_u16("u16", 16);
+  custom.add_u32("u32", 32);
+  custom.add_u64("u64", 64);
+  custom.add_i8("i8", -8);
+  custom.add_i16("i16", -16);
+  custom.add_i32("i32", -32);
+  custom.add_i64("i64", -64);
+  custom.add_f32("f32", 32.5F);
+  custom.add_f64("f64", 64.5);
+  custom.add_string("string", "value");
+
+  quent::DynamicAttributes structure;
+  structure.add_string("first", "alpha");
+  structure.add_u32("second", 2);
+  custom.add_structure("structure", std::move(structure));
+
+  custom.add_u8_list("u8_list", {1, 2});
+  custom.add_u16_list("u16_list", {1, 2});
+  custom.add_u32_list("u32_list", {1, 2});
+  custom.add_u64_list("u64_list", {1, 2});
+  custom.add_i8_list("i8_list", {-1, 2});
+  custom.add_i16_list("i16_list", {-1, 2});
+  custom.add_i32_list("i32_list", {-1, 2});
+  custom.add_i64_list("i64_list", {-1, 2});
+  custom.add_f32_list("f32_list", {1.5F, 2.5F});
+  custom.add_f64_list("f64_list", {1.5, 2.5});
+  custom.add_string_list("string_list", {"first", "second"});
+
+  std::vector<quent::DynamicAttributes> structures;
+  quent::DynamicAttributes first_structure;
+  first_structure.add_string("name", "first");
+  structures.push_back(std::move(first_structure));
+  quent::DynamicAttributes second_structure;
+  second_structure.add_string("name", "second");
+  structures.push_back(std::move(second_structure));
+  custom.add_struct_list("struct_list", std::move(structures));
+  return custom;
+}
 
 int run_example() {
 #ifdef QUENT_DEMO_LIBRARY
@@ -34,8 +81,7 @@ int run_example() {
   } catch (const rust::Error &) {
   }
 
-  quent::DynamicAttributes custom;
-  custom.add_u64("threads", 256);
+  auto custom = make_dynamic_attributes();
   auto worker = context.worker_observer()->create();
   worker.declaration(quent::worker::Declaration{
       .instance_name = "worker_0",
@@ -133,8 +179,6 @@ int run_example() {
   return 0;
 }
 
-#ifdef QUENT_DEMO_LIBRARY
-extern "C" int quent_demo_cpp_smoke() { return run_example(); }
-#else
+#ifndef QUENT_DEMO_LIBRARY
 int main() { return run_example(); }
 #endif

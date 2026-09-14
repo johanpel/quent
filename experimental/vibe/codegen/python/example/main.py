@@ -27,6 +27,40 @@ def main() -> None:
             raise AssertionError("once-cardinality event was accepted twice")
 
         worker = context.worker_observer().create()
+        custom: quent.DynamicAttributes = UserDict(
+            {
+                "null": None,
+                "bool": True,
+                "u8": quent.DynamicValue.u8(8),
+                "u16": quent.DynamicValue.u16(16),
+                "u32": quent.DynamicValue.u32(32),
+                "u64": quent.DynamicValue.u64(64),
+                "i8": quent.DynamicValue.i8(-8),
+                "i16": quent.DynamicValue.i16(-16),
+                "i32": quent.DynamicValue.i32(-32),
+                "i64": quent.DynamicValue.i64(-64),
+                "f32": quent.DynamicValue.f32(32.5),
+                "f64": quent.DynamicValue.f64(64.5),
+                "string": quent.DynamicValue.string("value"),
+                "structure": quent.DynamicValue.structure(
+                    {"first": "alpha", "second": 2}
+                ),
+                "u8_list": quent.DynamicValue.u8_list([1, 2]),
+                "u16_list": quent.DynamicValue.u16_list([1, 2]),
+                "u32_list": quent.DynamicValue.u32_list([1, 2]),
+                "u64_list": quent.DynamicValue.u64_list([1, 2]),
+                "i8_list": quent.DynamicValue.i8_list([-1, 2]),
+                "i16_list": quent.DynamicValue.i16_list([-1, 2]),
+                "i32_list": quent.DynamicValue.i32_list([-1, 2]),
+                "i64_list": quent.DynamicValue.i64_list([-1, 2]),
+                "f32_list": quent.DynamicValue.f32_list([1.5, 2.5]),
+                "f64_list": quent.DynamicValue.f64_list([1.5, 2.5]),
+                "string_list": quent.DynamicValue.string_list(["first", "second"]),
+                "struct_list": quent.DynamicValue.struct_list(
+                    [{"name": "first"}, {"name": "second"}]
+                ),
+            }
+        )
         worker.declaration(
             instance_name="worker_0",
             cluster=cluster,
@@ -35,7 +69,7 @@ def main() -> None:
                 UserDict(
                     {
                         "version": "42.1.2",
-                        "custom": UserDict({"threads": 256}),
+                        "custom": custom,
                     }
                 ),
             ),

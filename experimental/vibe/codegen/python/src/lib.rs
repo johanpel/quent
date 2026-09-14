@@ -153,9 +153,14 @@ fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
 fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     let mut names = [
         "Context",
+        "DynamicAttributes",
+        "DynamicAttributeValue",
+        "DynamicValue",
         "ExporterOptions",
         "Mapping",
         "PathLike",
+        "Sequence",
+        "TypeAlias",
         "TypedDict",
         "Uuid",
     ]
@@ -369,13 +374,125 @@ fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
                 .map_err(|_| pyo3::exceptions::PyTypeError::new_err("expected Uuid"))
         }
 
-        fn __extract_dynamic_attributes(
+        #[pyclass(name = "DynamicValue", frozen, skip_from_py_object)]
+        #[derive(Clone)]
+        pub struct PyDynamicValue { inner: #dynamic::DynamicValue }
+
+        #[pymethods]
+        impl PyDynamicValue {
+            #[staticmethod]
+            pub fn u8(value: u8) -> Self {
+                Self { inner: #dynamic::DynamicValue::U8(value) }
+            }
+            #[staticmethod]
+            pub fn u16(value: u16) -> Self {
+                Self { inner: #dynamic::DynamicValue::U16(value) }
+            }
+            #[staticmethod]
+            pub fn u32(value: u32) -> Self {
+                Self { inner: #dynamic::DynamicValue::U32(value) }
+            }
+            #[staticmethod]
+            pub fn u64(value: u64) -> Self {
+                Self { inner: #dynamic::DynamicValue::U64(value) }
+            }
+            #[staticmethod]
+            pub fn i8(value: i8) -> Self {
+                Self { inner: #dynamic::DynamicValue::I8(value) }
+            }
+            #[staticmethod]
+            pub fn i16(value: i16) -> Self {
+                Self { inner: #dynamic::DynamicValue::I16(value) }
+            }
+            #[staticmethod]
+            pub fn i32(value: i32) -> Self {
+                Self { inner: #dynamic::DynamicValue::I32(value) }
+            }
+            #[staticmethod]
+            pub fn i64(value: i64) -> Self {
+                Self { inner: #dynamic::DynamicValue::I64(value) }
+            }
+            #[staticmethod]
+            pub fn f32(value: f32) -> Self {
+                Self { inner: #dynamic::DynamicValue::F32(value) }
+            }
+            #[staticmethod]
+            pub fn f64(value: f64) -> Self {
+                Self { inner: #dynamic::DynamicValue::F64(value) }
+            }
+            #[staticmethod]
+            pub fn string(value: String) -> Self {
+                Self { inner: #dynamic::DynamicValue::String(value) }
+            }
+            #[staticmethod]
+            pub fn structure(value: &Bound<'_, PyAny>) -> PyResult<Self> {
+                Ok(Self {
+                    inner: #dynamic::DynamicValue::Struct(__extract_dynamic_struct(value)?),
+                })
+            }
+            #[staticmethod]
+            pub fn u8_list(values: Vec<u8>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::U8(values)) }
+            }
+            #[staticmethod]
+            pub fn u16_list(values: Vec<u16>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::U16(values)) }
+            }
+            #[staticmethod]
+            pub fn u32_list(values: Vec<u32>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::U32(values)) }
+            }
+            #[staticmethod]
+            pub fn u64_list(values: Vec<u64>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::U64(values)) }
+            }
+            #[staticmethod]
+            pub fn i8_list(values: Vec<i8>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::I8(values)) }
+            }
+            #[staticmethod]
+            pub fn i16_list(values: Vec<i16>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::I16(values)) }
+            }
+            #[staticmethod]
+            pub fn i32_list(values: Vec<i32>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::I32(values)) }
+            }
+            #[staticmethod]
+            pub fn i64_list(values: Vec<i64>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::I64(values)) }
+            }
+            #[staticmethod]
+            pub fn f32_list(values: Vec<f32>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::F32(values)) }
+            }
+            #[staticmethod]
+            pub fn f64_list(values: Vec<f64>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::F64(values)) }
+            }
+            #[staticmethod]
+            pub fn string_list(values: Vec<String>) -> Self {
+                Self { inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::String(values)) }
+            }
+            #[staticmethod]
+            pub fn struct_list(values: &Bound<'_, PyAny>) -> PyResult<Self> {
+                let mut output = Vec::new();
+                for value in values.try_iter()? {
+                    output.push(__extract_dynamic_struct(&value?)?);
+                }
+                Ok(Self {
+                    inner: #dynamic::DynamicValue::List(#dynamic::DynamicList::Struct(output)),
+                })
+            }
+        }
+
+        fn __extract_dynamic_struct(
             value: &Bound<'_, PyAny>,
-        ) -> PyResult<#runtime::DynamicAttributes> {
+        ) -> PyResult<#dynamic::DynamicStruct> {
             let values = value.cast::<PyMapping>().map_err(|_| {
-                pyo3::exceptions::PyTypeError::new_err("expected mapping for dynamic attributes")
+                pyo3::exceptions::PyTypeError::new_err("expected mapping for dynamic structure")
             })?;
-            let mut output = #runtime::DynamicAttributes::new();
+            let mut output = Vec::new();
             for item in values.items()?.iter() {
                 let pair = item.cast::<PyTuple>().map_err(|_| {
                     pyo3::exceptions::PyTypeError::new_err(
@@ -390,27 +507,52 @@ fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
                     ))?
                     .to_str()?
                     .to_owned();
-                if value.is_none() {
-                    output.add(#dynamic::DynamicAttribute::null(key));
-                } else if let Ok(value) = value.cast::<PyBool>() {
-                    output.add_bool(key, value.is_true());
-                } else if let Ok(value) = value.cast::<PyInt>() {
-                    if let Ok(value) = value.extract::<i64>() {
-                        output.add_i64(key, value);
-                    } else {
-                        output.add_u64(key, value.extract::<u64>()?);
-                    }
-                } else if let Ok(value) = value.cast::<PyFloat>() {
-                    output.add_f64(key, value.value());
-                } else if let Ok(value) = value.cast::<PyString>() {
-                    output.add_string(key, value.to_str()?);
-                } else {
-                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                        "unsupported dynamic attribute value for `{key}`",
-                    )));
-                }
+                let value = __extract_dynamic_value(&value).map_err(|error| {
+                    pyo3::exceptions::PyTypeError::new_err(format!(
+                        "invalid dynamic attribute value for `{key}`: {error}",
+                    ))
+                })?;
+                output.push(#dynamic::DynamicAttribute { key, value });
             }
-            Ok(output)
+            Ok(#dynamic::DynamicStruct(output))
+        }
+
+        fn __extract_dynamic_value(
+            value: &Bound<'_, PyAny>,
+        ) -> PyResult<Option<#dynamic::DynamicValue>> {
+            if value.is_none() {
+                Ok(None)
+            } else if let Ok(value) = value.extract::<PyRef<'_, PyDynamicValue>>() {
+                Ok(Some(value.inner.clone()))
+            } else if let Ok(value) = value.cast::<PyBool>() {
+                Ok(Some(#dynamic::DynamicValue::U8(u8::from(value.is_true()))))
+            } else if let Ok(value) = value.cast::<PyInt>() {
+                if let Ok(value) = value.extract::<i64>() {
+                    Ok(Some(#dynamic::DynamicValue::I64(value)))
+                } else {
+                    Ok(Some(#dynamic::DynamicValue::U64(value.extract::<u64>()?)))
+                }
+            } else if let Ok(value) = value.cast::<PyFloat>() {
+                Ok(Some(#dynamic::DynamicValue::F64(value.value())))
+            } else if let Ok(value) = value.cast::<PyString>() {
+                Ok(Some(#dynamic::DynamicValue::String(value.to_str()?.to_owned())))
+            } else if value.cast::<PyMapping>().is_ok() {
+                Ok(Some(#dynamic::DynamicValue::Struct(
+                    __extract_dynamic_struct(value)?,
+                )))
+            } else {
+                Err(pyo3::exceptions::PyTypeError::new_err(
+                    "expected None, bool, int, float, str, mapping, or DynamicValue",
+                ))
+            }
+        }
+
+        fn __extract_dynamic_attributes(
+            value: &Bound<'_, PyAny>,
+        ) -> PyResult<#runtime::DynamicAttributes> {
+            Ok(#runtime::DynamicAttributes::from(
+                __extract_dynamic_struct(value)?.0,
+            ))
         }
 
         #[pyfunction]
@@ -855,6 +997,7 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add_function(wrap_pyfunction!(now_v7, module)?)?;
             module.add_function(wrap_pyfunction!(nil_uuid, module)?)?;
             module.add_class::<PyUuid>()?;
+            module.add_class::<PyDynamicValue>()?;
             module.add_class::<PyExporterOptions>()?;
             module.add_class::<PyContext>()?;
             #(module.add_class::<#observers>()?;)*

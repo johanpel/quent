@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "cpp",
+    "cpp/test",
     "python",
     "cpp/example/bridge",
     "python/example/bridge",

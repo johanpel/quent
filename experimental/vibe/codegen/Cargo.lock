@@ -528,6 +528,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-demo-cpp-test"
+version = "0.0.0"
+dependencies = [
+ "cxx",
+ "cxx-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+ "quent-io",
+ "quent-readme-example",
+ "quent-schema-codegen-cpp",
+ "quent-yaml",
+]
+
+[[package]]
 name = "quent-demo-python-bridge"
 version = "0.0.0"
 dependencies = [

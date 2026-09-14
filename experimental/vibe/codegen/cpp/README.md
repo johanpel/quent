@@ -52,6 +52,12 @@ schema-derived struct in `quent::refs`; an existing target prefix in the data
 record name is not repeated. CXX-specific representations remain under
 `quent::detail`.
 
+`DynamicAttributes` has width-specific builders for every numeric scalar and
+list variant, plus strings, nulls, structures, and lists of structures.
+`add_bool` is a convenience that uses the runtime's `u8` boolean convention.
+Attributes and nested structure members retain insertion order; list elements
+retain their input order.
+
 FSMs generate one move-only handle type per state. Their `&&`-qualified
 transition methods consume the current handle and return the target-state
 handle, so transitions that are not present in the schema do not compile.

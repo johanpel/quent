@@ -49,7 +49,72 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("struct QueueUsageRef {"));
     assert!(facade.content.contains("declaration_emitted() const"));
     assert!(facade.content.contains("static Context ndjson"));
-    assert_eq!(facade.content.matches("value_.values.push_back").count(), 6);
+    for method in [
+        "add_null",
+        "add_bool",
+        "add_u8",
+        "add_u16",
+        "add_u32",
+        "add_u64",
+        "add_i8",
+        "add_i16",
+        "add_i32",
+        "add_i64",
+        "add_f32",
+        "add_f64",
+        "add_string",
+        "add_structure",
+        "add_u8_list",
+        "add_u16_list",
+        "add_u32_list",
+        "add_u64_list",
+        "add_i8_list",
+        "add_i16_list",
+        "add_i32_list",
+        "add_i64_list",
+        "add_f32_list",
+        "add_f64_list",
+        "add_string_list",
+        "add_struct_list",
+    ] {
+        assert!(facade.content.contains(&format!("void {method}(")));
+    }
+    let dynamic = files
+        .iter()
+        .find(|file| file.name == "dynamic_attributes.rs")
+        .unwrap();
+    for variant in [
+        "U8",
+        "U16",
+        "U32",
+        "U64",
+        "I8",
+        "I16",
+        "I32",
+        "I64",
+        "F32",
+        "F64",
+        "String",
+        "Struct",
+        "U8List",
+        "U16List",
+        "U32List",
+        "U64List",
+        "I8List",
+        "I16List",
+        "I32List",
+        "I64List",
+        "F32List",
+        "F64List",
+        "StringList",
+        "StructList",
+    ] {
+        assert!(
+            dynamic
+                .content
+                .contains(&format!("DynamicAttributeKind::{variant}"))
+        );
+    }
     let usage = facade.content.find("struct QueueUsage {").unwrap();
     let reference = facade.content.find("struct QueueUsageRef {").unwrap();
     assert!(usage < reference);

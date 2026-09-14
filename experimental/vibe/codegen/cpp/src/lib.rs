@@ -402,21 +402,68 @@ fn dynamic_attributes_file(
             }
 
             #[derive(Debug)]
-            pub enum DynamicAttributeKind { Null, String, I64, U64, F64, Bool }
+            pub enum DynamicAttributeKind {
+                Null,
+                U8,
+                U16,
+                U32,
+                U64,
+                I8,
+                I16,
+                I32,
+                I64,
+                F32,
+                F64,
+                String,
+                Struct,
+                U8List,
+                U16List,
+                U32List,
+                U64List,
+                I8List,
+                I16List,
+                I32List,
+                I64List,
+                F32List,
+                F64List,
+                StringList,
+                StructList,
+                Bool,
+            }
 
             #[derive(Debug)]
             pub struct DynamicAttribute {
                 pub kind: DynamicAttributeKind,
                 pub key: String,
-                pub string_value: String,
-                pub i64_value: i64,
+                pub u8_value: u8,
+                pub u16_value: u16,
+                pub u32_value: u32,
                 pub u64_value: u64,
+                pub i8_value: i8,
+                pub i16_value: i16,
+                pub i32_value: i32,
+                pub i64_value: i64,
+                pub f32_value: f32,
                 pub f64_value: f64,
+                pub string_value: String,
                 pub bool_value: bool,
+                pub u8_values: Vec<u8>,
+                pub u16_values: Vec<u16>,
+                pub u32_values: Vec<u32>,
+                pub u64_values: Vec<u64>,
+                pub i8_values: Vec<i8>,
+                pub i16_values: Vec<i16>,
+                pub i32_values: Vec<i32>,
+                pub i64_values: Vec<i64>,
+                pub f32_values: Vec<f32>,
+                pub f64_values: Vec<f64>,
+                pub string_values: Vec<String>,
+                pub child_count: u32,
             }
 
             #[derive(Debug, Default)]
             pub struct DynamicAttributes {
+                pub root_count: u32,
                 pub values: Vec<DynamicAttribute>,
             }
 
@@ -427,33 +474,100 @@ fn dynamic_attributes_file(
 
         fn dynamic_attributes_vec_noop(_: &Vec<ffi::DynamicAttributes>) {}
 
+        fn decode_dynamic_attributes(
+            values: &mut std::vec::IntoIter<ffi::DynamicAttribute>,
+            count: u32,
+        ) -> Vec<#dynamic::DynamicAttribute> {
+            (0..count)
+                .map(|_| decode_dynamic_attribute(values))
+                .collect()
+        }
+
+        fn decode_dynamic_struct(
+            values: &mut std::vec::IntoIter<ffi::DynamicAttribute>,
+        ) -> #dynamic::DynamicStruct {
+            let marker = values
+                .next()
+                .expect("C++ dynamic struct list omitted a struct marker");
+            if !matches!(marker.kind, ffi::DynamicAttributeKind::Struct) {
+                panic!("C++ dynamic struct list contained a non-struct marker");
+            }
+            #dynamic::DynamicStruct(decode_dynamic_attributes(values, marker.child_count))
+        }
+
+        fn decode_dynamic_attribute(
+            values: &mut std::vec::IntoIter<ffi::DynamicAttribute>,
+        ) -> #dynamic::DynamicAttribute {
+            let value = values
+                .next()
+                .expect("C++ dynamic attribute tree ended unexpectedly");
+            let key = value.key;
+            match value.kind {
+                ffi::DynamicAttributeKind::Null => #dynamic::DynamicAttribute::null(key),
+                ffi::DynamicAttributeKind::U8 => #dynamic::DynamicAttribute::u8(key, value.u8_value),
+                ffi::DynamicAttributeKind::U16 => #dynamic::DynamicAttribute::u16(key, value.u16_value),
+                ffi::DynamicAttributeKind::U32 => #dynamic::DynamicAttribute::u32(key, value.u32_value),
+                ffi::DynamicAttributeKind::U64 => #dynamic::DynamicAttribute::u64(key, value.u64_value),
+                ffi::DynamicAttributeKind::I8 => #dynamic::DynamicAttribute::i8(key, value.i8_value),
+                ffi::DynamicAttributeKind::I16 => #dynamic::DynamicAttribute::i16(key, value.i16_value),
+                ffi::DynamicAttributeKind::I32 => #dynamic::DynamicAttribute::i32(key, value.i32_value),
+                ffi::DynamicAttributeKind::I64 => #dynamic::DynamicAttribute::i64(key, value.i64_value),
+                ffi::DynamicAttributeKind::F32 => #dynamic::DynamicAttribute::f32(key, value.f32_value),
+                ffi::DynamicAttributeKind::F64 => #dynamic::DynamicAttribute::f64(key, value.f64_value),
+                ffi::DynamicAttributeKind::String => {
+                    #dynamic::DynamicAttribute::string(key, value.string_value)
+                }
+                ffi::DynamicAttributeKind::Struct => #dynamic::DynamicAttribute::structure(
+                    key,
+                    #dynamic::DynamicStruct(decode_dynamic_attributes(values, value.child_count)),
+                ),
+                ffi::DynamicAttributeKind::U8List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::U8(value.u8_values)),
+                ffi::DynamicAttributeKind::U16List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::U16(value.u16_values)),
+                ffi::DynamicAttributeKind::U32List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::U32(value.u32_values)),
+                ffi::DynamicAttributeKind::U64List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::U64(value.u64_values)),
+                ffi::DynamicAttributeKind::I8List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::I8(value.i8_values)),
+                ffi::DynamicAttributeKind::I16List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::I16(value.i16_values)),
+                ffi::DynamicAttributeKind::I32List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::I32(value.i32_values)),
+                ffi::DynamicAttributeKind::I64List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::I64(value.i64_values)),
+                ffi::DynamicAttributeKind::F32List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::F32(value.f32_values)),
+                ffi::DynamicAttributeKind::F64List => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::F64(value.f64_values)),
+                ffi::DynamicAttributeKind::StringList => #dynamic::DynamicAttribute::list(
+                    key, #dynamic::DynamicList::String(value.string_values)),
+                ffi::DynamicAttributeKind::StructList => #dynamic::DynamicAttribute::list(
+                    key,
+                    #dynamic::DynamicList::Struct(
+                        (0..value.child_count)
+                            .map(|_| decode_dynamic_struct(values))
+                            .collect(),
+                    ),
+                ),
+                ffi::DynamicAttributeKind::Bool => #dynamic::DynamicAttribute {
+                    key,
+                    value: Some(#dynamic::DynamicValue::U8(u8::from(value.bool_value))),
+                },
+                _ => unreachable!("unknown dynamic attribute kind"),
+            }
+        }
+
         impl ffi::DynamicAttributes {
             pub fn into_model(self) -> #runtime::DynamicAttributes {
-                let mut output = #runtime::DynamicAttributes::new();
-                for value in self.values {
-                    match value.kind {
-                        ffi::DynamicAttributeKind::Null => {
-                            output.add(#dynamic::DynamicAttribute::null(value.key));
-                        }
-                        ffi::DynamicAttributeKind::String => {
-                            output.add_string(value.key, value.string_value);
-                        }
-                        ffi::DynamicAttributeKind::I64 => {
-                            output.add_i64(value.key, value.i64_value);
-                        }
-                        ffi::DynamicAttributeKind::U64 => {
-                            output.add_u64(value.key, value.u64_value);
-                        }
-                        ffi::DynamicAttributeKind::F64 => {
-                            output.add_f64(value.key, value.f64_value);
-                        }
-                        ffi::DynamicAttributeKind::Bool => {
-                            output.add_bool(value.key, value.bool_value);
-                        }
-                        _ => unreachable!("unknown dynamic attribute kind"),
-                    }
-                }
-                output
+                let mut values = self.values.into_iter();
+                let output = decode_dynamic_attributes(&mut values, self.root_count);
+                assert!(
+                    values.next().is_none(),
+                    "C++ dynamic attribute tree contained trailing values",
+                );
+                #runtime::DynamicAttributes::from(output)
             }
         }
     };
