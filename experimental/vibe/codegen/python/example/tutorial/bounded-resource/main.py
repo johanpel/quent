@@ -10,13 +10,13 @@ def main() -> None:
         memory.resized(limits={"bytes": 8_000_000_000})
 
         task = context.task_observer().create()
-        task.running(
+        running = task.running(
             memory={
                 "target": memory,
                 "data": {"bytes": 512_000_000},
             }
         )
-        task.completed()
+        completed = running.completed()
 
 
 if __name__ == "__main__":

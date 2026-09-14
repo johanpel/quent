@@ -21,8 +21,11 @@ fn generates_schema_driven_bridge_and_stubs() {
     let bridge = emit(&schema, &options).unwrap().remove(0);
     syn::parse_file(&bridge.content).unwrap();
     assert!(bridge.content.contains("pub struct PyWorkerHandle"));
-    assert!(bridge.content.contains("enum PyThreadState"));
-    assert!(bridge.content.contains("invalid `active` FSM transition"));
+    assert!(bridge.content.contains("pub struct PyThreadIdleHandle"));
+    assert!(bridge.content.contains("pub struct PyThreadActiveHandle"));
+    assert!(bridge.content.contains("-> PyResult<PyThreadActiveHandle>"));
+    assert!(!bridge.content.contains("enum PyThreadState"));
+    assert!(!bridge.content.contains("struct PyUuid"));
     assert!(!bridge.content.contains("pub fn active(&mut self, seq:"));
     assert!(bridge.content.contains(".declaration("));
     assert!(bridge.content.contains("PyClusterHandle"));
@@ -63,26 +66,38 @@ fn generates_schema_driven_bridge_and_stubs() {
     }
 
     let stubs = emit_stubs(&schema, &options).unwrap();
+    assert!(stubs[0].content.contains("def now_v7() -> uuid.UUID"));
+    assert!(!stubs[0].content.contains("class Uuid:"));
+    assert!(stubs[0].content.contains("class QuentError(Exception):"));
     assert!(
         stubs[0]
             .content
-            .contains("class Uuid:\n    def __repr__(self) -> str: ...")
+            .contains("class EventAlreadyEmittedError(QuentError):")
     );
     assert!(
         stubs[0]
             .content
-            .contains("class ExporterOptions:\n    @staticmethod")
+            .contains("def ndjson(output_dir: str | PathLike[str]) -> ExporterOptions")
     );
     assert!(stubs[0].content.contains("class WorkerHandle:"));
     assert!(stubs[0].content.contains("class WorkerObserver:"));
-    assert!(stubs[0].content.contains("def active(self) -> None"));
+    assert!(stubs[0].content.contains("class ThreadIdleHandle:"));
+    assert!(
+        stubs[0]
+            .content
+            .contains("def active(self) -> ThreadActiveHandle")
+    );
     assert!(!stubs[0].content.contains("def active(self, *, seq:"));
     assert!(
         stubs[0]
             .content
             .contains("def worker_observer(self) -> WorkerObserver")
     );
-    assert!(stubs[0].content.contains("cluster: ClusterHandle | Uuid"));
+    assert!(
+        stubs[0]
+            .content
+            .contains("cluster: ClusterHandle | uuid.UUID")
+    );
     assert!(
         stubs[0]
             .content
@@ -91,7 +106,12 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(
         stubs[0]
             .content
-            .contains("use_queue: QueueUsageRefDict | None")
+            .contains("use_queue: QueueUsageRefInput | None")
+    );
+    assert!(
+        stubs[0]
+            .content
+            .contains("QueueUsageRefInput: TypeAlias = QueueUsageRefDict | Mapping[str, object]")
     );
     assert!(stubs[0].content.contains("class DynamicValue:"));
     assert!(stubs[0].content.contains("custom: DynamicAttributes"));
@@ -100,6 +120,26 @@ fn generates_schema_driven_bridge_and_stubs() {
             .content
             .contains("options: ExporterOptions | None = None")
     );
+    assert!(stubs[0].content.contains("def closed(self) -> bool"));
+    assert!(!stubs[0].content.contains("def none()"));
+
+    let initial_thread = class_body(&stubs[0].content, "ThreadHandle");
+    assert!(initial_thread.contains("def idle(self"));
+    assert!(!initial_thread.contains("def active(self"));
+    let idle_thread = class_body(&stubs[0].content, "ThreadIdleHandle");
+    assert!(idle_thread.contains("def active(self) -> ThreadActiveHandle"));
+    assert!(idle_thread.contains("def exit(self) -> ThreadExitHandle"));
+    assert!(!idle_thread.contains("def idle(self"));
+}
+
+fn class_body<'a>(stubs: &'a str, name: &str) -> &'a str {
+    stubs
+        .split_once(&format!("class {name}:"))
+        .unwrap()
+        .1
+        .split("\nclass ")
+        .next()
+        .unwrap()
 }
 
 #[test]

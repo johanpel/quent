@@ -10,14 +10,14 @@ def main() -> None:
         worker.ready(name="worker-1", limits={"threads": 16})
 
         job = context.job_observer().create()
-        job.queued(name="compile", requested_threads=4)
-        job.running(
+        queued = job.queued(name="compile", requested_threads=4)
+        running = queued.running(
             worker={
                 "target": worker,
                 "data": {"threads": 4},
             }
         )
-        job.completed()
+        completed = running.completed()
 
 
 if __name__ == "__main__":

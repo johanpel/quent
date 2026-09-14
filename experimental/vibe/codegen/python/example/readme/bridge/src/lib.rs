@@ -18,12 +18,25 @@ mod tests {
             py.run(
                 cr#"
 from collections import UserDict
+import uuid
 
 context = quent_demo.Context()
+assert isinstance(context.id, uuid.UUID)
+assert not context.closed
+assert not hasattr(quent_demo, "Uuid")
+assert not hasattr(quent_demo.ExporterOptions, "none")
 cluster_observer = context.cluster_observer()
-cluster = cluster_observer.create(context.id)
+cluster_id = uuid.uuid4()
+cluster = cluster_observer.create(cluster_id)
+assert cluster.uuid == cluster_id
 cluster.declaration(instance_name="cluster")
 assert cluster.declaration_emitted()
+try:
+    cluster.declaration(instance_name="duplicate")
+except quent_demo.EventAlreadyEmittedError:
+    pass
+else:
+    raise AssertionError("once-cardinality event was accepted twice")
 worker = context.worker_observer().create()
 worker.declaration(
     instance_name="worker",
@@ -71,14 +84,20 @@ queue.declaration(instance_name="queue", worker=worker)
 thread = context.thread_observer().create()
 try:
     thread.active()
-except RuntimeError:
+except AttributeError:
     pass
 else:
     raise AssertionError("invalid FSM transition was accepted")
-thread.idle(worker=worker)
-thread.active()
+idle_thread = thread.idle(worker=worker)
+active_thread = idle_thread.active()
+try:
+    idle_thread.active()
+except quent_demo.HandleConsumedError:
+    pass
+else:
+    raise AssertionError("consumed FSM handle was accepted")
 task = context.task_observer().create()
-task.queued(
+queued_task = task.queued(
     instance_name="task",
     index=1,
     worker=worker,
@@ -87,9 +106,21 @@ task.queued(
         "data": UserDict({"entries": 1}),
     }),
 )
-task.computing(use_thread={"target": thread, "data": {}}, use_memory=None)
-task.exit()
+computing_task = queued_task.computing(
+    use_thread={"target": active_thread, "data": {}},
+    use_memory=None,
+)
+exited_task = computing_task.exit()
+idle_thread = active_thread.idle(worker=worker)
+exited_thread = idle_thread.exit()
 context.close()
+assert context.closed
+try:
+    context.worker_observer()
+except quent_demo.ContextClosedError:
+    pass
+else:
+    raise AssertionError("closed context created an observer")
 detached_cluster = cluster_observer.create()
 detached_cluster.declaration(instance_name="detached")
 "#,

@@ -109,7 +109,7 @@ pub fn emit(schema: &Schema, options: &Options) -> Result<Vec<GeneratedFile>, Ge
     let runtime = parse_path(&options.runtime_path)?;
     let io = parse_path(&options.io_path)?;
     let dynamic = parse_path(&options.dynamic_attributes_path)?;
-    let helpers = helpers(&runtime, &dynamic);
+    let helpers = helpers(options, &runtime, &dynamic);
     let context = context(schema, options, &instrumentation, &runtime, &io);
     let entities = schema
         .entities()
@@ -153,16 +153,21 @@ fn validate_schema(schema: &Schema) -> Result<(), GenerateError> {
 fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     let mut names = [
         "Context",
+        "ContextClosedError",
         "DynamicAttributes",
         "DynamicAttributeValue",
         "DynamicValue",
+        "EventAlreadyEmittedError",
         "ExporterOptions",
+        "HandleConsumedError",
+        "Iterable",
         "Mapping",
         "PathLike",
+        "QuentError",
         "Sequence",
         "TypeAlias",
         "TypedDict",
-        "Uuid",
+        "uuid",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -170,6 +175,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     let mut references = std::collections::BTreeMap::<String, String>::new();
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
+        reserve_name(&mut names, format!("{}Input", path_pascal(record.path())))?;
         validate_python_fields(record.fields().map(|field| field.name().as_ref()))?;
         for field in record.fields() {
             collect_reference_names(field.ty(), &mut references)?;
@@ -182,6 +188,21 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             path_snake(entity.path()),
         ] {
             reserve_name(&mut names, name)?;
+        }
+        if Fsm::try_from_entity(entity)
+            .expect("schema was validated")
+            .is_some()
+        {
+            for state in entity.events() {
+                reserve_name(
+                    &mut names,
+                    format!(
+                        "{}{}Handle",
+                        path_pascal(entity.path()),
+                        to_case(state.name(), Case::Pascal),
+                    ),
+                )?;
+            }
         }
         let mut methods = ["uuid".to_owned()]
             .into_iter()
@@ -203,6 +224,10 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     }
     for name in references.keys() {
         reserve_name(&mut names, name.clone())?;
+        reserve_name(
+            &mut names,
+            format!("{}Input", name.trim_end_matches("Dict")),
+        )?;
     }
     Ok(())
 }
@@ -325,7 +350,14 @@ fn parse_path(path: &str) -> Result<syn::Path, GenerateError> {
     })
 }
 
-fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
+fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
+    let module = raw_ident(
+        options
+            .module_name
+            .rsplit('.')
+            .next()
+            .unwrap_or(&options.module_name),
+    );
     quote! {
         use pyo3::prelude::*;
         use pyo3::types::{
@@ -333,45 +365,26 @@ fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
             PyMappingMethods, PyModule, PyString, PyStringMethods, PyTuple,
         };
 
-        #[pyclass(name = "Uuid", frozen, skip_from_py_object)]
-        #[derive(Clone)]
-        pub struct PyUuid { inner: #runtime::Uuid }
+        pyo3::create_exception!(#module, QuentError, pyo3::exceptions::PyException);
+        pyo3::create_exception!(#module, EventAlreadyEmittedError, QuentError);
+        pyo3::create_exception!(#module, ContextClosedError, QuentError);
+        pyo3::create_exception!(#module, HandleConsumedError, QuentError);
 
-        #[pymethods]
-        impl PyUuid {
-            pub fn __repr__(&self) -> String { format!("Uuid('{}')", self.inner) }
-            pub fn __str__(&self) -> String { self.inner.to_string() }
-            pub fn __richcmp__(
-                &self,
-                other: &Bound<'_, PyAny>,
-                op: pyo3::class::basic::CompareOp,
-            ) -> PyResult<bool> {
-                match op {
-                    pyo3::class::basic::CompareOp::Eq => Ok(other
-                        .extract::<PyRef<'_, PyUuid>>()
-                        .is_ok_and(|other| self.inner == other.inner)),
-                    pyo3::class::basic::CompareOp::Ne => Ok(match other
-                        .extract::<PyRef<'_, PyUuid>>() {
-                            Ok(other) => self.inner != other.inner,
-                            Err(_) => true,
-                        }),
-                    _ => Err(pyo3::exceptions::PyTypeError::new_err(
-                        "Uuid only supports equality comparison",
-                    )),
-                }
-            }
-            pub fn __hash__(&self) -> isize {
-                use std::hash::{Hash, Hasher};
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                self.inner.hash(&mut hasher);
-                hasher.finish() as isize
-            }
+        fn __python_uuid(py: Python<'_>, value: #runtime::Uuid) -> PyResult<Py<PyAny>> {
+            Ok(py.import("uuid")?
+                .getattr("UUID")?
+                .call1((value.to_string(),))?
+                .unbind())
         }
 
         fn __extract_uuid(value: &Bound<'_, PyAny>) -> PyResult<#runtime::Uuid> {
-            value.extract::<PyRef<'_, PyUuid>>()
-                .map(|value| value.inner)
-                .map_err(|_| pyo3::exceptions::PyTypeError::new_err("expected Uuid"))
+            let uuid_type = value.py().import("uuid")?.getattr("UUID")?;
+            if !value.is_instance(&uuid_type)? {
+                return Err(pyo3::exceptions::PyTypeError::new_err(
+                    "expected uuid.UUID",
+                ));
+            }
+            Ok(#runtime::Uuid::from_u128(value.getattr("int")?.extract()?))
         }
 
         #[pyclass(name = "DynamicValue", frozen, skip_from_py_object)]
@@ -380,6 +393,9 @@ fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
 
         #[pymethods]
         impl PyDynamicValue {
+            pub fn __repr__(&self) -> String {
+                format!("DynamicValue({:?})", self.inner)
+            }
             #[staticmethod]
             pub fn u8(value: u8) -> Self {
                 Self { inner: #dynamic::DynamicValue::U8(value) }
@@ -556,9 +572,13 @@ fn helpers(runtime: &syn::Path, dynamic: &syn::Path) -> TokenStream {
         }
 
         #[pyfunction]
-        pub fn now_v7() -> PyUuid { PyUuid { inner: #runtime::Uuid::now_v7() } }
+        pub fn now_v7(py: Python<'_>) -> PyResult<Py<PyAny>> {
+            __python_uuid(py, #runtime::Uuid::now_v7())
+        }
         #[pyfunction]
-        pub fn nil_uuid() -> PyUuid { PyUuid { inner: #runtime::Uuid::nil() } }
+        pub fn nil_uuid(py: Python<'_>) -> PyResult<Py<PyAny>> {
+            __python_uuid(py, #runtime::Uuid::nil())
+        }
     }
 }
 
@@ -579,7 +599,7 @@ fn context(
         quote! {
             pub fn #method(&self) -> PyResult<#observer> {
                 let context = self.inner.as_ref().ok_or_else(|| {
-                    pyo3::exceptions::PyRuntimeError::new_err(
+                    ContextClosedError::new_err(
                         format!("`{}` context is closed", #module_name),
                     )
                 })?;
@@ -643,9 +663,19 @@ fn context(
                 }
             }
         });
+    let exporter_py_methods = (!exporter_methods.is_empty()).then(|| {
+        quote! {
+            #[pymethods]
+            impl PyExporterOptions {
+                #(#exporter_methods)*
+            }
+        }
+    });
     quote! {
+        #[allow(dead_code)]
         enum ExporterKind { Noop, #option_variant }
 
+        /// Configures the exporter used by a telemetry context.
         #[pyclass(name = "ExporterOptions", frozen)]
         pub struct PyExporterOptions { inner: ExporterKind }
 
@@ -653,13 +683,9 @@ fn context(
             #filesystem_helper
         }
 
-        #[pymethods]
-        impl PyExporterOptions {
-            #[staticmethod]
-            pub fn none() -> Self { Self { inner: ExporterKind::Noop } }
-            #(#exporter_methods)*
-        }
+        #exporter_py_methods
 
+        /// Owns observer factories for one telemetry context.
         #[pyclass(name = "Context")]
         pub struct PyContext { inner: Option<#context_ty> }
 
@@ -673,18 +699,28 @@ fn context(
                     #option_match
                 };
                 let inner = result.map_err(|error| {
-                    pyo3::exceptions::PyRuntimeError::new_err(error.to_string())
+                    QuentError::new_err(error.to_string())
                 })?;
                 Ok(Self { inner: Some(inner) })
             }
             #[getter]
-            pub fn id(&self) -> PyResult<PyUuid> {
-                self.inner.as_ref()
-                    .map(|context| PyUuid { inner: context.id() })
-                    .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err(
-                        format!("`{}` context is closed", #module_name),
-                    ))
+            pub fn id(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                let context = self.inner.as_ref().ok_or_else(|| {
+                    ContextClosedError::new_err(format!("`{}` context is closed", #module_name))
+                })?;
+                __python_uuid(py, context.id())
             }
+            #[getter]
+            pub fn closed(&self) -> bool { self.inner.is_none() }
+            pub fn __repr__(&self) -> String {
+                match self.inner.as_ref() {
+                    Some(context) => format!("Context(id='{}', closed=False)", context.id()),
+                    None => "Context(closed=True)".to_owned(),
+                }
+            }
+            /// Prevents this context from creating additional observers.
+            ///
+            /// Existing observers and handles remain usable and retain the exporter.
             pub fn close(&mut self) { self.inner.take(); }
             pub fn __enter__(slf: PyRefMut<'_, Self>) -> PyRefMut<'_, Self> { slf }
             pub fn __exit__(
@@ -746,8 +782,10 @@ fn entity_bindings(
                 .fields()
                 .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
                 .collect::<Vec<_>>();
-            let signature = (!args.is_empty()).then(|| quote! {
-                #[pyo3(signature = (*, #(#args),*))]
+            let signature = (!args.is_empty()).then(|| {
+                quote! {
+                    #[pyo3(signature = (*, #(#args),*))]
+                }
             });
             let event_method = match event.cardinality() {
                 Cardinality::Once => quote! {
@@ -756,7 +794,7 @@ fn entity_bindings(
                     pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
                         #(#bindings)*
                         self.inner.#model_method(#(#args),*)
-                            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+                            .map_err(|error| EventAlreadyEmittedError::new_err(error.to_string()))
                     }
                 },
                 Cardinality::Multi => quote! {
@@ -765,7 +803,7 @@ fn entity_bindings(
                     pub fn #method(&self, #(#params),*) -> PyResult<()> {
                         #(#bindings)*
                         self.inner.#model_method(#(#args),*)
-                            .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))
+                            .map_err(|error| QuentError::new_err(error.to_string()))
                     }
                 },
             };
@@ -774,10 +812,8 @@ fn entity_bindings(
                     "{}_emitted",
                     to_case(event.name(), Case::Snake)
                 )));
-                let model_emitted = raw_ident(format!(
-                    "{}_emitted",
-                    to_case(event.name(), Case::Snake)
-                ));
+                let model_emitted =
+                    raw_ident(format!("{}_emitted", to_case(event.name(), Case::Snake)));
                 quote! {
                     pub fn #emitted(&self) -> bool { self.inner.#model_emitted() }
                 }
@@ -786,21 +822,23 @@ fn entity_bindings(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(quote! {
+        /// Creates handles for this entity type.
         #[pyclass(name = #observer_export)]
         pub struct #observer { inner: #instrumentation::Observer<#entity_ty> }
 
         #[pymethods]
         impl #observer {
             #[pyo3(signature = (id=None))]
-            pub fn create(&self, id: Option<PyRef<'_, PyUuid>>) -> #handle {
+            pub fn create(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#handle> {
                 let inner = match id {
-                    Some(id) => self.inner.handle_with_id(id.inner),
+                    Some(id) => self.inner.handle_with_id(__extract_uuid(id)?),
                     None => self.inner.handle(),
                 };
-                #handle { inner }
+                Ok(#handle { inner })
             }
         }
 
+        /// Emits events for one entity instance.
         #[pyclass(name = #handle_export)]
         pub struct #handle { inner: #instrumentation::Handle<#entity_ty> }
 
@@ -811,8 +849,11 @@ fn entity_bindings(
         #[pymethods]
         impl #handle {
             #[getter]
-            pub fn uuid(&self) -> PyResult<PyUuid> {
-                Ok(PyUuid { inner: self.raw_uuid()? })
+            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                __python_uuid(py, self.raw_uuid()?)
+            }
+            pub fn __repr__(&self) -> String {
+                format!("{}(uuid='{}')", #handle_export, self.inner.uuid())
             }
             #(#methods)*
         }
@@ -828,10 +869,9 @@ fn fsm_entity_bindings(
 ) -> Result<TokenStream, GenerateError> {
     let name = path_pascal(entity.path());
     let observer = format_ident!("Py{name}Observer");
-    let handle = format_ident!("Py{name}Handle");
-    let state = format_ident!("Py{name}State");
+    let initial_handle = format_ident!("Py{name}Handle");
     let observer_export = format!("{name}Observer");
-    let handle_export = format!("{name}Handle");
+    let initial_handle_export = format!("{name}Handle");
     let entity_ty = rust_path(instrumentation, entity.path(), "");
     let modules = entity
         .path()
@@ -843,136 +883,191 @@ fn fsm_entity_bindings(
         to_case(entity.path().name(), Case::Snake)
     ));
     let state_module = quote! { #instrumentation::#(#modules::)*#state_module };
+    let initial_event = entity
+        .event(fsm.initial_state())
+        .expect("validated FSM initial state");
+    let initial_target = fsm_state_handle_ident(entity, initial_event.name());
+    let initial_method = fsm_transition_method(
+        schema,
+        initial_event,
+        &initial_target,
+        instrumentation,
+        runtime,
+    )?;
 
-    let state_variants = entity.events().map(|event| {
-        let variant = raw_ident(to_case(event.name(), Case::Pascal));
-        let marker = raw_ident(to_case(event.name(), Case::Pascal));
-        quote! {
-            #variant(#instrumentation::FsmHandle<#entity_ty, #state_module::#marker>)
-        }
-    });
-    let uuid_arms = std::iter::once(quote! { #state::New(inner) => inner.uuid() }).chain(
-        entity.events().map(|event| {
-            let variant = raw_ident(to_case(event.name(), Case::Pascal));
-            quote! { #state::#variant(inner) => inner.uuid() }
-        }),
-    );
-
-    let methods = entity
+    let state_classes = entity
         .events()
-        .map(|event| {
-            let model_method = raw_ident(to_case(event.name(), Case::Snake));
-            let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
-            let fields = event
-                .fields()
-                .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
-                .collect::<Vec<_>>();
-            let params = fields.iter().map(|field| {
-                let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-                quote! { #name: &Bound<'_, PyAny> }
-            });
-            let bindings = fields
-                .iter()
-                .map(|field| {
-                    let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
-                    let value = conversion::convert(
-                        schema,
-                        field.ty(),
-                        quote! { #name },
-                        instrumentation,
-                        runtime,
-                    )?;
-                    Ok::<_, GenerateError>(quote! { let #name = #value; })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let args = fields
-                .iter()
-                .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
-                .collect::<Vec<_>>();
-            let signature = (!args.is_empty()).then(|| {
-                quote! {
-                    #[pyo3(signature = (*, #(#args),*))]
-                }
-            });
-            let target = raw_ident(to_case(event.name(), Case::Pascal));
-            let mut transition_arms = Vec::new();
-            if event.name() == fsm.initial_state() {
-                transition_arms.push(quote! {
-                    #state::New(inner) => #state::#target(inner.#model_method(#(#args),*))
-                });
-            }
-            for transition in fsm
+        .map(|state| {
+            let handle = fsm_state_handle_ident(entity, state.name());
+            let handle_export = format!(
+                "{}{}Handle",
+                path_pascal(entity.path()),
+                to_case(state.name(), Case::Pascal),
+            );
+            let marker = raw_ident(to_case(state.name(), Case::Pascal));
+            let methods = fsm
                 .transitions()
                 .iter()
-                .filter(|transition| transition.target() == event.name())
-            {
-                let source = raw_ident(to_case(transition.source(), Case::Pascal));
-                transition_arms.push(quote! {
-                    #state::#source(inner) => #state::#target(inner.#model_method(#(#args),*))
-                });
-            }
-            let invalid = format!("invalid `{}` FSM transition", event.name());
+                .filter(|transition| transition.source() == state.name())
+                .map(|transition| {
+                    let target_event = entity
+                        .event(transition.target())
+                        .expect("validated FSM transition target");
+                    let target = fsm_state_handle_ident(entity, target_event.name());
+                    fsm_transition_method(schema, target_event, &target, instrumentation, runtime)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let state_name = state.name().to_string();
             Ok::<_, GenerateError>(quote! {
-                #signature
-                #[allow(clippy::too_many_arguments)]
-                pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
-                    #(#bindings)*
-                    let current = self.inner.take().ok_or_else(|| {
-                        pyo3::exceptions::PyRuntimeError::new_err("FSM handle is unavailable")
-                    })?;
-                    self.inner = Some(match current {
-                        #(#transition_arms,)*
-                        current => {
-                            self.inner = Some(current);
-                            return Err(pyo3::exceptions::PyRuntimeError::new_err(#invalid));
+                /// Represents one FSM entity in this state.
+                #[pyclass(name = #handle_export)]
+                pub struct #handle {
+                    inner: Option<#instrumentation::FsmHandle<#entity_ty, #state_module::#marker>>,
+                }
+
+                impl #handle {
+                    fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
+                        self.inner
+                            .as_ref()
+                            .map(|inner| inner.uuid())
+                            .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
+                    }
+                }
+
+                #[pymethods]
+                impl #handle {
+                    #[getter]
+                    pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                        __python_uuid(py, self.raw_uuid()?)
+                    }
+                    pub fn __repr__(&self) -> String {
+                        match self.inner.as_ref() {
+                            Some(inner) => format!(
+                                "{}(uuid='{}', state='{}')",
+                                #handle_export,
+                                inner.uuid(),
+                                #state_name,
+                            ),
+                            None => format!("{}(consumed=True)", #handle_export),
                         }
-                    });
-                    Ok(())
+                    }
+                    #(#methods)*
                 }
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(quote! {
-        enum #state {
-            New(#instrumentation::FsmHandle<#entity_ty>),
-            #(#state_variants,)*
-        }
-
+        /// Creates handles for this FSM entity type.
         #[pyclass(name = #observer_export)]
         pub struct #observer { inner: #instrumentation::Observer<#entity_ty> }
 
         #[pymethods]
         impl #observer {
             #[pyo3(signature = (id=None))]
-            pub fn create(&self, id: Option<PyRef<'_, PyUuid>>) -> #handle {
+            pub fn create(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#initial_handle> {
                 let inner = match id {
-                    Some(id) => self.inner.handle_with_id(id.inner),
+                    Some(id) => self.inner.handle_with_id(__extract_uuid(id)?),
                     None => self.inner.handle(),
                 };
-                #handle { inner: Some(#state::New(inner)) }
+                Ok(#initial_handle { inner: Some(inner) })
             }
         }
 
-        #[pyclass(name = #handle_export)]
-        pub struct #handle { inner: Option<#state> }
+        /// Starts one FSM entity instance.
+        #[pyclass(name = #initial_handle_export)]
+        pub struct #initial_handle {
+            inner: Option<#instrumentation::FsmHandle<#entity_ty>>,
+        }
 
-        impl #handle {
+        impl #initial_handle {
             fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
-                let inner = self.inner.as_ref().ok_or_else(|| {
-                    pyo3::exceptions::PyRuntimeError::new_err("FSM handle is unavailable")
-                })?;
-                Ok(match inner { #(#uuid_arms,)* })
+                self.inner
+                    .as_ref()
+                    .map(|inner| inner.uuid())
+                    .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
             }
         }
 
         #[pymethods]
-        impl #handle {
+        impl #initial_handle {
             #[getter]
-            pub fn uuid(&self) -> PyResult<PyUuid> {
-                Ok(PyUuid { inner: self.raw_uuid()? })
+            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                __python_uuid(py, self.raw_uuid()?)
             }
-            #(#methods)*
+            pub fn __repr__(&self) -> String {
+                match self.inner.as_ref() {
+                    Some(inner) => format!("{}(uuid='{}')", #initial_handle_export, inner.uuid()),
+                    None => format!("{}(consumed=True)", #initial_handle_export),
+                }
+            }
+            #initial_method
+        }
+
+        #(#state_classes)*
+    })
+}
+
+fn fsm_state_handle_ident(
+    entity: &quent_schema::Entity,
+    state: &quent_schema::Identifier,
+) -> syn::Ident {
+    format_ident!(
+        "Py{}{}Handle",
+        path_pascal(entity.path()),
+        to_case(state, Case::Pascal),
+    )
+}
+
+fn fsm_transition_method(
+    schema: &Schema,
+    event: &quent_schema::Event,
+    target_handle: &syn::Ident,
+    instrumentation: &syn::Path,
+    runtime: &syn::Path,
+) -> Result<TokenStream, GenerateError> {
+    let model_method = raw_ident(to_case(event.name(), Case::Snake));
+    let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
+    let fields = event
+        .fields()
+        .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
+        .collect::<Vec<_>>();
+    let params = fields.iter().map(|field| {
+        let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
+        quote! { #name: &Bound<'_, PyAny> }
+    });
+    let bindings = fields
+        .iter()
+        .map(|field| {
+            let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
+            let value = conversion::convert(
+                schema,
+                field.ty(),
+                quote! { #name },
+                instrumentation,
+                runtime,
+            )?;
+            Ok::<_, GenerateError>(quote! { let #name = #value; })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let args = fields
+        .iter()
+        .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
+        .collect::<Vec<_>>();
+    let signature = (!args.is_empty()).then(|| {
+        quote! {
+            #[pyo3(signature = (*, #(#args),*))]
+        }
+    });
+    Ok(quote! {
+        #signature
+        #[allow(clippy::too_many_arguments)]
+        pub fn #method(&mut self, #(#params),*) -> PyResult<#target_handle> {
+            #(#bindings)*
+            let inner = self.inner.take().ok_or_else(|| {
+                HandleConsumedError::new_err("FSM handle was consumed")
+            })?;
+            Ok(#target_handle { inner: Some(inner.#model_method(#(#args),*)) })
         }
     })
 }
@@ -988,15 +1083,38 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
     let observers = schema
         .entities()
         .map(|entity| format_ident!("Py{}Observer", path_pascal(entity.path())));
-    let handles = schema
-        .entities()
-        .map(|entity| format_ident!("Py{}Handle", path_pascal(entity.path())));
+    let handles = schema.entities().flat_map(|entity| {
+        let mut handles = vec![format_ident!("Py{}Handle", path_pascal(entity.path()))];
+        if Fsm::try_from_entity(entity)
+            .expect("schema was validated")
+            .is_some()
+        {
+            handles.extend(
+                entity
+                    .events()
+                    .map(|state| fsm_state_handle_ident(entity, state.name())),
+            );
+        }
+        handles
+    });
     quote! {
         #[pymodule(name = #export_name)]
         pub fn #rust_name(module: &Bound<'_, PyModule>) -> PyResult<()> {
+            module.add("QuentError", module.py().get_type::<QuentError>())?;
+            module.add(
+                "EventAlreadyEmittedError",
+                module.py().get_type::<EventAlreadyEmittedError>(),
+            )?;
+            module.add(
+                "ContextClosedError",
+                module.py().get_type::<ContextClosedError>(),
+            )?;
+            module.add(
+                "HandleConsumedError",
+                module.py().get_type::<HandleConsumedError>(),
+            )?;
             module.add_function(wrap_pyfunction!(now_v7, module)?)?;
             module.add_function(wrap_pyfunction!(nil_uuid, module)?)?;
-            module.add_class::<PyUuid>()?;
             module.add_class::<PyDynamicValue>()?;
             module.add_class::<PyExporterOptions>()?;
             module.add_class::<PyContext>()?;

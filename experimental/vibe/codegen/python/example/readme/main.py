@@ -1,14 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-from collections import UserDict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
 
 import quent_demo as quent
-
-if TYPE_CHECKING:
-    from quent_demo import DetailsDict, QueueUsageRefDict
 
 
 def main() -> None:
@@ -18,61 +13,47 @@ def main() -> None:
         scoped_cluster_telemetry = cluster_observer
         cluster = scoped_cluster_telemetry.create(context.id)
         cluster.declaration(instance_name="example_cluster")
-        assert cluster.declaration_emitted()
-        try:
-            cluster.declaration(instance_name="duplicate_cluster")
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("once-cardinality event was accepted twice")
 
         worker = context.worker_observer().create()
-        custom: quent.DynamicAttributes = UserDict(
-            {
-                "null": None,
-                "bool": True,
-                "u8": quent.DynamicValue.u8(8),
-                "u16": quent.DynamicValue.u16(16),
-                "u32": quent.DynamicValue.u32(32),
-                "u64": quent.DynamicValue.u64(64),
-                "i8": quent.DynamicValue.i8(-8),
-                "i16": quent.DynamicValue.i16(-16),
-                "i32": quent.DynamicValue.i32(-32),
-                "i64": quent.DynamicValue.i64(-64),
-                "f32": quent.DynamicValue.f32(32.5),
-                "f64": quent.DynamicValue.f64(64.5),
-                "string": quent.DynamicValue.string("value"),
-                "structure": quent.DynamicValue.structure(
-                    {"first": "alpha", "second": 2}
-                ),
-                "u8_list": quent.DynamicValue.u8_list([1, 2]),
-                "u16_list": quent.DynamicValue.u16_list([1, 2]),
-                "u32_list": quent.DynamicValue.u32_list([1, 2]),
-                "u64_list": quent.DynamicValue.u64_list([1, 2]),
-                "i8_list": quent.DynamicValue.i8_list([-1, 2]),
-                "i16_list": quent.DynamicValue.i16_list([-1, 2]),
-                "i32_list": quent.DynamicValue.i32_list([-1, 2]),
-                "i64_list": quent.DynamicValue.i64_list([-1, 2]),
-                "f32_list": quent.DynamicValue.f32_list([1.5, 2.5]),
-                "f64_list": quent.DynamicValue.f64_list([1.5, 2.5]),
-                "string_list": quent.DynamicValue.string_list(["first", "second"]),
-                "struct_list": quent.DynamicValue.struct_list(
-                    [{"name": "first"}, {"name": "second"}]
-                ),
-            }
-        )
+        custom: quent.DynamicAttributes = {
+            "null": None,
+            "bool": True,
+            "u8": quent.DynamicValue.u8(8),
+            "u16": quent.DynamicValue.u16(16),
+            "u32": quent.DynamicValue.u32(32),
+            "u64": quent.DynamicValue.u64(64),
+            "i8": quent.DynamicValue.i8(-8),
+            "i16": quent.DynamicValue.i16(-16),
+            "i32": quent.DynamicValue.i32(-32),
+            "i64": quent.DynamicValue.i64(-64),
+            "f32": quent.DynamicValue.f32(32.5),
+            "f64": quent.DynamicValue.f64(64.5),
+            "string": quent.DynamicValue.string("value"),
+            "structure": quent.DynamicValue.structure(
+                {"first": "alpha", "second": 2}
+            ),
+            "u8_list": quent.DynamicValue.u8_list([1, 2]),
+            "u16_list": quent.DynamicValue.u16_list([1, 2]),
+            "u32_list": quent.DynamicValue.u32_list([1, 2]),
+            "u64_list": quent.DynamicValue.u64_list([1, 2]),
+            "i8_list": quent.DynamicValue.i8_list([-1, 2]),
+            "i16_list": quent.DynamicValue.i16_list([-1, 2]),
+            "i32_list": quent.DynamicValue.i32_list([-1, 2]),
+            "i64_list": quent.DynamicValue.i64_list([-1, 2]),
+            "f32_list": quent.DynamicValue.f32_list([1.5, 2.5]),
+            "f64_list": quent.DynamicValue.f64_list([1.5, 2.5]),
+            "string_list": quent.DynamicValue.string_list(["first", "second"]),
+            "struct_list": quent.DynamicValue.struct_list(
+                [{"name": "first"}, {"name": "second"}]
+            ),
+        }
         worker.declaration(
             instance_name="worker_0",
             cluster=cluster,
-            details=cast(
-                "DetailsDict",
-                UserDict(
-                    {
-                        "version": "42.1.2",
-                        "custom": custom,
-                    }
-                ),
-            ),
+            details={
+                "version": "42.1.2",
+                "custom": custom,
+            },
         )
 
         queue = context.queue_observer().create()
@@ -87,14 +68,8 @@ def main() -> None:
         memory.resized(limits={"bytes": 2048})
 
         thread = context.thread_observer().create()
-        try:
-            thread.active()
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("invalid FSM transition was accepted")
-        thread.idle(worker=worker)
-        thread.active()
+        idle_thread = thread.idle(worker=worker)
+        active_thread = idle_thread.active()
 
         info = context.info_observer().create()
         info.recorded(
@@ -114,40 +89,26 @@ def main() -> None:
         )
 
         task = context.task_observer().create()
-        task.queued(
+        queued_task = task.queued(
             instance_name="my_task_31415",
             index=1,
             worker=worker,
-            use_queue=cast(
-                "QueueUsageRefDict",
-                UserDict(
-                    {
-                        "target": queue,
-                        "data": UserDict({"entries": 1}),
-                    }
-                ),
-            ),
+            use_queue={
+                "target": queue,
+                "data": {"entries": 1},
+            },
         )
-        task.computing(
-            use_thread={"target": thread, "data": {}},
+        computing_task = queued_task.computing(
+            use_thread={"target": active_thread, "data": {}},
             use_memory=None,
         )
-        task.computing(
-            use_thread={"target": thread, "data": {}},
+        computing_task = computing_task.computing(
+            use_thread={"target": active_thread, "data": {}},
             use_memory={"target": memory, "data": {"bytes": 1024}},
         )
-        task.exit()
-        thread.idle(worker=worker)
-        thread.exit()
-
-        try:
-            cast(Any, worker.declaration)(
-                "worker_1", cluster, {"version": "1", "custom": {}}
-            )
-        except TypeError:
-            pass
-        else:
-            raise AssertionError("event fields were accepted positionally")
+        exited_task = computing_task.exit()
+        idle_thread = active_thread.idle(worker=worker)
+        exited_thread = idle_thread.exit()
 
     detached_cluster = cluster_observer.create()
     detached_cluster.declaration(instance_name="detached_cluster")

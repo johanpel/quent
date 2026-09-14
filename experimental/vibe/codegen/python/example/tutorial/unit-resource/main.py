@@ -13,8 +13,8 @@ def main() -> None:
         thread.registered(pool=pool)
 
         task = context.task_observer().create()
-        task.running(thread={"target": thread, "data": {}})
-        task.completed()
+        running = task.running(thread={"target": thread, "data": {}})
+        completed = running.completed()
 
 
 if __name__ == "__main__":

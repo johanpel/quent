@@ -3,6 +3,7 @@
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
+use quent_fsm::Fsm;
 use quent_ref_target::RefTarget;
 use quent_schema::{DataType, Schema};
 use quote::{format_ident, quote};
@@ -89,14 +90,33 @@ pub(crate) fn convert(
                 .map(|target| rust_path(instrumentation, target.as_ref(), ""))
                 .unwrap_or_else(|| quote! { #instrumentation::AnyEntity });
             let extract_id = if let Some(target) = &target {
-                let handle = format_ident!("Py{}Handle", path_pascal(target.as_ref()));
-                quote! {{
-                    if let Ok(value) = target_value.extract::<PyRef<'_, #handle>>() {
-                        value.raw_uuid()?
-                    } else {
-                        __extract_uuid(&target_value)?
-                    }
-                }}
+                let entity = schema
+                    .entity(target.as_ref())
+                    .expect("validated entity reference target");
+                let mut handles = vec![format_ident!("Py{}Handle", path_pascal(target.as_ref()))];
+                if Fsm::try_from_entity(entity)
+                    .expect("schema was validated")
+                    .is_some()
+                {
+                    handles.extend(entity.events().map(|state| {
+                        format_ident!(
+                            "Py{}{}Handle",
+                            path_pascal(target.as_ref()),
+                            to_case(state.name(), Case::Pascal),
+                        )
+                    }));
+                }
+                let mut extraction = quote! { __extract_uuid(&target_value)? };
+                for handle in handles.into_iter().rev() {
+                    extraction = quote! {
+                        if let Ok(value) = target_value.extract::<PyRef<'_, #handle>>() {
+                            value.raw_uuid()?
+                        } else {
+                            #extraction
+                        }
+                    };
+                }
+                quote! {{ #extraction }}
             } else {
                 quote! { __extract_uuid(&target_value)? }
             };
