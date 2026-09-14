@@ -9,9 +9,14 @@ pixi run env DYLD_LIBRARY_PATH="$PWD/.pixi/envs/default/lib" \
 ```
 
 The target-language examples under `cpp/example/readme` and
-`python/example/readme` define
-the intended public API. Both examples bind directly to the schema-generated
-instrumentation in `examples/readme` and exercise event-order enforcement.
+`python/example/readme` define the intended public API. Both examples bind
+directly to the schema-generated instrumentation in `examples/readme` and
+exercise event-order enforcement.
+
+The examples under `cpp/example/tutorial` and `python/example/tutorial` mirror
+every tutorial in `crates/yaml/examples`. Each tutorial is independently
+buildable and reads its canonical `model.yaml` from the YAML crate; schemas are
+not copied into the language-specific examples.
 
 ## Git dependencies
 

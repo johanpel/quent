@@ -1,0 +1,23 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include QUENT_CPP_BRIDGE_HEADER
+
+int run_example() {
+  auto context = quent::Context::none();
+  auto task = std::move(context.task_observer()->create())
+                  .running(quent::task::Running{.items_processed = 0});
+  task = std::move(task).running(
+      quent::task::Running{.items_processed = 64});
+  auto paused = std::move(task).paused();
+  task = std::move(paused).running(
+      quent::task::Running{.items_processed = 128});
+  auto completed = std::move(task).completed();
+  return 0;
+}
+
+#ifndef QUENT_TUTORIAL_LIBRARY
+int main() { return run_example(); }
+#endif

@@ -4,8 +4,11 @@ members = [
     "cpp",
     "cpp/test",
     "python",
+    "tutorial-build",
     "cpp/example/readme/bridge",
+    "cpp/example/tutorial/*/bridge",
     "python/example/readme/bridge",
+    "python/example/tutorial/*/bridge",
 ]
 
 [workspace.package]

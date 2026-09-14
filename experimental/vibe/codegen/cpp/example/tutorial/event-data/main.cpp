@@ -1,0 +1,40 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include QUENT_CPP_BRIDGE_HEADER
+
+int run_example() {
+  auto context = quent::Context::none();
+  auto task = context.task_observer()->create();
+  task.started(quent::task::Started{
+      .enabled = true,
+      .byte = 1,
+      .short_count = 2,
+      .attempt = 3,
+      .item_count = 4,
+      .small_offset = -1,
+      .short_offset = -2,
+      .offset = -3,
+      .large_offset = -4,
+  });
+
+  quent::DynamicAttributes extra;
+  extra.add_string("worker", "alpha");
+  extra.add_u64("queue_depth", 3);
+  task.ended(quent::task::Ended{
+      .ratio = 0.5F,
+      .score = 0.95,
+      .message = "complete",
+      .run_id = quent::now_v7(),
+      .retry_after = std::nullopt,
+      .tags = {"batch", "priority"},
+      .extra = std::move(extra),
+  });
+  return 0;
+}
+
+#ifndef QUENT_TUTORIAL_LIBRARY
+int main() { return run_example(); }
+#endif

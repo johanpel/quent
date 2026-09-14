@@ -10,6 +10,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/pyproject.toml"
+      - "crates/yaml/examples/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/python.yml"
   pull_request:
@@ -20,6 +21,7 @@ on:
       - "**/Cargo.toml"
       - "**/Cargo.lock"
       - "**/pyproject.toml"
+      - "crates/yaml/examples/**/*.yaml"
       - "pixi.toml"
       - ".github/workflows/python.yml"
 
@@ -78,3 +80,16 @@ jobs:
       - name: Type check schema codegen Python example
         run: |
           pixi run ty check experimental/vibe/codegen/python/example/readme/
+      - name: Build schema codegen Python tutorials
+        run: |
+          for manifest in experimental/vibe/codegen/python/example/tutorial/*/bridge/Cargo.toml; do
+            pixi run maturin develop --uv -m "$manifest"
+          done
+      - name: Run schema codegen Python tutorials
+        run: |
+          for example in experimental/vibe/codegen/python/example/tutorial/*/main.py; do
+            pixi run python "$example"
+          done
+      - name: Type check schema codegen Python tutorials
+        run: |
+          pixi run ty check experimental/vibe/codegen/python/example/tutorial/
