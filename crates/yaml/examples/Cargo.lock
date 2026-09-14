@@ -317,9 +317,6 @@ dependencies = [
 [[package]]
 name = "quent-dynamic-attributes"
 version = "0.1.0"
-dependencies = [
- "thiserror",
-]
 
 [[package]]
 name = "quent-events"

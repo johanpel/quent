@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import {
   addOperatorSelection,
   createEmptyOperatorSelectionState,
-  getActiveOperatorLabel,
   getSelectedOperatorIds,
   removeOperatorSelection,
 } from './operatorSelection';
@@ -34,7 +33,6 @@ describe('operator selection', () => {
       label: 'Logical 2',
       operatorIds: new Set(['logical-2', 'physical-2']),
     });
-    expect(getActiveOperatorLabel(second)).toBe('Logical 2');
   });
 
   it('replaces a selected child with its containing parent selection', () => {

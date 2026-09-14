@@ -8,11 +8,11 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import {
   useDataFlowSync,
+  useOperatorSelectionActions,
   useSetDataFlowEnabled,
   useSetDataFlowLabelMeasure,
   useSetDataFlowSelectedDimensions,
-  useSetSelectedNodeData,
-  type InspectedNodeData,
+  type SelectedOperatorGroupData,
 } from '@quent/hooks';
 import { DagPlayhead, DAGLegend, DAGNodeInfoPanel, NodeFlowBar } from '@quent/components';
 import type { DataFlowTimelineBinned, EntityRef, QueryBundle } from '@quent/utils';
@@ -388,7 +388,7 @@ describe('tier (dimension) selection', () => {
 });
 
 describe('DAGNodeInfoPanel matrix under tier selection', () => {
-  const selectedOperator: InspectedNodeData = {
+  const selectedOperator: SelectedOperatorGroupData = {
     nodeId: 'op-1',
     label: 'Op 1',
     operationType: 'scan',
@@ -397,13 +397,23 @@ describe('DAGNodeInfoPanel matrix under tier selection', () => {
 
   function renderPanel(
     selectedDimensions: ReadonlySet<string> | null,
-    operator: InspectedNodeData = selectedOperator
+    operator: SelectedOperatorGroupData = selectedOperator
   ) {
-    function SelectNode({ value }: { value: InspectedNodeData }) {
-      const setSelectedNodeData = useSetSelectedNodeData();
+    function SelectNode({ value }: { value: SelectedOperatorGroupData }) {
+      const updateOperatorSelection = useOperatorSelectionActions();
       useEffect(() => {
-        setSelectedNodeData({ selectionId: value.nodeId, data: value });
-      }, [setSelectedNodeData, value]);
+        updateOperatorSelection({
+          type: 'replace',
+          selections: [
+            {
+              selectionId: value.nodeId,
+              label: value.label,
+              operatorIds: new Set([value.nodeId]),
+              selectedData: value,
+            },
+          ],
+        });
+      }, [updateOperatorSelection, value]);
       return <DAGNodeInfoPanel />;
     }
     return render(

@@ -110,8 +110,8 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
 pub(crate) fn reexports() -> TokenStream {
     quote! {
         pub use ::quent_instrumentation::{
-            AnyEntity, Context, DynamicAttributes, EntityRef, Event, HandleError, Noop, Observer,
-            Uuid,
+            AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
+            DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
         };
     }
 }
@@ -160,6 +160,22 @@ mod tests {
             attributes: vec![],
             to: to.iter().map(|target| ident(target)).collect(),
             initial,
+        }
+    }
+
+    #[test]
+    fn reexports_dynamic_attribute_value_types() {
+        let source = pretty(reexports());
+
+        for name in [
+            "DynamicAttribute",
+            "DynamicAttributes",
+            "DynamicList",
+            "DynamicStruct",
+            "DynamicValue",
+            "DynamicNull",
+        ] {
+            assert!(source.contains(name), "missing re-export for {name}");
         }
     }
 

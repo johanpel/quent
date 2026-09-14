@@ -12,8 +12,10 @@ export {
   getColorForKey,
   assignColors,
   getColorByIndex,
-  getOperationTypeColor,
-  buildOperatorColorMap,
+  normalizeDeterministicColorKey,
+  getDeterministicColor,
+  buildDeterministicColorMap,
+  createDeterministicColorResolver,
   withOpacity,
   resetColorAssignments,
   darkenColor,
@@ -30,7 +32,14 @@ export {
   continuousColor,
   getLegendGradientStops,
 } from './colors';
-export type { PaletteName, PaletteTheme, ChartColor, ContinuousPaletteName } from './colors';
+export type {
+  PaletteName,
+  PaletteTheme,
+  ChartColor,
+  ContinuousPaletteName,
+  DeterministicColorKey,
+  DeterministicColorResolver,
+} from './colors';
 
 // Formatter utilities
 export {
@@ -79,21 +88,21 @@ export type {
   DAGEdge,
 } from './dagTypes';
 
-// Operator selection and inspection types
+// Operator selection types
 export type {
   OperatorSelection,
   OperatorSelectionInput,
   OperatorSelectionState,
-  InspectedOperatorData,
-  InspectedNodeData,
+  SelectedOperatorData,
+  SelectedOperatorGroupData,
 } from './operatorTypes';
 export {
   buildRelatedOperatorIdsById,
-  getOperatorDisplayLabel,
   resolveOperatorSelectionCandidates,
+  resolveSelectedOperatorSelections,
   resolveOperatorSelections,
+  toggleOperatorSelection,
 } from './operatorHierarchy';
-export type { ResolvedOperatorSelectionCandidates } from './operatorHierarchy';
 
 export { AGG_MODES } from './aggMode';
 export type { AggMode } from './aggMode';

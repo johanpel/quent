@@ -5,17 +5,17 @@
 export { QuentProvider } from './QuentProvider';
 export type { QuentProviderProps } from './QuentProvider';
 
+// Query-scoped deterministic color registries
+export {
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
+  useHydrateColorRegistry,
+} from './colors/colorRegistry';
+export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
+
 // DAG hooks
-export { useSelectedNodeIds, useSetSelectedNodeIds } from './dag/useSelectedNodeIds';
-export {
-  useSelectedOperatorLabel,
-  useSetSelectedOperatorLabel,
-} from './dag/useSelectedOperatorLabel';
-export {
-  useOperatorSelection,
-  useOperatorSelectionActions,
-  type OperatorSelectionAction,
-} from './dag/useOperatorSelection';
+export { useSelectedOperatorIds } from './dag/useSelectedOperatorIds';
+export { useOperatorSelection, useOperatorSelectionActions } from './dag/useOperatorSelection';
 export { useSelectedPlanId, useSetSelectedPlanId } from './dag/useSelectedPlanId';
 export { useHoveredWorkerId, useSetHoveredWorkerId } from './dag/useHoveredWorkerId';
 
@@ -24,6 +24,7 @@ export {
   useTimelineData,
   useReturnedTimelineNumBins,
   useReturnedTimelineIsStale,
+  useZeroUtilizationResourceIds,
   useZoomRange,
   useGetZoomRange,
   useReadZoomRange,
@@ -48,7 +49,7 @@ export {
 // Timeline cache key helpers (consumers need these to address per-item data)
 export { LONG_ENTITY_DENSITIES, timelineCacheKey } from './atoms/timeline';
 export type { LongEntityDensity, TimelineCacheParams, TimelineHoverState } from './atoms/timeline';
-export { bulkEntryId } from './timeline/timeline.utils';
+export { bulkEntryId, isTimelineUtilizationAllZero } from './timeline/timeline.utils';
 
 // Complex timeline hooks
 export { useBulkTimelines } from './timeline/useBulkTimelines';
@@ -88,9 +89,7 @@ export {
   useEdgeColorPalette,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
-  useSelectedNodeData,
-  useSetSelectedNodeData,
-  useSelectedNodesData,
+  useSelectedOperatorsData,
   useHighlightedNodeIds,
   useSetHighlightedNodeIds,
   useEffectiveHighlightedNodeIds,
@@ -99,12 +98,8 @@ export {
   useSetHoveredStat,
   useSetDagDisplayedNodeIds,
 } from './dag/dagControlSelectors';
-export type {
-  HoveredStatInfo,
-  HighlightedNodeIdsState,
-  SelectedNodeDataUpdate,
-} from './atoms/dagControls';
-export type { InspectedNodeData, InspectedOperatorData } from '@quent/utils';
+export type { HoveredStatInfo, HighlightedNodeIdsState } from './atoms/dagControls';
+export type { SelectedOperatorData, SelectedOperatorGroupData } from '@quent/utils';
 
 // Data-flow overlay hooks (HOOKS-02: selector hooks over private atoms)
 export {

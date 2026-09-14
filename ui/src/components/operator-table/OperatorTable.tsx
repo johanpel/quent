@@ -8,7 +8,7 @@ import {
   PivotTableToolbar,
   getSchemaStatNames,
 } from '@quent/components';
-import { getOperationTypeColor, formatStatWithQuantity } from '@quent/utils';
+import { formatStatWithQuantity } from '@quent/utils';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -18,10 +18,12 @@ import type {
 } from '@quent/components';
 import {
   useSelectedPlanId,
-  useSelectedNodeIds,
+  useSelectedOperatorIds,
   useHighlightedNodeIds,
   useHoveredStat,
   useStatGroupTableControls,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
 import type { QueryBundle, EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
@@ -60,16 +62,6 @@ const OPERATOR_SCHEMA: PivotedStatTableSchema<OperatorTableRow> = {
   stats: row => row.stats,
 };
 
-// Module-scoped so the reference is stable across renders. An inline arrow
-// here would be a fresh function on every render of OperatorTable, which
-// cascades into PivotedStatTable's renderer dep arrays and ultimately causes
-// every cell to unmount/remount on every hover atom update — see the
-// `useStableRenderer` doc comment in PivotedStatTable.
-const getOperatorGroupTypeColor = (key: string, id: string): string | undefined =>
-  key === 'item_type' || key === 'parent_item_type'
-    ? getOperationTypeColor(id?.toLowerCase() ?? '')
-    : undefined;
-
 // Same reasoning: an inline `{ enabled: true, overscan: 12 }` would be a
 // fresh object reference per render and re-trigger virtualizer effects.
 const VIRTUALIZATION_CONFIG = { enabled: true, overscan: 12 } as const;
@@ -80,14 +72,21 @@ interface OperatorTableProps {
 
 export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const selectedPlanId = useSelectedPlanId();
-  const selectedNodeIds = useSelectedNodeIds();
+  const selectedOperatorIds = useSelectedOperatorIds();
   const [highlightState, setHighlightState] = useHighlightedNodeIds();
   const [hoveredStat, setHoveredStat] = useHoveredStat();
+  const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const { theme } = useTheme();
   const isDark = theme === THEME_DARK;
   const { entities, quantity_specs: quantitySpecs } = queryBundle;
   const dagHoveredOperatorId =
     highlightState.source === 'dag' ? highlightState.primaryOperatorId : null;
+  // A stable renderer callback prevents pivot cells from remounting on hover updates.
+  const getOperatorGroupTypeColor = useCallback(
+    (key: string, id: string): string | undefined =>
+      key === 'item_type' || key === 'parent_item_type' ? resolveOperatorTypeColor(id) : undefined,
+    [resolveOperatorTypeColor]
+  );
 
   // Plans included in the table: the selected plan plus every descendant plan
   // (children, grandchildren, ...). Selecting a leaf plan yields a singleton.
@@ -154,12 +153,12 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   // current sibling-plan scope (e.g. a stage node was selected), fall back to
   // the unfiltered rows so the table doesn't appear inexplicably empty.
   const rows = useMemo(() => {
-    if (selectedNodeIds.size === 0) {
+    if (selectedOperatorIds.size === 0) {
       return allRows;
     }
-    const filtered = allRows.filter(r => selectedNodeIds.has(r.itemId));
+    const filtered = allRows.filter(r => selectedOperatorIds.has(r.itemId));
     return filtered.length > 0 ? filtered : allRows;
-  }, [allRows, selectedNodeIds]);
+  }, [allRows, selectedOperatorIds]);
 
   // Per-group-key lookup of `gk.id -> Set<itemId>`. Used by the group-cell
   // hover handlers to highlight every operator that belongs to the group.
@@ -315,7 +314,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       hoveredStat,
       setHoveredStat,
       hoveredItemId: dagHoveredOperatorId,
-      selectedItemIds: selectedNodeIds,
+      selectedItemIds: selectedOperatorIds,
       onTableMouseLeave: handleTableMouseLeave,
       groupCellHandlers: getGroupCellHandlers,
     }),
@@ -323,7 +322,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
       hoveredStat,
       setHoveredStat,
       dagHoveredOperatorId,
-      selectedNodeIds,
+      selectedOperatorIds,
       handleTableMouseLeave,
       getGroupCellHandlers,
     ]
@@ -333,7 +332,7 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: getOperatorGroupTypeColor,
     }),
-    []
+    [getOperatorGroupTypeColor]
   );
 
   if (!selectedPlanId) {

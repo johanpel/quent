@@ -308,16 +308,8 @@ export function isLightColor(hex: string): boolean {
   return 0.299 * r + 0.587 * g + 0.114 * b > 0.5;
 }
 
-/**
- * Maps a query plan operation type to its associated color string.
- * Colors are derived from the CVA variants in QueryPlanNode.tsx.
- * Returns CSS color values suitable for programmatic use (SVG, canvas, etc.).
- *
- * @param operationType - The operation type string (e.g., 'source', 'join', 'aggregate')
- * @returns A CSS color string (Tailwind color name mapped to its standard hex value)
- */
-
-const OPERATOR_PALETTE = [
+/** Palette for deterministic categorical keys. */
+const CATEGORICAL_COLOR_PALETTE = [
   '#3b82f6', // blue-500
   '#a855f7', // purple-500
   '#22c55e', // green-500
@@ -332,21 +324,58 @@ const OPERATOR_PALETTE = [
   '#10b981', // emerald-500
 ];
 
-export function getOperationTypeColor(operationType: string): string {
-  const index = hashString(operationType.toLowerCase()) % OPERATOR_PALETTE.length;
-  return OPERATOR_PALETTE[index]!;
+export type DeterministicColorKey = string | number | bigint;
+
+export interface DeterministicColorResolver {
+  (value: DeterministicColorKey): string;
+  <T>(value: T, keyOf: (value: T) => DeterministicColorKey): string;
 }
 
-export function buildOperatorColorMap(operatorTypes: string[]): Map<string, string> {
-  const sorted = [...new Set(operatorTypes.map(t => t.toLowerCase()))].sort();
+export function normalizeDeterministicColorKey(value: DeterministicColorKey): string {
+  return String(value).trim().toLowerCase();
+}
+
+export function getDeterministicColor(value: DeterministicColorKey): string {
+  const key = normalizeDeterministicColorKey(value);
+  const index = hashString(key) % CATEGORICAL_COLOR_PALETTE.length;
+  return CATEGORICAL_COLOR_PALETTE[index]!;
+}
+
+export function buildDeterministicColorMap(
+  values: Iterable<DeterministicColorKey>
+): Map<string, string>;
+export function buildDeterministicColorMap<T>(
+  values: Iterable<T>,
+  keyOf: (value: T) => DeterministicColorKey
+): Map<string, string>;
+export function buildDeterministicColorMap<T>(
+  values: Iterable<T>,
+  keyOf?: (value: T) => DeterministicColorKey
+): Map<string, string> {
+  const sorted = [
+    ...new Set(
+      [...values].map(value =>
+        normalizeDeterministicColorKey(keyOf ? keyOf(value) : (value as DeterministicColorKey))
+      )
+    ),
+  ].sort();
   const used = new Set<number>();
   const map = new Map<string, string>();
-  for (const type of sorted) {
-    const index = pickPaletteIndex(type, OPERATOR_PALETTE.length, used);
+  for (const key of sorted) {
+    const index = pickPaletteIndex(key, CATEGORICAL_COLOR_PALETTE.length, used);
     used.add(index);
-    map.set(type, OPERATOR_PALETTE[index]!);
+    map.set(key, CATEGORICAL_COLOR_PALETTE[index]!);
   }
   return map;
+}
+
+export function createDeterministicColorResolver(
+  colorMap: ReadonlyMap<string, string>
+): DeterministicColorResolver {
+  return ((value: DeterministicColorKey, keyOf?: (value: unknown) => DeterministicColorKey) => {
+    const key = normalizeDeterministicColorKey(keyOf ? keyOf(value) : value);
+    return colorMap.get(key) ?? getDeterministicColor(key);
+  }) as DeterministicColorResolver;
 }
 
 // ---------------------------------------------------------------------------

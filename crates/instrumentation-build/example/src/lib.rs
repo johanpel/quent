@@ -64,9 +64,9 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     // A `dynamic` schema field maps to `DynamicAttributes`, which are
     // dynamically-typed key-value pairs:
     let mut extra = demo::DynamicAttributes::new();
-    extra.add_string("peer_agent", "curl/8.4");
-    extra.add_u64("chunk_index", 3);
-    extra.add_bool("compressed", true);
+    extra.add("peer_agent", "curl/8.4");
+    extra.add("chunk_index", 3_u64);
+    extra.add("compressed", true);
     conn.data(
         5678,
         Some(demo::Meta {

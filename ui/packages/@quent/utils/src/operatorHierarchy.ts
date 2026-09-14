@@ -2,17 +2,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Operator } from './types';
-import type { OperatorSelectionInput } from './operatorTypes';
+import { unwrapTaggedValue } from './formatters';
+import type {
+  OperatorSelection,
+  OperatorSelectionInput,
+  SelectedOperatorData,
+  SelectedOperatorGroupData,
+} from './operatorTypes';
 
-export interface ResolvedOperatorSelectionCandidates<
+interface ResolvedOperatorSelectionCandidates<
   Selection extends OperatorSelectionInput = OperatorSelectionInput,
 > {
   selections: Selection[];
   unresolvedOperatorIds: ReadonlySet<string>;
 }
 
-export function getOperatorDisplayLabel(operator: Operator): string {
+function getOperatorDisplayLabel(operator: Operator): string {
   return operator.instance_name ?? operator.operator_type_name ?? operator.id;
+}
+
+function getSelectedOperatorData(operator: Operator): SelectedOperatorData {
+  return {
+    nodeId: operator.id,
+    label: getOperatorDisplayLabel(operator),
+    operationType: operator.operator_type_name?.toLowerCase() ?? 'operator',
+    statistics: Object.entries(operator.statistics?.custom_statistics ?? {}).map(
+      ([key, statistic]) => ({
+        key,
+        value: statistic.value ? unwrapTaggedValue(statistic.value) : null,
+        ...(statistic.quantity !== null ? { quantity: statistic.quantity } : {}),
+      })
+    ),
+  };
 }
 
 export function buildRelatedOperatorIdsById(
@@ -116,4 +137,70 @@ export function resolveOperatorSelections(
   }
 
   return selections;
+}
+
+export function resolveSelectedOperatorSelections(
+  operators: readonly Operator[],
+  selectedOperatorIds: Iterable<string>
+): Array<OperatorSelectionInput & { selectedData?: SelectedOperatorGroupData }> {
+  const operatorsById = new Map(operators.map(operator => [operator.id, operator]));
+  return resolveOperatorSelections(operators, selectedOperatorIds).map(selection => {
+    const operator = operatorsById.get(selection.selectionId);
+    if (!operator) {
+      return selection;
+    }
+    return {
+      ...selection,
+      selectedData: {
+        ...getSelectedOperatorData(operator),
+        label: selection.label,
+        relatedOperators: [...selection.operatorIds]
+          .filter(id => id !== selection.selectionId)
+          .flatMap(id => {
+            const related = operatorsById.get(id);
+            return related ? [getSelectedOperatorData(related)] : [];
+          }),
+      },
+    };
+  });
+}
+
+export function toggleOperatorSelection(
+  operators: readonly Operator[],
+  selectedOperatorIds: Iterable<string>,
+  selections: ReadonlyMap<string, OperatorSelection>,
+  operatorId: string
+): OperatorSelectionInput[] {
+  const nextIds = new Set(selectedOperatorIds);
+  const selectedGroup = selections.get(operatorId);
+
+  if (selectedGroup) {
+    for (const id of selectedGroup.operatorIds) {
+      nextIds.delete(id);
+    }
+  } else if (nextIds.has(operatorId)) {
+    nextIds.delete(operatorId);
+    for (const id of buildRelatedOperatorIdsById(operators, [operatorId]).get(operatorId) ?? []) {
+      nextIds.delete(id);
+    }
+    const operatorsById = new Map(operators.map(operator => [operator.id, operator]));
+    const pendingParentIds = [...(operatorsById.get(operatorId)?.parent_operator_ids ?? [])];
+    const visitedParentIds = new Set<string>();
+    while (pendingParentIds.length > 0) {
+      const parentId = pendingParentIds.pop()!;
+      if (visitedParentIds.has(parentId)) {
+        continue;
+      }
+      visitedParentIds.add(parentId);
+      nextIds.delete(parentId);
+      pendingParentIds.push(...(operatorsById.get(parentId)?.parent_operator_ids ?? []));
+    }
+  } else {
+    nextIds.add(operatorId);
+    for (const id of buildRelatedOperatorIdsById(operators, [operatorId]).get(operatorId) ?? []) {
+      nextIds.add(id);
+    }
+  }
+
+  return resolveOperatorSelections(operators, nextIds);
 }

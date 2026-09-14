@@ -17,8 +17,7 @@ import {
   edgeColorPaletteAtom,
   selectedNodeLabelFieldAtom,
   selectedDagLayoutDirectionAtom,
-  selectedNodeDataAtom,
-  selectedNodesDataAtom,
+  selectedOperatorsDataAtom,
   highlightedNodeIdsAtom,
   effectiveHighlightedNodeIdsAtom,
   effectiveHoveredStatAtom,
@@ -70,15 +69,8 @@ export function useSelectedDagLayoutDirection() {
   return useAtom(selectedDagLayoutDirectionAtom);
 }
 
-export function useSelectedNodeData() {
-  return useAtomValue(selectedNodeDataAtom);
-}
-export function useSetSelectedNodeData() {
-  return useSetAtom(selectedNodeDataAtom);
-}
-
-export function useSelectedNodesData() {
-  const map = useAtomValue(selectedNodesDataAtom);
+export function useSelectedOperatorsData() {
+  const map = useAtomValue(selectedOperatorsDataAtom);
   return useMemo(() => [...map.values()], [map]);
 }
 

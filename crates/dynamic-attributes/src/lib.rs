@@ -5,16 +5,8 @@
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
-
-/// Error returned when converting a [`DynamicValue`].
-#[derive(Error, Debug)]
-pub enum DynamicValueError {
-    #[error("not numeric: {0}")]
-    NotNumeric(String),
-}
 
 /// A group of [`DynamicAttribute`]s.
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
@@ -39,6 +31,7 @@ pub enum DynamicList {
     F64(Vec<f64>),
     String(Vec<String>),
     Struct(Vec<DynamicStruct>),
+    List(Vec<DynamicList>),
 }
 
 /// A [`DynamicAttribute`] value.
@@ -59,6 +52,105 @@ pub enum DynamicValue {
     String(String),
     Struct(DynamicStruct),
     List(DynamicList),
+}
+
+/// Marks a dynamic attribute as having no value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DynamicNull;
+
+/// Converts a value for insertion into [`DynamicAttributes`].
+pub trait IntoDynamicAttributeValue {
+    /// Converts the input to a nullable dynamic value.
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue>;
+}
+
+impl<T> IntoDynamicAttributeValue for T
+where
+    T: Into<DynamicValue>,
+{
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue> {
+        Some(self.into())
+    }
+}
+
+impl IntoDynamicAttributeValue for DynamicNull {
+    fn into_dynamic_attribute_value(self) -> Option<DynamicValue> {
+        None
+    }
+}
+
+macro_rules! impl_from_dynamic_value {
+    ($($ty:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<$ty> for DynamicValue {
+                fn from(value: $ty) -> Self {
+                    Self::$variant(value)
+                }
+            }
+        )*
+    };
+}
+
+impl_from_dynamic_value! {
+    u8 => U8,
+    u16 => U16,
+    u32 => U32,
+    u64 => U64,
+    i8 => I8,
+    i16 => I16,
+    i32 => I32,
+    i64 => I64,
+    f32 => F32,
+    f64 => F64,
+    String => String,
+    DynamicStruct => Struct,
+    DynamicList => List,
+}
+
+impl From<&str> for DynamicValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
+}
+
+impl From<bool> for DynamicValue {
+    fn from(value: bool) -> Self {
+        Self::U8(u8::from(value))
+    }
+}
+
+macro_rules! impl_from_dynamic_list {
+    ($($ty:ty => $variant:ident),* $(,)?) => {
+        $(
+            impl From<Vec<$ty>> for DynamicValue {
+                fn from(value: Vec<$ty>) -> Self {
+                    Self::List(DynamicList::$variant(value))
+                }
+            }
+        )*
+    };
+}
+
+impl_from_dynamic_list! {
+    u8 => U8,
+    u16 => U16,
+    u32 => U32,
+    u64 => U64,
+    i8 => I8,
+    i16 => I16,
+    i32 => I32,
+    i64 => I64,
+    f32 => F32,
+    f64 => F64,
+    String => String,
+    DynamicStruct => Struct,
+    DynamicList => List,
+}
+
+impl From<Vec<bool>> for DynamicValue {
+    fn from(value: Vec<bool>) -> Self {
+        Self::List(DynamicList::U8(value.into_iter().map(u8::from).collect()))
+    }
 }
 
 /// A key-value pair.
@@ -194,34 +286,10 @@ impl DynamicAttributes {
         Self(Vec::new())
     }
 
-    pub fn add(&mut self, attr: DynamicAttribute) {
-        self.0.push(attr);
-    }
-
-    pub fn add_string(&mut self, key: impl Into<String>, value: impl Into<String>) {
-        self.0.push(DynamicAttribute::string(key, value));
-    }
-
-    pub fn add_u64(&mut self, key: impl Into<String>, value: u64) {
-        self.0.push(DynamicAttribute::u64(key, value));
-    }
-
-    pub fn add_i64(&mut self, key: impl Into<String>, value: i64) {
-        self.0.push(DynamicAttribute::i64(key, value));
-    }
-
-    pub fn add_f64(&mut self, key: impl Into<String>, value: f64) {
-        self.0.push(DynamicAttribute::f64(key, value));
-    }
-
-    pub fn add_bool(&mut self, key: impl Into<String>, value: bool) {
+    pub fn add(&mut self, key: impl Into<String>, value: impl IntoDynamicAttributeValue) {
         self.0.push(DynamicAttribute {
             key: key.into(),
-            value: Some(if value {
-                DynamicValue::U8(1)
-            } else {
-                DynamicValue::U8(0)
-            }),
+            value: value.into_dynamic_attribute_value(),
         });
     }
 
@@ -249,46 +317,58 @@ impl From<DynamicAttributes> for Vec<DynamicAttribute> {
     }
 }
 
-impl TryFrom<DynamicValue> for f64 {
-    type Error = DynamicValueError;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    fn try_from(value: DynamicValue) -> Result<Self, Self::Error> {
-        match value {
-            DynamicValue::U8(v) => Ok(v as f64),
-            DynamicValue::U16(v) => Ok(v as f64),
-            DynamicValue::U32(v) => Ok(v as f64),
-            DynamicValue::U64(v) => Ok(v as f64),
-            DynamicValue::I8(v) => Ok(v as f64),
-            DynamicValue::I16(v) => Ok(v as f64),
-            DynamicValue::I32(v) => Ok(v as f64),
-            DynamicValue::I64(v) => Ok(v as f64),
-            DynamicValue::F32(v) => Ok(v as f64),
-            DynamicValue::F64(v) => Ok(v),
-            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
-            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
-            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
-        }
+    #[test]
+    fn nested_lists_are_supported() {
+        let mut attributes = DynamicAttributes::new();
+        attributes.add(
+            "matrix",
+            DynamicList::List(vec![
+                DynamicList::U64(vec![1, 2]),
+                DynamicList::U64(vec![3, 4]),
+            ]),
+        );
+
+        assert_eq!(
+            attributes[0],
+            DynamicAttribute::list(
+                "matrix",
+                DynamicList::List(vec![
+                    DynamicList::U64(vec![1, 2]),
+                    DynamicList::U64(vec![3, 4]),
+                ]),
+            ),
+        );
     }
-}
 
-impl TryFrom<&DynamicValue> for f64 {
-    type Error = DynamicValueError;
+    #[test]
+    fn generic_add_converts_supported_values() {
+        let mut attributes = DynamicAttributes::new();
+        attributes.add("boolean", true);
+        attributes.add("integer", 42_u64);
+        attributes.add("float", 1.5_f64);
+        attributes.add("string", "value");
+        attributes.add("list", vec![1_i32, 2]);
+        attributes.add(
+            "structure",
+            DynamicStruct(vec![DynamicAttribute::string("field", "value")]),
+        );
+        attributes.add("missing", DynamicNull);
 
-    fn try_from(value: &DynamicValue) -> Result<Self, Self::Error> {
-        match value {
-            DynamicValue::U8(v) => Ok(*v as f64),
-            DynamicValue::U16(v) => Ok(*v as f64),
-            DynamicValue::U32(v) => Ok(*v as f64),
-            DynamicValue::U64(v) => Ok(*v as f64),
-            DynamicValue::I8(v) => Ok(*v as f64),
-            DynamicValue::I16(v) => Ok(*v as f64),
-            DynamicValue::I32(v) => Ok(*v as f64),
-            DynamicValue::I64(v) => Ok(*v as f64),
-            DynamicValue::F32(v) => Ok(*v as f64),
-            DynamicValue::F64(v) => Ok(*v),
-            DynamicValue::String(_) => Err(DynamicValueError::NotNumeric("String".to_string())),
-            DynamicValue::Struct(_) => Err(DynamicValueError::NotNumeric("Struct".to_string())),
-            DynamicValue::List(_) => Err(DynamicValueError::NotNumeric("List".to_string())),
-        }
+        assert_eq!(attributes[0].value, Some(DynamicValue::U8(1)));
+        assert_eq!(attributes[1].value, Some(DynamicValue::U64(42)));
+        assert_eq!(attributes[2].value, Some(DynamicValue::F64(1.5)));
+        assert_eq!(
+            attributes[3].value,
+            Some(DynamicValue::String("value".to_string()))
+        );
+        assert_eq!(
+            attributes[4].value,
+            Some(DynamicValue::List(DynamicList::I32(vec![1, 2])))
+        );
+        assert_eq!(attributes[6].value, None);
     }
 }

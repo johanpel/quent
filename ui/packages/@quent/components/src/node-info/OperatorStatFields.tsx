@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { InspectedOperatorData } from '@quent/hooks';
+import type { SelectedOperatorData } from '@quent/hooks';
 import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { DataText } from '../ui/data-text';
 
@@ -9,7 +9,7 @@ export const OperatorStatFields = ({
   operator,
   quantitySpecs,
 }: {
-  operator: InspectedOperatorData;
+  operator: SelectedOperatorData;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 }) => (
   <>

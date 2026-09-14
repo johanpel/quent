@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { InspectedNodeData } from '@quent/hooks';
+import type { SelectedOperatorGroupData } from '@quent/hooks';
 import type { QuantitySpec } from '@quent/utils';
 import { OperatorAccordion, type OperatorDisclosureState } from './OperatorAccordion';
 import { OperatorStatFields } from './OperatorStatFields';
@@ -12,7 +12,7 @@ export const OperatorDetailsBlock = ({
   isOpen,
   onOpenChange,
 }: {
-  operator: InspectedNodeData;
+  operator: SelectedOperatorGroupData;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
 } & OperatorDisclosureState) => (
   <OperatorAccordion

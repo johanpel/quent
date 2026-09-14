@@ -3,7 +3,12 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Operator } from './types';
-import { buildRelatedOperatorIdsById, resolveOperatorSelections } from './operatorHierarchy';
+import {
+  buildRelatedOperatorIdsById,
+  resolveSelectedOperatorSelections,
+  resolveOperatorSelections,
+  toggleOperatorSelection,
+} from './operatorHierarchy';
 
 function makeOperator(id: string, label: string, parentOperatorIds: string[] = []): Operator {
   return {
@@ -57,6 +62,42 @@ describe('operator hierarchy', () => {
     ]);
   });
 
+  it('resolves selected operator data from the global operator list', () => {
+    const operators = [
+      makeOperator('logical', 'Logical'),
+      makeOperator('left', 'Left', ['logical']),
+      makeOperator('right', 'Right', ['logical']),
+    ];
+
+    expect(resolveSelectedOperatorSelections(operators, ['logical', 'left', 'right'])).toEqual([
+      {
+        selectionId: 'logical',
+        label: 'Logical',
+        operatorIds: new Set(['logical', 'left', 'right']),
+        selectedData: {
+          nodeId: 'logical',
+          label: 'Logical',
+          operationType: 'operator',
+          statistics: [],
+          relatedOperators: [
+            {
+              nodeId: 'left',
+              label: 'Left',
+              operationType: 'operator',
+              statistics: [],
+            },
+            {
+              nodeId: 'right',
+              label: 'Right',
+              operationType: 'operator',
+              statistics: [],
+            },
+          ],
+        },
+      },
+    ]);
+  });
+
   it('splits a parent when one covered child is deselected', () => {
     const operators = [
       makeOperator('logical', 'Logical'),
@@ -64,13 +105,88 @@ describe('operator hierarchy', () => {
       makeOperator('right', 'Right', ['logical']),
     ];
 
-    const selections = resolveOperatorSelections(operators, ['logical', 'right']);
-
-    expect(new Map(selections.map(selection => [selection.selectionId, selection.label]))).toEqual(
+    const selectedIds = new Set(['logical', 'left', 'right']);
+    const selections = toggleOperatorSelection(
+      operators,
+      selectedIds,
       new Map([
-        ['right', 'Right'],
-        ['logical', 'Logical'],
-      ])
+        [
+          'logical',
+          {
+            label: 'Logical',
+            operatorIds: selectedIds,
+          },
+        ],
+      ]),
+      'left'
     );
+
+    expect(selections).toEqual([
+      {
+        selectionId: 'right',
+        label: 'Right',
+        operatorIds: new Set(['right']),
+      },
+    ]);
+  });
+
+  it('deselects every selected ancestor of a covered descendant', () => {
+    const operators = [
+      makeOperator('logical', 'Logical'),
+      makeOperator('intermediate', 'Intermediate', ['logical']),
+      makeOperator('left', 'Left', ['intermediate']),
+      makeOperator('right', 'Right', ['intermediate']),
+    ];
+    const selectedIds = new Set(['logical', 'intermediate', 'left', 'right']);
+
+    expect(
+      toggleOperatorSelection(
+        operators,
+        selectedIds,
+        new Map([
+          [
+            'logical',
+            {
+              label: 'Logical',
+              operatorIds: selectedIds,
+            },
+          ],
+        ]),
+        'left'
+      )
+    ).toEqual([
+      {
+        selectionId: 'right',
+        label: 'Right',
+        operatorIds: new Set(['right']),
+      },
+    ]);
+  });
+
+  it('deselects every descendant when a covered parent is deselected', () => {
+    const operators = [
+      makeOperator('logical', 'Logical'),
+      makeOperator('intermediate', 'Intermediate', ['logical']),
+      makeOperator('left', 'Left', ['intermediate']),
+      makeOperator('right', 'Right', ['intermediate']),
+    ];
+    const selectedIds = new Set(['logical', 'intermediate', 'left', 'right']);
+
+    expect(
+      toggleOperatorSelection(
+        operators,
+        selectedIds,
+        new Map([
+          [
+            'logical',
+            {
+              label: 'Logical',
+              operatorIds: selectedIds,
+            },
+          ],
+        ]),
+        'intermediate'
+      )
+    ).toEqual([]);
   });
 });

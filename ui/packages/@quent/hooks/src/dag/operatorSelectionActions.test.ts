@@ -4,7 +4,7 @@
 import { createStore } from 'jotai';
 import { describe, expect, it } from 'vitest';
 import { operatorSelectionActionAtom, operatorSelectionAtom } from '../atoms/dag';
-import { selectedNodesDataAtom } from '../atoms/dagControls';
+import { selectedOperatorsDataAtom } from '../atoms/dagControls';
 
 const scanData = {
   nodeId: 'scan',
@@ -26,7 +26,7 @@ const groupedJoinData = {
 };
 
 describe('operator selection actions', () => {
-  it('updates filter and inspection state together', () => {
+  it('updates filter and selected operator data together', () => {
     const store = createStore();
 
     const selectedIds = store.set(operatorSelectionActionAtom, {
@@ -34,27 +34,27 @@ describe('operator selection actions', () => {
       selectionId: 'logical-scan',
       label: 'Scan',
       operatorIds: ['logical-scan', 'physical-scan'],
-      inspectedData: scanData,
+      selectedData: scanData,
     });
 
     expect(selectedIds).toEqual(new Set(['logical-scan', 'physical-scan']));
     expect(store.get(operatorSelectionAtom).selections.has('logical-scan')).toBe(true);
-    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['logical-scan', scanData]]));
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['logical-scan', scanData]]));
 
     store.set(operatorSelectionActionAtom, { type: 'remove', selectionId: 'logical-scan' });
 
     expect(store.get(operatorSelectionAtom).selections.size).toBe(0);
-    expect(store.get(selectedNodesDataAtom).size).toBe(0);
+    expect(store.get(selectedOperatorsDataAtom).size).toBe(0);
   });
 
-  it('keeps only the parent inspection when parent and child selections overlap', () => {
+  it('keeps only the parent data when parent and child selections overlap', () => {
     const store = createStore();
     store.set(operatorSelectionActionAtom, {
       type: 'add',
       selectionId: 'scan',
       label: 'Scan',
       operatorIds: ['scan'],
-      inspectedData: scanData,
+      selectedData: scanData,
     });
 
     store.set(operatorSelectionActionAtom, {
@@ -62,39 +62,32 @@ describe('operator selection actions', () => {
       selectionId: 'join',
       label: 'Join',
       operatorIds: ['join', 'scan'],
-      inspectedData: groupedJoinData,
+      selectedData: groupedJoinData,
     });
 
     expect([...store.get(operatorSelectionAtom).selections.keys()]).toEqual(['join']);
-    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
 
     store.set(operatorSelectionActionAtom, {
       type: 'add',
       selectionId: 'scan',
       label: 'Scan',
       operatorIds: ['scan'],
-      inspectedData: scanData,
+      selectedData: scanData,
     });
 
     expect([...store.get(operatorSelectionAtom).selections.keys()]).toEqual(['join']);
-    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
   });
 
-  it('prunes stale inspection data when replacing or clearing selections', () => {
+  it('promotes related operator data when a parent selection is split', () => {
     const store = createStore();
-    store.set(operatorSelectionActionAtom, {
-      type: 'add',
-      selectionId: 'scan',
-      label: 'Scan',
-      operatorIds: ['scan'],
-      inspectedData: scanData,
-    });
     store.set(operatorSelectionActionAtom, {
       type: 'add',
       selectionId: 'join',
       label: 'Join',
-      operatorIds: ['join'],
-      inspectedData: joinData,
+      operatorIds: ['join', 'scan'],
+      selectedData: groupedJoinData,
     });
 
     store.set(operatorSelectionActionAtom, {
@@ -102,15 +95,41 @@ describe('operator selection actions', () => {
       selections: [{ selectionId: 'scan', label: 'Scan', operatorIds: new Set(['scan']) }],
     });
 
-    expect([...store.get(selectedNodesDataAtom).keys()]).toEqual(['scan']);
+    expect(store.get(operatorSelectionAtom).selections.has('join')).toBe(false);
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['scan', scanData]]));
+  });
+
+  it('prunes stale operator data when replacing or clearing selections', () => {
+    const store = createStore();
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'scan',
+      label: 'Scan',
+      operatorIds: ['scan'],
+      selectedData: scanData,
+    });
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'join',
+      label: 'Join',
+      operatorIds: ['join'],
+      selectedData: joinData,
+    });
+
+    store.set(operatorSelectionActionAtom, {
+      type: 'replace',
+      selections: [{ selectionId: 'scan', label: 'Scan', operatorIds: new Set(['scan']) }],
+    });
+
+    expect([...store.get(selectedOperatorsDataAtom).keys()]).toEqual(['scan']);
 
     store.set(operatorSelectionActionAtom, { type: 'clear' });
 
     expect(store.get(operatorSelectionAtom).selections.size).toBe(0);
-    expect(store.get(selectedNodesDataAtom).size).toBe(0);
+    expect(store.get(selectedOperatorsDataAtom).size).toBe(0);
   });
 
-  it('keys a grouped replacement by selection ID when its inspected node differs', () => {
+  it('keys a grouped replacement by selection ID when its selected operator differs', () => {
     const store = createStore();
 
     store.set(operatorSelectionActionAtom, {
@@ -120,7 +139,7 @@ describe('operator selection actions', () => {
           selectionId: 'logical-join',
           label: 'Join',
           operatorIds: new Set(['logical-join', 'physical-join']),
-          inspectedData: joinData,
+          selectedData: joinData,
         },
       ],
     });
@@ -136,10 +155,10 @@ describe('operator selection actions', () => {
         ],
       ])
     );
-    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['logical-join', joinData]]));
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['logical-join', joinData]]));
   });
 
-  it('hydrates inspection data without changing global selections', () => {
+  it('hydrates selected operator data without changing global selections', () => {
     const store = createStore();
     store.set(operatorSelectionActionAtom, {
       type: 'replace',
@@ -164,13 +183,13 @@ describe('operator selection actions', () => {
           selectionId: 'join',
           label: 'Join',
           operatorIds: ['join', 'physical-join'],
-          inspectedData: groupedJoinData,
+          selectedData: groupedJoinData,
         },
         {
           selectionId: 'physical-join',
           label: 'Physical join',
           operatorIds: ['physical-join'],
-          inspectedData: scanData,
+          selectedData: scanData,
         },
       ],
     });
@@ -193,6 +212,36 @@ describe('operator selection actions', () => {
         ],
       ])
     );
-    expect(store.get(selectedNodesDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(new Map([['join', groupedJoinData]]));
+  });
+
+  it('keeps selected operators that are not present in the loaded DAG', () => {
+    const store = createStore();
+    const timelineData = {
+      nodeId: 'timeline-only',
+      label: 'Timeline operator',
+      operationType: 'scan',
+      statistics: [],
+    };
+    store.set(operatorSelectionActionAtom, {
+      type: 'add',
+      selectionId: 'timeline-only',
+      label: 'Timeline operator',
+      operatorIds: ['timeline-only'],
+      selectedData: timelineData,
+    });
+
+    store.set(operatorSelectionActionAtom, {
+      type: 'hydrate',
+      selections: [],
+    });
+
+    expect(store.get(operatorSelectionAtom).selections.get('timeline-only')).toEqual({
+      label: 'Timeline operator',
+      operatorIds: new Set(['timeline-only']),
+    });
+    expect(store.get(selectedOperatorsDataAtom)).toEqual(
+      new Map([['timeline-only', timelineData]])
+    );
   });
 });

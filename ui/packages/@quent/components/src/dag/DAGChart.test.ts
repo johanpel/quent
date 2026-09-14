@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DAGNode } from '@quent/utils';
-import { resolveInspectedNodeData, resolveInspectedNodeSelections } from './dagSelection';
+import { resolveSelectedOperatorsFromNodes } from './dagSelection';
 
 const NODES: DAGNode[] = [
   {
@@ -19,23 +19,9 @@ const NODES: DAGNode[] = [
   },
 ];
 
-describe('resolveInspectedNodeData', () => {
-  it('resolves the primary operator from a hydrated grouped selection', () => {
-    expect(
-      resolveInspectedNodeData(NODES, new Set(['logical', 'physical-1', 'physical-2']))
-    ).toMatchObject({
-      nodeId: 'logical',
-      label: 'Logical join',
-      operationType: 'join',
-    });
-  });
-
-  it('does not inspect an ambiguous selection', () => {
-    expect(resolveInspectedNodeData(NODES, new Set(['logical', 'other']))).toBeNull();
-  });
-
+describe('resolveSelectedOperatorsFromNodes', () => {
   it('reconstructs multiple physical and higher-level selections', () => {
-    const resolved = resolveInspectedNodeSelections(
+    const resolved = resolveSelectedOperatorsFromNodes(
       NODES,
       new Set(['logical', 'physical-1', 'physical-2', 'other'])
     );
@@ -58,11 +44,11 @@ describe('resolveInspectedNodeData', () => {
   it('preserves IDs until matching DAG data is available', () => {
     const selectedIds = new Set(['logical', 'physical-1', 'physical-2', 'unknown']);
 
-    const beforeData = resolveInspectedNodeSelections([], selectedIds);
+    const beforeData = resolveSelectedOperatorsFromNodes([], selectedIds);
     expect(beforeData.selections).toEqual([]);
     expect(beforeData.unresolvedOperatorIds).toEqual(selectedIds);
 
-    const afterData = resolveInspectedNodeSelections(NODES, selectedIds);
+    const afterData = resolveSelectedOperatorsFromNodes(NODES, selectedIds);
     expect(afterData.selections.map(selection => selection.selectionId)).toEqual(['logical']);
     expect(afterData.unresolvedOperatorIds).toEqual(new Set(['unknown']));
   });

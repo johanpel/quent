@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
@@ -54,6 +54,10 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   } = useQueryBundle({ engineId, queryId });
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
+  const operators = useMemo(
+    () => Object.values(queryBundle?.entities.operators ?? {}),
+    [queryBundle?.entities.operators]
+  );
 
   // Data-flow overlay: fetch the categorical timeline for the current zoom
   // window (fallback: full query duration) and sync it into the data-flow
@@ -239,7 +243,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
                   </div>
                 }
               >
-                <DAGChart data={dagData} height="100%" isDark={isDark} />
+                <DAGChart data={dagData} height="100%" isDark={isDark} operators={operators} />
               </Suspense>
             </div>
             <DagPlayhead />

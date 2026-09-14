@@ -15,8 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     task.started(true, 1, 2, 3, 4, -1, -2, -3, -4)?;
 
     let mut extra = DynamicAttributes::new();
-    extra.add_string("worker", "alpha");
-    extra.add_u64("queue_depth", 3);
+    extra.add("worker", "alpha");
+    extra.add("queue_depth", 3_u64);
 
     task.ended(
         0.5,

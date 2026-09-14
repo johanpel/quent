@@ -4,7 +4,7 @@
 import {
   resolveOperatorSelectionCandidates,
   type DAGNode,
-  type InspectedNodeData,
+  type SelectedOperatorGroupData,
 } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
 import type { QueryPlanNodeData } from '../query-plan/QueryPlanNode';
@@ -13,7 +13,7 @@ export interface ResolvedOperatorSelection {
   selectionId: string;
   label: string;
   operatorIds: ReadonlySet<string>;
-  inspectedData: InspectedNodeData;
+  selectedData: SelectedOperatorGroupData;
 }
 
 export interface ResolvedOperatorSelections {
@@ -26,7 +26,7 @@ function getOperatorIds(node: DAGNode): Set<string> {
   return new Set([node.id, ...(metadata?.relatedOperatorIds ?? [])]);
 }
 
-function inspectNode(node: DAGNode): InspectedNodeData {
+function getSelectedOperatorData(node: DAGNode): SelectedOperatorGroupData {
   const metadata = node.metadata as QueryPlanNodeData['metadata'];
   return {
     nodeId: node.id,
@@ -42,27 +42,16 @@ function inspectNode(node: DAGNode): InspectedNodeData {
   };
 }
 
-export function resolveInspectedNodeSelections(
+export function resolveSelectedOperatorsFromNodes(
   nodes: readonly DAGNode[],
-  selectedNodeIds: ReadonlySet<string>
+  selectedOperatorIds: ReadonlySet<string>
 ): ResolvedOperatorSelections {
   const candidates = nodes.map(node => ({
     selectionId: node.id,
     label: node.label,
     operatorIds: getOperatorIds(node),
-    inspectedData: inspectNode(node),
+    selectedData: getSelectedOperatorData(node),
   }));
 
-  return resolveOperatorSelectionCandidates(candidates, selectedNodeIds);
-}
-
-export function resolveInspectedNodeData(
-  nodes: readonly DAGNode[],
-  selectedNodeIds: ReadonlySet<string>
-): InspectedNodeData | null {
-  const resolved = resolveInspectedNodeSelections(nodes, selectedNodeIds);
-  if (resolved.selections.length !== 1 || resolved.unresolvedOperatorIds.size > 0) {
-    return null;
-  }
-  return resolved.selections[0].inspectedData;
+  return resolveOperatorSelectionCandidates(candidates, selectedOperatorIds);
 }

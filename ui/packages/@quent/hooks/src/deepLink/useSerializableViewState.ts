@@ -5,13 +5,17 @@ import { useCallback } from 'react';
 import { useStore } from 'jotai';
 import type { SortingState } from '@tanstack/react-table';
 import {
-  resolveOperatorSelections,
+  resolveSelectedOperatorSelections,
   type ContinuousPaletteName,
   type DagLayoutDirection,
   type NodeLabelField,
   type Operator,
 } from '@quent/utils';
-import { operatorSelectionActionAtom, selectedNodeIdsAtom, selectedPlanIdAtom } from '../atoms/dag';
+import {
+  operatorSelectionActionAtom,
+  selectedOperatorIdsAtom,
+  selectedPlanIdAtom,
+} from '../atoms/dag';
 import {
   dataFlowEnabledAtom,
   dataFlowIsPlayingAtom,
@@ -108,7 +112,7 @@ export function useSerializableViewState({
     return {
       selection: {
         planId: store.get(selectedPlanIdAtom),
-        operatorNodeIds: [...store.get(selectedNodeIdsAtom)].sort(),
+        operatorNodeIds: [...store.get(selectedOperatorIdsAtom)].sort(),
       },
       dag: {
         nodeColorField: store.get(selectedColorField),
@@ -157,7 +161,7 @@ export function useSerializableViewState({
       if (state.selection?.operatorNodeIds !== undefined) {
         store.set(operatorSelectionActionAtom, {
           type: 'replace',
-          selections: resolveOperatorSelections(operators, state.selection.operatorNodeIds),
+          selections: resolveSelectedOperatorSelections(operators, state.selection.operatorNodeIds),
         });
       }
 

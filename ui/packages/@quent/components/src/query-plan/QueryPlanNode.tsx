@@ -9,7 +9,6 @@ import {
   continuousColor,
   isLightColor,
   withOpacity,
-  getOperationTypeColor,
   WHITE,
   BLACK,
   NODE_LABEL_FIELD,
@@ -24,6 +23,8 @@ import {
   useEffectiveHighlightedNodeIds,
   useEffectiveHoveredStat,
   useSetHighlightedNodeIds,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
 import { formatStatWithQuantity, type QuantitySpec } from '@quent/utils';
 import { parseCustomStatistics } from '../lib/queryBundle.utils';
@@ -50,8 +51,6 @@ export interface QueryPlanNodeData extends Record<string, unknown> {
    * host theme context.
    */
   isDark?: boolean;
-  /** Pre-computed collision-free color for this operator type within the current DAG. */
-  baseColor?: string;
   /**
    * Whether the data-flow overlay bar is rendered under the node content.
    * Injected by `DAGChart` when converting nodes so toggling the overlay
@@ -85,13 +84,18 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
   const highlightState = useEffectiveHighlightedNodeIds();
   const hoveredStat = useEffectiveHoveredStat();
   const [nodePalette] = useNodeColorPalette();
+  const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const isDark = data.isDark ?? false;
   const operatorId = data.metadata?.rawNode?.id ?? '';
   const isHighlighted = highlightState.ids !== null && highlightState.ids.has(operatorId);
   const statistics = parseCustomStatistics(data.metadata?.rawNode);
   const { quantitySpecs } = data;
   const [nodeLabelField] = useSelectedNodeLabelField();
-  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(operatorId, isDark);
+  const { fieldColor, isDimmed, isSelected, colorField } = useNodeColoring(
+    operatorId,
+    isDark,
+    data.metadata?.relatedOperatorIds
+  );
   const [isHoveredLocal, setIsHoveredLocal] = useState(false);
 
   const resolvedLabel = useMemo(() => {
@@ -119,7 +123,7 @@ export const QueryPlanNode = memo(({ data }: { data: QueryPlanNodeData }) => {
           )
         : String(colorFieldValue);
 
-  const baseColor = data.baseColor ?? getOperationTypeColor(data.operationType);
+  const baseColor = resolveOperatorTypeColor(data.operationType);
   const activeColor = fieldColor ?? baseColor;
   const bgColor =
     fieldColor ?? withOpacity(baseColor, isSelected ? 0.3 : isHoveredLocal ? 0.22 : 0.15);

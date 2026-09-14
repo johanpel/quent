@@ -17,8 +17,9 @@ import {
   resetColorAssignments,
   darkenColor,
   isLightColor,
-  getOperationTypeColor,
-  buildOperatorColorMap,
+  getDeterministicColor,
+  buildDeterministicColorMap,
+  createDeterministicColorResolver,
   continuousColor,
   getLegendGradientStops,
 } from './colors';
@@ -317,38 +318,66 @@ describe('isLightColor', () => {
   });
 });
 
-// ---- getOperationTypeColor -------------------------------------------------
+// ---- getDeterministicColor -------------------------------------------------
 
-describe('getOperationTypeColor', () => {
+describe('getDeterministicColor', () => {
   it('returns a hex color string', () => {
-    expect(getOperationTypeColor('Scan')).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(getDeterministicColor('Scan')).toMatch(/^#[0-9a-fA-F]{6}$/);
   });
 
-  it('is deterministic for the same operation type', () => {
-    expect(getOperationTypeColor('Join')).toBe(getOperationTypeColor('Join'));
+  it('is deterministic for the same key', () => {
+    expect(getDeterministicColor('Join')).toBe(getDeterministicColor('Join'));
   });
 
   it('is case-insensitive', () => {
-    expect(getOperationTypeColor('SCAN')).toBe(getOperationTypeColor('scan'));
-    expect(getOperationTypeColor('Scan')).toBe(getOperationTypeColor('scan'));
+    expect(getDeterministicColor('SCAN')).toBe(getDeterministicColor('scan'));
+    expect(getDeterministicColor('Scan')).toBe(getDeterministicColor('scan'));
   });
 
-  it('different operation types may have different colors', () => {
-    // Hash-based, so not guaranteed — but common types should differ
-    const colors = new Set(['Scan', 'Join', 'Aggregate', 'Sort'].map(getOperationTypeColor));
+  it('different common keys may have different colors', () => {
+    const colors = new Set(['Scan', 'Join', 'Aggregate', 'Sort'].map(getDeterministicColor));
     expect(colors.size).toBeGreaterThan(1);
   });
 });
 
-// ---- buildOperatorColorMap -------------------------------------------------
+describe('deterministic color maps', () => {
+  it('normalizes and deterministically assigns primitive keys regardless of input order', () => {
+    const first = buildDeterministicColorMap([' Scan ', 42, 7n]);
+    const second = buildDeterministicColorMap([7n, 'scan', 42]);
 
-describe('buildOperatorColorMap', () => {
-  it('returns an empty map for an empty input', () => {
-    expect(buildOperatorColorMap([])).toEqual(new Map());
+    expect(first).toEqual(second);
+    expect(first.has('scan')).toBe(true);
+    expect(new Set(first.values()).size).toBe(first.size);
   });
 
-  it('returns a map entry for each unique type', () => {
-    const map = buildOperatorColorMap(['Scan', 'Join', 'Aggregate']);
+  it('uses an explicit stable key for object values', () => {
+    const values = [
+      { id: 'beta', label: 'Second' },
+      { id: 'alpha', label: 'First' },
+    ];
+    const map = buildDeterministicColorMap(values, value => value.id);
+    const resolveColor = createDeterministicColorResolver(map);
+
+    expect(resolveColor({ id: 'alpha' }, value => value.id)).toBe(map.get('alpha'));
+  });
+
+  it('falls back deterministically for keys absent from the precomputed map', () => {
+    const resolveColor = createDeterministicColorResolver(buildDeterministicColorMap(['known']));
+
+    expect(resolveColor('unknown')).toBe(getDeterministicColor('unknown'));
+    expect(resolveColor(' Unknown ')).toBe(resolveColor('unknown'));
+  });
+});
+
+// ---- buildDeterministicColorMap --------------------------------------------
+
+describe('buildDeterministicColorMap', () => {
+  it('returns an empty map for an empty input', () => {
+    expect(buildDeterministicColorMap([])).toEqual(new Map());
+  });
+
+  it('returns a map entry for each unique key', () => {
+    const map = buildDeterministicColorMap(['Scan', 'Join', 'Aggregate']);
     expect(map.size).toBe(3);
     expect(map.has('scan')).toBe(true);
     expect(map.has('join')).toBe(true);
@@ -356,21 +385,21 @@ describe('buildOperatorColorMap', () => {
   });
 
   it('deduplicates case-insensitively', () => {
-    const map = buildOperatorColorMap(['Scan', 'SCAN', 'scan']);
+    const map = buildDeterministicColorMap(['Scan', 'SCAN', 'scan']);
     expect(map.size).toBe(1);
   });
 
-  it('assigns distinct colors to distinct types (up to palette size)', () => {
-    const types = ['alpha', 'beta', 'gamma', 'delta'];
-    const map = buildOperatorColorMap(types);
+  it('assigns distinct colors to distinct keys (up to palette size)', () => {
+    const keys = ['alpha', 'beta', 'gamma', 'delta'];
+    const map = buildDeterministicColorMap(keys);
     const colors = Array.from(map.values());
     const unique = new Set(colors);
-    expect(unique.size).toBe(types.length);
+    expect(unique.size).toBe(keys.length);
   });
 
   it('is deterministic: same input always produces the same map', () => {
-    const m1 = buildOperatorColorMap(['Scan', 'Join']);
-    const m2 = buildOperatorColorMap(['Scan', 'Join']);
+    const m1 = buildDeterministicColorMap(['Scan', 'Join']);
+    const m2 = buildDeterministicColorMap(['Scan', 'Join']);
     expect(m1.get('scan')).toBe(m2.get('scan'));
     expect(m1.get('join')).toBe(m2.get('join'));
   });

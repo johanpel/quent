@@ -23,6 +23,7 @@ export function createOperatorGanttTimelineSubRow({
   isDark,
 }: OperatorGanttTimelineSubRowOptions) {
   const workerIds = new Set(getWorkerIdsFromPlanTree(queryBundle.plan_tree));
+  const allOperators = Object.values(queryBundle.entities.operators);
   const entriesByWorker = new Map<string, ReturnType<typeof operatorsWithActiveSpansForWorker>>();
   for (const workerId of workerIds) {
     entriesByWorker.set(workerId, operatorsWithActiveSpansForWorker(queryBundle, workerId));
@@ -47,6 +48,7 @@ export function createOperatorGanttTimelineSubRow({
       return (
         <OperatorGanttChart
           operators={operators}
+          allOperators={allOperators}
           durationSeconds={queryBundle.duration_s}
           height={DEFAULT_TIMELINE_HEIGHT}
           isDark={isDark}

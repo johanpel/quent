@@ -14,16 +14,15 @@ export interface OperatorSelectionInput extends OperatorSelection {
 
 export interface OperatorSelectionState {
   readonly selections: ReadonlyMap<string, OperatorSelection>;
-  readonly activeId: string | null;
 }
 
-export interface InspectedOperatorData {
+export interface SelectedOperatorData {
   nodeId: string;
   label: string;
   operationType: string;
   statistics: Array<{ key: string; value: StatValue; quantity?: string }>;
 }
 
-export interface InspectedNodeData extends InspectedOperatorData {
-  relatedOperators?: InspectedOperatorData[];
+export interface SelectedOperatorGroupData extends SelectedOperatorData {
+  relatedOperators?: SelectedOperatorData[];
 }

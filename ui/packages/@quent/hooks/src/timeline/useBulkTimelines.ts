@@ -15,7 +15,7 @@ import {
   debouncedZoomRangeAtom,
   visibleEntriesAtom,
 } from '../atoms/timeline';
-import { selectedNodeIdsAtom } from '../atoms/dag';
+import { selectedOperatorIdsAtom } from '../atoms/dag';
 import {
   useBulkTimelineFetch,
   buildMergedBulkEntries,
@@ -78,8 +78,8 @@ export function useBulkTimelines<T extends TreeNode>({
   const store = useStore();
   const queryClient = useQueryClient();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectedNodeIds = useAtomValue(selectedNodeIdsAtom);
-  const operatorIds = useMemo(() => [...selectedNodeIds].sort(), [selectedNodeIds]);
+  const selectedOperatorIds = useAtomValue(selectedOperatorIdsAtom);
+  const operatorIds = useMemo(() => [...selectedOperatorIds].sort(), [selectedOperatorIds]);
 
   useEffect(() => {
     return () => {

@@ -5,15 +5,16 @@ import { useCallback, useMemo } from 'react';
 
 import { useTimelineEchartsTheme } from '../timeline/timelineEchartsTheme';
 import {
-  useSelectedNodeIds,
-  useSetSelectedNodeIds,
-  useSetSelectedOperatorLabel,
-  useSetSelectedNodeData,
+  useSelectedOperatorIds,
+  useOperatorSelection,
+  useOperatorSelectionActions,
   useSetSelectedPlanId,
   useNodeColoringValue,
   useNodeColorPalette,
+  COLOR_REGISTRY_KEYS,
+  useColorResolver,
 } from '@quent/hooks';
-import { continuousColor, withOpacity, getOperationTypeColor } from '@quent/utils';
+import { continuousColor, withOpacity, toggleOperatorSelection, type Operator } from '@quent/utils';
 import type { OperatorActiveSpanEntry } from './types';
 import { GanttChart, type GanttRenderItem } from '../gantt-chart/GanttChart';
 import type { GanttHover } from '../gantt-chart/hover';
@@ -27,14 +28,17 @@ const BAR_FONT_SIZE = 10;
 const BAR_HEIGHT = 16;
 const BAR_GAP = 2;
 
-function getOperatorBarColors(typeName: string | undefined): { fill: string; stroke: string } {
-  const key = typeName?.toLowerCase().replace(/\s+/g, '') ?? '';
-  const stroke = getOperationTypeColor(key);
+function getOperatorBarColors(
+  typeName: string | undefined,
+  resolveColor: (value: string) => string
+): { fill: string; stroke: string } {
+  const stroke = resolveColor(typeName ?? '');
   return { stroke, fill: withOpacity(stroke, 0.45) };
 }
 
 export interface OperatorGanttChartProps {
   operators: OperatorActiveSpanEntry[];
+  allOperators: readonly Operator[];
   durationSeconds: number;
   height?: number;
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
@@ -43,19 +47,20 @@ export interface OperatorGanttChartProps {
 
 export function OperatorGanttChart({
   operators,
+  allOperators,
   durationSeconds,
   height = DEFAULT_HEIGHT,
   isDark,
 }: OperatorGanttChartProps) {
-  const setSelectedNodeIds = useSetSelectedNodeIds();
-  const setSelectedOperatorLabel = useSetSelectedOperatorLabel();
+  const operatorSelection = useOperatorSelection();
+  const updateOperatorSelection = useOperatorSelectionActions();
   const setSelectedPlanId = useSetSelectedPlanId();
-  const setSelectedNodeData = useSetSelectedNodeData();
   const { textColor } = useTimelineEchartsTheme(isDark);
   const nodeColoring = useNodeColoringValue();
   const [nodePalette] = useNodeColorPalette();
+  const resolveOperatorTypeColor = useColorResolver(COLOR_REGISTRY_KEYS.OPERATOR_TYPES);
   const barLabelTextColor = textColor;
-  const selectedNodeIds = useSelectedNodeIds();
+  const selectedOperatorIds = useSelectedOperatorIds();
 
   const customSeriesData = useMemo(
     () =>
@@ -70,13 +75,13 @@ export function OperatorGanttChart({
       const items: GanttTooltipItem[] = hover
         ? getOperatorsAtTimestamp(operators, hover.timestampMs).map(operator => ({
             id: operator.operatorId,
-            color: getOperatorBarColors(operator.typeName).stroke,
+            color: getOperatorBarColors(operator.typeName, resolveOperatorTypeColor).stroke,
             name: operator.label,
           }))
         : [];
       return <GanttTooltipPortal hover={hover} items={items} />;
     },
-    [operators]
+    [operators, resolveOperatorTypeColor]
   );
   const operatorFieldStyles = useMemo(() => {
     const styles = new Map<string, { stroke?: string; fieldDimmed: boolean }>();
@@ -123,10 +128,10 @@ export function OperatorGanttChart({
         op?.typeName && op.typeName !== op.label
           ? `${op.typeName}: ${op.label}`
           : (op?.label ?? '');
-      const { fill } = getOperatorBarColors(op?.typeName);
+      const { fill } = getOperatorBarColors(op?.typeName, resolveOperatorTypeColor);
       const fieldStyle = op ? operatorFieldStyles.get(op.operatorId) : undefined;
-      const hasSelection = selectedNodeIds.size > 0;
-      const isSelected = op != null && selectedNodeIds.has(op.operatorId);
+      const hasSelection = selectedOperatorIds.size > 0;
+      const isSelected = op != null && selectedOperatorIds.has(op.operatorId);
       const fieldDimmed = fieldStyle?.fieldDimmed ?? false;
       const opacity = fieldDimmed || (hasSelection && !isSelected) ? 0.35 : 1;
 
@@ -160,7 +165,13 @@ export function OperatorGanttChart({
         children: [rect, text],
       };
     },
-    [operators, operatorFieldStyles, barLabelTextColor, selectedNodeIds]
+    [
+      operators,
+      operatorFieldStyles,
+      barLabelTextColor,
+      selectedOperatorIds,
+      resolveOperatorTypeColor,
+    ]
   );
 
   const handleClick = useMemo(
@@ -173,16 +184,23 @@ export function OperatorGanttChart({
         if (!op) {
           return;
         }
-        if (selectedNodeIds.size === 1 && selectedNodeIds.has(op.operatorId)) {
-          setSelectedNodeIds(new Set());
-          setSelectedOperatorLabel(null);
-          setSelectedNodeData(null);
+        if (selectedOperatorIds.has(op.operatorId)) {
+          updateOperatorSelection({
+            type: 'replace',
+            selections: toggleOperatorSelection(
+              allOperators,
+              selectedOperatorIds,
+              operatorSelection.selections,
+              op.operatorId
+            ),
+          });
         } else {
-          setSelectedNodeIds(new Set([op.operatorId]));
-          setSelectedOperatorLabel(op.label);
-          setSelectedNodeData({
+          updateOperatorSelection({
+            type: 'add',
             selectionId: op.operatorId,
-            data: {
+            label: op.label,
+            operatorIds: [op.operatorId],
+            selectedData: {
               nodeId: op.operatorId,
               label: op.label,
               operationType: op.typeName,
@@ -196,12 +214,12 @@ export function OperatorGanttChart({
       },
     }),
     [
+      allOperators,
       operators,
-      selectedNodeIds,
-      setSelectedNodeIds,
-      setSelectedOperatorLabel,
+      operatorSelection.selections,
+      selectedOperatorIds,
       setSelectedPlanId,
-      setSelectedNodeData,
+      updateOperatorSelection,
     ]
   );
 

@@ -32,66 +32,68 @@ export function EntitiesTable(props: EntitiesTableProps) {
   );
 
   return (
-    <ResizablePanelGroup orientation="horizontal" className="h-full">
-      <ResizablePanel defaultSize="65%" minSize="40%">
-        <div className="flex h-full min-h-0 flex-col">
-          <QueryToolbar />
-          <EntitiesToolbar
-            filters={table.filters.values}
-            durationS={table.filters.durationS}
-            maxUsageS={table.filters.maxUsageS}
-            operatorIds={table.filters.operatorIds}
-            operatorOptions={table.filters.operatorOptions}
-            entityTypeOptions={table.filters.entityTypeOptions}
-            resourceOptions={table.filters.resourceOptions}
-            activeFilterCount={table.filters.activeFilterCount}
-            hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
-            validationErrors={table.filters.validationErrors}
-            invalidFilterFields={table.filters.invalidFilterFields}
-            onToggleOperator={table.filters.toggleOperator}
-            onSelectAllOperators={table.filters.selectAllOperators}
-            onSelectNoOperators={table.filters.selectNoOperators}
-            onFiltersChange={table.filters.update}
-            onReset={table.filters.reset}
-          />
-          <EntityResults
-            rows={table.query.rows}
-            selected={table.selection.selected}
-            isError={table.query.isError}
-            isLoading={table.query.isLoading}
-            error={table.query.error}
-            requestPending={table.query.requestPending}
-            hasValidationErrors={table.filters.validationErrors.length > 0}
-            page={table.pagination.page}
-            pageCount={table.pagination.pageCount}
-            pageSize={table.filters.values.pageSize}
-            paginationDisabled={table.pagination.disabled}
-            total={table.pagination.total}
-            visibleStart={table.pagination.visibleStart}
-            visibleEnd={table.pagination.visibleEnd}
-            sortDir={table.filters.values.sortDir}
+    <div className="flex flex-col h-full">
+      <QueryToolbar />
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+        <ResizablePanel defaultSize="65%" minSize="40%">
+          <div className="flex h-full min-h-0 flex-col">
+            <EntitiesToolbar
+              filters={table.filters.values}
+              durationS={table.filters.durationS}
+              maxUsageS={table.filters.maxUsageS}
+              operatorIds={table.filters.operatorIds}
+              operatorOptions={table.filters.operatorOptions}
+              entityTypeOptions={table.filters.entityTypeOptions}
+              resourceOptions={table.filters.resourceOptions}
+              activeFilterCount={table.filters.activeFilterCount}
+              hasNonDefaultSettings={table.filters.hasNonDefaultSettings}
+              validationErrors={table.filters.validationErrors}
+              invalidFilterFields={table.filters.invalidFilterFields}
+              onToggleOperator={table.filters.toggleOperator}
+              onSelectAllOperators={table.filters.selectAllOperators}
+              onSelectNoOperators={table.filters.selectNoOperators}
+              onFiltersChange={table.filters.update}
+              onReset={table.filters.reset}
+            />
+            <EntityResults
+              rows={table.query.rows}
+              selected={table.selection.selected}
+              isError={table.query.isError}
+              isLoading={table.query.isLoading}
+              error={table.query.error}
+              requestPending={table.query.requestPending}
+              hasValidationErrors={table.filters.validationErrors.length > 0}
+              page={table.pagination.page}
+              pageCount={table.pagination.pageCount}
+              pageSize={table.filters.values.pageSize}
+              paginationDisabled={table.pagination.disabled}
+              total={table.pagination.total}
+              visibleStart={table.pagination.visibleStart}
+              visibleEnd={table.pagination.visibleEnd}
+              sortDir={table.filters.values.sortDir}
+              stateColorFn={stateColorFn}
+              onSelect={fsm =>
+                table.selection.setSelected(current => (current?.id === fsm.id ? null : fsm))
+              }
+              onPageChange={table.pagination.setPage}
+              onPageSizeChange={value =>
+                table.filters.update({ pageSize: value }, { preserveSelection: true })
+              }
+              onSortChange={table.filters.updateSortDir}
+            />
+          </div>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize="35%" minSize="20%" collapsible collapsedSize="0%">
+          <EntityDetailPanel
+            fsm={table.selection.selected}
+            resourceLabel={table.resourceLabel}
+            operatorLabel={table.operatorLabel}
             stateColorFn={stateColorFn}
-            onSelect={fsm =>
-              table.selection.setSelected(current => (current?.id === fsm.id ? null : fsm))
-            }
-            onPageChange={table.pagination.setPage}
-            onPageSizeChange={value =>
-              table.filters.update({ pageSize: value }, { preserveSelection: true })
-            }
-            onSortChange={table.filters.updateSortDir}
+            queryBundle={props.queryBundle}
           />
-        </div>
-      </ResizablePanel>
-      <ResizableHandle withHandle />
-      <ResizablePanel defaultSize="35%" minSize="20%" collapsible collapsedSize="0%">
-        <EntityDetailPanel
-          fsm={table.selection.selected}
-          resourceLabel={table.resourceLabel}
-          operatorLabel={table.operatorLabel}
-          stateColorFn={stateColorFn}
-          queryBundle={props.queryBundle}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
   );
 }

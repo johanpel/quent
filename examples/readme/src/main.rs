@@ -22,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn a worker.
     let mut custom = DynamicAttributes::new();
-    custom.add_u64("threads", 256);
+    custom.add("threads", 256_u64);
     let mut worker = context.observer::<Worker>().handle();
     worker.declaration(
         "worker_0".to_owned(),

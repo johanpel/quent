@@ -7,8 +7,9 @@ import { createStore, Provider } from 'jotai';
 import {
   useOperatorSelection,
   useOperatorSelectionActions,
-  useSelectedNodeIds,
+  useSelectedOperatorIds,
 } from '@quent/hooks';
+import { DAGNodeInfoPanel } from '@quent/components';
 import type { EntityRef, Operator, QueryBundle } from '@quent/utils';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { EntitiesTable } from './EntitiesTable';
@@ -150,7 +151,7 @@ function DagSelectionControl() {
           selectionId: 'operator-1',
           label: 'Operator One',
           operatorIds: ['operator-1'],
-          inspectedData: {
+          selectedData: {
             nodeId: 'operator-1',
             label: 'Operator One',
             operationType: 'scan',
@@ -165,7 +166,7 @@ function DagSelectionControl() {
 }
 
 function OperatorSelectionProbe() {
-  const operatorIds = useSelectedNodeIds();
+  const operatorIds = useSelectedOperatorIds();
   const selection = useOperatorSelection();
   return (
     <>
@@ -284,6 +285,20 @@ describe('EntitiesTable', () => {
     expect(params.request.entry.application.operator_ids).toEqual([]);
   });
 
+  it('populates global operator details without DAG plan hydration', () => {
+    renderTable(
+      <>
+        <DAGNodeInfoPanel />
+        <EntitiesTable engineId="engine-1" queryId="query-1" queryBundle={queryBundle} />
+      </>
+    );
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Operator' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Operator One' }));
+
+    expect(screen.getByTestId('operator-details-title')).toHaveTextContent('Operator One');
+  });
+
   it('supports selecting multiple operators from the dropdown', () => {
     const store = createStore();
     const multiOperatorQueryBundle = withOperators({
@@ -351,12 +366,20 @@ describe('EntitiesTable', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Child One' }));
 
     params = useEntities.mock.lastCall?.[0];
-    expect(params.request.entry.application.operator_ids).toEqual(
-      expect.arrayContaining(['logical', 'child-two'])
+    expect(params.request.entry.application.operator_ids).toEqual(['child-two']);
+    expect(screen.getByTestId('selected-operator-ids')).toHaveTextContent(
+      JSON.stringify(['child-two'])
     );
-    expect(params.request.entry.application.operator_ids).toHaveLength(2);
     expect(screen.getByTestId('operator-selection-labels')).toHaveTextContent(
-      JSON.stringify(['Child Two', 'Logical Operator'])
+      JSON.stringify(['Child Two'])
+    );
+    expect(screen.getByRole('option', { name: 'Logical Operator' })).toHaveAttribute(
+      'aria-selected',
+      'false'
+    );
+    expect(screen.getByRole('option', { name: 'Child Two' })).toHaveAttribute(
+      'aria-selected',
+      'true'
     );
   });
 

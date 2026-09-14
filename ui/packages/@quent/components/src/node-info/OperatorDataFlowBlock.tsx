@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { DataFlowFrame, DataFlowMeta, InspectedNodeData } from '@quent/hooks';
+import type { DataFlowFrame, DataFlowMeta, SelectedOperatorGroupData } from '@quent/hooks';
 import { DataFlowMatrix } from '../dag/DataFlowMatrix';
 import { OperatorAccordion, type OperatorDisclosureState } from './OperatorAccordion';
 
@@ -13,7 +13,7 @@ export const OperatorDataFlowBlock = ({
   isOpen,
   onOpenChange,
 }: {
-  operator: InspectedNodeData;
+  operator: SelectedOperatorGroupData;
   meta: DataFlowMeta;
   frame: DataFlowFrame;
   isDark: boolean;

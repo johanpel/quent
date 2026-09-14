@@ -213,6 +213,10 @@ mod tests {
                             ))))),
                         ),
                         field(
+                            "nested_lists",
+                            DataType::List(Box::new(DataType::List(Box::new(DataType::String)))),
+                        ),
+                        field(
                             "eref_list",
                             DataType::EntityRef {
                                 data: Some(Box::new(DataType::List(Box::new(DataType::String)))),
@@ -230,6 +234,7 @@ mod tests {
                 #[doc = "The `ev` event."]
                 Ev {
                     nested: Option<Vec<Option<u8>>>,
+                    nested_lists: Vec<Vec<String>>,
                     eref_list: ::quent_instrumentation::EntityRef<AnyEntity, Vec<String>>
                 }
             }

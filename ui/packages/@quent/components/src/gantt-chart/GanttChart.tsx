@@ -80,7 +80,7 @@ export function GanttChart<T extends GanttDatum>({
   expandable = false,
   expandLabel = 'Expand chart',
   collapseLabel = 'Collapse chart',
-  showPlayhead = false,
+  showPlayhead = true,
   renderTooltip,
   onBackgroundClick,
 }: GanttChartProps<T>) {

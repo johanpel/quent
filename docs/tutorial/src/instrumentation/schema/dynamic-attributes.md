@@ -24,9 +24,13 @@ the individual keys that the containers will hold.
 {{#include ../../../../../crates/yaml/examples/dynamic-attributes/src/main.rs}}
 ```
 
-The application adds a string and an integer to the `started` event, then a
-boolean and an integer to the `ended` event. Each value retains its runtime
-type.
+The generic `add` method converts each supported Rust value into its dynamic
+representation. The application adds a string and an integer to the `started`
+event, then a boolean and an integer to the `ended` event. Each value retains
+its runtime type; integer suffixes such as `_u64` select the intended type. Use
+`DynamicNull` for a key with no value:
+`attributes.add("key", instrumentation::DynamicNull)`. Null values do not retain
+an intended value type.
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">

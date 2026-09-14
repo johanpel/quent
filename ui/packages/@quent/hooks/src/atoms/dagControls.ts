@@ -11,7 +11,7 @@ import type {
   EdgeColoring,
   NodeLabelField,
   DagLayoutDirection,
-  InspectedNodeData,
+  SelectedOperatorGroupData,
 } from '@quent/utils';
 import { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from '@quent/utils';
 import type { ContinuousPaletteName } from '@quent/utils';
@@ -36,30 +36,9 @@ export interface HighlightedNodeIdsState {
   primaryOperatorId: string | null;
 }
 
-/** Inspected details for every selected operator, keyed by selection id. */
-export const selectedNodesDataAtom = atom<ReadonlyMap<string, InspectedNodeData>>(new Map());
-
-export interface SelectedNodeDataUpdate {
-  selectionId: string;
-  data: InspectedNodeData;
-}
-
-/** Last pinned node; writing replaces the whole inspected-node map. */
-export const selectedNodeDataAtom = atom(
-  get => {
-    const map = get(selectedNodesDataAtom);
-    let last: InspectedNodeData | null = null;
-    for (const value of map.values()) {
-      last = value;
-    }
-    return last;
-  },
-  (_get, set, value: SelectedNodeDataUpdate | null) => {
-    set(
-      selectedNodesDataAtom,
-      value == null ? new Map() : new Map([[value.selectionId, value.data]])
-    );
-  }
+/** Details for every selected operator group, keyed by selection id. */
+export const selectedOperatorsDataAtom = atom<ReadonlyMap<string, SelectedOperatorGroupData>>(
+  new Map()
 );
 
 /** Consolidated hover/highlight state shared between table and DAG. */

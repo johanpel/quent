@@ -3,7 +3,7 @@
 
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { InspectedOperatorData } from '@quent/hooks';
+import type { SelectedOperatorData } from '@quent/hooks';
 import { DataText } from '../ui/data-text';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { OperatorColorBar } from './OperatorColorBar';
@@ -19,7 +19,7 @@ export const OperatorAccordion = ({
   onOpenChange,
   children,
 }: {
-  operator: InspectedOperatorData;
+  operator: SelectedOperatorData;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
