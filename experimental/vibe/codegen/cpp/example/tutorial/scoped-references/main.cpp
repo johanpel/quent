@@ -7,10 +7,10 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto pipeline = context.pipeline_observer()->create();
+  auto pipeline = context.pipeline_observer()->handle();
   pipeline.created();
 
-  auto task = context.task_observer()->create();
+  auto task = context.task_observer()->handle();
   task.started(quent::task::Started{.parent = pipeline.id()});
   task.ended();
   return 0;

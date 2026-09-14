@@ -42,7 +42,7 @@ Client code includes only the façade:
 
 auto context = quent::Context::ndjson("./events");
 auto request_observer = context.request_observer();
-quent::Handle<quent::Request> request = request_observer->create();
+quent::Handle<quent::Request> request = request_observer->handle();
 ```
 
 The public API uses `std::shared_ptr`, `std::optional`, `std::vector`, and

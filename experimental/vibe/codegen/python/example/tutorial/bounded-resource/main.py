@@ -6,10 +6,10 @@ import quent_tutorial_bounded_resource as quent
 
 def main() -> None:
     with quent.Context() as context:
-        memory = context.memory_observer().create()
+        memory = context.memory_observer().handle()
         memory.resized(limits={"bytes": 8_000_000_000})
 
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         running = task.running(
             memory={
                 "target": memory,

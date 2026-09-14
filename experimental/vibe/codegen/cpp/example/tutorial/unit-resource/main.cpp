@@ -7,13 +7,13 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto pool = context.thread_pool_observer()->create();
+  auto pool = context.thread_pool_observer()->handle();
   pool.created();
 
-  auto thread = context.thread_observer()->create();
+  auto thread = context.thread_observer()->handle();
   thread.registered(quent::thread::Registered{.pool = pool.id()});
 
-  auto running = context.task_observer()->create().running(
+  auto running = context.task_observer()->handle().running(
       quent::task::Running{
           .thread = quent::refs::ThreadUsageRef{
               .target = thread.id(),

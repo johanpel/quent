@@ -6,8 +6,8 @@ import quent_tutorial_records as quent
 
 def main() -> None:
     with quent.Context() as context:
-        task = context.task_observer().create()
-        batch = context.batch_observer().create()
+        task = context.task_observer().handle()
+        batch = context.batch_observer().handle()
 
         task.started()
         task.ended(result={"success": True, "items_processed": 128})

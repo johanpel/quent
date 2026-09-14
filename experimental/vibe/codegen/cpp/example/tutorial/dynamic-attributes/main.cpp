@@ -7,7 +7,7 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto task = context.task_observer()->create();
+  auto task = context.task_observer()->handle();
 
   quent::DynamicAttributes started_details;
   started_details.add_string("queue", "priority");

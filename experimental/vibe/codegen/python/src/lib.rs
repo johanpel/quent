@@ -829,7 +829,7 @@ fn entity_bindings(
         #[pymethods]
         impl #observer {
             #[pyo3(signature = (id=None))]
-            pub fn create(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#handle> {
+            pub fn handle(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#handle> {
                 let inner = match id {
                     Some(id) => self.inner.handle_with_id(__extract_uuid(id)?),
                     None => self.inner.handle(),
@@ -965,7 +965,7 @@ fn fsm_entity_bindings(
         #[pymethods]
         impl #observer {
             #[pyo3(signature = (id=None))]
-            pub fn create(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#initial_handle> {
+            pub fn handle(&self, id: Option<&Bound<'_, PyAny>>) -> PyResult<#initial_handle> {
                 let inner = match id {
                     Some(id) => self.inner.handle_with_id(__extract_uuid(id)?),
                     None => self.inner.handle(),

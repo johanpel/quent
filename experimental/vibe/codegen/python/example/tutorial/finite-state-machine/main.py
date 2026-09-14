@@ -8,7 +8,7 @@ def main() -> None:
     with quent.Context() as context:
         completed = (
             context.job_observer()
-            .create()
+            .handle()
             .queued()
             .loading_input()
             .running()

@@ -7,8 +7,8 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto task = context.task_observer()->create();
-  auto batch = context.batch_observer()->create();
+  auto task = context.task_observer()->handle();
+  auto batch = context.batch_observer()->handle();
 
   task.started();
   task.ended(quent::task::Ended{

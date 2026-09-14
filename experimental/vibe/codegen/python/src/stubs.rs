@@ -141,7 +141,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
     for entity in schema.entities() {
         let name = path_pascal(entity.path());
         output.push_str(&format!(
-            "\nclass {name}Observer:\n    \"\"\"Creates handles for `{}` entities.\"\"\"\n    def create(self, id: uuid.UUID | None = None) -> {name}Handle: ...\n",
+            "\nclass {name}Observer:\n    \"\"\"Creates handles for `{}` entities.\"\"\"\n    def handle(self, id: uuid.UUID | None = None) -> {name}Handle: ...\n",
             entity.path(),
         ));
         if let Some(fsm) = Fsm::try_from_entity(entity).ok().flatten() {

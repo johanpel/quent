@@ -6,7 +6,7 @@ import quent_tutorial_fsm_self_loop as quent
 
 def main() -> None:
     with quent.Context() as context:
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         running = task.running(items_processed=0)
         running = running.running(items_processed=64)
         paused = running.paused()

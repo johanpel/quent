@@ -69,7 +69,7 @@ int run_example() {
 
   auto cluster_observer = context.cluster_observer();
   auto scoped_cluster_telemetry = cluster_observer;
-  auto cluster = scoped_cluster_telemetry->create(
+  auto cluster = scoped_cluster_telemetry->handle(
       quent::cluster::ClusterId(context.id()));
   cluster.declaration(
       quent::cluster::Declaration{.instance_name = "example_cluster"});
@@ -82,7 +82,7 @@ int run_example() {
   }
 
   auto custom = make_dynamic_attributes();
-  auto worker = context.worker_observer()->create();
+  auto worker = context.worker_observer()->handle();
   worker.declaration(quent::worker::Declaration{
       .instance_name = "worker_0",
       .cluster = cluster.id(),
@@ -92,13 +92,13 @@ int run_example() {
       },
   });
 
-  auto queue = context.queue_observer()->create();
+  auto queue = context.queue_observer()->handle();
   queue.declaration(quent::queue::Declaration{
       .instance_name = "my_queue",
       .worker = worker.id(),
   });
 
-  auto memory = context.memory_pool_observer()->create();
+  auto memory = context.memory_pool_observer()->handle();
   memory.declaration(quent::memory_pool::Declaration{
       .instance_name = "my_memory_pool",
       .worker = worker.id(),
@@ -109,18 +109,18 @@ int run_example() {
   });
 
   auto thread = context.thread_observer()
-                    ->create()
+                    ->handle()
                     .idle(quent::thread::Idle{.worker = worker.id()})
                     .active();
 
-  auto info = context.info_observer()->create();
+  auto info = context.info_observer()->handle();
   info.recorded(quent::info::Recorded{
       .message = "ready to operate",
       .source = std::string(__FILE__),
       .worker = worker.id(),
   });
 
-  auto file_stats = context.file_stats_observer()->create();
+  auto file_stats = context.file_stats_observer()->handle();
   file_stats.scheduled();
   file_stats.checksum(quent::file_stats::Checksum{
       .details = quent::records::Checksum{
@@ -137,7 +137,7 @@ int run_example() {
   });
 
   context.task_observer()
-      ->create()
+      ->handle()
       .queued(quent::task::Queued{
           .instance_name = "my_task_31415",
           .index = 1,
@@ -173,7 +173,7 @@ int run_example() {
     auto detached_context = quent::Context::none();
     return detached_context.cluster_observer();
   }();
-  auto detached_cluster = detached_observer->create();
+  auto detached_cluster = detached_observer->handle();
   detached_cluster.declaration(
       quent::cluster::Declaration{.instance_name = "detached_cluster"});
   return 0;

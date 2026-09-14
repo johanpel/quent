@@ -72,8 +72,8 @@ fn regular_entity_file(
     let mut extern_body = format!(
         "        type {observer_name};\n        type {handle_name};\n\n\
          fn create_observer(ctx: &Context) -> Box<{observer_name}>;\n\
-         fn create(self: &{observer_name}) -> Box<{handle_name}>;\n\
-         fn create_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
+         fn handle(self: &{observer_name}) -> Box<{handle_name}>;\n\
+         fn handle_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
          fn uuid(self: &{handle_name}) -> UUID;\n"
     );
 
@@ -194,10 +194,10 @@ pub mod ffi {{
         }
 
         impl #observer_ident {
-            pub fn create(&self) -> Box<#handle_ident> {
+            pub fn handle(&self) -> Box<#handle_ident> {
                 Box::new(#handle_ident { inner: self.inner.handle() })
             }
-            pub fn create_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
+            pub fn handle_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
                 Box::new(#handle_ident { inner: self.inner.handle_with_id(#runtime::Uuid::from(id)) })
             }
         }
@@ -261,8 +261,8 @@ fn fsm_entity_file(
     let mut extern_body = format!(
         "        type {observer_name};\n        type {handle_name};\n\n\
          fn create_observer(ctx: &Context) -> Box<{observer_name}>;\n\
-         fn create(self: &{observer_name}) -> Box<{handle_name}>;\n\
-         fn create_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
+         fn handle(self: &{observer_name}) -> Box<{handle_name}>;\n\
+         fn handle_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
          fn uuid(self: &{handle_name}) -> UUID;\n"
     );
 
@@ -409,10 +409,10 @@ pub mod ffi {{
         }
 
         impl #observer_ident {
-            pub fn create(&self) -> Box<#handle_ident> {
+            pub fn handle(&self) -> Box<#handle_ident> {
                 Box::new(#handle_ident { inner: Some(#state_ident::New(self.inner.handle())) })
             }
-            pub fn create_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
+            pub fn handle_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
                 Box::new(#handle_ident {
                     inner: Some(#state_ident::New(
                         self.inner.handle_with_id(#runtime::Uuid::from(id))

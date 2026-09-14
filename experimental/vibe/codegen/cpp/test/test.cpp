@@ -24,7 +24,7 @@ concept CanDeclareWorker = requires(Handle &handle,
 
 static_assert(std::is_same_v<
               decltype(std::declval<const quent::worker::WorkerObserver &>()
-                           .create()),
+                           .handle()),
               quent::Handle<quent::Worker>>);
 static_assert(CanDeclareWorker<quent::Handle<quent::Worker>>);
 static_assert(!CanDeclareWorker<quent::Handle<quent::Cluster>>);
@@ -44,7 +44,7 @@ extern "C" int quent_demo_cpp_smoke() { return run_example(); }
 
 extern "C" int quent_demo_cpp_dynamic_values(const char *output_dir) {
   auto context = quent::Context::ndjson(output_dir);
-  auto worker = context.worker_observer()->create();
+  auto worker = context.worker_observer()->handle();
   worker.declaration(quent::worker::Declaration{
       .instance_name = "dynamic_values",
       .cluster = quent::cluster::ClusterId(context.id()),

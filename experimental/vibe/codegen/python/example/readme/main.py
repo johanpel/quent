@@ -11,10 +11,10 @@ def main() -> None:
     with context:
         cluster_observer = context.cluster_observer()
         scoped_cluster_telemetry = cluster_observer
-        cluster = scoped_cluster_telemetry.create(context.id)
+        cluster = scoped_cluster_telemetry.handle(context.id)
         cluster.declaration(instance_name="example_cluster")
 
-        worker = context.worker_observer().create()
+        worker = context.worker_observer().handle()
         custom: quent.DynamicAttributes = {
             "null": None,
             "bool": True,
@@ -56,10 +56,10 @@ def main() -> None:
             },
         )
 
-        queue = context.queue_observer().create()
+        queue = context.queue_observer().handle()
         queue.declaration(instance_name="my_queue", worker=worker)
 
-        memory = context.memory_pool_observer().create()
+        memory = context.memory_pool_observer().handle()
         memory.declaration(
             instance_name="my_memory_pool",
             worker=worker,
@@ -67,18 +67,18 @@ def main() -> None:
         )
         memory.resized(limits={"bytes": 2048})
 
-        thread = context.thread_observer().create()
+        thread = context.thread_observer().handle()
         idle_thread = thread.idle(worker=worker)
         active_thread = idle_thread.active()
 
-        info = context.info_observer().create()
+        info = context.info_observer().handle()
         info.recorded(
             message="ready to operate",
             source=__file__,
             worker=worker,
         )
 
-        file_stats = context.file_stats_observer().create()
+        file_stats = context.file_stats_observer().handle()
         file_stats.scheduled()
         file_stats.checksum(
             details={"algorithm": "sha256", "value": "abc123def456"},
@@ -88,7 +88,7 @@ def main() -> None:
             details={"algorithm": "snappy", "ratio": 0.4},
         )
 
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         queued_task = task.queued(
             instance_name="my_task_31415",
             index=1,
@@ -110,7 +110,7 @@ def main() -> None:
         idle_thread = active_thread.idle(worker=worker)
         exited_thread = idle_thread.exit()
 
-    detached_cluster = cluster_observer.create()
+    detached_cluster = cluster_observer.handle()
     detached_cluster.declaration(instance_name="detached_cluster")
 
 

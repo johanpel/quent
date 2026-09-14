@@ -7,12 +7,12 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto memory = context.memory_observer()->create();
+  auto memory = context.memory_observer()->handle();
   memory.resized(quent::memory::Resized{
       .limits = quent::records::MemoryBounds{.bytes = 8'000'000'000},
   });
 
-  auto running = context.task_observer()->create().running(
+  auto running = context.task_observer()->handle().running(
       quent::task::Running{
           .memory = quent::refs::MemoryUsageRef{
               .target = memory.id(),

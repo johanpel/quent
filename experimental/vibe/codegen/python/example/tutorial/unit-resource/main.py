@@ -6,13 +6,13 @@ import quent_tutorial_unit_resource as quent
 
 def main() -> None:
     with quent.Context() as context:
-        pool = context.thread_pool_observer().create()
+        pool = context.thread_pool_observer().handle()
         pool.created()
 
-        thread = context.thread_observer().create()
+        thread = context.thread_observer().handle()
         thread.registered(pool=pool)
 
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         running = task.running(thread={"target": thread, "data": {}})
         completed = running.completed()
 

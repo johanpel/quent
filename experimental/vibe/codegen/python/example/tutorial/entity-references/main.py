@@ -6,10 +6,10 @@ import quent_tutorial_entity_references as quent
 
 def main() -> None:
     with quent.Context() as context:
-        worker = context.worker_observer().create()
+        worker = context.worker_observer().handle()
         worker.registered()
 
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         task.started(worker=worker)
         task.ended()
 

@@ -6,7 +6,7 @@ import quent_tutorial_dynamic_attributes as quent
 
 def main() -> None:
     with quent.Context() as context:
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         task.started(
             details={"queue": "priority", "attempt": quent.DynamicValue.u64(2)}
         )

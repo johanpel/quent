@@ -6,10 +6,10 @@ import quent_tutorial_scoped_references as quent
 
 def main() -> None:
     with quent.Context() as context:
-        pipeline = context.pipeline_observer().create()
+        pipeline = context.pipeline_observer().handle()
         pipeline.created()
 
-        task = context.task_observer().create()
+        task = context.task_observer().handle()
         task.started(parent=pipeline)
         task.ended()
 

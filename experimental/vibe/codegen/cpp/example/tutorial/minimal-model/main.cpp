@@ -7,7 +7,7 @@
 
 int main() {
   auto context = quent::Context::none();
-  quent::Handle<quent::Task> task = context.task_observer()->create();
+  quent::Handle<quent::Task> task = context.task_observer()->handle();
   task.started();
   task.ended();
   return 0;

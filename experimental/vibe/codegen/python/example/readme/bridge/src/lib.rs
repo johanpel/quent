@@ -27,7 +27,7 @@ assert not hasattr(quent_demo, "Uuid")
 assert not hasattr(quent_demo.ExporterOptions, "none")
 cluster_observer = context.cluster_observer()
 cluster_id = uuid.uuid4()
-cluster = cluster_observer.create(cluster_id)
+cluster = cluster_observer.handle(cluster_id)
 assert cluster.uuid == cluster_id
 cluster.declaration(instance_name="cluster")
 assert cluster.declaration_emitted()
@@ -37,7 +37,7 @@ except quent_demo.EventAlreadyEmittedError:
     pass
 else:
     raise AssertionError("once-cardinality event was accepted twice")
-worker = context.worker_observer().create()
+worker = context.worker_observer().handle()
 worker.declaration(
     instance_name="worker",
     cluster=cluster,
@@ -79,9 +79,9 @@ worker.declaration(
         }),
     }),
 )
-queue = context.queue_observer().create()
+queue = context.queue_observer().handle()
 queue.declaration(instance_name="queue", worker=worker)
-thread = context.thread_observer().create()
+thread = context.thread_observer().handle()
 try:
     thread.active()
 except AttributeError:
@@ -96,7 +96,7 @@ except quent_demo.HandleConsumedError:
     pass
 else:
     raise AssertionError("consumed FSM handle was accepted")
-task = context.task_observer().create()
+task = context.task_observer().handle()
 queued_task = task.queued(
     instance_name="task",
     index=1,
@@ -121,7 +121,7 @@ except quent_demo.ContextClosedError:
     pass
 else:
     raise AssertionError("closed context created an observer")
-detached_cluster = cluster_observer.create()
+detached_cluster = cluster_observer.handle()
 detached_cluster.declaration(instance_name="detached")
 "#,
                 Some(&locals),
@@ -156,7 +156,7 @@ from collections import UserDict
 
 def emit():
     context = quent_demo.Context(quent_demo.ExporterOptions.ndjson(output_dir))
-    worker = context.worker_observer().create()
+    worker = context.worker_observer().handle()
     worker.declaration(
         instance_name="ordered",
         cluster=context.id,

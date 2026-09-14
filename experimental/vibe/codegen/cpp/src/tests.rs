@@ -22,6 +22,8 @@ fn generates_schema_driven_bridge() {
     assert_eq!(files.len(), schema.entities().count() + 4);
     let worker = files.iter().find(|file| file.name == "worker.rs").unwrap();
     assert!(worker.content.contains("pub struct WorkerHandle"));
+    assert!(worker.content.contains("pub fn handle(&self)"));
+    assert!(worker.content.contains("pub fn handle_with_id(&self"));
     assert!(worker.content.contains("pub struct BridgeRecordDetails"));
     assert!(worker.content.contains("pub fn declaration"));
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
@@ -37,6 +39,12 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("namespace quent::records"));
     assert_eq!(facade.content.matches("struct Details {").count(), 1);
     assert!(facade.content.contains("class WorkerObserver final"));
+    assert!(facade.content.contains("WorkerObserver::handle() const"));
+    assert!(
+        facade
+            .content
+            .contains("WorkerObserver::handle(WorkerId id) const")
+    );
     assert!(facade.content.contains("struct Worker final {}"));
     assert!(
         facade

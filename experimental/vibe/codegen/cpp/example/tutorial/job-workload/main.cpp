@@ -7,13 +7,13 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto worker = context.worker_observer()->create();
+  auto worker = context.worker_observer()->handle();
   worker.ready(quent::worker::Ready{
       .name = "worker-1",
       .limits = quent::records::WorkerBounds{.threads = 16},
   });
 
-  auto queued = context.job_observer()->create().queued(quent::job::Queued{
+  auto queued = context.job_observer()->handle().queued(quent::job::Queued{
       .name = "compile",
       .requested_threads = 4,
   });

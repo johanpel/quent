@@ -7,10 +7,10 @@
 
 int main() {
   auto context = quent::Context::none();
-  auto worker = context.worker_observer()->create();
+  auto worker = context.worker_observer()->handle();
   worker.registered();
 
-  auto task = context.task_observer()->create();
+  auto task = context.task_observer()->handle();
   task.started(quent::task::Started{.worker = worker.id()});
   task.ended();
   return 0;

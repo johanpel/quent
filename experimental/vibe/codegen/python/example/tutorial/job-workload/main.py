@@ -6,10 +6,10 @@ import quent_tutorial_job_workload as quent
 
 def main() -> None:
     with quent.Context() as context:
-        worker = context.worker_observer().create()
+        worker = context.worker_observer().handle()
         worker.ready(name="worker-1", limits={"threads": 16})
 
-        job = context.job_observer().create()
+        job = context.job_observer().handle()
         queued = job.queued(name="compile", requested_threads=4)
         running = queued.running(
             worker={
