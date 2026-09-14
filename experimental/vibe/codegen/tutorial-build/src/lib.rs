@@ -26,10 +26,6 @@ pub fn build_cpp(tutorial: &str) -> Result<(), Box<dyn std::error::Error>> {
     build
         .include(&include_dir)
         .file(example)
-        .define(
-            "QUENT_CPP_BRIDGE_HEADER",
-            Some(format!("\"{package}/gen/quent.hpp\"").as_str()),
-        )
         .std("c++20")
         .compile(&format!("{}_native", package.replace('-', "_")));
     println!("cargo:include={}", include_dir.display());

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include QUENT_CPP_BRIDGE_HEADER
+#include "quent-tutorial-resource-capacity-cpp-bridge/gen/quent.hpp"
 
 int run_example() {
   auto context = quent::Context::none();
