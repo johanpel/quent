@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-unit-resource-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto pool = context.thread_pool_observer()->create();
   pool.created();
@@ -23,7 +23,3 @@ int run_example() {
   auto completed = std::move(running).completed();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

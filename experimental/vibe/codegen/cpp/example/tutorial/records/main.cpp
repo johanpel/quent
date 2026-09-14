@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-records-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto task = context.task_observer()->create();
   auto batch = context.batch_observer()->create();
@@ -27,7 +27,3 @@ int run_example() {
   });
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

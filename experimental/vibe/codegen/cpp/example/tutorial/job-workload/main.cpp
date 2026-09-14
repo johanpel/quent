@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-job-workload-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto worker = context.worker_observer()->create();
   worker.ready(quent::worker::Ready{
@@ -27,7 +27,3 @@ int run_example() {
   auto completed = std::move(running).completed();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

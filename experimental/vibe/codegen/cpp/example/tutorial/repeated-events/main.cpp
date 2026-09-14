@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-repeated-events-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto task = context.task_observer()->create();
   task.started(quent::task::Started{.command = "compile"});
@@ -14,7 +14,3 @@ int run_example() {
   task.ended(quent::task::Ended{.success = true});
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

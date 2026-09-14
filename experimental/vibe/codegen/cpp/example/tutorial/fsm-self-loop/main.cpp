@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-fsm-self-loop-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto task = std::move(context.task_observer()->create())
                   .running(quent::task::Running{.items_processed = 0});
@@ -17,7 +17,3 @@ int run_example() {
   auto completed = std::move(task).completed();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

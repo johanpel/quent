@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-entity-references-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto worker = context.worker_observer()->create();
   worker.registered();
@@ -15,7 +15,3 @@ int run_example() {
   task.ended();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

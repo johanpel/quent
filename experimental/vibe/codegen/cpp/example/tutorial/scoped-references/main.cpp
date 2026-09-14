@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-scoped-references-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto pipeline = context.pipeline_observer()->create();
   pipeline.created();
@@ -15,7 +15,3 @@ int run_example() {
   task.ended();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

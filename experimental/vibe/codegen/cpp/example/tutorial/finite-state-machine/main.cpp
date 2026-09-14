@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-finite-state-machine-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto queued = std::move(context.job_observer()->create()).queued();
   auto loading = std::move(queued).loading_input();
@@ -13,7 +13,3 @@ int run_example() {
   auto completed = std::move(running).completed();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

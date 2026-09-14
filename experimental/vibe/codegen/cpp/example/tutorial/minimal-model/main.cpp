@@ -5,14 +5,10 @@
 
 #include "quent-tutorial-minimal-model-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto task = context.task_observer()->create();
   task.started();
   task.ended();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif

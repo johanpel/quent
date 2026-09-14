@@ -5,7 +5,7 @@
 
 #include "quent-tutorial-bounded-resource-cpp-bridge/gen/quent.hpp"
 
-int run_example() {
+int main() {
   auto context = quent::Context::none();
   auto memory = context.memory_observer()->create();
   memory.resized(quent::memory::Resized{
@@ -24,7 +24,3 @@ int run_example() {
   auto completed = std::move(running).completed();
   return 0;
 }
-
-#ifndef QUENT_TUTORIAL_LIBRARY
-int main() { return run_example(); }
-#endif
