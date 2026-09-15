@@ -52,11 +52,10 @@ schema-derived struct in `quent::refs`; an existing target prefix in the data
 record name is not repeated. CXX-specific representations remain under
 `quent::detail`.
 
-`DynamicAttributes` has width-specific builders for every numeric scalar and
-list variant, plus strings, nulls, structures, and lists of structures.
-`add_bool` is a convenience that uses the runtime's `u8` boolean convention.
-`DynamicList` factories and `DynamicAttributes::add_list` construct recursive
-lists.
+`DynamicAttributes::add` is overloaded for every numeric scalar and list
+variant, plus strings, booleans, structures, and lists of structures. Pass
+`nullptr` to add a null value. `DynamicList` factories construct recursive
+lists accepted by the same `add` overload.
 Attributes and nested structure members retain insertion order; list elements
 retain their input order.
 

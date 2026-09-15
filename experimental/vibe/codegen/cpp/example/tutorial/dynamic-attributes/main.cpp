@@ -10,13 +10,13 @@ int main() {
   auto task = context.task_observer()->handle();
 
   quent::DynamicAttributes started_details;
-  started_details.add_string("queue", "priority");
-  started_details.add_u64("attempt", 2);
+  started_details.add("queue", "priority");
+  started_details.add("attempt", std::uint64_t{2});
   task.started(quent::task::Started{.details = std::move(started_details)});
 
   quent::DynamicAttributes ended_details;
-  ended_details.add_bool("cached", false);
-  ended_details.add_u64("items_processed", 128);
+  ended_details.add("cached", false);
+  ended_details.add("items_processed", std::uint64_t{128});
   task.ended(quent::task::Ended{.details = std::move(ended_details)});
   return 0;
 }

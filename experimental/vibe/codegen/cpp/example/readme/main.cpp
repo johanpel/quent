@@ -18,60 +18,60 @@ static_assert(
 
 quent::DynamicAttributes make_dynamic_attributes() {
   quent::DynamicAttributes custom;
-  custom.add_null("null");
-  custom.add_bool("bool", true);
-  custom.add_u8("u8", 8);
-  custom.add_u16("u16", 16);
-  custom.add_u32("u32", 32);
-  custom.add_u64("u64", 64);
-  custom.add_i8("i8", -8);
-  custom.add_i16("i16", -16);
-  custom.add_i32("i32", -32);
-  custom.add_i64("i64", -64);
-  custom.add_f32("f32", 32.5F);
-  custom.add_f64("f64", 64.5);
-  custom.add_string("string", "value");
+  custom.add("null", nullptr);
+  custom.add("bool", true);
+  custom.add("u8", std::uint8_t{8});
+  custom.add("u16", std::uint16_t{16});
+  custom.add("u32", std::uint32_t{32});
+  custom.add("u64", std::uint64_t{64});
+  custom.add("i8", std::int8_t{-8});
+  custom.add("i16", std::int16_t{-16});
+  custom.add("i32", std::int32_t{-32});
+  custom.add("i64", std::int64_t{-64});
+  custom.add("f32", 32.5F);
+  custom.add("f64", 64.5);
+  custom.add("string", "value");
 
   quent::DynamicAttributes structure;
-  structure.add_string("first", "alpha");
-  structure.add_u32("second", 2);
-  custom.add_structure("structure", std::move(structure));
+  structure.add("first", "alpha");
+  structure.add("second", std::uint32_t{2});
+  custom.add("structure", std::move(structure));
 
-  custom.add_u8_list("u8_list", {1, 2});
-  custom.add_u16_list("u16_list", {1, 2});
-  custom.add_u32_list("u32_list", {1, 2});
-  custom.add_u64_list("u64_list", {1, 2});
-  custom.add_i8_list("i8_list", {-1, 2});
-  custom.add_i16_list("i16_list", {-1, 2});
-  custom.add_i32_list("i32_list", {-1, 2});
-  custom.add_i64_list("i64_list", {-1, 2});
-  custom.add_f32_list("f32_list", {1.5F, 2.5F});
-  custom.add_f64_list("f64_list", {1.5, 2.5});
-  custom.add_string_list("string_list", {"first", "second"});
+  custom.add("u8_list", std::vector<std::uint8_t>{1, 2});
+  custom.add("u16_list", std::vector<std::uint16_t>{1, 2});
+  custom.add("u32_list", std::vector<std::uint32_t>{1, 2});
+  custom.add("u64_list", std::vector<std::uint64_t>{1, 2});
+  custom.add("i8_list", std::vector<std::int8_t>{-1, 2});
+  custom.add("i16_list", std::vector<std::int16_t>{-1, 2});
+  custom.add("i32_list", std::vector<std::int32_t>{-1, 2});
+  custom.add("i64_list", std::vector<std::int64_t>{-1, 2});
+  custom.add("f32_list", std::vector<float>{1.5F, 2.5F});
+  custom.add("f64_list", std::vector<double>{1.5, 2.5});
+  custom.add("string_list", std::vector<std::string>{"first", "second"});
 
   std::vector<quent::DynamicAttributes> structures;
   quent::DynamicAttributes first_structure;
-  first_structure.add_string("name", "first");
+  first_structure.add("name", "first");
   structures.push_back(std::move(first_structure));
   quent::DynamicAttributes second_structure;
-  second_structure.add_string("name", "second");
+  second_structure.add("name", "second");
   structures.push_back(std::move(second_structure));
-  custom.add_struct_list("struct_list", std::move(structures));
+  custom.add("struct_list", std::move(structures));
 
   std::vector<quent::DynamicList> inner_lists;
   inner_lists.push_back(quent::DynamicList::string({"nested"}));
   std::vector<quent::DynamicList> nested_lists;
   nested_lists.push_back(quent::DynamicList::u8({1, 2}));
   nested_lists.push_back(quent::DynamicList::list(std::move(inner_lists)));
-  custom.add_list(
+  custom.add(
       "nested_list", quent::DynamicList::list(std::move(nested_lists)));
 
   quent::DynamicAttributes moved_from;
-  moved_from.add_string("before_move", "retained");
+  moved_from.add("before_move", "retained");
   auto moved_to = std::move(moved_from);
-  moved_from.add_string("after_move", "valid");
-  custom.add_structure("moved_to", std::move(moved_to));
-  custom.add_structure("moved_from", std::move(moved_from));
+  moved_from.add("after_move", "valid");
+  custom.add("moved_to", std::move(moved_to));
+  custom.add("moved_from", std::move(moved_from));
   return custom;
 }
 

@@ -11,10 +11,10 @@ extern "C" int quent_cpp_list_smoke() {
 
   std::vector<quent::DynamicAttributes> extras;
   quent::DynamicAttributes first;
-  first.add_string("name", "first");
+  first.add("name", "first");
   extras.push_back(std::move(first));
   quent::DynamicAttributes second;
-  second.add_u32("value", 2);
+  second.add("value", std::uint32_t{2});
   extras.push_back(std::move(second));
 
   batch.recorded(quent::batch::Recorded{

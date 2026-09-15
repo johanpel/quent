@@ -21,8 +21,8 @@ int main() {
   });
 
   quent::DynamicAttributes extra;
-  extra.add_string("worker", "alpha");
-  extra.add_u64("queue_depth", 3);
+  extra.add("worker", "alpha");
+  extra.add("queue_depth", std::uint64_t{3});
   task.ended(quent::task::Ended{
       .ratio = 0.5F,
       .score = 0.95,

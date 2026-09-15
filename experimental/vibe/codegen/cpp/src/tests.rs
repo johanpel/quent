@@ -74,37 +74,44 @@ fn generates_schema_driven_bridge() {
     assert!(facade.content.contains("struct QueueUsageRef {"));
     assert!(facade.content.contains("declaration_emitted() const"));
     assert!(facade.content.contains("static Context ndjson"));
-    for method in [
-        "add_null",
-        "add_bool",
-        "add_u8",
-        "add_u16",
-        "add_u32",
-        "add_u64",
-        "add_i8",
-        "add_i16",
-        "add_i32",
-        "add_i64",
-        "add_f32",
-        "add_f64",
-        "add_string",
-        "add_structure",
-        "add_u8_list",
-        "add_u16_list",
-        "add_u32_list",
-        "add_u64_list",
-        "add_i8_list",
-        "add_i16_list",
-        "add_i32_list",
-        "add_i64_list",
-        "add_f32_list",
-        "add_f64_list",
-        "add_string_list",
-        "add_struct_list",
-        "add_list",
+    for value_type in [
+        "std::nullptr_t",
+        "std::uint8_t value",
+        "std::uint16_t value",
+        "std::uint32_t value",
+        "std::uint64_t value",
+        "std::int8_t value",
+        "std::int16_t value",
+        "std::int32_t value",
+        "std::int64_t value",
+        "float value",
+        "double value",
+        "std::string value",
+        "const char* value",
+        "bool value",
+        "DynamicAttributes value",
+        "std::vector<std::uint8_t> values",
+        "std::vector<std::uint16_t> values",
+        "std::vector<std::uint32_t> values",
+        "std::vector<std::uint64_t> values",
+        "std::vector<std::int8_t> values",
+        "std::vector<std::int16_t> values",
+        "std::vector<std::int32_t> values",
+        "std::vector<std::int64_t> values",
+        "std::vector<float> values",
+        "std::vector<double> values",
+        "std::vector<std::string> values",
+        "std::vector<DynamicAttributes> values",
+        "DynamicList value",
     ] {
-        assert!(facade.content.contains(&format!("void {method}(")));
+        assert!(
+            facade
+                .content
+                .contains(&format!("void add(std::string key, {value_type})"))
+        );
     }
+    assert_eq!(facade.content.matches("void add(").count(), 28);
+    assert!(!facade.content.contains("void add_u8("));
     let dynamic = files
         .iter()
         .find(|file| file.name == "dynamic_attributes.rs")
