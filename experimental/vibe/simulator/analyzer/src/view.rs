@@ -10,17 +10,17 @@ use quent_analyzer::{
     },
 };
 use quent_query_engine_analyzer::{
-    QueryEngineEntityId as QeEntityRef, QueryEngineModel, plan_tree::PlanTree,
+    QueryEngineEntityId as QeEntityRef, QueryEngineModel,
+    model::{
+        Engine, InMemoryQueryEngineModelView, Operator, Plan, Port, Query, QueryGroup, Worker,
+    },
+    plan_tree::PlanTree,
 };
 use quent_query_engine_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{
-    model::SimulatorModel,
-    query_engine::{Engine, Operator, Plan, Port, Query, QueryEngineView, QueryGroup, Worker},
-    task::Task,
-};
+use crate::{model::SimulatorModel, task::Task};
 
 /// A view of the simulator model filtered to a specific query
 // TODO(johanpel): figure out a better way to construct these views, or to
@@ -29,7 +29,7 @@ use crate::{
 // the entire engine could be modified by other queries.
 pub(crate) struct SimulatorModelQueryView<'a> {
     resource_types: HashMap<String, &'a ResourceTypeDecl>,
-    query_engine: QueryEngineView<'a>,
+    query_engine: InMemoryQueryEngineModelView<'a>,
     resources: HashMap<Uuid, &'a RtResource>,
     resource_groups: HashMap<Uuid, &'a RtResourceGroup>,
     tasks: HashMap<Uuid, &'a Task>,
@@ -41,7 +41,8 @@ impl<'a> SimulatorModelQueryView<'a> {
         query_id: Uuid,
     ) -> AnalyzerResult<SimulatorModelQueryView<'a>> {
         // QE scoped to single query
-        let query_engine_view = QueryEngineView::try_new(&model.query_engine, query_id)?;
+        let query_engine_view =
+            InMemoryQueryEngineModelView::try_new(&model.query_engine, query_id)?;
 
         // Only keep arbitrary groups that reference one of the QE model groups
         let resource_groups = model

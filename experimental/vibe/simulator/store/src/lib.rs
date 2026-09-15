@@ -12,7 +12,7 @@ use quent_analyzer::{
 use smallvec::{SmallVec, smallvec};
 
 // TODO(johanpel): Generate these `AnalyzableTransition` implementations from
-// schema metadata.
+// schema metadata. See https://github.com/rapidsai/quent/issues/288.
 impl AnalyzableTransition for QueryEvent {
     fn entity_type_name() -> &'static str {
         "query"

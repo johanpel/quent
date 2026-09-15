@@ -29,7 +29,8 @@ use crate::{
 /// such as when requesting a timeline at different zoom levels. Other data is
 /// read from the payload when needed.
 // TODO(johanpel): Split this adapter into semantic-module-specific traits and
-// generate their implementations from the schema.
+// generate their implementations from the schema. See
+// https://github.com/rapidsai/quent/issues/288.
 pub trait AnalyzableTransition: quent_events::EntityEvent {
     /// Returns the entity type name exposed by analysis APIs.
     fn entity_type_name() -> &'static str;

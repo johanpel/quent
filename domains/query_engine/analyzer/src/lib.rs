@@ -27,6 +27,7 @@ use quent_query_engine_ui as qe_ui;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
 use uuid::Uuid;
 
+pub mod model;
 pub mod plan_tree;
 
 // UI related mods

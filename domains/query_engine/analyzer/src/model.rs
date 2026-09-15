@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Schema-event-backed query-engine entities for the simulator.
+//! Reusable in-memory query-engine model and semantic ingestion events.
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, Span,
@@ -14,18 +14,205 @@ use quent_analyzer::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
     },
 };
-use quent_dynamic_attributes::DynamicAttributes;
-use quent_events::Event;
-use quent_query_engine_analyzer::{
-    EngineEntity, OperatorEntity, OperatorEntityMut, PlanEntity, PortEntity, QueryEngineModel,
-    QueryEngineModelMut, QueryEntity, QueryGroupEntity, WorkerEntity, plan_tree::PlanTree,
-};
+use quent_events::{DynamicAttributes, EntityEvent, Event};
 use quent_query_engine_ui as ui;
-use quent_simulator_store as schema;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, try_to_secs_relative};
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
+use crate::{
+    EngineEntity, OperatorEntity, OperatorEntityMut, PlanEntity, PortEntity, QueryEngineEntityId,
+    QueryEngineModel, QueryEngineModelMut, QueryEntity, QueryGroupEntity, WorkerEntity,
+    plan_tree::PlanTree,
+};
+
+/// Events accepted by [`InMemoryQueryEngineModelBuilder`].
+///
+/// Applications convert their schema-generated events into this semantic event
+/// family before ingestion. Conversion consumes owned values and therefore does
+/// not require cloning strings or dynamic attributes.
+// TODO(johanpel): Model query-engine semantics, including DAG constraints, and
+// generate this event family and its schema adapters from that model. See
+// https://github.com/rapidsai/quent/issues/288.
+#[derive(Debug)]
+pub enum QueryEngineEvent {
+    Engine(EngineEvent),
+    Worker(WorkerEvent),
+    QueryGroup(QueryGroupEvent),
+    Query(QueryEvent),
+    Plan(PlanEvent),
+    Operator(OperatorEvent),
+    Port(PortEvent),
+}
+
+/// Query-engine implementation metadata carried by [`EngineEvent::Init`].
+#[derive(Debug)]
+pub struct EngineImplementation {
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub custom_attributes: DynamicAttributes,
+}
+
+/// Lifecycle events for an engine.
+#[derive(Debug)]
+pub enum EngineEvent {
+    Init {
+        implementation: EngineImplementation,
+        instance_name: Option<String>,
+    },
+    Exit,
+}
+
+impl EntityEvent for EngineEvent {
+    const NAME: &'static str = "Engine";
+}
+
+/// Lifecycle events for a worker.
+#[derive(Debug)]
+pub enum WorkerEvent {
+    Init {
+        parent_engine_id: Uuid,
+        instance_name: String,
+    },
+    Exit,
+}
+
+impl EntityEvent for WorkerEvent {
+    const NAME: &'static str = "Worker";
+}
+
+/// Declaration data for a query group.
+#[derive(Debug)]
+pub struct QueryGroupEvent {
+    pub instance_name: String,
+    pub engine_id: Uuid,
+}
+
+impl EntityEvent for QueryGroupEvent {
+    const NAME: &'static str = "QueryGroup";
+}
+
+/// State transitions for a query.
+#[derive(Debug)]
+pub enum QueryEvent {
+    Init {
+        seq: u16,
+        instance_name: String,
+        query_group_id: Uuid,
+    },
+    Planning {
+        seq: u16,
+    },
+    Executing {
+        seq: u16,
+    },
+    Done {
+        seq: u16,
+    },
+}
+
+impl EntityEvent for QueryEvent {
+    const NAME: &'static str = "Query";
+}
+
+impl quent_analyzer::fsm::events::AnalyzableTransition for QueryEvent {
+    fn entity_type_name() -> &'static str {
+        "query"
+    }
+
+    fn sequence(&self) -> u16 {
+        match self {
+            Self::Init { seq, .. }
+            | Self::Planning { seq }
+            | Self::Executing { seq }
+            | Self::Done { seq } => *seq,
+        }
+    }
+
+    fn is_final(&self) -> bool {
+        matches!(self, Self::Done { .. })
+    }
+
+    fn state_name(&self) -> &'static str {
+        match self {
+            Self::Init { .. } => "init",
+            Self::Planning { .. } => "planning",
+            Self::Executing { .. } => "executing",
+            Self::Done { .. } => "done",
+        }
+    }
+
+    fn instance_name(&self) -> Option<String> {
+        match self {
+            Self::Init { instance_name, .. } => Some(instance_name.clone()),
+            _ => None,
+        }
+    }
+}
+
+/// A directed connection between two ports.
+#[derive(Debug)]
+pub struct Edge {
+    pub source: Uuid,
+    pub target: Uuid,
+}
+
+/// The query and optional predecessor plan associated with a plan.
+#[derive(Debug)]
+pub struct PlanParent {
+    pub query_id: Uuid,
+    pub plan_id: Option<Uuid>,
+}
+
+/// Declaration data for a plan.
+#[derive(Debug)]
+pub struct PlanEvent {
+    pub parent: PlanParent,
+    pub instance_name: String,
+    pub edges: Vec<Edge>,
+    pub worker_id: Option<Uuid>,
+}
+
+impl EntityEvent for PlanEvent {
+    const NAME: &'static str = "Plan";
+}
+
+/// Declaration and statistics events for an operator.
+#[derive(Debug)]
+pub enum OperatorEvent {
+    Declaration {
+        plan_id: Uuid,
+        parent_operator_ids: Vec<Uuid>,
+        instance_name: String,
+        type_name: String,
+        custom_attributes: DynamicAttributes,
+    },
+    Statistics {
+        custom_attributes: DynamicAttributes,
+    },
+}
+
+impl EntityEvent for OperatorEvent {
+    const NAME: &'static str = "Operator";
+}
+
+/// Declaration and statistics events for a port.
+#[derive(Debug)]
+pub enum PortEvent {
+    Declaration {
+        operator_id: Uuid,
+        instance_name: String,
+    },
+    Statistics {
+        custom_attributes: DynamicAttributes,
+    },
+}
+
+impl EntityEvent for PortEvent {
+    const NAME: &'static str = "Port";
+}
+
+/// An engine accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct Engine(EntityEvents<EngineStorage>);
 
@@ -38,14 +225,14 @@ struct EngineData {
 }
 
 impl quent_events::Entity for EngineStorage {
-    type Event = schema::EngineEvent;
+    type Event = EngineEvent;
 }
 
 impl EntityData for EngineStorage {
     type Data = EngineData;
 
     fn push(data: &mut Self::Data, event: Self::Event) {
-        if let schema::EngineEvent::Init {
+        if let EngineEvent::Init {
             implementation,
             instance_name,
         } = event
@@ -65,7 +252,7 @@ impl Engine {
         Ok(Self(EntityEvents::new(id)?))
     }
 
-    fn push(&mut self, event: Event<schema::EngineEvent>) {
+    fn push(&mut self, event: Event<EngineEvent>) {
         self.0.push(event);
     }
 }
@@ -123,6 +310,7 @@ impl EngineEntity for Engine {
     }
 }
 
+/// A worker accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct Worker(EntityEvents<WorkerStorage>);
 
@@ -135,19 +323,19 @@ struct WorkerData {
 }
 
 impl quent_events::Entity for WorkerStorage {
-    type Event = schema::WorkerEvent;
+    type Event = WorkerEvent;
 }
 
 impl EntityData for WorkerStorage {
     type Data = WorkerData;
 
     fn push(data: &mut Self::Data, event: Self::Event) {
-        if let schema::WorkerEvent::Init {
+        if let WorkerEvent::Init {
             parent_engine_id,
             instance_name,
         } = event
         {
-            data.parent_engine_id = Some(parent_engine_id.target);
+            data.parent_engine_id = Some(parent_engine_id);
             data.instance_name = Some(instance_name);
         }
     }
@@ -158,7 +346,7 @@ impl Worker {
         Ok(Self(EntityEvents::new(id)?))
     }
 
-    fn push(&mut self, event: Event<schema::WorkerEvent>) {
+    fn push(&mut self, event: Event<WorkerEvent>) {
         self.0.push(event);
     }
 }
@@ -204,6 +392,7 @@ impl WorkerEntity for Worker {
     }
 }
 
+/// A query group accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct QueryGroup(EntityEvents<QueryGroupStorage>);
 
@@ -216,19 +405,19 @@ struct QueryGroupData {
 }
 
 impl quent_events::Entity for QueryGroupStorage {
-    type Event = schema::QueryGroupEvent;
+    type Event = QueryGroupEvent;
 }
 
 impl EntityData for QueryGroupStorage {
     type Data = QueryGroupData;
 
     fn push(data: &mut Self::Data, event: Self::Event) {
-        let schema::QueryGroupEvent::Declaration {
+        let QueryGroupEvent {
             instance_name,
             engine_id,
         } = event;
         data.instance_name = Some(instance_name);
-        data.engine_id = Some(engine_id.target);
+        data.engine_id = Some(engine_id);
     }
 }
 
@@ -237,7 +426,7 @@ impl QueryGroup {
         Ok(Self(EntityEvents::new(id)?))
     }
 
-    fn push(&mut self, event: Event<schema::QueryGroupEvent>) {
+    fn push(&mut self, event: Event<QueryGroupEvent>) {
         self.0.push(event);
     }
 }
@@ -270,10 +459,11 @@ impl QueryGroupEntity for QueryGroup {
     }
 }
 
-pub type QueryBuilder = FsmEventsBuilder<schema::QueryEvent>;
+pub type QueryBuilder = FsmEventsBuilder<QueryEvent>;
 
+/// A query reconstructed from normalized state transitions.
 #[derive(Debug)]
-pub struct Query(FsmEvents<schema::QueryEvent>);
+pub struct Query(FsmEvents<QueryEvent>);
 
 impl Query {
     fn from_builder(builder: QueryBuilder) -> AnalyzerResult<Self> {
@@ -284,7 +474,7 @@ impl Query {
 impl QueryEntity for Query {
     fn query_group_id(&self) -> Option<Uuid> {
         match self.0.first_data()? {
-            schema::QueryEvent::Init { query_group_id, .. } => Some(query_group_id.target),
+            QueryEvent::Init { query_group_id, .. } => Some(*query_group_id),
             _ => None,
         }
     }
@@ -299,10 +489,10 @@ impl QueryEntity for Query {
         if let Some(epoch) = epoch {
             for (index, transition) in transitions.iter().enumerate() {
                 match transition.data {
-                    schema::QueryEvent::Planning { .. } => {
+                    QueryEvent::Planning { .. } => {
                         planning_s = Some(try_to_secs_relative(transition.timestamp(), epoch)?);
                     }
-                    schema::QueryEvent::Executing { .. } => {
+                    QueryEvent::Executing { .. } => {
                         executing_s = Some(try_to_secs_relative(transition.timestamp(), epoch)?);
                         if let Some(next) = transitions.get(index + 1) {
                             completed_s = Some(try_to_secs_relative(next.timestamp(), epoch)?);
@@ -338,7 +528,7 @@ impl Entity for Query {
 }
 
 impl Fsm for Query {
-    type TransitionType = AnalyzedTransition<schema::QueryEvent>;
+    type TransitionType = AnalyzedTransition<QueryEvent>;
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -365,6 +555,7 @@ impl ResourceGroup for Query {
     }
 }
 
+/// A plan accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct Plan(EntityEvents<PlanStorage>);
 
@@ -380,26 +571,26 @@ struct PlanData {
 }
 
 impl quent_events::Entity for PlanStorage {
-    type Event = schema::PlanEvent;
+    type Event = PlanEvent;
 }
 
 impl EntityData for PlanStorage {
     type Data = PlanData;
 
     fn push(data: &mut Self::Data, event: Self::Event) {
-        let schema::PlanEvent::Declaration {
+        let PlanEvent {
             parent,
             instance_name,
             edges,
             worker_id,
         } = event;
         data.instance_name = Some(instance_name);
-        data.parent_query_id = Some(parent.query_id.target);
-        data.parent_plan_id = parent.plan_id.map(|plan| plan.target);
-        data.worker_id = worker_id.map(|worker| worker.target);
+        data.parent_query_id = Some(parent.query_id);
+        data.parent_plan_id = parent.plan_id;
+        data.worker_id = worker_id;
         data.edges = edges
             .into_iter()
-            .map(|edge| (edge.source.target, edge.target.target))
+            .map(|edge| (edge.source, edge.target))
             .collect();
     }
 }
@@ -409,7 +600,7 @@ impl Plan {
         Ok(Self(EntityEvents::new(id)?))
     }
 
-    fn push(&mut self, event: Event<schema::PlanEvent>) {
+    fn push(&mut self, event: Event<PlanEvent>) {
         self.0.push(event);
     }
 }
@@ -473,6 +664,7 @@ impl PlanEntity for Plan {
     }
 }
 
+/// An operator accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct Operator {
     inner: EntityEvents<OperatorStorage>,
@@ -492,7 +684,7 @@ struct OperatorData {
 }
 
 impl quent_events::Entity for OperatorStorage {
-    type Event = schema::OperatorEvent;
+    type Event = OperatorEvent;
 }
 
 impl EntityData for OperatorStorage {
@@ -500,23 +692,20 @@ impl EntityData for OperatorStorage {
 
     fn push(data: &mut Self::Data, event: Self::Event) {
         match event {
-            schema::OperatorEvent::Declaration {
+            OperatorEvent::Declaration {
                 plan_id,
                 parent_operator_ids,
                 instance_name,
                 type_name,
                 custom_attributes,
             } => {
-                data.plan_id = Some(plan_id.target);
-                data.parent_operator_ids = parent_operator_ids
-                    .into_iter()
-                    .map(|operator| operator.target)
-                    .collect();
+                data.plan_id = Some(plan_id);
+                data.parent_operator_ids = parent_operator_ids;
                 data.instance_name = Some(instance_name);
                 data.operator_type_name = Some(type_name);
                 data.custom_attributes = custom_attributes;
             }
-            schema::OperatorEvent::Statistics { custom_attributes } => {
+            OperatorEvent::Statistics { custom_attributes } => {
                 data.statistics = Some(custom_attributes);
             }
         }
@@ -531,7 +720,7 @@ impl Operator {
         })
     }
 
-    fn push(&mut self, event: Event<schema::OperatorEvent>) {
+    fn push(&mut self, event: Event<OperatorEvent>) {
         self.inner.push(event);
     }
 }
@@ -617,6 +806,7 @@ impl OperatorEntityMut for Operator {
     }
 }
 
+/// A port accumulated from normalized query-engine events.
 #[derive(Debug)]
 pub struct Port(EntityEvents<PortStorage>);
 
@@ -630,7 +820,7 @@ struct PortData {
 }
 
 impl quent_events::Entity for PortStorage {
-    type Event = schema::PortEvent;
+    type Event = PortEvent;
 }
 
 impl EntityData for PortStorage {
@@ -638,14 +828,14 @@ impl EntityData for PortStorage {
 
     fn push(data: &mut Self::Data, event: Self::Event) {
         match event {
-            schema::PortEvent::Declaration {
+            PortEvent::Declaration {
                 operator_id,
                 instance_name,
             } => {
-                data.operator_id = Some(operator_id.target);
+                data.operator_id = Some(operator_id);
                 data.instance_name = Some(instance_name);
             }
-            schema::PortEvent::Statistics { custom_attributes } => {
+            PortEvent::Statistics { custom_attributes } => {
                 data.statistics = Some(custom_attributes);
             }
         }
@@ -657,7 +847,7 @@ impl Port {
         Ok(Self(EntityEvents::new(id)?))
     }
 
-    fn push(&mut self, event: Event<schema::PortEvent>) {
+    fn push(&mut self, event: Event<PortEvent>) {
         self.0.push(event);
     }
 }
@@ -705,7 +895,8 @@ impl PortEntity for Port {
 }
 
 #[derive(Debug)]
-pub struct QueryEngine {
+/// Concrete in-memory implementation of [`QueryEngineModel`].
+pub struct InMemoryQueryEngineModel {
     pub engine: Engine,
     pub workers: HashMap<Uuid, Worker>,
     pub query_groups: HashMap<Uuid, QueryGroup>,
@@ -715,12 +906,10 @@ pub struct QueryEngine {
     pub ports: HashMap<Uuid, Port>,
 }
 
-impl Model for QueryEngine {
-    type EntityIdType = quent_query_engine_analyzer::QueryEngineEntityId;
+impl Model for InMemoryQueryEngineModel {
+    type EntityIdType = QueryEngineEntityId;
 
     fn try_entity_ref(&self, id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        use quent_query_engine_analyzer::QueryEngineEntityId;
-
         if self.engine.id() == id {
             Ok(QueryEngineEntityId::Engine(id))
         } else if self.workers.contains_key(&id) {
@@ -745,7 +934,7 @@ impl Model for QueryEngine {
     }
 }
 
-impl QueryEngineModel for QueryEngine {
+impl QueryEngineModel for InMemoryQueryEngineModel {
     type Engine = Engine;
     type Query = Query;
     type QueryGroup = QueryGroup;
@@ -800,7 +989,7 @@ impl QueryEngineModel for QueryEngine {
     }
 }
 
-impl QueryEngineModelMut for QueryEngine {
+impl QueryEngineModelMut for InMemoryQueryEngineModel {
     fn operator_mut(&mut self, id: Uuid) -> AnalyzerResult<&mut Operator> {
         self.operators
             .get_mut(&id)
@@ -808,7 +997,14 @@ impl QueryEngineModelMut for QueryEngine {
     }
 }
 
-impl ResourceCollection for QueryEngine {
+impl InMemoryQueryEngineModel {
+    /// Returns a query-scoped view of this model.
+    pub fn query_view(&self, query_id: Uuid) -> AnalyzerResult<InMemoryQueryEngineModelView<'_>> {
+        InMemoryQueryEngineModelView::try_new(self, query_id)
+    }
+}
+
+impl ResourceCollection for InMemoryQueryEngineModel {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         std::iter::empty()
     }
@@ -856,7 +1052,6 @@ impl ResourceCollection for QueryEngine {
     }
 
     fn resource_group(&self, id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
-        use quent_query_engine_analyzer::QueryEngineEntityId;
         match self.try_entity_ref(id)? {
             QueryEngineEntityId::Engine(_) => Ok(&self.engine),
             QueryEngineEntityId::Worker(_) => Ok(self.workers.get(&id).unwrap()),
@@ -884,7 +1079,8 @@ impl ResourceCollection for QueryEngine {
     }
 }
 
-pub struct QueryEngineBuilder {
+/// Builds an [`InMemoryQueryEngineModel`] from normalized query-engine events.
+pub struct InMemoryQueryEngineModelBuilder {
     engine: Engine,
     workers: HashMap<Uuid, Worker>,
     query_groups: HashMap<Uuid, QueryGroup>,
@@ -894,7 +1090,7 @@ pub struct QueryEngineBuilder {
     ports: HashMap<Uuid, Port>,
 }
 
-impl QueryEngineBuilder {
+impl InMemoryQueryEngineModelBuilder {
     pub fn try_new(engine_id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
             engine: Engine::try_new(engine_id)?,
@@ -907,7 +1103,7 @@ impl QueryEngineBuilder {
         })
     }
 
-    pub fn push_engine(&mut self, event: Event<schema::EngineEvent>) -> AnalyzerResult<()> {
+    pub fn push_engine(&mut self, event: Event<EngineEvent>) -> AnalyzerResult<()> {
         if event.id != self.engine.id() {
             return Err(AnalyzerError::Validation(format!(
                 "multiple engine instances in one model: expected {}, found {}",
@@ -919,7 +1115,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_worker(&mut self, event: Event<schema::WorkerEvent>) -> AnalyzerResult<()> {
+    pub fn push_worker(&mut self, event: Event<WorkerEvent>) -> AnalyzerResult<()> {
         let worker = match self.workers.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -930,10 +1126,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_query_group(
-        &mut self,
-        event: Event<schema::QueryGroupEvent>,
-    ) -> AnalyzerResult<()> {
+    pub fn push_query_group(&mut self, event: Event<QueryGroupEvent>) -> AnalyzerResult<()> {
         let group = match self.query_groups.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -944,7 +1137,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_query(&mut self, event: Event<schema::QueryEvent>) -> AnalyzerResult<()> {
+    pub fn push_query(&mut self, event: Event<QueryEvent>) -> AnalyzerResult<()> {
         let query = match self.queries.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -955,7 +1148,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_plan(&mut self, event: Event<schema::PlanEvent>) -> AnalyzerResult<()> {
+    pub fn push_plan(&mut self, event: Event<PlanEvent>) -> AnalyzerResult<()> {
         let plan = match self.plans.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -966,7 +1159,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_operator(&mut self, event: Event<schema::OperatorEvent>) -> AnalyzerResult<()> {
+    pub fn push_operator(&mut self, event: Event<OperatorEvent>) -> AnalyzerResult<()> {
         let operator = match self.operators.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -977,7 +1170,7 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn push_port(&mut self, event: Event<schema::PortEvent>) -> AnalyzerResult<()> {
+    pub fn push_port(&mut self, event: Event<PortEvent>) -> AnalyzerResult<()> {
         let port = match self.ports.entry(event.id) {
             std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
             std::collections::hash_map::Entry::Vacant(entry) => {
@@ -988,13 +1181,44 @@ impl QueryEngineBuilder {
         Ok(())
     }
 
-    pub fn try_build(self) -> AnalyzerResult<QueryEngine> {
+    /// Ingests one normalized query-engine event.
+    pub fn try_push(&mut self, event: Event<QueryEngineEvent>) -> AnalyzerResult<()> {
+        let Event {
+            id,
+            timestamp,
+            data,
+        } = event;
+        match data {
+            QueryEngineEvent::Engine(data) => self.push_engine(Event::new(id, timestamp, data)),
+            QueryEngineEvent::Worker(data) => self.push_worker(Event::new(id, timestamp, data)),
+            QueryEngineEvent::QueryGroup(data) => {
+                self.push_query_group(Event::new(id, timestamp, data))
+            }
+            QueryEngineEvent::Query(data) => self.push_query(Event::new(id, timestamp, data)),
+            QueryEngineEvent::Plan(data) => self.push_plan(Event::new(id, timestamp, data)),
+            QueryEngineEvent::Operator(data) => self.push_operator(Event::new(id, timestamp, data)),
+            QueryEngineEvent::Port(data) => self.push_port(Event::new(id, timestamp, data)),
+        }
+    }
+
+    /// Ingests all normalized events from `events` in iterator order.
+    pub fn try_extend(
+        &mut self,
+        events: impl IntoIterator<Item = Event<QueryEngineEvent>>,
+    ) -> AnalyzerResult<()> {
+        for event in events {
+            self.try_push(event)?;
+        }
+        Ok(())
+    }
+
+    pub fn try_build(self) -> AnalyzerResult<InMemoryQueryEngineModel> {
         let queries = self
             .queries
             .into_iter()
             .map(|(id, builder)| Ok((id, Query::from_builder(builder)?)))
             .collect::<AnalyzerResult<_>>()?;
-        Ok(QueryEngine {
+        Ok(InMemoryQueryEngineModel {
             engine: self.engine,
             workers: self.workers,
             query_groups: self.query_groups,
@@ -1006,7 +1230,8 @@ impl QueryEngineBuilder {
     }
 }
 
-pub struct QueryEngineView<'a> {
+/// Query-scoped view borrowing entities from an [`InMemoryQueryEngineModel`].
+pub struct InMemoryQueryEngineModelView<'a> {
     engine: &'a Engine,
     query_group: &'a QueryGroup,
     query: &'a Query,
@@ -1016,8 +1241,8 @@ pub struct QueryEngineView<'a> {
     ports: HashMap<Uuid, &'a Port>,
 }
 
-impl<'a> QueryEngineView<'a> {
-    pub fn try_new(model: &'a QueryEngine, query_id: Uuid) -> AnalyzerResult<Self> {
+impl<'a> InMemoryQueryEngineModelView<'a> {
+    pub fn try_new(model: &'a InMemoryQueryEngineModel, query_id: Uuid) -> AnalyzerResult<Self> {
         let query = model.query(query_id)?;
         let query_group = model.query_group(query.query_group_id().unwrap_or_default())?;
         let workers: HashMap<Uuid, &Worker> = model
@@ -1048,11 +1273,10 @@ impl<'a> QueryEngineView<'a> {
     }
 }
 
-impl Model for QueryEngineView<'_> {
-    type EntityIdType = quent_query_engine_analyzer::QueryEngineEntityId;
+impl Model for InMemoryQueryEngineModelView<'_> {
+    type EntityIdType = QueryEngineEntityId;
 
     fn try_entity_ref(&self, id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        use quent_query_engine_analyzer::QueryEngineEntityId;
         if self.engine.id() == id {
             Ok(QueryEngineEntityId::Engine(id))
         } else if self.workers.contains_key(&id) {
@@ -1077,7 +1301,7 @@ impl Model for QueryEngineView<'_> {
     }
 }
 
-impl QueryEngineModel for QueryEngineView<'_> {
+impl QueryEngineModel for InMemoryQueryEngineModelView<'_> {
     type Engine = Engine;
     type Query = Query;
     type QueryGroup = QueryGroup;
@@ -1146,7 +1370,7 @@ impl QueryEngineModel for QueryEngineView<'_> {
     }
 }
 
-impl ResourceCollection for QueryEngineView<'_> {
+impl ResourceCollection for InMemoryQueryEngineModelView<'_> {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         std::iter::empty()
     }
@@ -1182,7 +1406,6 @@ impl ResourceCollection for QueryEngineView<'_> {
         Err(AnalyzerError::InvalidTypeName(name.to_owned()))
     }
     fn resource_group(&self, id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
-        use quent_query_engine_analyzer::QueryEngineEntityId;
         match self.try_entity_ref(id)? {
             QueryEngineEntityId::Engine(_) => Ok(self.engine),
             QueryEngineEntityId::Worker(_) => Ok(*self.workers.get(&id).unwrap()),
@@ -1205,5 +1428,145 @@ impl ResourceCollection for QueryEngineView<'_> {
     ) -> AnalyzerResult<impl Iterator<Item = Uuid>> {
         self.resource_group(id)?;
         Ok(std::iter::empty())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(id: Uuid, timestamp: u64, data: QueryEngineEvent) -> Event<QueryEngineEvent> {
+        Event::new(id, timestamp, data)
+    }
+
+    #[test]
+    fn builds_reusable_query_engine_model_from_normalized_events() {
+        let engine_id = Uuid::from_u128(1);
+        let worker_id = Uuid::from_u128(2);
+        let query_group_id = Uuid::from_u128(3);
+        let query_id = Uuid::from_u128(4);
+        let plan_id = Uuid::from_u128(5);
+        let operator_id = Uuid::from_u128(6);
+        let source_port_id = Uuid::from_u128(7);
+        let target_port_id = Uuid::from_u128(8);
+
+        let mut builder = InMemoryQueryEngineModelBuilder::try_new(engine_id).unwrap();
+        builder
+            .try_extend([
+                event(
+                    engine_id,
+                    0,
+                    QueryEngineEvent::Engine(EngineEvent::Init {
+                        implementation: EngineImplementation {
+                            name: Some("test".to_owned()),
+                            version: None,
+                            custom_attributes: DynamicAttributes::default(),
+                        },
+                        instance_name: Some("engine".to_owned()),
+                    }),
+                ),
+                event(
+                    worker_id,
+                    1,
+                    QueryEngineEvent::Worker(WorkerEvent::Init {
+                        parent_engine_id: engine_id,
+                        instance_name: "worker".to_owned(),
+                    }),
+                ),
+                event(
+                    query_group_id,
+                    1,
+                    QueryEngineEvent::QueryGroup(QueryGroupEvent {
+                        instance_name: "group".to_owned(),
+                        engine_id,
+                    }),
+                ),
+                event(
+                    query_id,
+                    2,
+                    QueryEngineEvent::Query(QueryEvent::Init {
+                        seq: 0,
+                        instance_name: "query".to_owned(),
+                        query_group_id,
+                    }),
+                ),
+                event(
+                    query_id,
+                    3,
+                    QueryEngineEvent::Query(QueryEvent::Planning { seq: 1 }),
+                ),
+                event(
+                    query_id,
+                    4,
+                    QueryEngineEvent::Query(QueryEvent::Executing { seq: 2 }),
+                ),
+                event(
+                    plan_id,
+                    4,
+                    QueryEngineEvent::Plan(PlanEvent {
+                        parent: PlanParent {
+                            query_id,
+                            plan_id: None,
+                        },
+                        instance_name: "plan".to_owned(),
+                        edges: vec![Edge {
+                            source: source_port_id,
+                            target: target_port_id,
+                        }],
+                        worker_id: Some(worker_id),
+                    }),
+                ),
+                event(
+                    operator_id,
+                    4,
+                    QueryEngineEvent::Operator(OperatorEvent::Declaration {
+                        plan_id,
+                        parent_operator_ids: Vec::new(),
+                        instance_name: "operator".to_owned(),
+                        type_name: "scan".to_owned(),
+                        custom_attributes: DynamicAttributes::default(),
+                    }),
+                ),
+                event(
+                    source_port_id,
+                    4,
+                    QueryEngineEvent::Port(PortEvent::Declaration {
+                        operator_id,
+                        instance_name: "out".to_owned(),
+                    }),
+                ),
+                event(
+                    target_port_id,
+                    4,
+                    QueryEngineEvent::Port(PortEvent::Declaration {
+                        operator_id,
+                        instance_name: "in".to_owned(),
+                    }),
+                ),
+                event(
+                    query_id,
+                    5,
+                    QueryEngineEvent::Query(QueryEvent::Done { seq: 3 }),
+                ),
+                event(worker_id, 6, QueryEngineEvent::Worker(WorkerEvent::Exit)),
+                event(engine_id, 6, QueryEngineEvent::Engine(EngineEvent::Exit)),
+            ])
+            .unwrap();
+
+        let model = builder.try_build().unwrap();
+        assert_eq!(model.workers().count(), 1);
+        assert_eq!(model.queries().count(), 1);
+        assert_eq!(model.plans().count(), 1);
+        assert_eq!(model.operators().count(), 1);
+        assert_eq!(model.ports().count(), 2);
+        assert_eq!(
+            model.plan(plan_id).unwrap().edges().collect::<Vec<_>>(),
+            vec![(source_port_id, target_port_id)]
+        );
+
+        let view = model.query_view(query_id).unwrap();
+        assert_eq!(view.query(query_id).unwrap().instance_name(), "query");
+        assert_eq!(view.workers().count(), 1);
+        assert_eq!(view.operators().count(), 1);
     }
 }

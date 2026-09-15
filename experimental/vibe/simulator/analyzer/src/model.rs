@@ -19,6 +19,10 @@ use quent_analyzer::{
 use quent_events::Event;
 use quent_query_engine_analyzer::{
     OperatorEntityMut, QueryEngineEntityId, QueryEngineModel, QueryEngineModelMut,
+    model::{
+        self as query_engine, Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder,
+        Operator, Plan, Port, Query, QueryEngineEvent, QueryGroup, Worker,
+    },
     plan_tree::PlanTree,
 };
 use quent_query_engine_ui::EntityRef;
@@ -26,16 +30,154 @@ use quent_simulator_store::{self as schema, SimulatorEvent};
 use uuid::Uuid;
 
 use crate::{
-    query_engine::{
-        Engine, Operator, Plan, Port, Query, QueryEngine, QueryEngineBuilder, QueryGroup, Worker,
-    },
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
 
+trait IntoQueryEngineEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent;
+}
+
+// TODO(johanpel): Generate query-engine semantic event adapters from schema metadata. See
+// https://github.com/rapidsai/quent/issues/288.
+impl IntoQueryEngineEvent for schema::EngineEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Engine(match self {
+            Self::Init {
+                implementation,
+                instance_name,
+            } => query_engine::EngineEvent::Init {
+                implementation: query_engine::EngineImplementation {
+                    name: implementation.name,
+                    version: implementation.version,
+                    custom_attributes: implementation.custom_attributes,
+                },
+                instance_name,
+            },
+            Self::Exit => query_engine::EngineEvent::Exit,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::WorkerEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Worker(match self {
+            Self::Init {
+                parent_engine_id,
+                instance_name,
+            } => query_engine::WorkerEvent::Init {
+                parent_engine_id: parent_engine_id.target,
+                instance_name,
+            },
+            Self::Exit => query_engine::WorkerEvent::Exit,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::QueryGroupEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        let Self::Declaration {
+            instance_name,
+            engine_id,
+        } = self;
+        QueryEngineEvent::QueryGroup(query_engine::QueryGroupEvent {
+            instance_name,
+            engine_id: engine_id.target,
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::QueryEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Query(match self {
+            Self::Init {
+                seq,
+                instance_name,
+                query_group_id,
+            } => query_engine::QueryEvent::Init {
+                seq,
+                instance_name,
+                query_group_id: query_group_id.target,
+            },
+            Self::Planning { seq } => query_engine::QueryEvent::Planning { seq },
+            Self::Executing { seq } => query_engine::QueryEvent::Executing { seq },
+            Self::Done { seq } => query_engine::QueryEvent::Done { seq },
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::PlanEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        let Self::Declaration {
+            parent,
+            instance_name,
+            edges,
+            worker_id,
+        } = self;
+        QueryEngineEvent::Plan(query_engine::PlanEvent {
+            parent: query_engine::PlanParent {
+                query_id: parent.query_id.target,
+                plan_id: parent.plan_id.map(|plan| plan.target),
+            },
+            instance_name,
+            edges: edges
+                .into_iter()
+                .map(|edge| query_engine::Edge {
+                    source: edge.source.target,
+                    target: edge.target.target,
+                })
+                .collect(),
+            worker_id: worker_id.map(|worker| worker.target),
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::OperatorEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Operator(match self {
+            Self::Declaration {
+                plan_id,
+                parent_operator_ids,
+                instance_name,
+                type_name,
+                custom_attributes,
+            } => query_engine::OperatorEvent::Declaration {
+                plan_id: plan_id.target,
+                parent_operator_ids: parent_operator_ids
+                    .into_iter()
+                    .map(|operator| operator.target)
+                    .collect(),
+                instance_name,
+                type_name,
+                custom_attributes,
+            },
+            Self::Statistics { custom_attributes } => {
+                query_engine::OperatorEvent::Statistics { custom_attributes }
+            }
+        })
+    }
+}
+
+impl IntoQueryEngineEvent for schema::PortEvent {
+    fn into_query_engine_event(self) -> QueryEngineEvent {
+        QueryEngineEvent::Port(match self {
+            Self::Declaration {
+                operator_id,
+                instance_name,
+            } => query_engine::PortEvent::Declaration {
+                operator_id: operator_id.target,
+                instance_name,
+            },
+            Self::Statistics { custom_attributes } => {
+                query_engine::PortEvent::Statistics { custom_attributes }
+            }
+        })
+    }
+}
+
 /// A model of the simulator engine
 pub struct SimulatorModel {
-    pub(crate) query_engine: QueryEngine,
+    pub(crate) query_engine: InMemoryQueryEngineModel,
     pub(crate) arbitrary_resources: InMemoryResources,
     pub(crate) tasks: HashMap<Uuid, Task>,
     pub(crate) resource_group_types: HashMap<String, ResourceGroupTypeDecl>,
@@ -235,7 +377,7 @@ impl Using for SimulatorModel {
 }
 
 pub struct SimulatorModelBuilder {
-    query_engine: QueryEngineBuilder,
+    query_engine: InMemoryQueryEngineModelBuilder,
     arbitrary_resources: InMemoryResourcesBuilder,
     tasks: HashMap<Uuid, TaskBuilder>,
 }
@@ -243,7 +385,7 @@ pub struct SimulatorModelBuilder {
 impl SimulatorModelBuilder {
     pub(crate) fn try_new(engine_id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
-            query_engine: QueryEngineBuilder::try_new(engine_id)?,
+            query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
             arbitrary_resources: InMemoryResourcesBuilder::default(),
             tasks: HashMap::default(),
         })
@@ -264,27 +406,41 @@ impl SimulatorModelBuilder {
                 task_builder.push_transition(Event::new(id, timestamp, t));
                 Ok(())
             }
-            SimulatorEvent::Engine(event) => self
-                .query_engine
-                .push_engine(Event::new(id, timestamp, event)),
-            SimulatorEvent::Worker(event) => self
-                .query_engine
-                .push_worker(Event::new(id, timestamp, event)),
-            SimulatorEvent::QueryGroup(event) => self
-                .query_engine
-                .push_query_group(Event::new(id, timestamp, event)),
-            SimulatorEvent::Query(event) => self
-                .query_engine
-                .push_query(Event::new(id, timestamp, event)),
-            SimulatorEvent::Plan(event) => self
-                .query_engine
-                .push_plan(Event::new(id, timestamp, event)),
-            SimulatorEvent::Operator(event) => self
-                .query_engine
-                .push_operator(Event::new(id, timestamp, event)),
-            SimulatorEvent::Port(event) => self
-                .query_engine
-                .push_port(Event::new(id, timestamp, event)),
+            SimulatorEvent::Engine(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Worker(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::QueryGroup(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Query(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Plan(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Operator(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
+            SimulatorEvent::Port(event) => self.query_engine.try_push(Event::new(
+                id,
+                timestamp,
+                event.into_query_engine_event(),
+            )),
             SimulatorEvent::HostMemory(event) => self.push_host_memory(id, timestamp, event),
             SimulatorEvent::Storage(event) => self.push_storage(id, timestamp, event),
             SimulatorEvent::GpuMemory(event) => self.push_gpu_memory(id, timestamp, event),

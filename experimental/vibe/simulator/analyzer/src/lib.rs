@@ -63,7 +63,6 @@ use crate::{
 };
 
 pub mod model;
-mod query_engine;
 pub mod task;
 pub mod view;
 
