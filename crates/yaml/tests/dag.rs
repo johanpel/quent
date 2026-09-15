@@ -20,14 +20,14 @@ entities:
       declared:
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
   PlanEdge:
     dag: edge
     events:
       connected:
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
           input:
             dag: { source: Operator }
           output:
@@ -212,7 +212,7 @@ fsms:
         initial: true
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
         to: [done]
       done: {}
 ",
@@ -249,7 +249,7 @@ entities:
       declared:
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
 fsms:
   PlanEdge:
     dag: edge
@@ -258,7 +258,7 @@ fsms:
         initial: true
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
           input:
             dag: { source: Operator }
           output:
@@ -300,7 +300,7 @@ entities:
       declared:
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
 fsms:
   PlanEdge:
     dag: edge
@@ -309,7 +309,7 @@ fsms:
         initial: true
         attributes:
           plan:
-            dag: { member-of: Plan }
+            dag: { in: Plan }
           input:
             dag: { source: Operator }
         to: [completed]

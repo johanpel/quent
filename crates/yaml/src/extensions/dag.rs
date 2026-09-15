@@ -44,8 +44,8 @@ pub(crate) enum DagFieldDecl {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DagMemberOfDecl {
-    #[serde(rename = "member-of")]
-    pub(crate) member_of: String,
+    #[serde(rename = "in")]
+    pub(crate) target: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,7 +80,7 @@ pub(crate) fn elaborate_field(
     sink: &mut Diagnostics,
 ) -> Option<Field> {
     let (target, role) = match &relation.dag {
-        DagFieldDecl::MemberOf(declaration) => (&declaration.member_of, DagRole::MemberOf),
+        DagFieldDecl::MemberOf(declaration) => (&declaration.target, DagRole::MemberOf),
         DagFieldDecl::Source(declaration) => (&declaration.source, DagRole::Source),
         DagFieldDecl::Target(declaration) => (&declaration.target, DagRole::Target),
     };
