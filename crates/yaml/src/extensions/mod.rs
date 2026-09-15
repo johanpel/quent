@@ -1,9 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Built-in YAML language extensions.
+//! Statically composed extensions to the core YAML DSL.
 //!
-//! Core lowering enters extension elaboration through [`Elaborator`] and
+//! Here, an extension is built-in YAML syntax that does more than map one to
+//! one to a core schema element. Elaborating an extension may generate schema
+//! elements, attach one or more constraints, or both. The extension set is a
+//! fixed part of this crate; there is no registration, discovery, dynamic
+//! loading, or third-party plugin API.
+//!
+//! Core lowering enters the fixed extension set through [`Elaborator`] and
 //! merges the returned schema values.
 
 use quent_constraints::{Constraint, validate};
