@@ -442,8 +442,6 @@ fn dynamic_aliases(include: &str, namespace: &str) -> String {
         r#"    #[namespace = "{namespace}"]
     unsafe extern "C++" {{
         include!("{include}");
-        type DynamicAttributeKind = super::super::dynamic_attributes::ffi::DynamicAttributeKind;
-        type DynamicAttribute = super::super::dynamic_attributes::ffi::DynamicAttribute;
         type DynamicAttributes = super::super::dynamic_attributes::ffi::DynamicAttributes;
     }}
 "#

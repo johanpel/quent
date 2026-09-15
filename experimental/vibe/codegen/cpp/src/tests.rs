@@ -116,38 +116,50 @@ fn generates_schema_driven_bridge() {
         .iter()
         .find(|file| file.name == "dynamic_attributes.rs")
         .unwrap();
-    for variant in [
-        "U8",
-        "U16",
-        "U32",
-        "U64",
-        "I8",
-        "I16",
-        "I32",
-        "I64",
-        "F32",
-        "F64",
-        "String",
-        "Struct",
-        "U8List",
-        "U16List",
-        "U32List",
-        "U64List",
-        "I8List",
-        "I16List",
-        "I32List",
-        "I64List",
-        "F32List",
-        "F64List",
-        "StringList",
-        "StructList",
-        "ListList",
+    assert!(
+        dynamic
+            .content
+            .contains("pub struct DynamicAttributesStorage")
+    );
+    assert!(dynamic.content.contains("pub struct DynamicListStorage"));
+    assert!(
+        dynamic
+            .content
+            .contains("pub storage: Vec<Box<DynamicAttributesStorage>>")
+    );
+    assert!(!dynamic.content.contains("DynamicAttributeKind"));
+    assert!(!dynamic.content.contains("pub struct DynamicAttribute {"));
+    for function in [
+        "dynamic_attributes_add_null",
+        "dynamic_attributes_add_u8",
+        "dynamic_attributes_add_u16",
+        "dynamic_attributes_add_u32",
+        "dynamic_attributes_add_u64",
+        "dynamic_attributes_add_i8",
+        "dynamic_attributes_add_i16",
+        "dynamic_attributes_add_i32",
+        "dynamic_attributes_add_i64",
+        "dynamic_attributes_add_f32",
+        "dynamic_attributes_add_f64",
+        "dynamic_attributes_add_string",
+        "dynamic_attributes_add_bool",
+        "dynamic_attributes_add_structure",
+        "dynamic_attributes_add_u8_list",
+        "dynamic_attributes_add_u16_list",
+        "dynamic_attributes_add_u32_list",
+        "dynamic_attributes_add_u64_list",
+        "dynamic_attributes_add_i8_list",
+        "dynamic_attributes_add_i16_list",
+        "dynamic_attributes_add_i32_list",
+        "dynamic_attributes_add_i64_list",
+        "dynamic_attributes_add_f32_list",
+        "dynamic_attributes_add_f64_list",
+        "dynamic_attributes_add_string_list",
+        "dynamic_attributes_add_struct_list",
+        "dynamic_attributes_add_list",
+        "dynamic_list_list",
     ] {
-        assert!(
-            dynamic
-                .content
-                .contains(&format!("DynamicAttributeKind::{variant}"))
-        );
+        assert!(dynamic.content.contains(function));
     }
     let usage = facade.content.find("struct QueueUsage {").unwrap();
     let reference = facade.content.find("struct QueueUsageRef {").unwrap();

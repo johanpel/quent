@@ -92,171 +92,127 @@ class DynamicList;
 
 class DynamicAttributes final {{
  public:
-  DynamicAttributes() = default;
+  DynamicAttributes() : value_(detail::dynamic_attributes_new()) {{}}
   DynamicAttributes(DynamicAttributes&& other) noexcept
       : value_(std::move(other.value_)) {{
-    other.value_.root_count = 0;
+    other.value_ = detail::dynamic_attributes_new();
   }}
   DynamicAttributes& operator=(DynamicAttributes&& other) noexcept {{
     if (this != &other) {{
       value_ = std::move(other.value_);
-      other.value_.root_count = 0;
+      other.value_ = detail::dynamic_attributes_new();
     }}
     return *this;
   }}
 
   void add(std::string key, std::nullptr_t) {{
-    append(make_attribute(detail::DynamicAttributeKind::Null, std::move(key)));
+    value_->dynamic_attributes_add_null(::rust::String(std::move(key)));
   }}
   void add(std::string key, std::uint8_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U8, std::move(key));
-    attribute.u8_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u8(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::uint16_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U16, std::move(key));
-    attribute.u16_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u16(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::uint32_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U32, std::move(key));
-    attribute.u32_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u32(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::uint64_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U64, std::move(key));
-    attribute.u64_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u64(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::int8_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I8, std::move(key));
-    attribute.i8_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i8(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::int16_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I16, std::move(key));
-    attribute.i16_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i16(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::int32_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I32, std::move(key));
-    attribute.i32_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i32(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::int64_t value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I64, std::move(key));
-    attribute.i64_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i64(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, float value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::F32, std::move(key));
-    attribute.f32_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_f32(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, double value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::F64, std::move(key));
-    attribute.f64_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_f64(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, std::string value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::String, std::move(key));
-    attribute.string_value = ::rust::String(std::move(value));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_string(
+        ::rust::String(std::move(key)), ::rust::String(std::move(value)));
   }}
   void add(std::string key, const char* value) {{
     add(std::move(key), std::string(value));
   }}
   void add(std::string key, bool value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::Bool, std::move(key));
-    attribute.bool_value = value;
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_bool(::rust::String(std::move(key)), value);
   }}
   void add(std::string key, DynamicAttributes value) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::Struct, std::move(key));
-    attribute.child_count = value.value_.root_count;
-    append(std::move(attribute));
-    append_children(std::move(value));
+    value_->dynamic_attributes_add_structure(
+        ::rust::String(std::move(key)), std::move(value.value_));
   }}
   void add(std::string key, std::vector<std::uint8_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U8List, std::move(key));
-    attribute.u8_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u8_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::uint16_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U16List, std::move(key));
-    attribute.u16_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u16_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::uint32_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U32List, std::move(key));
-    attribute.u32_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u32_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::uint64_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::U64List, std::move(key));
-    attribute.u64_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_u64_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::int8_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I8List, std::move(key));
-    attribute.i8_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i8_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::int16_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I16List, std::move(key));
-    attribute.i16_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i16_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::int32_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I32List, std::move(key));
-    attribute.i32_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i32_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::int64_t> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::I64List, std::move(key));
-    attribute.i64_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_i64_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<float> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::F32List, std::move(key));
-    attribute.f32_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_f32_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<double> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::F64List, std::move(key));
-    attribute.f64_values = into_rust_vec(std::move(values));
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_f64_list(
+        ::rust::String(std::move(key)), into_rust_vec(std::move(values)));
   }}
   void add(std::string key, std::vector<std::string> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::StringList, std::move(key));
-    attribute.string_values.reserve(values.size());
+    ::rust::Vec<::rust::String> converted;
+    converted.reserve(values.size());
     for (auto& value : values) {{
-      attribute.string_values.push_back(::rust::String(std::move(value)));
+      converted.push_back(::rust::String(std::move(value)));
     }}
-    append(std::move(attribute));
+    value_->dynamic_attributes_add_string_list(
+        ::rust::String(std::move(key)), std::move(converted));
   }}
   void add(std::string key, std::vector<DynamicAttributes> values) {{
-    auto attribute = make_attribute(detail::DynamicAttributeKind::StructList, std::move(key));
-    attribute.child_count = static_cast<std::uint32_t>(values.size());
-    append(std::move(attribute));
+    ::rust::Vec<::rust::Box<detail::DynamicAttributesStorage>> converted;
+    converted.reserve(values.size());
     for (auto& value : values) {{
-      auto marker = make_attribute(detail::DynamicAttributeKind::Struct, std::string());
-      marker.child_count = value.value_.root_count;
-      value_.values.push_back(std::move(marker));
-      append_children(std::move(value));
+      converted.push_back(std::move(value.value_));
     }}
+    value_->dynamic_attributes_add_struct_list(
+        ::rust::String(std::move(key)), std::move(converted));
   }}
   void add(std::string key, DynamicList value);
 
  private:
-  static detail::DynamicAttribute make_attribute(
-      detail::DynamicAttributeKind kind, std::string key) {{
-    detail::DynamicAttribute attribute{{}};
-    attribute.kind = kind;
-    attribute.key = ::rust::String(std::move(key));
-    return attribute;
-  }}
-
   template <typename T>
   static ::rust::Vec<T> into_rust_vec(std::vector<T> values) {{
     ::rust::Vec<T> output;
@@ -265,18 +221,7 @@ class DynamicAttributes final {{
     return output;
   }}
 
-  void append(detail::DynamicAttribute attribute) {{
-    value_.values.push_back(std::move(attribute));
-    ++value_.root_count;
-  }}
-
-  void append_children(DynamicAttributes value) {{
-    for (auto& attribute : value.value_.values) {{
-      value_.values.push_back(std::move(attribute));
-    }}
-  }}
-
-  detail::DynamicAttributes value_;
+  ::rust::Box<detail::DynamicAttributesStorage> value_;
   friend struct facade_detail::DynamicAttributesAccess;
   friend class DynamicList;
 }};
@@ -285,117 +230,74 @@ class DynamicList final {{
  public:
   DynamicList(DynamicList&& other) noexcept
       : value_(std::move(other.value_)) {{
-    other.value_.root_count = 0;
+    other.value_ = detail::dynamic_list_empty();
   }}
   DynamicList& operator=(DynamicList&& other) noexcept {{
     if (this != &other) {{
       value_ = std::move(other.value_);
-      other.value_.root_count = 0;
+      other.value_ = detail::dynamic_list_empty();
     }}
     return *this;
   }}
 
   static DynamicList u8(std::vector<std::uint8_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::U8List);
-    value.u8_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_u8(into_rust_vec(std::move(values))));
   }}
   static DynamicList u16(std::vector<std::uint16_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::U16List);
-    value.u16_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_u16(into_rust_vec(std::move(values))));
   }}
   static DynamicList u32(std::vector<std::uint32_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::U32List);
-    value.u32_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_u32(into_rust_vec(std::move(values))));
   }}
   static DynamicList u64(std::vector<std::uint64_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::U64List);
-    value.u64_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_u64(into_rust_vec(std::move(values))));
   }}
   static DynamicList i8(std::vector<std::int8_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::I8List);
-    value.i8_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_i8(into_rust_vec(std::move(values))));
   }}
   static DynamicList i16(std::vector<std::int16_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::I16List);
-    value.i16_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_i16(into_rust_vec(std::move(values))));
   }}
   static DynamicList i32(std::vector<std::int32_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::I32List);
-    value.i32_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_i32(into_rust_vec(std::move(values))));
   }}
   static DynamicList i64(std::vector<std::int64_t> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::I64List);
-    value.i64_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_i64(into_rust_vec(std::move(values))));
   }}
   static DynamicList f32(std::vector<float> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::F32List);
-    value.f32_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_f32(into_rust_vec(std::move(values))));
   }}
   static DynamicList f64(std::vector<double> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::F64List);
-    value.f64_values = into_rust_vec(std::move(values));
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_f64(into_rust_vec(std::move(values))));
   }}
   static DynamicList string(std::vector<std::string> values) {{
-    auto value = make_attribute(detail::DynamicAttributeKind::StringList);
-    value.string_values.reserve(values.size());
-    for (auto& item : values) {{
-      value.string_values.push_back(::rust::String(std::move(item)));
+    ::rust::Vec<::rust::String> converted;
+    converted.reserve(values.size());
+    for (auto& value : values) {{
+      converted.push_back(::rust::String(std::move(value)));
     }}
-    return DynamicList(std::move(value));
+    return DynamicList(detail::dynamic_list_string(std::move(converted)));
   }}
   static DynamicList structures(std::vector<DynamicAttributes> values) {{
-    auto marker = make_attribute(detail::DynamicAttributeKind::StructList);
-    marker.child_count = static_cast<std::uint32_t>(values.size());
-    DynamicList output(std::move(marker));
+    ::rust::Vec<::rust::Box<detail::DynamicAttributesStorage>> converted;
+    converted.reserve(values.size());
     for (auto& value : values) {{
-      auto child = make_attribute(detail::DynamicAttributeKind::Struct);
-      child.child_count = value.value_.root_count;
-      output.value_.values.push_back(std::move(child));
-      for (auto& attribute : value.value_.values) {{
-        output.value_.values.push_back(std::move(attribute));
-      }}
+      converted.push_back(std::move(value.value_));
     }}
-    return output;
+    return DynamicList(detail::dynamic_list_structures(std::move(converted)));
   }}
   static DynamicList list(std::vector<DynamicList> values) {{
-    auto marker = make_attribute(detail::DynamicAttributeKind::ListList);
-    marker.child_count = static_cast<std::uint32_t>(values.size());
-    DynamicList output(std::move(marker));
+    ::rust::Vec<::rust::Box<detail::DynamicListStorage>> converted;
+    converted.reserve(values.size());
     for (auto& value : values) {{
-      if (value.value_.values.empty()) {{
-        output.value_.values.push_back(
-            make_attribute(detail::DynamicAttributeKind::ListList));
-        continue;
-      }}
-      for (auto& attribute : value.value_.values) {{
-        output.value_.values.push_back(std::move(attribute));
-      }}
+      converted.push_back(std::move(value.value_));
     }}
-    return output;
+    return DynamicList(detail::dynamic_list_list(std::move(converted)));
   }}
 
  private:
-  explicit DynamicList(detail::DynamicAttribute value) {{
-    value_.root_count = 1;
-    value_.values.push_back(std::move(value));
-  }}
-
-  static detail::DynamicAttribute make_attribute(
-      detail::DynamicAttributeKind kind) {{
-    detail::DynamicAttribute attribute{{}};
-    attribute.kind = kind;
-    return attribute;
-  }}
+  explicit DynamicList(::rust::Box<detail::DynamicListStorage> value)
+      : value_(std::move(value)) {{}}
 
   template <typename T>
   static ::rust::Vec<T> into_rust_vec(std::vector<T> values) {{
@@ -405,33 +307,21 @@ class DynamicList final {{
     return output;
   }}
 
-  detail::DynamicAttributes value_;
+  ::rust::Box<detail::DynamicListStorage> value_;
   friend class DynamicAttributes;
 }};
 
 inline void DynamicAttributes::add(std::string key, DynamicList value) {{
-  if (value.value_.values.empty()) {{
-    auto marker = make_attribute(
-        detail::DynamicAttributeKind::ListList, std::move(key));
-    append(std::move(marker));
-    return;
-  }}
-  bool first = true;
-  for (auto& attribute : value.value_.values) {{
-    if (first) {{
-      attribute.key = ::rust::String(std::move(key));
-      append(std::move(attribute));
-      first = false;
-    }} else {{
-      value_.values.push_back(std::move(attribute));
-    }}
-  }}
+  value_->dynamic_attributes_add_list(
+      ::rust::String(std::move(key)), std::move(value.value_));
 }}
 
 namespace facade_detail {{
 struct DynamicAttributesAccess final {{
   static detail::DynamicAttributes take(DynamicAttributes&& value) {{
-    return std::move(value.value_);
+    detail::DynamicAttributes output{{}};
+    output.storage.push_back(std::move(value.value_));
+    return output;
   }}
 }};
 }}  // namespace facade_detail
