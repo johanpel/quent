@@ -73,11 +73,7 @@ jobs:
             library="${target_dir}/debug/libquent_tutorial_${tutorial//-/_}_cpp_bridge.a"
             executable="${RUNNER_TEMP}/quent-tutorial-${tutorial}"
             pixi run cargo build --manifest-path "$manifest" --locked
-            if [[ "${RUNNER_OS}" == "macOS" ]]; then
-              pixi run c++ "-Wl,-force_load,${library}" -o "$executable"
-            else
-              pixi run c++ -Wl,--whole-archive "$library" -Wl,--no-whole-archive \
-                -ldl -lpthread -lm -lrt -lutil -o "$executable"
-            fi
+            pixi run c++ -Wl,--whole-archive "$library" -Wl,--no-whole-archive \
+              -ldl -lpthread -lm -lrt -lutil -o "$executable"
             "$executable"
           done
