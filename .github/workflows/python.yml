@@ -71,6 +71,12 @@ jobs:
       - name: Type check query engine bridge test
         run: |
           pixi run ty check domains/query_engine/tests/python/
+      - name: Build schema codegen Python tests
+        run: |
+          pixi run maturin develop --uv -m experimental/vibe/codegen/python/test/bridge/Cargo.toml
+      - name: Run schema codegen Python tests
+        run: |
+          pixi run pytest -v experimental/vibe/codegen/python/test/
       - name: Build schema codegen Python example
         run: |
           pixi run maturin develop --uv -m experimental/vibe/codegen/python/example/readme/bridge/Cargo.toml

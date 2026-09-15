@@ -514,6 +514,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-codegen-python-test-bridge"
+version = "0.0.0"
+dependencies = [
+ "pyo3",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+ "quent-io",
+ "quent-readme-example",
+ "quent-schema-codegen-python",
+ "quent-yaml",
+]
+
+[[package]]
 name = "quent-codegen-tutorial-build"
 version = "0.0.0"
 dependencies = [

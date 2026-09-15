@@ -7,6 +7,7 @@ publish.workspace = true
 [lib]
 name = "quent_demo"
 crate-type = ["cdylib"]
+test = false
 
 [dependencies]
 pyo3 = { version = "0.29", features = ["abi3-py311"] }
@@ -21,6 +22,3 @@ quent-readme-example = { path = "../../../../../../../examples/readme" }
 [build-dependencies]
 quent-schema-codegen-python = { path = "../../.." }
 quent-yaml = { path = "../../../../../../../crates/yaml" }
-
-[dev-dependencies]
-pyo3 = { version = "0.29", features = ["auto-initialize"] }

@@ -7,6 +7,7 @@ publish.workspace = true
 [lib]
 name = "quent_tutorial_scoped_references"
 crate-type = ["cdylib"]
+test = false
 
 [dependencies]
 pyo3 = { version = "0.29", features = ["abi3-py311"] }

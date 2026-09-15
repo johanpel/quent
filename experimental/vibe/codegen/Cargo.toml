@@ -5,6 +5,7 @@ members = [
     "cpp/test",
     "cpp/test/lists",
     "python",
+    "python/test/bridge",
     "tutorial-build",
     "cpp/example/readme/bridge",
     "cpp/example/tutorial/*/bridge",
