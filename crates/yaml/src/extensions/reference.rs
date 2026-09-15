@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Constraint-backed entity-reference syntax and lowering.
+//! Entity-reference forms and their schema elaboration.
 
 use quent_constraints::Constraint;
 use quent_ref_target::RefTargetConstraint;
@@ -11,8 +11,8 @@ use quent_schema::builder::AnnotationsBuilder;
 use serde::Deserialize;
 
 use crate::ast::TypeExpr;
-use crate::constraints::resource::Lowerer as ResourceLowerer;
 use crate::diag::Diagnostics;
+use crate::extensions::Elaborator;
 use crate::lower::{build_or_diagnose, type_of};
 
 /// A targeted entity reference: `ref` names the entity it points at, with an
@@ -37,17 +37,17 @@ pub(crate) struct ScopeForm {
     pub(crate) data: Option<Box<TypeExpr>>,
 }
 
-/// Lower a targeted entity reference, optionally carrying data and forming a tree.
-pub(crate) fn lower(
+/// Elaborate a targeted entity reference, optionally carrying data and forming a tree.
+pub(crate) fn elaborate(
     target: &str,
     data: Option<&TypeExpr>,
     tree: bool,
     path: &str,
-    resources: &ResourceLowerer,
+    extensions: &Elaborator,
     sink: &mut Diagnostics,
 ) -> Option<DataType> {
     let data = match data {
-        Some(expr) => Some(type_of(expr, path, resources, sink)?),
+        Some(expr) => Some(type_of(expr, path, extensions, sink)?),
         None => None,
     };
     entity_ref_type(target, data, tree, path, sink)
