@@ -185,23 +185,22 @@ impl Elaborator {
         sink: &mut Diagnostics,
     ) -> AnnotationsBuilder {
         for (name, value) in annotations {
-            if let Some(error) = direct_declaration_error(name) {
+            let error = if name == FsmConstraint::NAME {
+                Some("the FSM constraint is set from an `fsms:` block, not written directly")
+            } else if name == Resource::NAME {
+                Some(
+                    "the resource constraint is set from a `resource:` block, not written directly",
+                )
+            } else {
+                None
+            };
+            if let Some(error) = error {
                 sink.error(path, error, None);
             } else {
                 builder = builder.with_constraint(name, value.clone());
             }
         }
         builder
-    }
-}
-
-fn direct_declaration_error(name: &str) -> Option<&'static str> {
-    if name == FsmConstraint::NAME {
-        Some("the FSM constraint is set from an `fsms:` block, not written directly")
-    } else if name == Resource::NAME {
-        Some("the resource constraint is set from a `resource:` block, not written directly")
-    } else {
-        None
     }
 }
 
@@ -258,10 +257,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
                 sink.make(
                     "",
                     format!("constraint `{name}` has no registered validator"),
-                    Some(
-                        "it is passed through untouched; a downstream validator may check it"
-                            .to_string(),
-                    ),
+                    Some("it is passed through without validation".to_string()),
                 )
             })
             .collect(),
