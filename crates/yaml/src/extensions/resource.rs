@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Resource syntax and lowering to resource schema constraints.
+//! Resource forms and their schema elaboration.
 
 use indexmap::IndexMap;
 use quent_resource::{Capacity, Resource, ResourceBuilder};
@@ -10,8 +10,8 @@ use quent_schema::{Annotations, DataType, Field, Identifier, Path, Record};
 use serde::Deserialize;
 
 use crate::ast::Model;
-use crate::constraints::reference::entity_ref_type;
 use crate::diag::Diagnostics;
+use crate::extensions::reference::entity_ref_type;
 use crate::lower::ident;
 
 /// A resource declaration.
@@ -75,16 +75,16 @@ pub(crate) struct UsesForm {
 }
 
 #[derive(Default)]
-pub(crate) struct Lowerer {
+pub(crate) struct Elaborator {
     usage_records: IndexMap<String, Path>,
 }
 
-impl Lowerer {
+impl Elaborator {
     pub(crate) fn new(model: &Model, sink: &mut Diagnostics) -> Self {
-        let mut lowerer = Self::default();
+        let mut elaborator = Self::default();
         for (name, entity) in &model.entities {
             if let Some(resource) = &entity.resource {
-                lowerer.add_usage_record(
+                elaborator.add_usage_record(
                     name,
                     resource,
                     &format!("entities.{name}.resource"),
@@ -94,10 +94,10 @@ impl Lowerer {
         }
         for (name, fsm) in &model.fsms {
             if let Some(resource) = &fsm.resource {
-                lowerer.add_usage_record(name, resource, &format!("fsms.{name}.resource"), sink);
+                elaborator.add_usage_record(name, resource, &format!("fsms.{name}.resource"), sink);
             }
         }
-        lowerer
+        elaborator
     }
 
     fn add_usage_record(
@@ -119,7 +119,7 @@ impl Lowerer {
         }
     }
 
-    pub(crate) fn lower(
+    pub(crate) fn elaborate(
         &self,
         owner: &str,
         id: Identifier,
@@ -234,7 +234,7 @@ pub(crate) fn attach_constraint(builder: AnnotationsBuilder, data: String) -> An
 pub(crate) fn usage_ref(
     target: &str,
     path: &str,
-    resources: &Lowerer,
+    resources: &Elaborator,
     sink: &mut Diagnostics,
 ) -> Option<DataType> {
     let usage = resources.usage_record(target, path, sink)?;

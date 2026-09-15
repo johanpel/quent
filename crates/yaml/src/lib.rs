@@ -13,8 +13,8 @@ use quent_schema::Schema;
 use serde_saphyr::{MessageFormatter, UserMessageFormatter};
 
 mod ast;
-mod constraints;
 mod diag;
+mod extensions;
 mod lower;
 
 pub use diag::{Diagnostic, Diagnostics, Origin};
@@ -72,7 +72,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         return Err(Error::Invalid(sink));
     }
 
-    let warnings = match constraints::validate_schema(&schema, &mut sink) {
+    let warnings = match extensions::validate_schema(&schema, &mut sink) {
         Some(warnings) => warnings,
         None => return Err(Error::Invalid(sink)),
     };

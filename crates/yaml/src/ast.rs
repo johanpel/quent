@@ -14,7 +14,7 @@
 use indexmap::IndexMap;
 use serde::Deserialize;
 
-use crate::constraints::{
+use crate::extensions::{
     fsm::FsmSpec,
     reference::{RefForm, ScopeForm},
     resource::{ResourceBoundsField, ResourceDecl, UsesForm},
@@ -45,7 +45,7 @@ pub(crate) struct Model {
     #[serde(default)]
     pub(crate) entities: IndexMap<String, Entity>,
 
-    // Constraint-related AST nodes.
+    // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) fsms: IndexMap<String, FsmSpec>,
 }
@@ -77,7 +77,7 @@ pub(crate) struct Entity {
     #[serde(default)]
     pub(crate) events: IndexMap<String, Event>,
 
-    // Constraint-related AST nodes.
+    // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
 }
@@ -102,14 +102,14 @@ pub(crate) struct Event {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum Field {
-    // Constraint-related AST nodes.
-    /// An attribute carrying a resource's bounds.
-    ResourceBounds(ResourceBoundsField),
-
     /// A type without annotations.
     Bare(TypeExpr),
     /// A type with annotations.
     Full(Box<FieldBody>),
+
+    // Built-in extension AST nodes.
+    /// An attribute carrying a resource's bounds.
+    ResourceBounds(ResourceBoundsField),
 }
 
 /// The mapping form of a field: a type plus annotations.
@@ -139,7 +139,7 @@ pub(crate) enum TypeExpr {
     /// An optional value of another type.
     Option(OptionType),
 
-    // Constraint-related AST nodes.
+    // Built-in extension AST nodes.
     /// A targeted entity reference with optional data.
     Ref(RefForm),
     /// A tree-forming entity reference with optional data.
