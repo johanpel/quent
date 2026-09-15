@@ -20,9 +20,12 @@ use crate::lower::{build_or_diagnose, type_of};
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RefForm {
-    pub(crate) r#ref: String,
+    // Fields shared with core entity references.
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
+
+    // Reference extension fields.
+    pub(crate) r#ref: String,
 }
 
 /// A tree-forming targeted reference: `scope-ref` names the entity it points
@@ -31,10 +34,13 @@ pub(crate) struct RefForm {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ScopeForm {
-    #[serde(rename = "scope-ref")]
-    pub(crate) scope_ref: String,
+    // Fields shared with core entity references.
     #[serde(default)]
     pub(crate) data: Option<Box<TypeExpr>>,
+
+    // Reference extension fields.
+    #[serde(rename = "scope-ref")]
+    pub(crate) scope_ref: String,
 }
 
 /// Elaborate a targeted entity reference, optionally carrying data and forming a tree.

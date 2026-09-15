@@ -18,6 +18,7 @@ use crate::lower::{annotations_builder, build_or_diagnose, event_fields, ident, 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct FsmSpec {
+    // Fields shared with core entities.
     #[serde(default)]
     pub(crate) doc: Option<String>,
     #[serde(default)]
@@ -25,8 +26,10 @@ pub(crate) struct FsmSpec {
     #[serde(default)]
     pub(crate) metadata: AnnotationMap,
 
-    // Built-in extension AST nodes.
+    // FSM extension fields.
     pub(crate) states: IndexMap<String, StateSpec>,
+
+    // Fields contributed by composed extensions.
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
 }
@@ -35,10 +38,11 @@ pub(crate) struct FsmSpec {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct StateSpec {
+    // Fields shared with core events.
     #[serde(default)]
     pub(crate) attributes: IndexMap<String, Field>,
 
-    // Built-in extension AST nodes.
+    // FSM extension fields.
     #[serde(default)]
     pub(crate) initial: bool,
     /// States the FSM can transition to. An empty list makes this a final state.
