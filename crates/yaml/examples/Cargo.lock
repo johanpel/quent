@@ -406,6 +406,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-log"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-schema",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "quent-os"
 version = "0.1.0"
 dependencies = [
@@ -477,6 +488,7 @@ dependencies = [
  "indexmap",
  "quent-constraints",
  "quent-fsm",
+ "quent-log",
  "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
