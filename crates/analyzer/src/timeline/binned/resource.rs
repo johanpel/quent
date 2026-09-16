@@ -191,7 +191,10 @@ mod tests {
     // Init(0) -> Operating(0, 1000 bytes) -> Finalizing(1000) -> Exit(1000).
     fn build_root_and_memory(builder: &mut InMemoryResourcesBuilder, resource_id: Uuid) {
         builder.push_group_raw(ROOT_RESOURCE_ID, 0, "test", "test", None);
-        builder.insert_memory_resource("test");
+        builder.insert_resource_type(ResourceTypeDecl::new(
+            "test",
+            [CapacityDecl::new_occupancy("capacity_bytes")],
+        ));
         let bld = builder.try_builder(resource_id).unwrap();
         bld.push(RtResourceTransition::Init(0));
         bld.set_type_name("test".to_owned());

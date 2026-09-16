@@ -12,7 +12,7 @@ use uuid::Uuid;
 use crate::{
     AnalyzerError, AnalyzerResult,
     resource::{
-        CapacityDecl, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl,
+        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl,
         runtime::{RtResource, RtResourceBuilder, RtResourceGroup},
         tree::ResourceTreeNode,
     },
@@ -145,32 +145,6 @@ impl InMemoryResourcesBuilder {
             e.insert(RtResourceBuilder::try_new(id)?);
         }
         Ok(self.resources.get_mut(&id).unwrap())
-    }
-
-    /// Register a memory resource type declaration (bytes occupancy capacity).
-    pub fn insert_memory_resource(&mut self, type_name: &str) {
-        if !self.resource_types.contains_key(type_name) {
-            let decl =
-                ResourceTypeDecl::new(type_name, [CapacityDecl::new_occupancy("capacity_bytes")]);
-            self.resource_types.insert(type_name.to_owned(), decl);
-        }
-    }
-
-    /// Register a processor (unit) resource type declaration.
-    pub fn insert_processor_resource(&mut self, type_name: &str) {
-        if !self.resource_types.contains_key(type_name) {
-            let decl = ResourceTypeDecl::unit(type_name);
-            self.resource_types.insert(type_name.to_owned(), decl);
-        }
-    }
-
-    /// Register a channel resource type declaration (bytes rate capacity).
-    // TODO(johanpel): see CapacityType and consider blocking/non-blocking channels
-    pub fn insert_channel_resource(&mut self, type_name: &str) {
-        if !self.resource_types.contains_key(type_name) {
-            let decl = ResourceTypeDecl::new(type_name, [CapacityDecl::new_rate("capacity_bytes")]);
-            self.resource_types.insert(type_name.to_owned(), decl);
-        }
     }
 
     /// Insert a resource group directly from individual fields.
