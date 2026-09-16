@@ -4,7 +4,7 @@
 //! Task FSM analysis types.
 
 use quent_analyzer::{
-    Entity, AnalyzerResult,
+    AnalyzerResult, Entity, RefTreeEntity,
     fsm::{
         Fsm, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration, FsmUsages,
         Transition,
@@ -99,6 +99,14 @@ impl Entity for Task {
 
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
         self.0.latest_timestamp()
+    }
+}
+
+// TODO(johanpel): Generate Reference Tree analysis traits from schema metadata. See
+// https://github.com/rapidsai/quent/issues/288.
+impl RefTreeEntity for Task {
+    fn parent_id(&self) -> Option<Uuid> {
+        self.operator_id()
     }
 }
 

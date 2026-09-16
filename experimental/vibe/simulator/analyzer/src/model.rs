@@ -4,8 +4,9 @@
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
-    Entity, AnalyzerError, AnalyzerResult, Model,
+    AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
     fsm::collection::FsmCollection,
+    ref_tree::{collection::RefTreeCollection, tree::RefTreeNode},
     resource::{
         CapacityDecl, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
         ResourceTypeDecl, Usage, Using,
@@ -291,6 +292,44 @@ impl FsmCollection for SimulatorModel {
 
     fn fsms(&self) -> impl Iterator<Item = &Task> {
         self.tasks.values()
+    }
+}
+
+impl RefTreeCollection for SimulatorModel {
+    fn ref_tree_entities(&self) -> impl Iterator<Item = &dyn RefTreeEntity> {
+        self.query_engine
+            .ref_tree_entities()
+            .chain(
+                self.tasks
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.arbitrary_resources
+                    .resource_groups
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.arbitrary_resources
+                    .resources
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+    }
+
+    fn ref_tree_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn RefTreeEntity> {
+        if let Ok(entity) = self.query_engine.ref_tree_entity(entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.tasks.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.arbitrary_resources.resource_groups.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.arbitrary_resources.resources.get(&entity_id) {
+            Ok(entity)
+        } else {
+            Err(AnalyzerError::InvalidId(entity_id))
+        }
     }
 }
 
@@ -787,6 +826,7 @@ impl SimulatorModelBuilder {
             tasks,
             resource_group_types: HashMap::default(),
         };
+        RefTreeNode::try_new(&temp_model)?;
         let mut resource_group_types = derive_resource_group_types(&temp_model)?;
         // Bubble up all the used_by_entity fields in the group type decls.
         for group_type_decl in resource_group_types.values_mut() {
