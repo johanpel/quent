@@ -3,31 +3,28 @@
 
 //! FSM-related functionality
 
-use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{Timestamp, span::SpanUnixNanoSec};
 #[cfg(feature = "ts")]
 use serde::Serialize;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
 
-use crate::{Entity, AnalyzerResult, Span, error::AnalyzerError, resource::Usage};
+use crate::{Entity, resource::Usage};
 
 pub mod collection;
 pub mod native;
 pub mod runtime;
 
-/// Trait for types that represent an [`Fsm`] `State` transition.
+/// Trait for types that represent an [`Fsm`] state transition event.
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-    /// Return the key-value attributes of this transition converted to
-    /// dynamically-typed ones.
-    ///
-    /// May be computed on demand — call only when the attributes will be
-    /// used.
-    fn attributes(&self) -> Vec<DynamicAttribute> {
-        vec![]
-    }
+
+    /// Returns the per-entity ordering key for equal timestamps.
+    fn sequence(&self) -> u16;
+
+    /// Returns whether this transition ends the FSM's dynamic lifetime.
+    fn is_final(&self) -> bool;
 }
 
 /// Trait for types that represent a Finite State Machine (FSM).
@@ -92,25 +89,6 @@ pub trait FsmUsages<'a>: Fsm {
     fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)>;
 }
 
-impl<U> Span for U
-where
-    U: Fsm,
-{
-    fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
-        if let Some(start) = self.first().map(|s| s.span().start())
-            && let Some(end) = self.last().map(|s| s.span().end())
-        {
-            Ok(SpanUnixNanoSec::try_new(start, end)?)
-        } else {
-            Err(AnalyzerError::IncompleteEntity(format!(
-                "fsm '{}' (id={}) is incomplete",
-                self.type_name(),
-                self.id()
-            )))
-        }
-    }
-}
-
 #[derive(Clone)]
 pub struct FsmStateRef<'a, F, T>
 where
@@ -134,10 +112,6 @@ where
         let start = self.fsm.transition(self.index).unwrap().timestamp();
         let end = self.fsm.transition(self.index + 1).unwrap().timestamp();
         SpanUnixNanoSec::try_new(start, end).unwrap()
-    }
-
-    pub fn attributes(&self) -> Vec<DynamicAttribute> {
-        self.fsm.transition(self.index).unwrap().attributes()
     }
 }
 

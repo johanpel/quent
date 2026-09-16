@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
-    Entity, AnalyzerError, AnalyzerResult,
+    AnalyzerError, AnalyzerResult, Entity,
     fsm::{Fsm, FsmStateRef, FsmUsages, Transition, collection::InMemoryFsms},
     resource::{CapacityValue, Usage, Using},
 };
@@ -69,6 +69,14 @@ impl Transition for RtFsmTransition {
     }
     fn attributes(&self) -> Vec<DynamicAttribute> {
         self.attributes.clone()
+    }
+
+    fn sequence(&self) -> u16 {
+        todo!()
+    }
+
+    fn is_final(&self) -> bool {
+        todo!()
     }
 }
 

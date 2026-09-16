@@ -43,6 +43,15 @@ pub trait ResourceGroup: Entity {
     }
 }
 
+/// Analysis-time representation of one resource usage.
+#[derive(Debug)]
+pub struct AnalyzedUsage {
+    /// Resource used by the entity.
+    pub resource_id: Uuid,
+    /// Capacity values reserved from the resource.
+    pub capacities: SmallVec<[CapacityValue; 3]>,
+}
+
 /// Trait for types that represent the [`Usage`] of a [`Resource`].
 pub trait Usage<'a> {
     /// Return the ID of the entity using the resource.

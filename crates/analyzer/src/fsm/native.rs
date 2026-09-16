@@ -1,0 +1,390 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! FSM analysis interfaces and storage implementations.
+
+pub use quent_dynamic_attributes::DynamicAttribute;
+use quent_events::{EntityEvent, Event};
+use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
+use smallvec::SmallVec;
+use uuid::Uuid;
+
+use crate::{
+    AnalyzerError, AnalyzerResult, Entity,
+    fsm::{Fsm, FsmUsages, Transition},
+    resource::{AnalyzedUsage, CapacityValue, Usage, Using},
+};
+
+/// Trait for application-specific payloads of FSM transition events.
+// TODO(johanpel): this trait will be implemented by generated analysis code.
+pub trait TransitionEvent: EntityEvent {
+    /// Return the name of the state transitioned into.
+    fn name(&self) -> &'static str;
+
+    /// Returns the per-entity ordering key for equal timestamps.
+    fn sequence(&self) -> u16;
+
+    /// Returns whether this transition ends the FSM's dynamic lifetime.
+    fn is_final(&self) -> bool;
+
+    /// Returns resources held until the next transition.
+    fn usages(&self) -> SmallVec<[AnalyzedUsage; 1]> {
+        SmallVec::new()
+    }
+}
+
+/// Rust-native struct wrapping around an application-specific FSM transition
+/// event payload.
+///
+/// This pre-computes and caches generic transition properties.
+pub struct AnalyzedTransition<T> {
+    /// Time at which the transition entered its state.
+    timestamp: TimeUnixNanoSec,
+    /// Resources held until the next transition.
+    usages: SmallVec<[AnalyzedUsage; 1]>,
+    /// Original payload retained for application-specific analysis.
+    pub data: T,
+}
+
+impl<T: TransitionEvent> std::fmt::Debug for AnalyzedTransition<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transition")
+            .field("seq", &self.data.sequence())
+            .field("timestamp", &self.timestamp)
+            .field("state_name", &self.data.name())
+            .field("usages", &self.usages)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T> Timestamp for AnalyzedTransition<T> {
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
+    }
+}
+
+impl<T: TransitionEvent> OrderKey for AnalyzedTransition<T> {
+    type Key = (TimeUnixNanoSec, u16);
+
+    fn order_key(&self) -> Self::Key {
+        (self.timestamp, self.data.sequence())
+    }
+}
+
+impl<T: TransitionEvent> Transition for AnalyzedTransition<T> {
+    fn name(&self) -> &str {
+        self.data.name()
+    }
+
+    fn sequence(&self) -> u16 {
+        self.data.sequence()
+    }
+
+    fn is_final(&self) -> bool {
+        self.data.is_final()
+    }
+}
+
+impl<T> AnalyzedTransition<T> {
+    /// Returns resources held for the state ending at the next transition.
+    pub fn usages(&self) -> &[AnalyzedUsage] {
+        &self.usages
+    }
+}
+
+pub struct UsageWithSpan<'a> {
+    entity_id: Uuid,
+    usage: &'a AnalyzedUsage,
+    span: SpanUnixNanoSec,
+}
+
+impl<'a> Usage<'a> for UsageWithSpan<'a> {
+    fn entity_id(&self) -> Uuid {
+        self.entity_id
+    }
+    fn resource_id(&self) -> Uuid {
+        self.usage.resource_id
+    }
+    fn capacities(&self) -> impl Iterator<Item = &'a CapacityValue> {
+        self.usage.capacities.iter()
+    }
+    fn span(&self) -> SpanUnixNanoSec {
+        self.span
+    }
+}
+
+/// Builds an analyzed Rust-native [`AnalyzedFsm`] from application-specific events.
+pub struct FsmBuilder<T> {
+    id: Uuid,
+    transitions: OrderedCollector<AnalyzedTransition<T>>,
+}
+
+impl<T: TransitionEvent> FsmBuilder<T> {
+    pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
+        if id.is_nil() {
+            Err(AnalyzerError::Validation(
+                "fsm id cannot be nil".to_string(),
+            ))
+        } else {
+            Ok(Self {
+                id,
+                transitions: OrderedCollector::default(),
+            })
+        }
+    }
+
+    /// Return the id of the FSM being built.
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Adds one typed transition using its analyzer mapping.
+    pub fn push_transition(&mut self, event: Event<T>) {
+        let transition = event.data;
+        self.transitions.push(AnalyzedTransition {
+            timestamp: event.timestamp,
+            usages: transition.usages(),
+            data: transition,
+        });
+    }
+
+    /// Builds an FSM from the collected transitions.
+    ///
+    /// Missing intermediate events cannot be detected and may produce inaccurate
+    /// state spans.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AnalyzerError::IncompleteFsm`] if no final transition was
+    /// collected.
+    pub fn try_build(self) -> AnalyzerResult<AnalyzedFsm<T>> {
+        let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
+            self.transitions.into_inner().into();
+        if !transitions
+            .last()
+            .is_some_and(|transition| transition.data.is_final())
+        {
+            return Err(AnalyzerError::IncompleteFsm(format!(
+                "fsm '{}' (id={}) has no final transition",
+                T::NAME,
+                self.id
+            )));
+        }
+        Ok(AnalyzedFsm {
+            id: self.id,
+            transitions,
+        })
+    }
+}
+
+/// An FSM reconstructed from application-specific transition data.
+///
+/// Application-specific data remains available through [`Self::transitions`].
+pub struct AnalyzedFsm<T> {
+    id: Uuid,
+    transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
+}
+
+impl<T: TransitionEvent> std::fmt::Debug for AnalyzedFsm<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Fsm")
+            .field("id", &self.id)
+            .field("transitions", &self.transitions)
+            .finish()
+    }
+}
+
+impl<T> AnalyzedFsm<T> {
+    pub fn transitions(&self) -> &[AnalyzedTransition<T>] {
+        &self.transitions
+    }
+
+    /// Access the first transition's data (typically the entry state).
+    pub fn first_data(&self) -> Option<&T> {
+        self.transitions.first().map(|t| &t.data)
+    }
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+}
+
+impl<T: TransitionEvent> Fsm for AnalyzedFsm<T> {
+    type TransitionType = AnalyzedTransition<T>;
+    fn len(&self) -> usize {
+        self.transitions.len().saturating_sub(1)
+    }
+    fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
+        self.transitions.get(index)
+    }
+}
+
+impl<T: TransitionEvent> Entity for AnalyzedFsm<T> {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn type_name(&self) -> &str {
+        T::NAME
+    }
+
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .first()
+            .expect("analyzed FSM must contain at least one transition")
+            .timestamp()
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .last()
+            .expect("analyzed FSM must contain at least one transition")
+            .timestamp()
+    }
+}
+
+impl<'a, T: TransitionEvent + 'a> FsmUsages<'a> for AnalyzedFsm<T> {
+    fn usages_with_state_names(&'a self) -> impl Iterator<Item = (&'a str, impl Usage<'a>)> {
+        self.transitions.windows(2).flat_map(move |window| {
+            let name = window[0].name();
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| {
+                (
+                    name,
+                    UsageWithSpan {
+                        entity_id: self.id,
+                        usage: u,
+                        span,
+                    },
+                )
+            })
+        })
+    }
+}
+
+impl<T: TransitionEvent> Using for AnalyzedFsm<T> {
+    fn usages<'a>(&'a self) -> impl Iterator<Item = impl Usage<'a>> {
+        self.transitions.windows(2).flat_map(move |window| {
+            let start = window[0].timestamp();
+            let end = window[1].timestamp();
+            let span = SpanUnixNanoSec::try_new(start, end).unwrap();
+            window[0].usages.iter().map(move |u| UsageWithSpan {
+                entity_id: self.id,
+                usage: u,
+                span,
+            })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct TestTransition {
+        sequence: u16,
+        is_final: bool,
+    }
+
+    impl EntityEvent for TestTransition {
+        const NAME: &'static str = "TestTransition";
+    }
+
+    impl TransitionEvent for TestTransition {
+        fn name(&self) -> &'static str {
+            <Self as EntityEvent>::NAME
+        }
+
+        fn sequence(&self) -> u16 {
+            self.sequence
+        }
+
+        fn is_final(&self) -> bool {
+            self.is_final
+        }
+    }
+
+    #[test]
+    fn equal_timestamp_transitions_are_ordered_by_sequence() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 1,
+                is_final: true,
+            },
+        ));
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: false,
+            },
+        ));
+
+        let fsm = builder.try_build().unwrap();
+        assert_eq!(fsm.type_name(), "test");
+        assert_eq!(
+            fsm.transitions()
+                .iter()
+                .map(|transition| transition.data.sequence())
+                .collect::<Vec<_>>(),
+            [0, 1]
+        );
+    }
+
+    #[test]
+    fn sequence_wrap_is_ordered_by_timestamp() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            101,
+            TestTransition {
+                sequence: 0,
+                is_final: true,
+            },
+        ));
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: u16::MAX,
+                is_final: false,
+            },
+        ));
+
+        let fsm = builder.try_build().unwrap();
+        assert_eq!(
+            fsm.transitions()
+                .iter()
+                .map(|transition| (transition.timestamp(), transition.data.sequence()))
+                .collect::<Vec<_>>(),
+            [(100, u16::MAX), (101, 0)]
+        );
+    }
+
+    #[test]
+    fn incomplete_fsm_is_rejected() {
+        let id = Uuid::from_u128(1);
+        let mut builder = FsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: false,
+            },
+        ));
+
+        assert!(matches!(
+            builder.try_build(),
+            Err(AnalyzerError::IncompleteFsm(_))
+        ));
+    }
+}

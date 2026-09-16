@@ -6,8 +6,8 @@
 include!(concat!(env!("OUT_DIR"), "/simulator.rs"));
 
 use quent_analyzer::{
-    fsm::native::{DynamicAttribute, ResourceUsage, TransitionEvent},
-    resource::CapacityValue,
+    fsm::native::{DynamicAttribute, TransitionEvent},
+    resource::{AnalyzedUsage, CapacityValue},
 };
 use smallvec::{SmallVec, smallvec};
 
@@ -86,12 +86,12 @@ impl TransitionEvent for TaskEvent {
         }
     }
 
-    fn usages(&self) -> SmallVec<[ResourceUsage; 1]> {
-        let unit = |resource_id| ResourceUsage {
+    fn usages(&self) -> SmallVec<[AnalyzedUsage; 1]> {
+        let unit = |resource_id| AnalyzedUsage {
             resource_id,
             capacities: SmallVec::new(),
         };
-        let bytes = |resource_id, value| ResourceUsage {
+        let bytes = |resource_id, value| AnalyzedUsage {
             resource_id,
             capacities: smallvec![CapacityValue::new("bytes", value)],
         };

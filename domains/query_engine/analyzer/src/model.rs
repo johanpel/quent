@@ -8,7 +8,7 @@ use quent_analyzer::{
     entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
-        native::{DynamicAttribute, Fsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
+        native::{DynamicAttribute, AnalyzedFsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
     },
     resource::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,

@@ -15,7 +15,7 @@ pub trait EntityEventAccumulator: quent_events::Entity + Default {
     fn push(&mut self, event: Self::Event);
 }
 
-/// Plain Rust struct wrapping around an application-specific
+/// Rust-native struct wrapping around an application-specific
 /// [`EntityEventAccumulator`].
 ///
 /// This pre-computes generic entity properties that are derived as events are
@@ -110,6 +110,7 @@ mod tests {
     use quent_events::EntityEvent;
 
     use super::*;
+    use crate::entity::Entity as _;
 
     struct Increment;
 
@@ -133,15 +134,17 @@ mod tests {
     #[test]
     fn rejects_event_for_another_entity() {
         let entity_id = Uuid::from_u128(1);
-        let mut entity = AnalyzedEntity::<Counter>::new(entity_id).unwrap();
+        let mut entity =
+            AnalyzedEntity::<Counter>::try_from_first_event(Event::new(entity_id, 5, Increment))
+                .unwrap();
 
         assert!(matches!(
             entity.push(Event::new(Uuid::from_u128(2), 10, Increment)),
             Err(AnalyzerError::Validation(_))
         ));
-        assert_eq!(entity.accumulator().0, 0);
-        assert_eq!(entity.earliest_timestamp(), None);
-        assert_eq!(entity.latest_timestamp(), None);
+        assert_eq!(entity.accumulator().0, 1);
+        assert_eq!(entity.earliest_timestamp(), 5);
+        assert_eq!(entity.latest_timestamp(), 5);
     }
 
     #[test]

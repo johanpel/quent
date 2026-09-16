@@ -8,7 +8,7 @@ use quent_analyzer::{
     fsm::{
         Fsm, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration, FsmUsages,
         Transition,
-        native::{Fsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
+        native::{AnalyzedFsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
     },
     resource::{Usage, Using},
 };

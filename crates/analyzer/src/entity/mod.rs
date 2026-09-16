@@ -3,19 +3,30 @@
 
 //! Entity analysis interfaces and storage implementations.
 
-use quent_time::TimeUnixNanoSec;
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
+
+use crate::{AnalyzerResult, Span};
 
 pub mod native;
 
-/// Analysis-time entity.
+/// Trait for analysis-time types that represent an entity.
 pub trait Entity {
-    /// Return the universally unique identifier of this entity.
+    /// Return the universally unique identifier.
     fn id(&self) -> Uuid;
-    /// The type name of this entity.
+    /// Return the type name.
     fn type_name(&self) -> &str;
-    /// Returns the earliest observed event timestamp.
+    /// Return the earliest observed event timestamp.
     fn earliest_timestamp(&self) -> TimeUnixNanoSec;
-    /// Returns the latest observed event timestamp.
+    /// Return the latest observed event timestamp.
     fn latest_timestamp(&self) -> TimeUnixNanoSec;
+}
+
+impl<E: Entity> Span for E {
+    fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
+        Ok(SpanUnixNanoSec::try_new(
+            self.earliest_timestamp(),
+            self.latest_timestamp(),
+        )?)
+    }
 }
