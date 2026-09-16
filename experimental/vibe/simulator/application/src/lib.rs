@@ -667,8 +667,6 @@ struct Gpu {
     memory: Uuid,
     host_mem_to_gpu: Uuid,
     gpu_to_host_mem: Uuid,
-    memory_handle: Option<instr::FsmHandle<instr::GpuMemory, instr::gpu_memory_state::Operating>>,
-    pcie_handles: Vec<instr::FsmHandle<instr::PcieChannel, instr::pcie_channel_state::Operating>>,
     /// Tracks current GPU memory usage in bytes for spill decisions.
     memory_used: AtomicU64,
 }
@@ -680,8 +678,6 @@ impl Gpu {
             memory: Uuid::now_v7(),
             host_mem_to_gpu: Uuid::now_v7(),
             gpu_to_host_mem: Uuid::now_v7(),
-            memory_handle: None,
-            pcie_handles: Vec::new(),
             memory_used: AtomicU64::new(0),
         }
     }
@@ -834,14 +830,6 @@ struct Worker {
     host_to_storage: Uuid,
     threads: Vec<Uuid>,
     gpus: Vec<Gpu>,
-    host_memory_handle:
-        Option<instr::FsmHandle<instr::HostMemory, instr::host_memory_state::Operating>>,
-    storage_handle: Option<instr::FsmHandle<instr::Storage, instr::storage_state::Operating>>,
-    storage_channel_handles:
-        Vec<instr::FsmHandle<instr::StorageChannel, instr::storage_channel_state::Operating>>,
-    thread_handles: Vec<
-        instr::FsmHandle<instr::TaskExecutorThread, instr::task_executor_thread_state::Operating>,
-    >,
 }
 
 impl Worker {
@@ -859,10 +847,6 @@ impl Worker {
                 .take(num_threads)
                 .collect(),
             gpus: std::iter::repeat_with(Gpu::new).take(num_gpus).collect(),
-            host_memory_handle: None,
-            storage_handle: None,
-            storage_channel_handles: Vec::new(),
-            thread_handles: Vec::new(),
         }
     }
 
@@ -876,30 +860,27 @@ impl Worker {
             )
             .unwrap();
 
-        let host_memory = context
+        context
             .observer::<instr::HostMemory>()
             .handle_with_id(self.host_memory)
-            .initializing("Host Memory".to_owned(), instr::EntityRef::new(self.id, ()))
-            .operating();
-        self.host_memory_handle = Some(host_memory);
+            .declaration("Host Memory".to_owned(), instr::EntityRef::new(self.id, ()))
+            .unwrap();
 
-        let storage = context
+        context
             .observer::<instr::Storage>()
             .handle_with_id(self.storage)
-            .initializing("Storage".to_owned(), instr::EntityRef::new(self.id, ()))
-            .operating();
-        self.storage_handle = Some(storage);
+            .declaration("Storage".to_owned(), instr::EntityRef::new(self.id, ()))
+            .unwrap();
 
         for (id, name) in [
             (self.storage_to_host, "Storage -> Host"),
             (self.host_to_storage, "Host -> Storage"),
         ] {
-            let channel = context
+            context
                 .observer::<instr::StorageChannel>()
                 .handle_with_id(id)
-                .initializing(name.to_owned(), instr::EntityRef::new(self.id, ()))
-                .operating();
-            self.storage_channel_handles.push(channel);
+                .declaration(name.to_owned(), instr::EntityRef::new(self.id, ()))
+                .unwrap();
         }
 
         context
@@ -911,15 +892,14 @@ impl Worker {
             )
             .unwrap();
         for (index, thread_id) in self.threads.iter().enumerate() {
-            let thread = context
+            context
                 .observer::<instr::TaskExecutorThread>()
                 .handle_with_id(*thread_id)
-                .initializing(
+                .declaration(
                     format!("Thread {index}"),
                     instr::EntityRef::new(self.thread_pool, ()),
                 )
-                .operating();
-            self.thread_handles.push(thread);
+                .unwrap();
         }
 
         for (index, gpu) in self.gpus.iter_mut().enumerate() {
@@ -929,26 +909,24 @@ impl Worker {
                 .declaration(format!("GPU {index}"), instr::EntityRef::new(self.id, ()))
                 .unwrap();
 
-            let gpu_memory = context
+            context
                 .observer::<instr::GpuMemory>()
                 .handle_with_id(gpu.memory)
-                .initializing(
+                .declaration(
                     format!("GPU {index} Memory"),
                     instr::EntityRef::new(gpu.id, ()),
                 )
-                .operating();
-            gpu.memory_handle = Some(gpu_memory);
+                .unwrap();
 
             for (id, name) in [
                 (gpu.host_mem_to_gpu, format!("Host -> GPU {index}")),
                 (gpu.gpu_to_host_mem, format!("GPU {index} -> Host")),
             ] {
-                let channel = context
+                context
                     .observer::<instr::PcieChannel>()
                     .handle_with_id(id)
-                    .initializing(name, instr::EntityRef::new(gpu.id, ()))
-                    .operating();
-                gpu.pcie_handles.push(channel);
+                    .declaration(name, instr::EntityRef::new(gpu.id, ()))
+                    .unwrap();
             }
         }
     }
@@ -1251,7 +1229,7 @@ impl Worker {
                 task.sending(
                     thread_usage(),
                     instr::EntityRef::new(
-                        link.uuid(),
+                        *link,
                         instr::NetworkChannelUsage {
                             bytes: network_bytes,
                         },
@@ -1454,31 +1432,6 @@ impl Worker {
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        if let Some(handle) = self.host_memory_handle.take() {
-            drop(handle.finalizing().exit());
-            sleep_fixed(25);
-        }
-        if let Some(handle) = self.storage_handle.take() {
-            drop(handle.finalizing().exit());
-            sleep_fixed(25);
-        }
-        for gpu in &mut self.gpus {
-            if let Some(handle) = gpu.memory_handle.take() {
-                drop(handle.finalizing().exit());
-                sleep_fixed(25);
-            }
-            for handle in gpu.pcie_handles.drain(..) {
-                drop(handle.finalizing().exit());
-                sleep_fixed(25);
-            }
-        }
-        for handle in self.storage_channel_handles.drain(..) {
-            drop(handle.finalizing().exit());
-            sleep_fixed(25);
-        }
-        for thread in self.thread_handles.drain(..) {
-            drop(thread.finalizing().exit());
-        }
         context
             .observer::<instr::Worker>()
             .handle_with_id(self.id)
@@ -1491,10 +1444,7 @@ struct Engine {
     handle: instr::Handle<instr::Engine>,
     workers: HashMap<Uuid, Worker>,
     network: instr::Handle<instr::Network>,
-    network_links: HashMap<
-        (Uuid, Uuid),
-        instr::FsmHandle<instr::NetworkChannel, instr::network_channel_state::Operating>,
-    >,
+    network_links: HashMap<(Uuid, Uuid), Uuid>,
 }
 
 impl Engine {
@@ -1554,23 +1504,25 @@ impl Engine {
             for other_worker_index in worker_index + 1..worker_ids.len() {
                 let worker_id = worker_ids[worker_index];
                 let other_worker_id = worker_ids[other_worker_index];
-                let up_link = channel_obs
-                    .handle()
-                    .initializing(
+                let up_link = Uuid::now_v7();
+                channel_obs
+                    .handle_with_id(up_link)
+                    .declaration(
                         format!("worker {worker_index} -> {other_worker_index}"),
                         self.network.as_entity_ref(),
                     )
-                    .operating();
+                    .unwrap();
                 self.network_links
                     .insert((worker_id, other_worker_id), up_link);
 
-                let down_link = channel_obs
-                    .handle()
-                    .initializing(
+                let down_link = Uuid::now_v7();
+                channel_obs
+                    .handle_with_id(down_link)
+                    .declaration(
                         format!("worker {other_worker_index} -> {worker_index}"),
                         self.network.as_entity_ref(),
                     )
-                    .operating();
+                    .unwrap();
                 self.network_links
                     .insert((other_worker_id, worker_id), down_link);
             }
@@ -1578,10 +1530,6 @@ impl Engine {
     }
 
     fn shut_down(&mut self, context: &SimulatorContext) {
-        for (_, handle) in self.network_links.drain() {
-            drop(handle.finalizing().exit());
-        }
-
         // Tear down workers
         for worker in self.workers.values_mut() {
             worker.shut_down(context);

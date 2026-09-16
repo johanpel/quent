@@ -8,13 +8,8 @@ use quent_analyzer::{
     fsm::collection::FsmCollection,
     ref_tree::{collection::RefTreeCollection, tree::RefTreeNode},
     resource::{
-        CapacityDecl, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
-        ResourceTypeDecl, Usage, Using,
-        collection::{
-            InMemoryResources, InMemoryResourcesBuilder, ResourceCollection,
-            derive_resource_group_types,
-        },
-        runtime::RtResourceTransition,
+        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl, Usage, Using,
+        collection::{ResourceCollection, derive_resource_group_types},
     },
 };
 use quent_events::Event;
@@ -31,7 +26,10 @@ use quent_simulator_store::{self as schema, SimulatorEvent};
 use uuid::Uuid;
 
 use crate::{
-    boilerplate::{Gpu, HostMemory, HostMemoryBuilder, Network, TaskExecutor},
+    boilerplate::{
+        Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, Storage, StorageChannel,
+        TaskExecutor, TaskExecutorThread,
+    },
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
@@ -180,8 +178,14 @@ impl IntoQueryEngineEvent for schema::PortEvent {
 /// A model of the simulator engine
 pub struct SimulatorModel {
     pub(crate) query_engine: InMemoryQueryEngineModel,
-    pub(crate) arbitrary_resources: InMemoryResources,
+    pub(crate) resource_types: HashMap<String, ResourceTypeDecl>,
     pub(crate) host_memories: HashMap<Uuid, HostMemory>,
+    pub(crate) storages: HashMap<Uuid, Storage>,
+    pub(crate) gpu_memories: HashMap<Uuid, GpuMemory>,
+    pub(crate) task_executor_threads: HashMap<Uuid, TaskExecutorThread>,
+    pub(crate) storage_channels: HashMap<Uuid, StorageChannel>,
+    pub(crate) pcie_channels: HashMap<Uuid, PcieChannel>,
+    pub(crate) network_channels: HashMap<Uuid, NetworkChannel>,
     pub(crate) task_executors: HashMap<Uuid, TaskExecutor>,
     pub(crate) networks: HashMap<Uuid, Network>,
     pub(crate) gpus: HashMap<Uuid, Gpu>,
@@ -203,9 +207,7 @@ impl Model for SimulatorModel {
                 QueryEngineEntityId::Operator(uuid) => EntityRef::Operator(uuid),
                 QueryEngineEntityId::Port(uuid) => EntityRef::Port(uuid),
             })
-        } else if self.arbitrary_resources.resources.contains_key(&entity_id) {
-            Ok(EntityRef::Resource(entity_id))
-        } else if self.host_memories.contains_key(&entity_id) {
+        } else if self.resource(entity_id).is_ok() {
             Ok(EntityRef::Resource(entity_id))
         } else if self.task_executors.contains_key(&entity_id)
             || self.networks.contains_key(&entity_id)
@@ -296,12 +298,104 @@ impl SimulatorModel {
         self.host_memories
             .get(&resource_id)
             .map(HostMemory::instance_name)
+            .or_else(|| self.storages.get(&resource_id).map(Storage::instance_name))
             .or_else(|| {
-                self.arbitrary_resources
-                    .resources
+                self.gpu_memories
                     .get(&resource_id)
-                    .map(|resource| resource.instance_name.as_str())
+                    .map(GpuMemory::instance_name)
             })
+            .or_else(|| {
+                self.task_executor_threads
+                    .get(&resource_id)
+                    .map(TaskExecutorThread::instance_name)
+            })
+            .or_else(|| {
+                self.storage_channels
+                    .get(&resource_id)
+                    .map(StorageChannel::instance_name)
+            })
+            .or_else(|| {
+                self.pcie_channels
+                    .get(&resource_id)
+                    .map(PcieChannel::instance_name)
+            })
+            .or_else(|| {
+                self.network_channels
+                    .get(&resource_id)
+                    .map(NetworkChannel::instance_name)
+            })
+    }
+
+    fn simulator_resource(&self, resource_id: Uuid) -> Option<&dyn Resource> {
+        self.host_memories
+            .get(&resource_id)
+            .map(|resource| resource as &dyn Resource)
+            .or_else(|| {
+                self.storages
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+            .or_else(|| {
+                self.gpu_memories
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+            .or_else(|| {
+                self.task_executor_threads
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+            .or_else(|| {
+                self.storage_channels
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+            .or_else(|| {
+                self.pcie_channels
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+            .or_else(|| {
+                self.network_channels
+                    .get(&resource_id)
+                    .map(|resource| resource as &dyn Resource)
+            })
+    }
+
+    fn simulator_resources(&self) -> impl Iterator<Item = &dyn Resource> {
+        self.host_memories
+            .values()
+            .map(|resource| resource as &dyn Resource)
+            .chain(
+                self.storages
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
+            .chain(
+                self.gpu_memories
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
+            .chain(
+                self.task_executor_threads
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
+            .chain(
+                self.storage_channels
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
+            .chain(
+                self.pcie_channels
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
+            .chain(
+                self.network_channels
+                    .values()
+                    .map(|resource| resource as &dyn Resource),
+            )
     }
 }
 
@@ -343,8 +437,32 @@ impl RefTreeCollection for SimulatorModel {
                     .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
-                self.arbitrary_resources
-                    .resources
+                self.storages
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.gpu_memories
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.task_executor_threads
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.storage_channels
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.pcie_channels
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.network_channels
                     .values()
                     .map(|entity| entity as &dyn RefTreeEntity),
             )
@@ -363,7 +481,17 @@ impl RefTreeCollection for SimulatorModel {
             Ok(entity)
         } else if let Some(entity) = self.host_memories.get(&entity_id) {
             Ok(entity)
-        } else if let Some(entity) = self.arbitrary_resources.resources.get(&entity_id) {
+        } else if let Some(entity) = self.storages.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.gpu_memories.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.task_executor_threads.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.storage_channels.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.pcie_channels.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.network_channels.get(&entity_id) {
             Ok(entity)
         } else {
             Err(AnalyzerError::InvalidId(entity_id))
@@ -373,13 +501,7 @@ impl RefTreeCollection for SimulatorModel {
 
 impl ResourceCollection for SimulatorModel {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
-        self.arbitrary_resources
-            .resources()
-            .chain(
-                self.host_memories
-                    .values()
-                    .map(|resource| resource as &dyn Resource),
-            )
+        self.simulator_resources()
             .chain(self.query_engine.resources())
     }
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
@@ -399,20 +521,18 @@ impl ResourceCollection for SimulatorModel {
             .chain(self.query_engine.resource_groups())
     }
     fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&dyn Resource> {
-        self.arbitrary_resources
-            .resource(resource_id)
-            .or_else(|_| {
-                self.host_memories
-                    .get(&resource_id)
-                    .map(|resource| resource as &dyn Resource)
-                    .ok_or(AnalyzerError::InvalidId(resource_id))
-            })
+        self.simulator_resource(resource_id)
+            .ok_or(AnalyzerError::InvalidId(resource_id))
             .or_else(|_| self.query_engine.resource(resource_id))
     }
     fn resource_type(&self, resource_type_name: &str) -> AnalyzerResult<&ResourceTypeDecl> {
         self.query_engine
             .resource_type(resource_type_name)
-            .or_else(|_| self.arbitrary_resources.resource_type(resource_type_name))
+            .or_else(|_| {
+                self.resource_types
+                    .get(resource_type_name)
+                    .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.to_owned()))
+            })
     }
     fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
         self.query_engine
@@ -480,17 +600,9 @@ impl ResourceCollection for SimulatorModel {
             .resource_group_child_resources(resource_group_id)
             .ok();
 
-        let sim = self
-            .arbitrary_resources
-            .resources()
-            .chain(
-                self.host_memories
-                    .values()
-                    .map(|resource| resource as &dyn Resource),
-            )
-            .filter_map(move |resource| {
-                (resource.parent_group_id() == resource_group_id).then_some(resource.id())
-            });
+        let sim = self.simulator_resources().filter_map(move |resource| {
+            (resource.parent_group_id() == resource_group_id).then_some(resource.id())
+        });
 
         Ok(engine.into_iter().flatten().chain(sim))
     }
@@ -504,8 +616,13 @@ impl Using for SimulatorModel {
 
 pub struct SimulatorModelBuilder {
     query_engine: InMemoryQueryEngineModelBuilder,
-    arbitrary_resources: InMemoryResourcesBuilder,
-    host_memories: HashMap<Uuid, HostMemoryBuilder>,
+    host_memories: HashMap<Uuid, HostMemory>,
+    storages: HashMap<Uuid, Storage>,
+    gpu_memories: HashMap<Uuid, GpuMemory>,
+    task_executor_threads: HashMap<Uuid, TaskExecutorThread>,
+    storage_channels: HashMap<Uuid, StorageChannel>,
+    pcie_channels: HashMap<Uuid, PcieChannel>,
+    network_channels: HashMap<Uuid, NetworkChannel>,
     task_executors: HashMap<Uuid, TaskExecutor>,
     networks: HashMap<Uuid, Network>,
     gpus: HashMap<Uuid, Gpu>,
@@ -516,8 +633,13 @@ impl SimulatorModelBuilder {
     pub(crate) fn try_new(engine_id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
             query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
-            arbitrary_resources: InMemoryResourcesBuilder::default(),
             host_memories: HashMap::default(),
+            storages: HashMap::default(),
+            gpu_memories: HashMap::default(),
+            task_executor_threads: HashMap::default(),
+            storage_channels: HashMap::default(),
+            pcie_channels: HashMap::default(),
+            network_channels: HashMap::default(),
             task_executors: HashMap::default(),
             networks: HashMap::default(),
             gpus: HashMap::default(),
@@ -578,24 +700,71 @@ impl SimulatorModelBuilder {
             SimulatorEvent::HostMemory(event) => {
                 let event = Event::new(id, timestamp, event);
                 if let Some(resource) = self.host_memories.get_mut(&id) {
-                    resource.push(event);
-                    Ok(())
+                    resource.push(event)
                 } else {
-                    let mut resource = HostMemoryBuilder::try_new(id)?;
-                    resource.push(event);
-                    self.host_memories.insert(id, resource);
+                    self.host_memories
+                        .insert(id, HostMemory::try_from_event(event)?);
                     Ok(())
                 }
             }
-            SimulatorEvent::Storage(event) => self.push_storage(id, timestamp, event),
-            SimulatorEvent::GpuMemory(event) => self.push_gpu_memory(id, timestamp, event),
-            SimulatorEvent::TaskExecutorThread(event) => self.push_thread(id, timestamp, event),
             SimulatorEvent::StorageChannel(event) => {
-                self.push_storage_channel(id, timestamp, event)
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.storage_channels.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.storage_channels
+                        .insert(id, StorageChannel::try_from_event(event)?);
+                    Ok(())
+                }
             }
-            SimulatorEvent::PcieChannel(event) => self.push_pcie_channel(id, timestamp, event),
+            SimulatorEvent::Storage(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.storages.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.storages.insert(id, Storage::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::GpuMemory(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.gpu_memories.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.gpu_memories
+                        .insert(id, GpuMemory::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::TaskExecutorThread(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.task_executor_threads.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.task_executor_threads
+                        .insert(id, TaskExecutorThread::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::PcieChannel(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.pcie_channels.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.pcie_channels
+                        .insert(id, PcieChannel::try_from_event(event)?);
+                    Ok(())
+                }
+            }
             SimulatorEvent::NetworkChannel(event) => {
-                self.push_network_channel(id, timestamp, event)
+                let event = Event::new(id, timestamp, event);
+                if let Some(resource) = self.network_channels.get_mut(&id) {
+                    resource.push(event)
+                } else {
+                    self.network_channels
+                        .insert(id, NetworkChannel::try_from_event(event)?);
+                    Ok(())
+                }
             }
             SimulatorEvent::TaskExecutor(event) => {
                 let event = Event::new(id, timestamp, event);
@@ -628,260 +797,48 @@ impl SimulatorModelBuilder {
         }
     }
 
-    fn initialize_resource(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        type_name: &str,
-        instance_name: String,
-        parent_id: Uuid,
-        declaration: ResourceTypeDecl,
-    ) -> AnalyzerResult<()> {
-        self.arbitrary_resources.insert_resource_type(declaration);
-        let builder = self.arbitrary_resources.try_builder(id)?;
-        builder.push(RtResourceTransition::Init(timestamp));
-        builder.set_type_name(type_name);
-        builder.set_instance_name(Some(instance_name));
-        builder.set_parent_group_id(parent_id);
-        Ok(())
-    }
-
-    fn push_resource_state(
-        &mut self,
-        id: Uuid,
-        transition: RtResourceTransition,
-    ) -> AnalyzerResult<()> {
-        self.arbitrary_resources.try_builder(id)?.push(transition);
-        Ok(())
-    }
-
-    fn push_storage(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::StorageEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::StorageEvent::Initializing {
-                instance_name,
-                worker_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "storage",
-                instance_name,
-                worker_id.target,
-                ResourceTypeDecl::new("storage", [CapacityDecl::new_occupancy("bytes")]),
-            ),
-            schema::StorageEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::StorageEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::StorageEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
-    fn push_gpu_memory(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::GpuMemoryEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::GpuMemoryEvent::Initializing {
-                instance_name,
-                gpu_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "gpu_memory",
-                instance_name,
-                gpu_id.target,
-                ResourceTypeDecl::new("gpu_memory", [CapacityDecl::new_occupancy("bytes")]),
-            ),
-            schema::GpuMemoryEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::GpuMemoryEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::GpuMemoryEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
-    fn push_thread(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::TaskExecutorThreadEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::TaskExecutorThreadEvent::Initializing {
-                instance_name,
-                task_executor_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "task_executor_thread",
-                instance_name,
-                task_executor_id.target,
-                ResourceTypeDecl::unit("task_executor_thread"),
-            ),
-            schema::TaskExecutorThreadEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::TaskExecutorThreadEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::TaskExecutorThreadEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
-    fn push_storage_channel(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::StorageChannelEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::StorageChannelEvent::Initializing {
-                instance_name,
-                worker_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "storage_channel",
-                instance_name,
-                worker_id.target,
-                ResourceTypeDecl::new("storage_channel", [CapacityDecl::new_rate("bytes")]),
-            ),
-            schema::StorageChannelEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::StorageChannelEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::StorageChannelEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
-    fn push_pcie_channel(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::PcieChannelEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::PcieChannelEvent::Initializing {
-                instance_name,
-                gpu_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "pcie_channel",
-                instance_name,
-                gpu_id.target,
-                ResourceTypeDecl::new("pcie_channel", [CapacityDecl::new_rate("bytes")]),
-            ),
-            schema::PcieChannelEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::PcieChannelEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::PcieChannelEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
-    fn push_network_channel(
-        &mut self,
-        id: Uuid,
-        timestamp: quent_time::TimeUnixNanoSec,
-        event: schema::NetworkChannelEvent,
-    ) -> AnalyzerResult<()> {
-        match event {
-            schema::NetworkChannelEvent::Initializing {
-                instance_name,
-                network_id,
-                ..
-            } => self.initialize_resource(
-                id,
-                timestamp,
-                "network_channel",
-                instance_name,
-                network_id.target,
-                ResourceTypeDecl::new("network_channel", [CapacityDecl::new_rate("bytes")]),
-            ),
-            schema::NetworkChannelEvent::Operating { .. } => self.push_resource_state(
-                id,
-                RtResourceTransition::Operating(timestamp, ResourceCapacities(Vec::new())),
-            ),
-            schema::NetworkChannelEvent::Finalizing { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Finalizing(timestamp))
-            }
-            schema::NetworkChannelEvent::Exit { .. } => {
-                self.push_resource_state(id, RtResourceTransition::Exit(timestamp))
-            }
-        }
-    }
-
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {
-        // Build resources first. As we iterate over task builders and build all
-        // tasks, we can populate the leaf resources used_by field.
-        let mut resources = self.arbitrary_resources.try_build()?;
-        let host_memories = self
-            .host_memories
-            .into_iter()
-            .map(|(id, builder)| builder.try_build().map(|resource| (id, resource)))
-            .collect::<AnalyzerResult<HashMap<_, _>>>()?;
-        let host_memory_type = HostMemory::resource_type_decl();
-        resources
-            .resource_types
-            .entry(host_memory_type.name.clone())
-            .or_insert(host_memory_type);
-        let mut query_engine = self.query_engine.try_build()?;
+        let resource_types = [
+            HostMemory::resource_type_decl(),
+            Storage::resource_type_decl(),
+            GpuMemory::resource_type_decl(),
+            TaskExecutorThread::resource_type_decl(),
+            StorageChannel::resource_type_decl(),
+            PcieChannel::resource_type_decl(),
+            NetworkChannel::resource_type_decl(),
+        ]
+        .into_iter()
+        .map(|declaration| (declaration.name.clone(), declaration))
+        .collect();
 
-        let mut tasks = HashMap::default();
+        let mut model = SimulatorModel {
+            query_engine: self.query_engine.try_build()?,
+            resource_types,
+            host_memories: self.host_memories,
+            storages: self.storages,
+            gpu_memories: self.gpu_memories,
+            task_executor_threads: self.task_executor_threads,
+            storage_channels: self.storage_channels,
+            pcie_channels: self.pcie_channels,
+            network_channels: self.network_channels,
+            task_executors: self.task_executors,
+            networks: self.networks,
+            gpus: self.gpus,
+            tasks: HashMap::default(),
+            resource_group_types: HashMap::default(),
+        };
 
         for (task_id, task_builder) in self.tasks.into_iter() {
             let task = Task::from_builder(task_builder)?;
             for usage in task.usages() {
-                let resource_type_name = resources
+                let resource_type_name = model
                     .resource(usage.resource_id())
-                    .map(Entity::type_name)
-                    .or_else(|_| {
-                        host_memories
-                            .get(&usage.resource_id())
-                            .map(Entity::type_name)
-                            .ok_or(AnalyzerError::InvalidId(usage.resource_id()))
-                    })?
+                    .map(Entity::type_name)?
                     .to_owned();
-                let set = &mut resources
+                let set = &mut model
                     .resource_types
                     .get_mut(&resource_type_name)
-                    .unwrap()
+                    .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.clone()))?
                     .used_by;
                 if !set.contains(task.type_name()) {
                     set.insert(task.type_name().to_owned());
@@ -889,35 +846,20 @@ impl SimulatorModelBuilder {
             }
             if let Some(operator_id) = task.operator_id()
                 && let Some(task_span) = task.active_span()
-                && let Ok(operator) = query_engine.operator_mut(operator_id)
+                && let Ok(operator) = model.query_engine.operator_mut(operator_id)
             {
                 operator.extend_active_span(task_span);
             }
 
-            tasks.insert(task_id, task);
+            model.tasks.insert(task_id, task);
         }
 
-        // Construct the model without group type decls being populated yet, we
-        // will populate it based on the resource tree.
-        let temp_model = SimulatorModel {
-            query_engine,
-            arbitrary_resources: resources,
-            host_memories,
-            task_executors: self.task_executors,
-            networks: self.networks,
-            gpus: self.gpus,
-            tasks,
-            resource_group_types: HashMap::default(),
-        };
-        RefTreeNode::try_new(&temp_model)?;
-        let mut resource_group_types = derive_resource_group_types(&temp_model)?;
+        RefTreeNode::try_new(&model)?;
+        let mut resource_group_types = derive_resource_group_types(&model)?;
         // Bubble up all the used_by_entity fields in the group type decls.
         for group_type_decl in resource_group_types.values_mut() {
             for contained_resource_type in &group_type_decl.contains_resource_types {
-                if let Ok(resource_type) = temp_model
-                    .arbitrary_resources
-                    .resource_type(contained_resource_type)
-                {
+                if let Ok(resource_type) = model.resource_type(contained_resource_type) {
                     for entity_type in &resource_type.used_by {
                         group_type_decl
                             .used_by_entity_types
@@ -926,16 +868,7 @@ impl SimulatorModelBuilder {
                 }
             }
         }
-
-        Ok(SimulatorModel {
-            query_engine: temp_model.query_engine,
-            arbitrary_resources: temp_model.arbitrary_resources,
-            host_memories: temp_model.host_memories,
-            task_executors: temp_model.task_executors,
-            networks: temp_model.networks,
-            gpus: temp_model.gpus,
-            tasks: temp_model.tasks,
-            resource_group_types,
-        })
+        model.resource_group_types = resource_group_types;
+        Ok(model)
     }
 }

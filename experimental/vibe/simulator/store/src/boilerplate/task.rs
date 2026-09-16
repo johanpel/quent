@@ -1,42 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Temporary analysis implementations for generated schema events.
-
-// TODO(johanpel): Generate this module from schema metadata. See
-// https://github.com/rapidsai/quent/issues/288.
-
-use crate::{HostMemoryEvent, QueryEvent, TaskEvent};
-
-use quent_analyzer::{
-    fsm::native::TransitionEvent,
-    resource::{AnalyzedUsage, CapacityValue},
-};
-use smallvec::{SmallVec, smallvec};
-
-impl TransitionEvent for QueryEvent {
-    fn sequence(&self) -> u16 {
-        match self {
-            Self::Init { seq, .. }
-            | Self::Planning { seq }
-            | Self::Executing { seq }
-            | Self::Done { seq } => *seq,
-        }
-    }
-
-    fn is_final(&self) -> bool {
-        matches!(self, Self::Done { .. })
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Init { .. } => "init",
-            Self::Planning { .. } => "planning",
-            Self::Executing { .. } => "executing",
-            Self::Done { .. } => "done",
-        }
-    }
-}
+use super::*;
 
 impl TransitionEvent for TaskEvent {
     fn sequence(&self) -> u16 {
@@ -146,29 +111,5 @@ impl TransitionEvent for TaskEvent {
                 bytes(use_network_channel.target, use_network_channel.data.bytes),
             ],
         }
-    }
-}
-
-impl TransitionEvent for HostMemoryEvent {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Initializing { .. } => "initializing",
-            Self::Operating { .. } => "operating",
-            Self::Finalizing { .. } => "finalizing",
-            Self::Exit { .. } => "exit",
-        }
-    }
-
-    fn sequence(&self) -> u16 {
-        match self {
-            Self::Initializing { seq, .. }
-            | Self::Operating { seq }
-            | Self::Finalizing { seq }
-            | Self::Exit { seq } => *seq,
-        }
-    }
-
-    fn is_final(&self) -> bool {
-        matches!(self, Self::Exit { .. })
     }
 }

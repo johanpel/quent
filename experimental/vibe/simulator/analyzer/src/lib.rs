@@ -304,7 +304,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             ports = qe.ports.len(),
             resources = model.resources().count(),
             resource_groups = model.task_executors.len() + model.networks.len() + model.gpus.len(),
-            resource_types = model.arbitrary_resources.resource_types.len(),
+            resource_types = model.resource_types.len(),
             resource_group_types = model.resource_group_types.len(),
             tasks = model.tasks.len(),
         );
@@ -378,15 +378,27 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .collect();
         let resource_types = self
             .model
-            .arbitrary_resources
             .resource_types
             .iter()
             .map(|(k, v)| (k.clone(), v.into()))
             .collect();
         let resource_groups = self
             .model
-            .arbitrary_resources
-            .resource_groups()
+            .task_executors
+            .values()
+            .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup)
+            .chain(
+                self.model
+                    .networks
+                    .values()
+                    .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup),
+            )
+            .chain(
+                self.model
+                    .gpus
+                    .values()
+                    .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup),
+            )
             .map(|res| (res.id(), res.into()))
             .collect();
         let resource_group_types = self

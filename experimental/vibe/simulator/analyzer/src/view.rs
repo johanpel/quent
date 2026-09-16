@@ -86,7 +86,7 @@ impl<'a> SimulatorModelQueryView<'a> {
                 let in_qe = query_engine_view
                     .resource_group(resource.parent_group_id())
                     .is_ok();
-                // Or an application entity used for legacy resource grouping.
+                // Or a simulator entity that groups resources.
                 let parent_id = resource.parent_group_id();
                 let in_sim = task_executors.contains_key(&parent_id)
                     || networks.contains_key(&parent_id)
@@ -97,7 +97,6 @@ impl<'a> SimulatorModelQueryView<'a> {
             .collect::<HashMap<_, _>>();
 
         let resource_types = model
-            .arbitrary_resources
             .resource_types
             .iter()
             .map(|(k, v)| (k.clone(), v))

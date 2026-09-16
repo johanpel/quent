@@ -122,43 +122,13 @@ fn entity_ref<E>(id: Uuid) -> instr::EntityRef<E> {
     instr::EntityRef::new(id, ())
 }
 
-// Resource handles live in emit() so teardown at the bottom can call
-// finalizing()/exit() on them. Bulky declaration phases are in helpers below.
 pub fn emit(ctx: &SimulatorContext) {
     let mut engine = ctx.observer::<instr::Engine>().handle_with_id(ENGINE);
     let mut worker_w0 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_0);
     let mut worker_w1 = ctx.observer::<instr::Worker>().handle_with_id(WORKER_1);
-    let mem_w0 = ctx
-        .observer::<instr::HostMemory>()
-        .handle_with_id(MEMORY_W0);
-    let mem_w1 = ctx
-        .observer::<instr::HostMemory>()
-        .handle_with_id(MEMORY_W1);
-    let mut executor_w0 = ctx
-        .observer::<instr::TaskExecutor>()
-        .handle_with_id(TASK_EXECUTOR_W0);
-    let mut executor_w1 = ctx
-        .observer::<instr::TaskExecutor>()
-        .handle_with_id(TASK_EXECUTOR_W1);
-    let th_w0_t0 = ctx
-        .observer::<instr::TaskExecutorThread>()
-        .handle_with_id(THREAD_W0_T0);
-    let th_w0_t1 = ctx
-        .observer::<instr::TaskExecutorThread>()
-        .handle_with_id(THREAD_W0_T1);
-    let th_w1_t0 = ctx
-        .observer::<instr::TaskExecutorThread>()
-        .handle_with_id(THREAD_W1_T0);
-    let th_w1_t1 = ctx
-        .observer::<instr::TaskExecutorThread>()
-        .handle_with_id(THREAD_W1_T1);
-    let mut network = ctx.observer::<instr::Network>().handle_with_id(NETWORK);
-    let channel = ctx
-        .observer::<instr::NetworkChannel>()
-        .handle_with_id(CHANNEL_W1_W0);
 
     // Init phase (0–1s).
-    // All declarations and resource init at 0; all resource operating at 500ms.
+    // All entity and resource declarations occur at 0.
     ts!(
         0,
         engine
@@ -184,60 +154,76 @@ pub fn emit(ctx: &SimulatorContext) {
             .init(entity_ref(ENGINE), "worker-1".into())
             .unwrap()
     );
-    let mem_w0 = ts!(
+    ts!(
         0,
-        mem_w0.initializing("memory".into(), entity_ref(WORKER_0))
-    );
-    let mem_w1 = ts!(
-        0,
-        mem_w1.initializing("memory".into(), entity_ref(WORKER_1))
+        ctx.observer::<instr::HostMemory>()
+            .handle_with_id(MEMORY_W0)
+            .declaration("memory".into(), entity_ref(WORKER_0))
+            .unwrap()
     );
     ts!(
         0,
-        executor_w0
+        ctx.observer::<instr::HostMemory>()
+            .handle_with_id(MEMORY_W1)
+            .declaration("memory".into(), entity_ref(WORKER_1))
+            .unwrap()
+    );
+    ts!(
+        0,
+        ctx.observer::<instr::TaskExecutor>()
+            .handle_with_id(TASK_EXECUTOR_W0)
             .declaration("task-executor".into(), entity_ref(WORKER_0))
             .unwrap()
     );
     ts!(
         0,
-        executor_w1
+        ctx.observer::<instr::TaskExecutor>()
+            .handle_with_id(TASK_EXECUTOR_W1)
             .declaration("task-executor".into(), entity_ref(WORKER_1))
             .unwrap()
     );
-    let th_w0_t0 = ts!(
+    ts!(
         0,
-        th_w0_t0.initializing("thread-0".into(), entity_ref(TASK_EXECUTOR_W0))
-    );
-    let th_w0_t1 = ts!(
-        0,
-        th_w0_t1.initializing("thread-1".into(), entity_ref(TASK_EXECUTOR_W0))
-    );
-    let th_w1_t0 = ts!(
-        0,
-        th_w1_t0.initializing("thread-0".into(), entity_ref(TASK_EXECUTOR_W1))
-    );
-    let th_w1_t1 = ts!(
-        0,
-        th_w1_t1.initializing("thread-1".into(), entity_ref(TASK_EXECUTOR_W1))
+        ctx.observer::<instr::TaskExecutorThread>()
+            .handle_with_id(THREAD_W0_T0)
+            .declaration("thread-0".into(), entity_ref(TASK_EXECUTOR_W0))
+            .unwrap()
     );
     ts!(
         0,
-        network
+        ctx.observer::<instr::TaskExecutorThread>()
+            .handle_with_id(THREAD_W0_T1)
+            .declaration("thread-1".into(), entity_ref(TASK_EXECUTOR_W0))
+            .unwrap()
+    );
+    ts!(
+        0,
+        ctx.observer::<instr::TaskExecutorThread>()
+            .handle_with_id(THREAD_W1_T0)
+            .declaration("thread-0".into(), entity_ref(TASK_EXECUTOR_W1))
+            .unwrap()
+    );
+    ts!(
+        0,
+        ctx.observer::<instr::TaskExecutorThread>()
+            .handle_with_id(THREAD_W1_T1)
+            .declaration("thread-1".into(), entity_ref(TASK_EXECUTOR_W1))
+            .unwrap()
+    );
+    ts!(
+        0,
+        ctx.observer::<instr::Network>()
+            .handle_with_id(NETWORK)
             .declaration("network".into(), entity_ref(ENGINE))
             .unwrap()
     );
-    let channel = ts!(
+    ts!(
         0,
-        channel.initializing("worker-1 → worker-0".into(), entity_ref(NETWORK),)
+        ctx.observer::<instr::NetworkChannel>()
+            .handle_with_id(CHANNEL_W1_W0)
+            .declaration("worker-1 → worker-0".into(), entity_ref(NETWORK))
+            .unwrap()
     );
-
-    let mem_w0 = ts!(500_000_000, mem_w0.operating());
-    let mem_w1 = ts!(500_000_000, mem_w1.operating());
-    let th_w0_t0 = ts!(500_000_000, th_w0_t0.operating());
-    let th_w0_t1 = ts!(500_000_000, th_w0_t1.operating());
-    let th_w1_t0 = ts!(500_000_000, th_w1_t0.operating());
-    let th_w1_t1 = ts!(500_000_000, th_w1_t1.operating());
-    let channel = ts!(500_000_000, channel.operating());
 
     // Query group declaration, just before the query starts.
     ts!(
@@ -269,25 +255,8 @@ pub fn emit(ctx: &SimulatorContext) {
     emit_operator_statistics(ctx);
     emit_port_statistics(ctx);
 
-    // Teardown: query done @ 6.3s; all resource finalizing @ 6.5s; all
-    // resource exit @ 6.7s; both worker exits @ 6.9s; engine exit @ 7s.
+    // Teardown: query done @ 6.3s; both worker exits @ 6.9s; engine exit @ 7s.
     ts!(6_300_000_000, drop(query.done()));
-
-    let channel = ts!(6_500_000_000, channel.finalizing());
-    let th_w1_t1 = ts!(6_500_000_000, th_w1_t1.finalizing());
-    let th_w1_t0 = ts!(6_500_000_000, th_w1_t0.finalizing());
-    let th_w0_t1 = ts!(6_500_000_000, th_w0_t1.finalizing());
-    let th_w0_t0 = ts!(6_500_000_000, th_w0_t0.finalizing());
-    let mem_w1 = ts!(6_500_000_000, mem_w1.finalizing());
-    let mem_w0 = ts!(6_500_000_000, mem_w0.finalizing());
-
-    ts!(6_700_000_000, drop(channel.exit()));
-    ts!(6_700_000_000, drop(th_w1_t1.exit()));
-    ts!(6_700_000_000, drop(th_w1_t0.exit()));
-    ts!(6_700_000_000, drop(th_w0_t1.exit()));
-    ts!(6_700_000_000, drop(th_w0_t0.exit()));
-    ts!(6_700_000_000, drop(mem_w1.exit()));
-    ts!(6_700_000_000, drop(mem_w0.exit()));
 
     ts!(6_900_000_000, worker_w1.exit().unwrap());
     ts!(6_900_000_000, worker_w0.exit().unwrap());
