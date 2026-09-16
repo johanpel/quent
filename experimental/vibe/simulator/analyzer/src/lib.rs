@@ -296,16 +296,23 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         let qe = &model.query_engine;
         tracing::info!(
-            workers = qe.workers.len(),
+            engines = 1,
             query_groups = qe.query_groups.len(),
-            queries = qe.queries.len(),
+            workers = qe.workers.len(),
             plans = qe.plans.len(),
             operators = qe.operators.len(),
             ports = qe.ports.len(),
-            resources = model.resources().count(),
-            resource_groups = model.task_executors.len() + model.networks.len() + model.gpus.len(),
-            resource_types = model.resource_types.len(),
-            resource_group_types = model.resource_group_types.len(),
+            task_executors = model.task_executors.len(),
+            networks = model.networks.len(),
+            gpus = model.gpus.len(),
+            host_memories = model.host_memories.len(),
+            storages = model.storages.len(),
+            gpu_memories = model.gpu_memories.len(),
+            task_executor_threads = model.task_executor_threads.len(),
+            storage_channels = model.storage_channels.len(),
+            pcie_channels = model.pcie_channels.len(),
+            network_channels = model.network_channels.len(),
+            queries = qe.queries.len(),
             tasks = model.tasks.len(),
         );
 
