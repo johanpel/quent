@@ -4,11 +4,13 @@
 //! Reusable in-memory query-engine model and semantic ingestion events.
 
 use quent_analyzer::{
-    Entity, AnalyzerError, AnalyzerResult, Model, Span,
+    AnalyzerError, AnalyzerResult, Entity, Model, ScopedEntity, Span,
     entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
-        native::{DynamicAttribute, AnalyzedFsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
+        native::{
+            AnalyzedFsm as NativeFsm, DynamicAttribute, FsmBuilder, Transition as NativeTransition,
+        },
     },
     resource::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
@@ -301,6 +303,12 @@ impl ResourceGroup for Engine {
     }
 }
 
+impl ScopedEntity for Engine {
+    fn scope_id(&self) -> Option<Uuid> {
+        None
+    }
+}
+
 impl EngineEntity for Engine {
     fn to_ui(&self) -> AnalyzerResult<ui::Engine> {
         let start = self.0.earliest_timestamp();
@@ -404,6 +412,12 @@ impl ResourceGroup for Worker {
     }
 }
 
+impl ScopedEntity for Worker {
+    fn scope_id(&self) -> Option<Uuid> {
+        self.0.accumulator().parent_engine_id
+    }
+}
+
 impl WorkerEntity for Worker {
     fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Worker {
         ui::Worker {
@@ -475,6 +489,12 @@ impl Entity for QueryGroup {
 
 impl ResourceGroup for QueryGroup {
     fn parent_group_id(&self) -> Option<Uuid> {
+        self.0.accumulator().engine_id
+    }
+}
+
+impl ScopedEntity for QueryGroup {
+    fn scope_id(&self) -> Option<Uuid> {
         self.0.accumulator().engine_id
     }
 }
@@ -594,6 +614,12 @@ impl ResourceGroup for Query {
     }
 }
 
+impl ScopedEntity for Query {
+    fn scope_id(&self) -> Option<Uuid> {
+        self.query_group_id()
+    }
+}
+
 #[derive(Default)]
 struct PlanAccumulator {
     instance_name: Option<String>,
@@ -668,6 +694,12 @@ impl ResourceGroup for Plan {
         data.worker_id
             .or(data.parent_plan_id)
             .or(data.parent_query_id)
+    }
+}
+
+impl ScopedEntity for Plan {
+    fn scope_id(&self) -> Option<Uuid> {
+        self.0.accumulator().parent_query_id
     }
 }
 
@@ -790,6 +822,12 @@ impl Entity for Operator {
 
 impl ResourceGroup for Operator {
     fn parent_group_id(&self) -> Option<Uuid> {
+        self.inner.accumulator().plan_id
+    }
+}
+
+impl ScopedEntity for Operator {
+    fn scope_id(&self) -> Option<Uuid> {
         self.inner.accumulator().plan_id
     }
 }
@@ -922,6 +960,12 @@ impl Entity for Port {
 
 impl ResourceGroup for Port {
     fn parent_group_id(&self) -> Option<Uuid> {
+        self.0.accumulator().operator_id
+    }
+}
+
+impl ScopedEntity for Port {
+    fn scope_id(&self) -> Option<Uuid> {
         self.0.accumulator().operator_id
     }
 }
@@ -1623,6 +1667,25 @@ mod tests {
         assert_eq!(model.plans().count(), 1);
         assert_eq!(model.operators().count(), 1);
         assert_eq!(model.ports().count(), 2);
+        assert_eq!(model.engine().unwrap().scope_id(), None);
+        assert_eq!(model.worker(worker_id).unwrap().scope_id(), Some(engine_id));
+        assert_eq!(
+            model.query_group(query_group_id).unwrap().scope_id(),
+            Some(engine_id)
+        );
+        assert_eq!(
+            model.query(query_id).unwrap().scope_id(),
+            Some(query_group_id)
+        );
+        assert_eq!(model.plan(plan_id).unwrap().scope_id(), Some(query_id));
+        assert_eq!(
+            model.operator(operator_id).unwrap().scope_id(),
+            Some(plan_id)
+        );
+        assert_eq!(
+            model.port(source_port_id).unwrap().scope_id(),
+            Some(operator_id)
+        );
         assert_eq!(
             model.plan(plan_id).unwrap().edges().collect::<Vec<_>>(),
             vec![(source_port_id, target_port_id)]
