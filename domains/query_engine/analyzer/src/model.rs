@@ -5,7 +5,10 @@
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, ScopedEntity, Span,
-    entity::native::{AnalyzedEntity, EntityEventAccumulator},
+    entity::{
+        collection::ScopeCollection,
+        native::{AnalyzedEntity, EntityEventAccumulator},
+    },
     fsm::{
         Fsm, FsmUsages,
         native::{
@@ -1101,6 +1104,54 @@ impl InMemoryQueryEngineModel {
     }
 }
 
+impl ScopeCollection for InMemoryQueryEngineModel {
+    fn scoped_entities(&self) -> impl Iterator<Item = &dyn ScopedEntity> {
+        std::iter::once(&self.engine as &dyn ScopedEntity)
+            .chain(
+                self.workers
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.query_groups
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.queries
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.plans
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.operators
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.ports
+                    .values()
+                    .map(|entity| entity as &dyn ScopedEntity),
+            )
+    }
+
+    fn scoped_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn ScopedEntity> {
+        match self.try_entity_ref(entity_id)? {
+            QueryEngineEntityId::Engine(_) => Ok(&self.engine),
+            QueryEngineEntityId::Worker(_) => Ok(self.workers.get(&entity_id).unwrap()),
+            QueryEngineEntityId::QueryGroup(_) => Ok(self.query_groups.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Query(_) => Ok(self.queries.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Plan(_) => Ok(self.plans.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Operator(_) => Ok(self.operators.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Port(_) => Ok(self.ports.get(&entity_id).unwrap()),
+        }
+    }
+}
+
 impl ResourceCollection for InMemoryQueryEngineModel {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         std::iter::empty()
@@ -1685,6 +1736,39 @@ mod tests {
         assert_eq!(
             model.port(source_port_id).unwrap().scope_id(),
             Some(operator_id)
+        );
+        assert_eq!(model.scoped_entities().count(), 8);
+        assert_eq!(
+            model
+                .scope_children(engine_id)
+                .map(Entity::id)
+                .collect::<std::collections::HashSet<_>>(),
+            std::collections::HashSet::from([worker_id, query_group_id])
+        );
+        assert_eq!(
+            model
+                .scope_children(query_id)
+                .map(Entity::id)
+                .collect::<Vec<_>>(),
+            [plan_id]
+        );
+        assert_eq!(
+            model
+                .scope_children(plan_id)
+                .map(Entity::id)
+                .collect::<Vec<_>>(),
+            [operator_id]
+        );
+        assert_eq!(
+            model
+                .scope_children(operator_id)
+                .map(Entity::id)
+                .collect::<std::collections::HashSet<_>>(),
+            std::collections::HashSet::from([source_port_id, target_port_id])
+        );
+        assert_eq!(
+            model.scoped_entity(target_port_id).unwrap().id(),
+            target_port_id
         );
         assert_eq!(
             model.plan(plan_id).unwrap().edges().collect::<Vec<_>>(),
