@@ -4,7 +4,7 @@
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model,
+    Entity, AnalyzerError, AnalyzerResult, Model,
     fsm::collection::FsmCollection,
     resource::{
         CapacityDecl, Resource, ResourceCapacities, ResourceGroup, ResourceGroupTypeDecl,
@@ -458,6 +458,7 @@ impl SimulatorModelBuilder {
             }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
+                    timestamp,
                     "task_executor",
                     &instance_name,
                     Some(worker_id.target),
@@ -470,6 +471,7 @@ impl SimulatorModelBuilder {
             }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
+                    timestamp,
                     "network",
                     &instance_name,
                     Some(engine_id.target),
@@ -482,6 +484,7 @@ impl SimulatorModelBuilder {
             }) => {
                 self.arbitrary_resources.push_group_raw(
                     id,
+                    timestamp,
                     "gpu",
                     &instance_name,
                     Some(worker_id.target),

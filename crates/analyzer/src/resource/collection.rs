@@ -5,8 +5,8 @@
 
 use std::collections::{HashSet, hash_map::Entry};
 
+use quent_time::TimeUnixNanoSec;
 use rustc_hash::FxHashMap as HashMap;
-
 use uuid::Uuid;
 
 use crate::{
@@ -177,6 +177,7 @@ impl InMemoryResourcesBuilder {
     pub fn push_group_raw(
         &mut self,
         id: Uuid,
+        timestamp: TimeUnixNanoSec,
         type_name: &str,
         instance_name: &str,
         parent_group_id: Option<Uuid>,
@@ -188,6 +189,8 @@ impl InMemoryResourcesBuilder {
                 type_name: type_name.to_owned(),
                 instance_name: instance_name.to_owned(),
                 parent_group_id,
+                earliest_timestamp: timestamp,
+                latest_timestamp: timestamp,
             },
         );
     }

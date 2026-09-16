@@ -13,7 +13,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult, Entity,
+    Entity, AnalyzerError, AnalyzerResult,
     fsm::{Fsm, FsmStateRef, FsmUsages, Transition, collection::InMemoryFsms},
     resource::{CapacityValue, Usage, Using},
 };
@@ -182,6 +182,11 @@ impl RtFsm {
     pub fn transitions(&self) -> &[RtFsmTransition] {
         &self.transitions
     }
+
+    /// Returns the application-defined instance name.
+    pub fn instance_name(&self) -> &str {
+        &self.instance_name
+    }
 }
 
 #[cfg(test)]
@@ -208,8 +213,18 @@ impl Entity for RtFsm {
         self.type_name.as_str()
     }
 
-    fn instance_name(&self) -> &str {
-        self.instance_name.as_str()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .first()
+            .expect("analyzed FSM must contain transitions")
+            .timestamp()
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .last()
+            .expect("analyzed FSM must contain transitions")
+            .timestamp()
     }
 }
 

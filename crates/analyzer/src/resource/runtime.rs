@@ -7,7 +7,7 @@ use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult, Entity,
+    Entity, AnalyzerError, AnalyzerResult,
     fsm::{Fsm, Transition},
     resource::{Resource, ResourceCapacities, ResourceGroup},
 };
@@ -158,8 +158,23 @@ impl Entity for RtResource {
     fn type_name(&self) -> &str {
         self.type_name.as_str()
     }
-    fn instance_name(&self) -> &str {
-        self.instance_name.as_str()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .first()
+            .expect("analyzed resource must contain transitions")
+            .timestamp()
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.transitions
+            .last()
+            .expect("analyzed resource must contain transitions")
+            .timestamp()
+    }
+    fn attributes(&self) -> Vec<quent_dynamic_attributes::DynamicAttribute> {
+        vec![quent_dynamic_attributes::DynamicAttribute::string(
+            "instance_name",
+            self.instance_name.clone(),
+        )]
     }
 }
 
@@ -193,6 +208,10 @@ pub struct RtResourceGroup {
     /// If this is None, it is considered the root of the global application's
     /// resource tree.
     pub parent_group_id: Option<Uuid>,
+    /// Earliest observed event timestamp.
+    pub earliest_timestamp: TimeUnixNanoSec,
+    /// Latest observed event timestamp.
+    pub latest_timestamp: TimeUnixNanoSec,
 }
 
 impl RtResourceGroup {
@@ -201,6 +220,7 @@ impl RtResourceGroup {
         type_name: String,
         instance_name: String,
         parent_group_id: Option<Uuid>,
+        timestamp: TimeUnixNanoSec,
     ) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::InvalidId(id))
@@ -210,6 +230,8 @@ impl RtResourceGroup {
                 type_name,
                 instance_name,
                 parent_group_id,
+                earliest_timestamp: timestamp,
+                latest_timestamp: timestamp,
             })
         }
     }
@@ -222,8 +244,17 @@ impl Entity for RtResourceGroup {
     fn type_name(&self) -> &str {
         self.type_name.as_str()
     }
-    fn instance_name(&self) -> &str {
-        self.instance_name.as_str()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.earliest_timestamp
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.latest_timestamp
+    }
+    fn attributes(&self) -> Vec<quent_dynamic_attributes::DynamicAttribute> {
+        vec![quent_dynamic_attributes::DynamicAttribute::string(
+            "instance_name",
+            self.instance_name.clone(),
+        )]
     }
 }
 

@@ -10,10 +10,10 @@ use serde::Serialize;
 #[cfg(feature = "ts")]
 use ts_rs::TS;
 
-use crate::{AnalyzerResult, Entity, Span, error::AnalyzerError, resource::Usage};
+use crate::{Entity, AnalyzerResult, Span, error::AnalyzerError, resource::Usage};
 
 pub mod collection;
-pub mod events;
+pub mod native;
 pub mod runtime;
 
 /// Trait for types that represent an [`Fsm`] `State` transition.

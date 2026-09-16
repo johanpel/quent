@@ -4,11 +4,11 @@
 //! Task FSM analysis types.
 
 use quent_analyzer::{
-    AnalyzerResult, Entity,
+    Entity, AnalyzerResult,
     fsm::{
         Fsm, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration, FsmUsages,
         Transition,
-        events::{AnalyzedTransition, FsmEvents, FsmEventsBuilder},
+        native::{Fsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
     },
     resource::{Usage, Using},
 };
@@ -65,14 +65,14 @@ fn declaration() -> FsmTypeDecl {
 
 /// The reconstructed Task FSM.
 #[derive(Debug)]
-pub struct Task(FsmEvents<schema::TaskEvent>);
+pub struct Task(NativeFsm<schema::TaskEvent>);
 
 impl Task {
     pub(crate) fn from_builder(builder: TaskBuilder) -> AnalyzerResult<Self> {
         Ok(Self(builder.try_build()?))
     }
 
-    pub fn transitions(&self) -> &[AnalyzedTransition<schema::TaskEvent>] {
+    pub fn transitions(&self) -> &[NativeTransition<schema::TaskEvent>] {
         self.0.transitions()
     }
 
@@ -82,7 +82,7 @@ impl Task {
 }
 
 /// Builder for Task FSMs.
-pub type TaskBuilder = FsmEventsBuilder<schema::TaskEvent>;
+pub type TaskBuilder = FsmBuilder<schema::TaskEvent>;
 
 impl Entity for Task {
     fn id(&self) -> Uuid {
@@ -93,13 +93,17 @@ impl Entity for Task {
         "task"
     }
 
-    fn instance_name(&self) -> &str {
-        self.0.instance_name()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0.earliest_timestamp()
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0.latest_timestamp()
     }
 }
 
 impl Fsm for Task {
-    type TransitionType = AnalyzedTransition<schema::TaskEvent>;
+    type TransitionType = NativeTransition<schema::TaskEvent>;
 
     fn len(&self) -> usize {
         self.0.len()
@@ -192,7 +196,15 @@ impl TaskExt for Task {
         Ok(FiniteStateMachine {
             id: self.id(),
             type_name: self.type_name().to_string(),
-            instance_name: self.instance_name().to_string(),
+            instance_name: self
+                .first_data()
+                .and_then(|event| match event {
+                    schema::TaskEvent::Queueing { instance_name, .. } => {
+                        Some(instance_name.clone())
+                    }
+                    _ => None,
+                })
+                .unwrap_or_default(),
             transitions,
         })
     }

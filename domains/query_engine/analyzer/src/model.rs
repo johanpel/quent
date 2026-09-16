@@ -4,11 +4,11 @@
 //! Reusable in-memory query-engine model and semantic ingestion events.
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
-    entity::{EntityData, EntityEvents},
+    Entity, AnalyzerError, AnalyzerResult, Model, Span,
+    entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
-        events::{AnalyzedTransition, FsmEvents, FsmEventsBuilder},
+        native::{DynamicAttribute, Fsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
     },
     resource::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
@@ -115,7 +115,7 @@ impl EntityEvent for QueryEvent {
     const NAME: &'static str = "Query";
 }
 
-impl quent_analyzer::fsm::events::AnalyzableTransition for QueryEvent {
+impl quent_analyzer::fsm::native::TransitionEvent for QueryEvent {
     fn entity_type_name() -> &'static str {
         "query"
     }
@@ -142,10 +142,13 @@ impl quent_analyzer::fsm::events::AnalyzableTransition for QueryEvent {
         }
     }
 
-    fn instance_name(&self) -> Option<String> {
+    fn dynamic_attributes(&self) -> Vec<DynamicAttribute> {
         match self {
-            Self::Init { instance_name, .. } => Some(instance_name.clone()),
-            _ => None,
+            Self::Init { instance_name, .. } => vec![DynamicAttribute::string(
+                "instance_name",
+                instance_name.clone(),
+            )],
+            _ => Vec::new(),
         }
     }
 }
@@ -212,33 +215,31 @@ impl EntityEvent for PortEvent {
     const NAME: &'static str = "Port";
 }
 
-/// An engine accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct Engine(EntityEvents<EngineStorage>);
-
-struct EngineStorage;
+fn instance_name_attribute(instance_name: Option<&str>) -> Vec<DynamicAttribute> {
+    instance_name
+        .map(|name| vec![DynamicAttribute::string("instance_name", name)])
+        .unwrap_or_default()
+}
 
 #[derive(Default)]
-struct EngineData {
+struct EngineAccumulator {
     instance_name: Option<String>,
     implementation: Option<ui::EngineImplementationAttributes>,
 }
 
-impl quent_events::Entity for EngineStorage {
+impl quent_events::Entity for EngineAccumulator {
     type Event = EngineEvent;
 }
 
-impl EntityData for EngineStorage {
-    type Data = EngineData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for EngineAccumulator {
+    fn push(&mut self, event: Self::Event) {
         if let EngineEvent::Init {
             implementation,
             instance_name,
         } = event
         {
-            data.instance_name = instance_name;
-            data.implementation = Some(ui::EngineImplementationAttributes {
+            self.instance_name = instance_name;
+            self.implementation = Some(ui::EngineImplementationAttributes {
                 name: implementation.name,
                 version: implementation.version,
                 custom_attributes: implementation.custom_attributes.0,
@@ -247,13 +248,17 @@ impl EntityData for EngineStorage {
     }
 }
 
+/// An engine accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct Engine(Entity<EngineAccumulator>);
+
 impl Engine {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(EntityEvents::new(id)?))
+        Ok(Self(Entity::new(id)?))
     }
 
-    fn push(&mut self, event: Event<EngineEvent>) {
-        self.0.push(event);
+    fn push(&mut self, event: Event<EngineEvent>) -> AnalyzerResult<()> {
+        self.0.push(event)
     }
 }
 
@@ -264,8 +269,18 @@ impl Entity for Engine {
     fn type_name(&self) -> &str {
         "engine"
     }
-    fn instance_name(&self) -> &str {
-        self.0.data().instance_name.as_deref().unwrap_or_default()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .earliest_timestamp()
+            .expect("analyzed engine must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .latest_timestamp()
+            .expect("analyzed engine must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.0.accumulator().instance_name.as_deref())
     }
 }
 
@@ -298,56 +313,55 @@ impl EngineEntity for Engine {
             id: self.0.id(),
             start_time_unix_ns: start,
             duration_s,
-            instance_name: self.0.data().instance_name.clone(),
-            implementation: self.0.data().implementation.as_ref().map(|implementation| {
-                ui::EngineImplementationAttributes {
+            instance_name: self.0.accumulator().instance_name.clone(),
+            implementation: self
+                .0
+                .accumulator()
+                .implementation
+                .as_ref()
+                .map(|implementation| ui::EngineImplementationAttributes {
                     name: implementation.name.clone(),
                     version: implementation.version.clone(),
                     custom_attributes: implementation.custom_attributes.clone(),
-                }
-            }),
+                }),
         })
     }
 }
 
-/// A worker accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct Worker(EntityEvents<WorkerStorage>);
-
-struct WorkerStorage;
-
 #[derive(Default)]
-struct WorkerData {
+struct WorkerAccumulator {
     parent_engine_id: Option<Uuid>,
     instance_name: Option<String>,
 }
 
-impl quent_events::Entity for WorkerStorage {
+impl quent_events::Entity for WorkerAccumulator {
     type Event = WorkerEvent;
 }
 
-impl EntityData for WorkerStorage {
-    type Data = WorkerData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for WorkerAccumulator {
+    fn push(&mut self, event: Self::Event) {
         if let WorkerEvent::Init {
             parent_engine_id,
             instance_name,
         } = event
         {
-            data.parent_engine_id = Some(parent_engine_id);
-            data.instance_name = Some(instance_name);
+            self.parent_engine_id = Some(parent_engine_id);
+            self.instance_name = Some(instance_name);
         }
     }
 }
 
+/// A worker accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct Worker(Entity<WorkerAccumulator>);
+
 impl Worker {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(EntityEvents::new(id)?))
+        Ok(Self(Entity::new(id)?))
     }
 
-    fn push(&mut self, event: Event<WorkerEvent>) {
-        self.0.push(event);
+    fn push(&mut self, event: Event<WorkerEvent>) -> AnalyzerResult<()> {
+        self.0.push(event)
     }
 }
 
@@ -358,8 +372,18 @@ impl Entity for Worker {
     fn type_name(&self) -> &str {
         "worker"
     }
-    fn instance_name(&self) -> &str {
-        self.0.data().instance_name.as_deref().unwrap_or_default()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .earliest_timestamp()
+            .expect("analyzed worker must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .latest_timestamp()
+            .expect("analyzed worker must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.0.accumulator().instance_name.as_deref())
     }
 }
 
@@ -376,7 +400,7 @@ impl Span for Worker {
 
 impl ResourceGroup for Worker {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.0.data().parent_engine_id
+        self.0.accumulator().parent_engine_id
     }
 }
 
@@ -384,50 +408,46 @@ impl WorkerEntity for Worker {
     fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Worker {
         ui::Worker {
             id: self.0.id(),
-            parent_engine_id: self.0.data().parent_engine_id,
-            instance_name: self.0.data().instance_name.clone(),
+            parent_engine_id: self.0.accumulator().parent_engine_id,
+            instance_name: self.0.accumulator().instance_name.clone(),
             start_unix_ns: self.0.earliest_timestamp(),
             end_unix_ns: self.0.latest_timestamp(),
         }
     }
 }
 
-/// A query group accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct QueryGroup(EntityEvents<QueryGroupStorage>);
-
-struct QueryGroupStorage;
-
 #[derive(Default)]
-struct QueryGroupData {
+struct QueryGroupAccumulator {
     engine_id: Option<Uuid>,
     instance_name: Option<String>,
 }
 
-impl quent_events::Entity for QueryGroupStorage {
+impl quent_events::Entity for QueryGroupAccumulator {
     type Event = QueryGroupEvent;
 }
 
-impl EntityData for QueryGroupStorage {
-    type Data = QueryGroupData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for QueryGroupAccumulator {
+    fn push(&mut self, event: Self::Event) {
         let QueryGroupEvent {
             instance_name,
             engine_id,
         } = event;
-        data.instance_name = Some(instance_name);
-        data.engine_id = Some(engine_id);
+        self.instance_name = Some(instance_name);
+        self.engine_id = Some(engine_id);
     }
 }
 
+/// A query group accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct QueryGroup(Entity<QueryGroupAccumulator>);
+
 impl QueryGroup {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(EntityEvents::new(id)?))
+        Ok(Self(Entity::new(id)?))
     }
 
-    fn push(&mut self, event: Event<QueryGroupEvent>) {
-        self.0.push(event);
+    fn push(&mut self, event: Event<QueryGroupEvent>) -> AnalyzerResult<()> {
+        self.0.push(event)
     }
 }
 
@@ -438,14 +458,24 @@ impl Entity for QueryGroup {
     fn type_name(&self) -> &str {
         "query group"
     }
-    fn instance_name(&self) -> &str {
-        self.0.data().instance_name.as_deref().unwrap_or_default()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .earliest_timestamp()
+            .expect("analyzed query group must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .latest_timestamp()
+            .expect("analyzed query group must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.0.accumulator().instance_name.as_deref())
     }
 }
 
 impl ResourceGroup for QueryGroup {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.0.data().engine_id
+        self.0.accumulator().engine_id
     }
 }
 
@@ -453,17 +483,17 @@ impl QueryGroupEntity for QueryGroup {
     fn to_ui(&self) -> ui::QueryGroup {
         ui::QueryGroup {
             id: self.0.id(),
-            instance_name: self.0.data().instance_name.clone(),
-            engine_id: self.0.data().engine_id,
+            instance_name: self.0.accumulator().instance_name.clone(),
+            engine_id: self.0.accumulator().engine_id,
         }
     }
 }
 
-pub type QueryBuilder = FsmEventsBuilder<QueryEvent>;
+pub type QueryBuilder = FsmBuilder<QueryEvent>;
 
 /// A query reconstructed from normalized state transitions.
 #[derive(Debug)]
-pub struct Query(FsmEvents<QueryEvent>);
+pub struct Query(NativeFsm<QueryEvent>);
 
 impl Query {
     fn from_builder(builder: QueryBuilder) -> AnalyzerResult<Self> {
@@ -506,7 +536,10 @@ impl QueryEntity for Query {
         Ok(ui::Query {
             id: self.id(),
             query_group_id: self.query_group_id().unwrap_or_default(),
-            instance_name: Some(self.instance_name().to_owned()).filter(|name| !name.is_empty()),
+            instance_name: self.0.first_data().and_then(|event| match event {
+                QueryEvent::Init { instance_name, .. } => Some(instance_name.clone()),
+                _ => None,
+            }),
             start_unix_ns: epoch,
             planning_s,
             executing_s,
@@ -522,13 +555,19 @@ impl Entity for Query {
     fn type_name(&self) -> &str {
         self.0.type_name()
     }
-    fn instance_name(&self) -> &str {
-        self.0.instance_name()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0.earliest_timestamp()
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0.latest_timestamp()
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        self.0.attributes()
     }
 }
 
 impl Fsm for Query {
-    type TransitionType = AnalyzedTransition<QueryEvent>;
+    type TransitionType = NativeTransition<QueryEvent>;
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -555,14 +594,8 @@ impl ResourceGroup for Query {
     }
 }
 
-/// A plan accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct Plan(EntityEvents<PlanStorage>);
-
-struct PlanStorage;
-
 #[derive(Default)]
-struct PlanData {
+struct PlanAccumulator {
     instance_name: Option<String>,
     parent_query_id: Option<Uuid>,
     parent_plan_id: Option<Uuid>,
@@ -570,38 +603,40 @@ struct PlanData {
     edges: Vec<(Uuid, Uuid)>,
 }
 
-impl quent_events::Entity for PlanStorage {
+impl quent_events::Entity for PlanAccumulator {
     type Event = PlanEvent;
 }
 
-impl EntityData for PlanStorage {
-    type Data = PlanData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for PlanAccumulator {
+    fn push(&mut self, event: Self::Event) {
         let PlanEvent {
             parent,
             instance_name,
             edges,
             worker_id,
         } = event;
-        data.instance_name = Some(instance_name);
-        data.parent_query_id = Some(parent.query_id);
-        data.parent_plan_id = parent.plan_id;
-        data.worker_id = worker_id;
-        data.edges = edges
+        self.instance_name = Some(instance_name);
+        self.parent_query_id = Some(parent.query_id);
+        self.parent_plan_id = parent.plan_id;
+        self.worker_id = worker_id;
+        self.edges = edges
             .into_iter()
             .map(|edge| (edge.source, edge.target))
             .collect();
     }
 }
 
+/// A plan accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct Plan(Entity<PlanAccumulator>);
+
 impl Plan {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(EntityEvents::new(id)?))
+        Ok(Self(Entity::new(id)?))
     }
 
-    fn push(&mut self, event: Event<PlanEvent>) {
-        self.0.push(event);
+    fn push(&mut self, event: Event<PlanEvent>) -> AnalyzerResult<()> {
+        self.0.push(event)
     }
 }
 
@@ -612,14 +647,24 @@ impl Entity for Plan {
     fn type_name(&self) -> &str {
         "plan"
     }
-    fn instance_name(&self) -> &str {
-        self.0.data().instance_name.as_deref().unwrap_or_default()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .earliest_timestamp()
+            .expect("analyzed plan must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .latest_timestamp()
+            .expect("analyzed plan must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.0.accumulator().instance_name.as_deref())
     }
 }
 
 impl ResourceGroup for Plan {
     fn parent_group_id(&self) -> Option<Uuid> {
-        let data = self.0.data();
+        let data = self.0.accumulator();
         data.worker_id
             .or(data.parent_plan_id)
             .or(data.parent_query_id)
@@ -628,34 +673,34 @@ impl ResourceGroup for Plan {
 
 impl PlanEntity for Plan {
     fn parent_query_id(&self) -> Option<Uuid> {
-        let data = self.0.data();
+        let data = self.0.accumulator();
         data.parent_plan_id
             .is_none()
             .then_some(data.parent_query_id)
             .flatten()
     }
     fn parent_plan_id(&self) -> Option<Uuid> {
-        self.0.data().parent_plan_id
+        self.0.accumulator().parent_plan_id
     }
     fn worker_id(&self) -> Option<Uuid> {
-        self.0.data().worker_id
+        self.0.accumulator().worker_id
     }
     fn edges(&self) -> impl Iterator<Item = (Uuid, Uuid)> + '_ {
-        self.0.data().edges.iter().copied()
+        self.0.accumulator().edges.iter().copied()
     }
     fn to_ui(&self) -> ui::Plan {
         ui::Plan {
             id: self.0.id(),
-            instance_name: self.0.data().instance_name.clone(),
+            instance_name: self.0.accumulator().instance_name.clone(),
             parent: self
                 .0
-                .data()
+                .accumulator()
                 .parent_plan_id
-                .or(self.0.data().parent_query_id),
-            worker_id: self.0.data().worker_id,
+                .or(self.0.accumulator().parent_query_id),
+            worker_id: self.0.accumulator().worker_id,
             edges: self
                 .0
-                .data()
+                .accumulator()
                 .edges
                 .iter()
                 .map(|&(source, target)| ui::Edge { source, target })
@@ -664,17 +709,8 @@ impl PlanEntity for Plan {
     }
 }
 
-/// An operator accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct Operator {
-    inner: EntityEvents<OperatorStorage>,
-    active_span: Option<SpanUnixNanoSec>,
-}
-
-struct OperatorStorage;
-
 #[derive(Default)]
-struct OperatorData {
+struct OperatorAccumulator {
     plan_id: Option<Uuid>,
     parent_operator_ids: Vec<Uuid>,
     instance_name: Option<String>,
@@ -683,14 +719,12 @@ struct OperatorData {
     statistics: Option<DynamicAttributes>,
 }
 
-impl quent_events::Entity for OperatorStorage {
+impl quent_events::Entity for OperatorAccumulator {
     type Event = OperatorEvent;
 }
 
-impl EntityData for OperatorStorage {
-    type Data = OperatorData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for OperatorAccumulator {
+    fn push(&mut self, event: Self::Event) {
         match event {
             OperatorEvent::Declaration {
                 plan_id,
@@ -699,29 +733,36 @@ impl EntityData for OperatorStorage {
                 type_name,
                 custom_attributes,
             } => {
-                data.plan_id = Some(plan_id);
-                data.parent_operator_ids = parent_operator_ids;
-                data.instance_name = Some(instance_name);
-                data.operator_type_name = Some(type_name);
-                data.custom_attributes = custom_attributes;
+                self.plan_id = Some(plan_id);
+                self.parent_operator_ids = parent_operator_ids;
+                self.instance_name = Some(instance_name);
+                self.operator_type_name = Some(type_name);
+                self.custom_attributes = custom_attributes;
             }
             OperatorEvent::Statistics { custom_attributes } => {
-                data.statistics = Some(custom_attributes);
+                self.statistics = Some(custom_attributes);
             }
         }
     }
 }
 
+/// An operator accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct Operator {
+    inner: Entity<OperatorAccumulator>,
+    active_span: Option<SpanUnixNanoSec>,
+}
+
 impl Operator {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         Ok(Self {
-            inner: EntityEvents::new(id)?,
+            inner: Entity::new(id)?,
             active_span: None,
         })
     }
 
-    fn push(&mut self, event: Event<OperatorEvent>) {
-        self.inner.push(event);
+    fn push(&mut self, event: Event<OperatorEvent>) -> AnalyzerResult<()> {
+        self.inner.push(event)
     }
 }
 
@@ -732,50 +773,60 @@ impl Entity for Operator {
     fn type_name(&self) -> &str {
         "operator"
     }
-    fn instance_name(&self) -> &str {
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
         self.inner
-            .data()
-            .instance_name
-            .as_deref()
-            .unwrap_or_default()
+            .earliest_timestamp()
+            .expect("analyzed operator must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.inner
+            .latest_timestamp()
+            .expect("analyzed operator must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.inner.accumulator().instance_name.as_deref())
     }
 }
 
 impl ResourceGroup for Operator {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.inner.data().plan_id
+        self.inner.accumulator().plan_id
     }
 }
 
 impl OperatorEntity for Operator {
     fn plan_id(&self) -> Option<Uuid> {
-        self.inner.data().plan_id
+        self.inner.accumulator().plan_id
     }
     fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_ {
-        self.inner.data().parent_operator_ids.iter().copied()
+        self.inner.accumulator().parent_operator_ids.iter().copied()
     }
     fn active_span(&self) -> Option<SpanUnixNanoSec> {
         self.active_span
     }
     fn operator_type_name(&self) -> Option<&str> {
-        self.inner.data().operator_type_name.as_deref()
+        self.inner.accumulator().operator_type_name.as_deref()
     }
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> ui::Operator {
         ui::Operator {
             id: self.inner.id(),
-            plan_id: self.inner.data().plan_id,
-            parent_operator_ids: self.inner.data().parent_operator_ids.clone(),
-            instance_name: self.inner.data().instance_name.clone(),
-            operator_type_name: self.inner.data().operator_type_name.clone(),
+            plan_id: self.inner.accumulator().plan_id,
+            parent_operator_ids: self.inner.accumulator().parent_operator_ids.clone(),
+            instance_name: self.inner.accumulator().instance_name.clone(),
+            operator_type_name: self.inner.accumulator().operator_type_name.clone(),
             custom_attributes: self
                 .inner
-                .data()
+                .accumulator()
                 .custom_attributes
                 .iter()
                 .map(|attribute| (attribute.key.clone(), attribute.value.clone()))
                 .collect(),
-            statistics: self.inner.data().statistics.as_ref().map(|statistics| {
-                ui::OperatorStatistics {
+            statistics: self
+                .inner
+                .accumulator()
+                .statistics
+                .as_ref()
+                .map(|statistics| ui::OperatorStatistics {
                     custom_statistics: statistics
                         .iter()
                         .map(|attribute| {
@@ -788,8 +839,7 @@ impl OperatorEntity for Operator {
                             )
                         })
                         .collect(),
-                }
-            }),
+                }),
             active_span: self
                 .active_span
                 .and_then(|span| span.try_to_secs_relative(epoch).ok()),
@@ -806,49 +856,45 @@ impl OperatorEntityMut for Operator {
     }
 }
 
-/// A port accumulated from normalized query-engine events.
-#[derive(Debug)]
-pub struct Port(EntityEvents<PortStorage>);
-
-struct PortStorage;
-
 #[derive(Default)]
-struct PortData {
+struct PortAccumulator {
     operator_id: Option<Uuid>,
     instance_name: Option<String>,
     statistics: Option<DynamicAttributes>,
 }
 
-impl quent_events::Entity for PortStorage {
+impl quent_events::Entity for PortAccumulator {
     type Event = PortEvent;
 }
 
-impl EntityData for PortStorage {
-    type Data = PortData;
-
-    fn push(data: &mut Self::Data, event: Self::Event) {
+impl EntityEventAccumulator for PortAccumulator {
+    fn push(&mut self, event: Self::Event) {
         match event {
             PortEvent::Declaration {
                 operator_id,
                 instance_name,
             } => {
-                data.operator_id = Some(operator_id);
-                data.instance_name = Some(instance_name);
+                self.operator_id = Some(operator_id);
+                self.instance_name = Some(instance_name);
             }
             PortEvent::Statistics { custom_attributes } => {
-                data.statistics = Some(custom_attributes);
+                self.statistics = Some(custom_attributes);
             }
         }
     }
 }
 
+/// A port accumulated from normalized query-engine events.
+#[derive(Debug)]
+pub struct Port(Entity<PortAccumulator>);
+
 impl Port {
     fn try_new(id: Uuid) -> AnalyzerResult<Self> {
-        Ok(Self(EntityEvents::new(id)?))
+        Ok(Self(Entity::new(id)?))
     }
 
-    fn push(&mut self, event: Event<PortEvent>) {
-        self.0.push(event);
+    fn push(&mut self, event: Event<PortEvent>) -> AnalyzerResult<()> {
+        self.0.push(event)
     }
 }
 
@@ -859,37 +905,44 @@ impl Entity for Port {
     fn type_name(&self) -> &str {
         "port"
     }
-    fn instance_name(&self) -> &str {
-        self.0.data().instance_name.as_deref().unwrap_or_default()
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .earliest_timestamp()
+            .expect("analyzed port must contain at least one event")
+    }
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.0
+            .latest_timestamp()
+            .expect("analyzed port must contain at least one event")
+    }
+    fn attributes(&self) -> Vec<DynamicAttribute> {
+        instance_name_attribute(self.0.accumulator().instance_name.as_deref())
     }
 }
 
 impl ResourceGroup for Port {
     fn parent_group_id(&self) -> Option<Uuid> {
-        self.0.data().operator_id
+        self.0.accumulator().operator_id
     }
 }
 
 impl PortEntity for Port {
     fn operator_id(&self) -> Option<Uuid> {
-        self.0.data().operator_id
+        self.0.accumulator().operator_id
     }
     fn to_ui(&self, _epoch: TimeUnixNanoSec) -> ui::Port {
         ui::Port {
             id: self.0.id(),
-            operator_id: self.0.data().operator_id,
-            instance_name: self.0.data().instance_name.clone(),
-            statistics: self
-                .0
-                .data()
-                .statistics
-                .as_ref()
-                .map(|statistics| ui::PortStatistics {
+            operator_id: self.0.accumulator().operator_id,
+            instance_name: self.0.accumulator().instance_name.clone(),
+            statistics: self.0.accumulator().statistics.as_ref().map(|statistics| {
+                ui::PortStatistics {
                     custom_statistics: statistics
                         .iter()
                         .map(|attribute| (attribute.key.clone(), attribute.value.clone()))
                         .collect(),
-                }),
+                }
+            }),
         }
     }
 }
@@ -1111,8 +1164,7 @@ impl InMemoryQueryEngineModelBuilder {
                 event.id
             )));
         }
-        self.engine.push(event);
-        Ok(())
+        self.engine.push(event)
     }
 
     pub fn push_worker(&mut self, event: Event<WorkerEvent>) -> AnalyzerResult<()> {
@@ -1122,8 +1174,7 @@ impl InMemoryQueryEngineModelBuilder {
                 entry.insert(Worker::try_new(event.id)?)
             }
         };
-        worker.push(event);
-        Ok(())
+        worker.push(event)
     }
 
     pub fn push_query_group(&mut self, event: Event<QueryGroupEvent>) -> AnalyzerResult<()> {
@@ -1133,8 +1184,7 @@ impl InMemoryQueryEngineModelBuilder {
                 entry.insert(QueryGroup::try_new(event.id)?)
             }
         };
-        group.push(event);
-        Ok(())
+        group.push(event)
     }
 
     pub fn push_query(&mut self, event: Event<QueryEvent>) -> AnalyzerResult<()> {
@@ -1155,8 +1205,7 @@ impl InMemoryQueryEngineModelBuilder {
                 entry.insert(Plan::try_new(event.id)?)
             }
         };
-        plan.push(event);
-        Ok(())
+        plan.push(event)
     }
 
     pub fn push_operator(&mut self, event: Event<OperatorEvent>) -> AnalyzerResult<()> {
@@ -1166,8 +1215,7 @@ impl InMemoryQueryEngineModelBuilder {
                 entry.insert(Operator::try_new(event.id)?)
             }
         };
-        operator.push(event);
-        Ok(())
+        operator.push(event)
     }
 
     pub fn push_port(&mut self, event: Event<PortEvent>) -> AnalyzerResult<()> {
@@ -1177,8 +1225,7 @@ impl InMemoryQueryEngineModelBuilder {
                 entry.insert(Port::try_new(event.id)?)
             }
         };
-        port.push(event);
-        Ok(())
+        port.push(event)
     }
 
     /// Ingests one normalized query-engine event.
@@ -1213,6 +1260,12 @@ impl InMemoryQueryEngineModelBuilder {
     }
 
     pub fn try_build(self) -> AnalyzerResult<InMemoryQueryEngineModel> {
+        if self.engine.0.earliest_timestamp().is_none() {
+            return Err(AnalyzerError::IncompleteEntity(format!(
+                "engine {} has no events",
+                self.engine.id()
+            )));
+        }
         let queries = self
             .queries
             .into_iter()
@@ -1440,6 +1493,17 @@ mod tests {
     }
 
     #[test]
+    fn rejects_model_without_engine_events() {
+        let engine_id = Uuid::from_u128(1);
+        assert!(matches!(
+            InMemoryQueryEngineModelBuilder::try_new(engine_id)
+                .unwrap()
+                .try_build(),
+            Err(AnalyzerError::IncompleteEntity(_))
+        ));
+    }
+
+    #[test]
     fn builds_reusable_query_engine_model_from_normalized_events() {
         let engine_id = Uuid::from_u128(1);
         let worker_id = Uuid::from_u128(2);
@@ -1565,7 +1629,15 @@ mod tests {
         );
 
         let view = model.query_view(query_id).unwrap();
-        assert_eq!(view.query(query_id).unwrap().instance_name(), "query");
+        assert_eq!(
+            view.query(query_id)
+                .unwrap()
+                .to_ui()
+                .unwrap()
+                .instance_name
+                .as_deref(),
+            Some("query")
+        );
         assert_eq!(view.workers().count(), 1);
         assert_eq!(view.operators().count(), 1);
     }

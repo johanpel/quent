@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model,
+    Entity, AnalyzerError, AnalyzerResult, Model,
     resource::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using,
         collection::ResourceCollection,

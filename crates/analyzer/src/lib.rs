@@ -3,11 +3,11 @@
 
 //! Telemetry analysis functionality based on modeling primitives.
 
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
-use uuid::Uuid;
-
 pub use crate::error::AnalyzerError;
 use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
+pub use entity::Entity;
+use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use uuid::Uuid;
 
 pub mod context;
 pub mod entity;
@@ -17,16 +17,6 @@ pub mod resource;
 pub mod timeline;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;
-
-/// Trait for entities.
-pub trait Entity {
-    /// Return the universally unique identifier of this entity.
-    fn id(&self) -> Uuid;
-    /// The type name of this entity.
-    fn type_name(&self) -> &str;
-    /// The instance name of this entity.
-    fn instance_name(&self) -> &str;
-}
 
 /// Trait for entities associated with a single moment in time.
 pub trait Instant: Entity {
@@ -59,7 +49,7 @@ pub trait Model: ResourceCollection {
     /// Type-safety wrapper around an entity ID.
     type EntityIdType: EntityId;
 
-    /// Given an [`Entity`] ID, resolve it into an [`Self::EntityIdType`].
+    /// Given an [`AnalyzedEntity`] ID, resolve it into an [`Self::EntityIdType`].
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType>;
 
     /// Return the root resource group.

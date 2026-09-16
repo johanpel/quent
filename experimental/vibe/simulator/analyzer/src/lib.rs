@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_dynamic_attributes::DynamicValue;
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
@@ -38,7 +37,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
+    Entity, AnalyzerError, AnalyzerResult, Model, Span,
     context::ContextInventory,
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
@@ -52,6 +51,7 @@ use quent_analyzer::{
         },
     },
 };
+use quent_dynamic_attributes::DynamicValue;
 use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
 use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
@@ -984,18 +984,27 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // The dimension of the distribution is where a task's data resides:
         // the instance name of the memory-typed resource its state uses, or
         // `DIMENSION_NONE` for states that hold no memory.
-        let memory_names: HashMap<Uuid, &str> = self
+        let memory_names: HashMap<Uuid, String> = self
             .model
             .arbitrary_resources
             .resources()
             .filter(|resource| MEMORY_TYPE_NAMES.contains(&resource.type_name()))
-            .map(|r| (r.id(), r.instance_name()))
+            .filter_map(|resource| {
+                resource
+                    .attributes()
+                    .into_iter()
+                    .find_map(|attribute| match (&*attribute.key, attribute.value) {
+                        ("instance_name", Some(DynamicValue::String(value))) => Some(value),
+                        _ => None,
+                    })
+                    .map(|name| (resource.id(), name))
+            })
             .collect();
 
         // The no-memory sentinel must never collide with a real resource
         // name; grow it until it is unique among memory instance names.
         let mut none_key = DIMENSION_NONE.to_owned();
-        while memory_names.values().any(|name| *name == none_key) {
+        while memory_names.values().any(|name| name == &none_key) {
             none_key.push('_');
         }
         // Dimension keys actually observed for this query's tasks; the decl
@@ -1024,7 +1033,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     .iter()
                     .find(|u| memory_names.contains_key(&u.resource_id));
                 let dimension =
-                    memory_usage.map_or(none_key.as_str(), |u| memory_names[&u.resource_id]);
+                    memory_usage.map_or(none_key.as_str(), |u| &memory_names[&u.resource_id]);
                 if want_tasks {
                     present_dimensions.insert(dimension);
                     for &series in series_ids {

@@ -6,14 +6,14 @@
 include!(concat!(env!("OUT_DIR"), "/simulator.rs"));
 
 use quent_analyzer::{
-    fsm::events::{AnalyzableTransition, AnalyzedUsage, DynamicAttribute},
+    fsm::native::{DynamicAttribute, ResourceUsage, TransitionEvent},
     resource::CapacityValue,
 };
 use smallvec::{SmallVec, smallvec};
 
-// TODO(johanpel): Generate these `AnalyzableTransition` implementations from
+// TODO(johanpel): Generate these `TransitionEvent` implementations from
 // schema metadata. See https://github.com/rapidsai/quent/issues/288.
-impl AnalyzableTransition for QueryEvent {
+impl TransitionEvent for QueryEvent {
     fn entity_type_name() -> &'static str {
         "query"
     }
@@ -40,15 +40,20 @@ impl AnalyzableTransition for QueryEvent {
         }
     }
 
-    fn instance_name(&self) -> Option<String> {
+    fn dynamic_attributes(&self) -> Vec<DynamicAttribute> {
         match self {
-            Self::Init { instance_name, .. } => Some(instance_name.clone()),
-            _ => None,
+            Self::Init { instance_name, .. } => {
+                vec![DynamicAttribute::string(
+                    "instance_name",
+                    instance_name.clone(),
+                )]
+            }
+            _ => Vec::new(),
         }
     }
 }
 
-impl AnalyzableTransition for TaskEvent {
+impl TransitionEvent for TaskEvent {
     fn entity_type_name() -> &'static str {
         "task"
     }
@@ -81,19 +86,12 @@ impl AnalyzableTransition for TaskEvent {
         }
     }
 
-    fn instance_name(&self) -> Option<String> {
-        match self {
-            Self::Queueing { instance_name, .. } => Some(instance_name.clone()),
-            _ => None,
-        }
-    }
-
-    fn usages(&self) -> SmallVec<[AnalyzedUsage; 1]> {
-        let unit = |resource_id| AnalyzedUsage {
+    fn usages(&self) -> SmallVec<[ResourceUsage; 1]> {
+        let unit = |resource_id| ResourceUsage {
             resource_id,
             capacities: SmallVec::new(),
         };
-        let bytes = |resource_id, value| AnalyzedUsage {
+        let bytes = |resource_id, value| ResourceUsage {
             resource_id,
             capacities: smallvec![CapacityValue::new("bytes", value)],
         };
@@ -171,6 +169,12 @@ impl AnalyzableTransition for TaskEvent {
 
     fn dynamic_attributes(&self) -> Vec<DynamicAttribute> {
         match self {
+            Self::Queueing { instance_name, .. } => {
+                vec![DynamicAttribute::string(
+                    "instance_name",
+                    instance_name.clone(),
+                )]
+            }
             Self::Computing { input_bytes, .. } => {
                 vec![DynamicAttribute::u64("input_bytes", *input_bytes)]
             }

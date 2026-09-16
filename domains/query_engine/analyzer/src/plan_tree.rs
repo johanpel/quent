@@ -143,8 +143,12 @@ mod tests {
             "plan"
         }
 
-        fn instance_name(&self) -> &str {
-            ""
+        fn earliest_timestamp(&self) -> quent_time::TimeUnixNanoSec {
+            0
+        }
+
+        fn latest_timestamp(&self) -> quent_time::TimeUnixNanoSec {
+            0
         }
     }
 

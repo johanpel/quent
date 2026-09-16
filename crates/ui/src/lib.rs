@@ -3,8 +3,10 @@
 
 use std::collections::HashMap;
 
-use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
-use quent_dynamic_attributes::DynamicAttribute;
+use quent_analyzer::{
+    self as a, Entity, AnalyzerResult, Model, resource::tree::ResourceTreeNode,
+};
+use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
@@ -60,13 +62,24 @@ pub struct Resource {
     pub parent_group_id: Uuid,
 }
 
+fn instance_name(entity: &(impl Entity + ?Sized)) -> String {
+    entity
+        .attributes()
+        .into_iter()
+        .find_map(|attribute| match (&*attribute.key, attribute.value) {
+            ("instance_name", Some(DynamicValue::String(value))) => Some(value),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
 impl<T: a::resource::Resource> From<&T> for Resource {
     fn from(value: &T) -> Self {
         Self {
             id: value.id(),
-            instance_name: value.instance_name().to_owned(),
+            instance_name: instance_name(value),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id().to_owned(),
+            parent_group_id: value.parent_group_id(),
         }
     }
 }
@@ -75,9 +88,9 @@ impl From<&dyn a::resource::Resource> for Resource {
     fn from(value: &dyn a::resource::Resource) -> Self {
         Self {
             id: value.id(),
-            instance_name: value.instance_name().to_owned(),
+            instance_name: instance_name(value),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id().to_owned(),
+            parent_group_id: value.parent_group_id(),
         }
     }
 }
@@ -123,7 +136,7 @@ impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
     fn from(value: &dyn a::resource::ResourceGroup) -> Self {
         Self {
             id: value.id(),
-            instance_name: value.instance_name().to_owned(),
+            instance_name: instance_name(value),
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
         }
@@ -195,7 +208,7 @@ impl From<&a::fsm::runtime::RtFsmStateUsage> for FsmUsage {
             capacities: value
                 .capacities
                 .iter()
-                .map(|c| (c.name.to_string(), c.value))
+                .map(|capacity| (capacity.name.to_string(), capacity.value))
                 .collect(),
         }
     }
@@ -227,7 +240,7 @@ impl FsmTransition {
             usages: value.usages.iter().map(FsmUsage::from).collect(),
             timestamp: try_to_secs_relative(value.timestamp, epoch)?,
             attributes: value.attributes.clone(),
-            derived_attributes: vec![],
+            derived_attributes: Vec::new(),
         })
     }
 }
@@ -257,7 +270,7 @@ impl FiniteStateMachine {
             transitions: value
                 .transitions()
                 .iter()
-                .map(|t| FsmTransition::try_from_rt(t, epoch))
+                .map(|transition| FsmTransition::try_from_rt(transition, epoch))
                 .collect::<Result<Vec<_>, _>>()?,
         })
     }
@@ -306,10 +319,19 @@ impl FiniteStateMachine {
             })
             .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
 
+        let instance_name = transitions
+            .iter()
+            .flat_map(|transition| &transition.attributes)
+            .find_map(|attribute| match (&*attribute.key, &attribute.value) {
+                ("instance_name", Some(DynamicValue::String(value))) => Some(value.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+
         Ok(Self {
             id: fsm.id(),
             type_name: fsm.type_name().to_owned(),
-            instance_name: fsm.instance_name().to_owned(),
+            instance_name,
             transitions,
         })
     }
