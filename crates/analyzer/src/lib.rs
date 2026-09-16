@@ -5,7 +5,7 @@
 
 pub use crate::error::AnalyzerError;
 pub use entity::Entity;
-use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+use quent_time::span::SpanUnixNanoSec;
 pub use ref_tree::RefTreeEntity;
 use uuid::Uuid;
 
@@ -18,12 +18,6 @@ pub mod resource;
 pub mod timeline;
 
 pub type AnalyzerResult<T> = std::result::Result<T, AnalyzerError>;
-
-/// Trait for entities associated with a single moment in time.
-pub trait Instant: Entity {
-    /// Return the timestamp associated with this type.
-    fn instant(&self) -> AnalyzerResult<TimeUnixNanoSec>;
-}
 
 /// Trait for things that are associated with a span of time.
 ///
