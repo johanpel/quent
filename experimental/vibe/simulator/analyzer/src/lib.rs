@@ -59,14 +59,11 @@ use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use uuid::Uuid;
 
-use crate::{
-    model::{SimulatorModel, SimulatorModelBuilder},
-    task::{Task, TaskExt},
-};
+pub use crate::boilerplate::{Task, TaskExt};
+use crate::model::{SimulatorModel, SimulatorModelBuilder};
 
 mod boilerplate;
 pub mod model;
-pub mod task;
 pub mod view;
 
 /// Data-flow measure counting tasks residing in each (state, location) cell.

@@ -13,10 +13,9 @@ use uuid::Uuid;
 
 use crate::{
     boilerplate::{
-        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, TaskExecutor, Worker,
+        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, Task, TaskExecutor, Worker,
     },
     model::SimulatorModel,
-    task::Task,
 };
 
 /// A view of the simulator model filtered to a specific query

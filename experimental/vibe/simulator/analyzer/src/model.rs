@@ -25,9 +25,8 @@ pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, QueryGroup, Wo
 use crate::{
     boilerplate::{
         Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, QueryBuilder, Storage,
-        StorageChannel, TaskExecutor, TaskExecutorThread,
+        StorageChannel, Task, TaskBuilder, TaskExecutor, TaskExecutorThread, TaskExt,
     },
-    task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
 
