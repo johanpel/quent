@@ -1518,6 +1518,46 @@ impl QueryEngineModel for InMemoryQueryEngineModelView<'_> {
     }
 }
 
+impl ScopeCollection for InMemoryQueryEngineModelView<'_> {
+    fn scoped_entities(&self) -> impl Iterator<Item = &dyn ScopedEntity> {
+        std::iter::once(self.engine as &dyn ScopedEntity)
+            .chain(
+                self.workers
+                    .values()
+                    .map(|entity| *entity as &dyn ScopedEntity),
+            )
+            .chain(std::iter::once(self.query_group as &dyn ScopedEntity))
+            .chain(std::iter::once(self.query as &dyn ScopedEntity))
+            .chain(
+                self.plans
+                    .values()
+                    .map(|entity| *entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.operators
+                    .values()
+                    .map(|entity| *entity as &dyn ScopedEntity),
+            )
+            .chain(
+                self.ports
+                    .values()
+                    .map(|entity| *entity as &dyn ScopedEntity),
+            )
+    }
+
+    fn scoped_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn ScopedEntity> {
+        match self.try_entity_ref(entity_id)? {
+            QueryEngineEntityId::Engine(_) => Ok(self.engine),
+            QueryEngineEntityId::Worker(_) => Ok(*self.workers.get(&entity_id).unwrap()),
+            QueryEngineEntityId::QueryGroup(_) => Ok(self.query_group),
+            QueryEngineEntityId::Query(_) => Ok(self.query),
+            QueryEngineEntityId::Plan(_) => Ok(*self.plans.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Operator(_) => Ok(*self.operators.get(&entity_id).unwrap()),
+            QueryEngineEntityId::Port(_) => Ok(*self.ports.get(&entity_id).unwrap()),
+        }
+    }
+}
+
 impl ResourceCollection for InMemoryQueryEngineModelView<'_> {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         std::iter::empty()
@@ -1787,5 +1827,16 @@ mod tests {
         );
         assert_eq!(view.workers().count(), 1);
         assert_eq!(view.operators().count(), 1);
+        assert_eq!(view.scoped_entities().count(), 8);
+        assert_eq!(
+            view.scope_children(engine_id)
+                .map(Entity::id)
+                .collect::<std::collections::HashSet<_>>(),
+            std::collections::HashSet::from([worker_id, query_group_id])
+        );
+        assert_eq!(
+            view.scoped_entity(target_port_id).unwrap().id(),
+            target_port_id
+        );
     }
 }
