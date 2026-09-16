@@ -47,9 +47,7 @@ impl<A: EntityEventAccumulator> AnalyzedEntity<A> {
     pub fn try_from_first_event(event: Event<A::Event>) -> AnalyzerResult<Self> {
         if event.id.is_nil() {
             Err(AnalyzerError::Validation(
-                "entity id cannot
-        be nil"
-                    .to_string(),
+                "entity id cannot be nil".to_owned(),
             ))
         } else {
             let mut accumulator = A::default();
