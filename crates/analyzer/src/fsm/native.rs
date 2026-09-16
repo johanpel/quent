@@ -328,7 +328,7 @@ mod tests {
         ));
 
         let fsm = builder.try_build().unwrap();
-        assert_eq!(fsm.type_name(), "test");
+        assert_eq!(fsm.type_name(), TestTransition::NAME);
         assert_eq!(
             fsm.transitions()
                 .iter()
