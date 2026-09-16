@@ -59,16 +59,17 @@ pub struct Resource {
 }
 
 impl Resource {
-    /// Creates a UI resource from an analyzed resource and its display name.
+    /// Creates a UI resource with presentation data derived by the application analyzer.
     pub fn from_analyzed(
         value: &(impl a::resource::Resource + ?Sized),
         instance_name: impl Into<String>,
+        parent_group_id: Uuid,
     ) -> Self {
         Self {
             id: value.id(),
             instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id(),
+            parent_group_id,
         }
     }
 }
@@ -82,16 +83,6 @@ pub struct ResourceGroupTypeDecl {
     pub used_by_entity_types: Vec<String>,
     /// The resource type names in this group or its descendants.
     pub contains_resource_types: Vec<String>,
-}
-
-impl From<&a::resource::ResourceGroupTypeDecl> for ResourceGroupTypeDecl {
-    fn from(value: &a::resource::ResourceGroupTypeDecl) -> Self {
-        Self {
-            name: value.name.clone(),
-            used_by_entity_types: value.used_by_entity_types.iter().cloned().collect(),
-            contains_resource_types: value.contains_resource_types.iter().cloned().collect(),
-        }
-    }
 }
 
 /// A Group of [`Resource`]s.
@@ -111,16 +102,17 @@ pub struct ResourceGroup {
 }
 
 impl ResourceGroup {
-    /// Creates a UI resource group from an analyzed group and its display name.
+    /// Creates a UI resource group from an analyzed Reference Tree entity.
     pub fn from_analyzed(
-        value: &(impl a::resource::ResourceGroup + ?Sized),
+        value: &(impl Entity + ?Sized),
         instance_name: impl Into<String>,
+        parent_group_id: Option<Uuid>,
     ) -> Self {
         Self {
             id: value.id(),
             instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id(),
+            parent_group_id,
         }
     }
 }

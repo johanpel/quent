@@ -63,14 +63,7 @@ impl Entity for GpuMemory {
     }
 }
 
-impl Resource for GpuMemory {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .gpu_id
-            .expect("GPU memory must have a declaration event")
-    }
-}
+impl Resource for GpuMemory {}
 
 impl RefTreeEntity for GpuMemory {
     fn parent_id(&self) -> Option<Uuid> {

@@ -67,9 +67,3 @@ impl RefTreeEntity for Network {
         self.0.accumulator().engine_id
     }
 }
-
-impl ResourceGroup for Network {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}

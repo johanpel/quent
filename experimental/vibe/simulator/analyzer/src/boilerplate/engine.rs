@@ -70,12 +70,6 @@ impl RefTreeEntity for Engine {
     }
 }
 
-impl ResourceGroup for Engine {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        None
-    }
-}
-
 impl EngineEntity for Engine {
     fn to_ui(&self) -> AnalyzerResult<query_engine_ui::Engine> {
         let data = self.data();

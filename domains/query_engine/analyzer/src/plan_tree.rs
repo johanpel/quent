@@ -122,7 +122,7 @@ impl<'a> Iterator for PlanTreeIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use quent_analyzer::{Entity, resource::ResourceGroup};
+    use quent_analyzer::Entity;
 
     use super::*;
     use crate::PlanEntity;
@@ -152,12 +152,6 @@ mod tests {
         }
     }
 
-    impl ResourceGroup for TestPlan {
-        fn parent_group_id(&self) -> Option<Uuid> {
-            self.parent_plan_id.or(self.parent_query_id)
-        }
-    }
-
     impl PlanEntity for TestPlan {
         fn parent_query_id(&self) -> Option<Uuid> {
             self.parent_query_id
@@ -179,7 +173,7 @@ mod tests {
             ui::Plan {
                 id: self.id,
                 instance_name: None,
-                parent: self.parent_group_id(),
+                parent: self.parent_plan_id.or(self.parent_query_id),
                 worker_id: self.worker_id,
                 edges: Vec::new(),
             }

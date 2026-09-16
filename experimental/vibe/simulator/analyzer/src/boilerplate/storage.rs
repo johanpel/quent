@@ -63,14 +63,7 @@ impl Entity for Storage {
     }
 }
 
-impl Resource for Storage {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .worker_id
-            .expect("storage must have a declaration event")
-    }
-}
+impl Resource for Storage {}
 
 impl RefTreeEntity for Storage {
     fn parent_id(&self) -> Option<Uuid> {

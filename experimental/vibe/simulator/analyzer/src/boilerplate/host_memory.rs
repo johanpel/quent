@@ -66,14 +66,7 @@ impl Entity for HostMemory {
     }
 }
 
-impl Resource for HostMemory {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .worker_id
-            .expect("host memory must have a declaration event")
-    }
-}
+impl Resource for HostMemory {}
 
 impl RefTreeEntity for HostMemory {
     fn parent_id(&self) -> Option<Uuid> {

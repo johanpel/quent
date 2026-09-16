@@ -67,9 +67,3 @@ impl RefTreeEntity for TaskExecutor {
         self.0.accumulator().worker_id
     }
 }
-
-impl ResourceGroup for TaskExecutor {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}

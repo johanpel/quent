@@ -8,7 +8,7 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_analyzer::{EntityId, fsm::FsmTypeDecl};
+use quent_analyzer::fsm::FsmTypeDecl;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
@@ -36,16 +36,6 @@ pub enum EntityRef {
     // entity types are removed and every application entity type is statically declared. This
     // also requires removing `Deserialize` from `EntityRef` or interning deserialized names.
     Application { type_name: String, id: Uuid },
-}
-
-impl EntityId for EntityRef {
-    fn is_resource(&self) -> bool {
-        matches!(self, Self::Resource(_))
-    }
-
-    fn is_resource_group(&self) -> bool {
-        matches!(self, Self::ResourceGroup(_))
-    }
 }
 
 /// Quent contexts whose streams contribute to one engine view.
@@ -345,38 +335,4 @@ pub struct QueryBundle<E = EntityRef> {
     pub start_time_unix_ns: TimeUnixNanoSec,
     /// The duration of this query, in seconds.
     pub duration_s: TimeSec,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn entity_ref_resource_predicates_exclude_application_entities() {
-        let id = Uuid::now_v7();
-        let cases = [
-            (EntityRef::Engine(id), false, false),
-            (EntityRef::Worker(id), false, false),
-            (EntityRef::QueryGroup(id), false, false),
-            (EntityRef::Query(id), false, false),
-            (EntityRef::Plan(id), false, false),
-            (EntityRef::Operator(id), false, false),
-            (EntityRef::Port(id), false, false),
-            (EntityRef::Resource(id), true, false),
-            (EntityRef::ResourceGroup(id), false, true),
-            (
-                EntityRef::Application {
-                    type_name: "task".to_owned(),
-                    id,
-                },
-                false,
-                false,
-            ),
-        ];
-
-        for (entity, is_resource, is_resource_group) in cases {
-            assert_eq!(entity.is_resource(), is_resource);
-            assert_eq!(entity.is_resource_group(), is_resource_group);
-        }
-    }
 }

@@ -67,9 +67,3 @@ impl RefTreeEntity for Gpu {
         self.0.accumulator().worker_id
     }
 }
-
-impl ResourceGroup for Gpu {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}

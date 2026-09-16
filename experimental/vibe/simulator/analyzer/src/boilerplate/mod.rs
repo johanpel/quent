@@ -13,7 +13,7 @@ use quent_analyzer::{
         Fsm, FsmUsages,
         native::{AnalyzedFsm, AnalyzedTransition, FsmBuilder},
     },
-    resource::{CapacityDecl, Resource, ResourceGroup, ResourceTypeDecl, Usage, Using},
+    resource::{CapacityDecl, Resource, ResourceTypeDecl, Usage, Using},
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{

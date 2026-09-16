@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Traits, types and functions for Resource and Resource Groups
+//! Analysis interfaces for schema-defined resources and their usages.
 
 use std::collections::HashSet;
 
@@ -12,36 +12,10 @@ use uuid::Uuid;
 use super::*;
 
 pub mod collection;
-pub mod runtime;
 pub mod tree;
 
 /// Trait for types that are considered a [`Resource`].
-pub trait Resource: Entity {
-    /// The id of the parent resource group.
-    fn parent_group_id(&self) -> Uuid;
-}
-
-/// Trait for types under which [`Resource`]s can be grouped.
-pub trait ResourceGroup: Entity {
-    /// The parent of this Resource Group.
-    ///
-    /// If this is None, it is considered the root of the global application's
-    /// resource tree.
-    fn parent_group_id(&self) -> Option<Uuid>;
-
-    /// Convenience function to create a type decl from this resource group.
-    fn resource_group_type_decl(
-        &self,
-        used_by_entity_types: HashSet<String>,
-        contains_resource_types: HashSet<String>,
-    ) -> ResourceGroupTypeDecl {
-        ResourceGroupTypeDecl {
-            name: self.type_name().to_owned(),
-            used_by_entity_types,
-            contains_resource_types,
-        }
-    }
-}
+pub trait Resource: Entity {}
 
 /// Analysis-time representation of one resource usage.
 #[derive(Debug)]
@@ -186,18 +160,6 @@ impl ResourceTypeDecl {
     }
 }
 
-/// Declaration of a [`ResourceGroup`] type.
-#[derive(Clone, Debug)]
-pub struct ResourceGroupTypeDecl {
-    /// The unique type name for this type of Resource.
-    pub name: String,
-
-    /// The type names of the entities that used Resources in this group.
-    pub used_by_entity_types: HashSet<String>,
-    /// The type names of the resources that are in this group.
-    pub contains_resource_types: HashSet<String>,
-}
-
 /// A value related to the capacity of a [`Resource`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct CapacityValue {
@@ -216,8 +178,3 @@ impl CapacityValue {
         Self { name, value: None }
     }
 }
-
-/// Attributes of the "Operating" state of a Resource.
-// TODO(johanpel): consider SVO
-#[derive(Debug)]
-pub struct ResourceCapacities(pub Vec<CapacityValue>);

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult,
-    ref_tree::tree::RefTreeNode,
+    ref_tree::{collection::RefTreeCollection, tree::RefTreeNode},
     resource::{Resource, collection::ResourceCollection},
 };
 
@@ -23,6 +23,13 @@ pub struct ResourceTreeNode {
 }
 
 impl ResourceTreeNode {
+    /// Construct a resource hierarchy from a validated Reference Tree.
+    pub fn try_new(
+        collection: &(impl RefTreeCollection + ResourceCollection),
+    ) -> AnalyzerResult<Self> {
+        Self::try_from_ref_tree(RefTreeNode::try_new(collection)?, collection)
+    }
+
     /// Construct a resource hierarchy from a validated Reference Tree.
     ///
     /// Construction takes `O(e + r)` time and storage for `e` Reference Tree
@@ -68,31 +75,6 @@ impl ResourceTreeNode {
                 .map(|child| Self::from_ref_tree(child, resource_ids))
                 .collect(),
         }
-    }
-
-    pub fn try_new(
-        resources: &impl ResourceCollection,
-        root_group_id: Uuid,
-    ) -> AnalyzerResult<Self> {
-        let group_children = resources
-            .resource_group_child_groups(root_group_id)?
-            .map(|child_group| Self::try_new(resources, child_group));
-        let resource_children = resources
-            .resource_group_child_resources(root_group_id)?
-            .map(|entity_id| {
-                Ok(ResourceTreeNode {
-                    entity_id,
-                    is_resource: true,
-                    children: Vec::new(),
-                })
-            });
-        Ok(ResourceTreeNode {
-            entity_id: root_group_id,
-            is_resource: false,
-            children: group_children
-                .chain(resource_children)
-                .collect::<AnalyzerResult<_>>()?,
-        })
     }
 
     /// Return the IDs of all resources in this hierarchy.
@@ -146,28 +128,14 @@ impl Iterator for ResourceTreeResourceIter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resource::{
-        ResourceCapacities,
-        collection::{InMemoryResources, InMemoryResourcesBuilder},
-        runtime::RtResourceTransition,
-    };
+    use crate::resource::collection::test_support::TestResources;
 
-    fn resources(resource_ids: impl IntoIterator<Item = Uuid>) -> InMemoryResources {
-        let mut builder = InMemoryResourcesBuilder::default();
+    fn resources(resource_ids: impl IntoIterator<Item = Uuid>) -> TestResources {
+        let mut resources = TestResources::default();
         for resource_id in resource_ids {
-            let resource = builder.try_builder(resource_id).unwrap();
-            resource.set_type_name("test");
-            resource.set_instance_name(Some("test".to_owned()));
-            resource.set_parent_group_id(Uuid::from_u128(100));
-            resource.push(RtResourceTransition::Init(0));
-            resource.push(RtResourceTransition::Operating(
-                1,
-                ResourceCapacities(vec![]),
-            ));
-            resource.push(RtResourceTransition::Finalizing(2));
-            resource.push(RtResourceTransition::Exit(3));
+            resources.insert_resource(resource_id, "test");
         }
-        builder.try_build().unwrap()
+        resources
     }
 
     fn node(

@@ -73,12 +73,6 @@ impl RefTreeEntity for Query {
     }
 }
 
-impl ResourceGroup for Query {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}
-
 impl QueryEntity for Query {
     fn query_group_id(&self) -> Option<Uuid> {
         self.query_group_id()

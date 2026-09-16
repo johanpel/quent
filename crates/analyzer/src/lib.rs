@@ -4,7 +4,6 @@
 //! Telemetry analysis functionality based on modeling primitives.
 
 pub use crate::error::AnalyzerError;
-use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
 pub use entity::Entity;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 pub use ref_tree::RefTreeEntity;
@@ -40,28 +39,11 @@ pub trait Span {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec>;
 }
 
-/// Trait for type safety wrappers around entity IDs.
-pub trait EntityId {
-    fn is_resource(&self) -> bool;
-    fn is_resource_group(&self) -> bool;
-}
-
 /// Trait for application models.
-pub trait Model: ResourceCollection {
+pub trait Model {
     /// Type-safety wrapper around an entity ID.
-    type EntityIdType: EntityId;
+    type EntityIdType;
 
     /// Given an [`AnalyzedEntity`] ID, resolve it into an [`Self::EntityIdType`].
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType>;
-
-    /// Return the root resource group.
-    fn root(&self) -> AnalyzerResult<&impl ResourceGroup>;
-
-    /// Return the resource tree.
-    fn resource_tree(&self) -> AnalyzerResult<ResourceTreeNode>
-    where
-        Self: Sized,
-    {
-        ResourceTreeNode::try_new(self, self.root()?.id())
-    }
 }

@@ -68,14 +68,7 @@ impl Entity for TaskExecutorThread {
     }
 }
 
-impl Resource for TaskExecutorThread {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .task_executor_id
-            .expect("task executor thread must have a declaration event")
-    }
-}
+impl Resource for TaskExecutorThread {}
 
 impl RefTreeEntity for TaskExecutorThread {
     fn parent_id(&self) -> Option<Uuid> {

@@ -70,12 +70,6 @@ impl RefTreeEntity for Worker {
     }
 }
 
-impl ResourceGroup for Worker {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}
-
 impl WorkerEntity for Worker {
     fn to_ui(&self, _epoch: TimeUnixNanoSec) -> query_engine_ui::Worker {
         let data = self.data();

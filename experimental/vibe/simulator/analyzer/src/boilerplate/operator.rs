@@ -90,12 +90,6 @@ impl RefTreeEntity for Operator {
     }
 }
 
-impl ResourceGroup for Operator {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}
-
 impl OperatorEntity for Operator {
     fn plan_id(&self) -> Option<Uuid> {
         self.data().plan_id

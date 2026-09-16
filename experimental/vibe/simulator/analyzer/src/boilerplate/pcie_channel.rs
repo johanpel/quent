@@ -54,14 +54,7 @@ impl Entity for PcieChannel {
         self.0.latest_timestamp()
     }
 }
-impl Resource for PcieChannel {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .gpu_id
-            .expect("PCIe channel must have a declaration event")
-    }
-}
+impl Resource for PcieChannel {}
 impl RefTreeEntity for PcieChannel {
     fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().gpu_id

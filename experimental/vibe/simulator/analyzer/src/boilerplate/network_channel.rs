@@ -56,14 +56,7 @@ impl Entity for NetworkChannel {
         self.0.latest_timestamp()
     }
 }
-impl Resource for NetworkChannel {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .network_id
-            .expect("network channel must have a declaration event")
-    }
-}
+impl Resource for NetworkChannel {}
 impl RefTreeEntity for NetworkChannel {
     fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().network_id

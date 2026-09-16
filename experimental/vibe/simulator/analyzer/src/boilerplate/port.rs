@@ -72,12 +72,6 @@ impl RefTreeEntity for Port {
     }
 }
 
-impl ResourceGroup for Port {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}
-
 impl PortEntity for Port {
     fn operator_id(&self) -> Option<Uuid> {
         self.data().operator_id

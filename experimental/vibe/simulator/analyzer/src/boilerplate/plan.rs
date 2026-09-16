@@ -76,15 +76,6 @@ impl RefTreeEntity for Plan {
     }
 }
 
-impl ResourceGroup for Plan {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        let data = self.0.accumulator();
-        data.worker_id
-            .or(data.parent_plan_id)
-            .or(data.parent_query_id)
-    }
-}
-
 impl PlanEntity for Plan {
     fn parent_query_id(&self) -> Option<Uuid> {
         let data = self.data();

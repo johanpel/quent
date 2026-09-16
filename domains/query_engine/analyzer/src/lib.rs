@@ -19,9 +19,7 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, EntityId, Model, Span,
-    fsm::Fsm,
-    resource::{ResourceGroup, Using},
+    AnalyzerError, AnalyzerResult, Entity, Model, Span, fsm::Fsm, resource::Using,
 };
 use quent_query_engine_ui as qe_ui;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec};
@@ -33,64 +31,29 @@ pub mod plan_tree;
 pub mod entities;
 pub mod ui;
 
-/// Entity ID with query-engine entity type information.
-pub enum QueryEngineEntityId {
-    Engine(Uuid),
-    Worker(Uuid),
-    QueryGroup(Uuid),
-    Query(Uuid),
-    Plan(Uuid),
-    Operator(Uuid),
-    Port(Uuid),
-}
-
-impl EntityId for QueryEngineEntityId {
-    fn is_resource(&self) -> bool {
-        false
-    }
-
-    fn is_resource_group(&self) -> bool {
-        true
-    }
-}
-
-impl From<QueryEngineEntityId> for Uuid {
-    fn from(value: QueryEngineEntityId) -> Self {
-        match value {
-            QueryEngineEntityId::Engine(id)
-            | QueryEngineEntityId::Worker(id)
-            | QueryEngineEntityId::QueryGroup(id)
-            | QueryEngineEntityId::Query(id)
-            | QueryEngineEntityId::Plan(id)
-            | QueryEngineEntityId::Operator(id)
-            | QueryEngineEntityId::Port(id) => id,
-        }
-    }
-}
-
 /// Read-only analyzer API for an engine entity.
-pub trait EngineEntity: Entity + Span + ResourceGroup {
+pub trait EngineEntity: Entity + Span {
     fn to_ui(&self) -> AnalyzerResult<qe_ui::Engine>;
 }
 
 /// Read-only analyzer API for a worker entity.
-pub trait WorkerEntity: Entity + Span + ResourceGroup {
+pub trait WorkerEntity: Entity + Span {
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Worker;
 }
 
 /// Read-only analyzer API for a query-group entity.
-pub trait QueryGroupEntity: Entity + ResourceGroup {
+pub trait QueryGroupEntity: Entity {
     fn to_ui(&self) -> qe_ui::QueryGroup;
 }
 
 /// Read-only analyzer API for a query entity.
-pub trait QueryEntity: Fsm + Using + ResourceGroup {
+pub trait QueryEntity: Fsm + Using {
     fn query_group_id(&self) -> Option<Uuid>;
     fn to_ui(&self) -> AnalyzerResult<qe_ui::Query>;
 }
 
 /// Read-only analyzer API for a plan entity.
-pub trait PlanEntity: Entity + ResourceGroup {
+pub trait PlanEntity: Entity {
     fn parent_query_id(&self) -> Option<Uuid>;
     fn parent_plan_id(&self) -> Option<Uuid>;
     fn worker_id(&self) -> Option<Uuid>;
@@ -99,7 +62,7 @@ pub trait PlanEntity: Entity + ResourceGroup {
 }
 
 /// Read-only analyzer API for an operator entity.
-pub trait OperatorEntity: Entity + ResourceGroup {
+pub trait OperatorEntity: Entity {
     fn plan_id(&self) -> Option<Uuid>;
     fn parent_operator_ids(&self) -> impl ExactSizeIterator<Item = Uuid> + '_;
     fn active_span(&self) -> Option<SpanUnixNanoSec>;
@@ -114,7 +77,7 @@ pub trait OperatorEntityMut: OperatorEntity {
 }
 
 /// Read-only analyzer API for a port entity.
-pub trait PortEntity: Entity + ResourceGroup {
+pub trait PortEntity: Entity {
     fn operator_id(&self) -> Option<Uuid>;
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Port;
 }

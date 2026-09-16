@@ -3,7 +3,11 @@
 
 use std::collections::HashSet;
 
-use quent_analyzer::{AnalyzerResult, Model, resource::tree::ResourceTreeNode};
+use quent_analyzer::{
+    AnalyzerError, AnalyzerResult,
+    ref_tree::collection::RefTreeCollection,
+    resource::{collection::ResourceCollection, tree::ResourceTreeNode},
+};
 use quent_time::{TimeError, TimeSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -26,7 +30,10 @@ pub enum EntityScope {
 impl EntityScope {
     /// Resolve the scope to the resource IDs it covers: the single resource, or
     /// the resources in the group that have the requested type.
-    pub fn resolve(&self, model: &impl Model) -> AnalyzerResult<HashSet<Uuid>> {
+    pub fn resolve(
+        &self,
+        model: &(impl ResourceCollection + RefTreeCollection),
+    ) -> AnalyzerResult<HashSet<Uuid>> {
         match self {
             EntityScope::Resource { resource_id } => {
                 model.resource(*resource_id)?;
@@ -36,7 +43,10 @@ impl EntityScope {
                 resource_group_id,
                 resource_type_name,
             } => {
-                let tree = ResourceTreeNode::try_new(model, *resource_group_id)?;
+                let full_tree = ResourceTreeNode::try_new(model)?;
+                let tree = full_tree
+                    .find(*resource_group_id)
+                    .ok_or(AnalyzerError::InvalidId(*resource_group_id))?;
                 Ok(tree
                     .iter_resource_ids()
                     .filter(|&id| {

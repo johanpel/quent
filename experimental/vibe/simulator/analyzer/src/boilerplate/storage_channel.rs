@@ -61,14 +61,7 @@ impl Entity for StorageChannel {
         self.0.latest_timestamp()
     }
 }
-impl Resource for StorageChannel {
-    fn parent_group_id(&self) -> Uuid {
-        self.0
-            .accumulator()
-            .worker_id
-            .expect("storage channel must have a declaration event")
-    }
-}
+impl Resource for StorageChannel {}
 impl RefTreeEntity for StorageChannel {
     fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().worker_id

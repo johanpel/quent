@@ -65,12 +65,6 @@ impl RefTreeEntity for QueryGroup {
     }
 }
 
-impl ResourceGroup for QueryGroup {
-    fn parent_group_id(&self) -> Option<Uuid> {
-        self.parent_id()
-    }
-}
-
 impl QueryGroupEntity for QueryGroup {
     fn to_ui(&self) -> query_engine_ui::QueryGroup {
         let data = self.data();

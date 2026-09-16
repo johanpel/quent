@@ -1,16 +1,15 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeSet;
+
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
     fsm::collection::FsmCollection,
-    ref_tree::{collection::RefTreeCollection, tree::RefTreeNode},
-    resource::{
-        Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTypeDecl, Usage, Using,
-        collection::{ResourceCollection, derive_resource_group_types},
-    },
+    ref_tree::collection::RefTreeCollection,
+    resource::{Resource, ResourceTypeDecl, Usage, Using, collection::ResourceCollection},
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
@@ -18,6 +17,7 @@ use quent_query_engine_analyzer::{
 };
 use quent_query_engine_ui::EntityRef;
 use quent_simulator_store::SimulatorEvent;
+use quent_ui::ResourceGroupTypeDecl;
 use uuid::Uuid;
 
 pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, QueryGroup, Worker};
@@ -30,6 +30,55 @@ use crate::{
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
+
+fn derive_resource_scope_types(
+    model: &SimulatorModel,
+) -> AnalyzerResult<HashMap<String, ResourceGroupTypeDecl>> {
+    fn populate(
+        node: &quent_analyzer::resource::tree::ResourceTreeNode,
+        model: &SimulatorModel,
+        declarations: &mut HashMap<String, (BTreeSet<String>, BTreeSet<String>)>,
+    ) -> AnalyzerResult<()> {
+        if !node.is_resource {
+            let mut contained_types = Vec::new();
+            for resource_id in node.iter_resource_ids() {
+                contained_types.push(model.resource_type_of(resource_id)?);
+            }
+            if !contained_types.is_empty() {
+                let type_name = model
+                    .ref_tree_entity(node.entity_id)?
+                    .type_name()
+                    .to_owned();
+                let (used_by, contains) = declarations.entry(type_name).or_default();
+                for resource_type in contained_types {
+                    contains.insert(resource_type.name.clone());
+                    used_by.extend(resource_type.used_by.iter().cloned());
+                }
+            }
+        }
+        for child in &node.children {
+            populate(child, model, declarations)?;
+        }
+        Ok(())
+    }
+
+    let tree = quent_analyzer::resource::tree::ResourceTreeNode::try_new(model)?;
+    let mut declarations = HashMap::default();
+    populate(&tree, model, &mut declarations)?;
+    Ok(declarations
+        .into_iter()
+        .map(|(name, (used_by_entity_types, contains_resource_types))| {
+            (
+                name.clone(),
+                ResourceGroupTypeDecl {
+                    name,
+                    used_by_entity_types: used_by_entity_types.into_iter().collect(),
+                    contains_resource_types: contains_resource_types.into_iter().collect(),
+                },
+            )
+        })
+        .collect())
+}
 
 /// A model of the simulator engine
 pub struct SimulatorModel {
@@ -89,10 +138,6 @@ impl Model for SimulatorModel {
                 })
                 .ok_or(AnalyzerError::InvalidId(entity_id))
         }
-    }
-
-    fn root(&self) -> AnalyzerResult<&impl ResourceGroup> {
-        Ok(&self.engine)
     }
 }
 
@@ -206,16 +251,12 @@ impl SimulatorModel {
             })
     }
 
-    pub(crate) fn resource_group_instance_name(&self, resource_group_id: Uuid) -> Option<&str> {
+    pub(crate) fn resource_scope_instance_name(&self, entity_id: Uuid) -> Option<&str> {
         self.task_executors
-            .get(&resource_group_id)
+            .get(&entity_id)
             .map(TaskExecutor::instance_name)
-            .or_else(|| {
-                self.networks
-                    .get(&resource_group_id)
-                    .map(Network::instance_name)
-            })
-            .or_else(|| self.gpus.get(&resource_group_id).map(Gpu::instance_name))
+            .or_else(|| self.networks.get(&entity_id).map(Network::instance_name))
+            .or_else(|| self.gpus.get(&entity_id).map(Gpu::instance_name))
     }
 
     fn simulator_resource(&self, resource_id: Uuid) -> Option<&dyn Resource> {
@@ -288,75 +329,6 @@ impl SimulatorModel {
                     .values()
                     .map(|resource| resource as &dyn Resource),
             )
-    }
-
-    fn query_engine_resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
-        std::iter::once(&self.engine as &dyn ResourceGroup)
-            .chain(
-                self.workers
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.query_groups
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.queries
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.plans
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.operators
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.ports
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-    }
-
-    fn query_engine_resource_group(&self, id: Uuid) -> Option<&dyn ResourceGroup> {
-        (self.engine.id() == id)
-            .then_some(&self.engine as &dyn ResourceGroup)
-            .or_else(|| {
-                self.workers
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.query_groups
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.queries
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.plans
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.operators
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.ports
-                    .get(&id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
     }
 }
 
@@ -505,22 +477,6 @@ impl ResourceCollection for SimulatorModel {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         self.simulator_resources()
     }
-    fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
-        self.task_executors
-            .values()
-            .map(|entity| entity as &dyn ResourceGroup)
-            .chain(
-                self.networks
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.gpus
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(self.query_engine_resource_groups())
-    }
     fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&dyn Resource> {
         self.simulator_resource(resource_id)
             .ok_or(AnalyzerError::InvalidId(resource_id))
@@ -529,49 +485,6 @@ impl ResourceCollection for SimulatorModel {
         self.resource_types
             .get(resource_type_name)
             .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.to_owned()))
-    }
-    fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
-        self.query_engine_resource_group(resource_group_id)
-            .or_else(|| {
-                self.task_executors
-                    .get(&resource_group_id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.networks
-                    .get(&resource_group_id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .or_else(|| {
-                self.gpus
-                    .get(&resource_group_id)
-                    .map(|entity| entity as &dyn ResourceGroup)
-            })
-            .ok_or(AnalyzerError::InvalidId(resource_group_id))
-    }
-
-    fn resource_group_child_groups(
-        &self,
-        resource_group_id: Uuid,
-    ) -> AnalyzerResult<impl Iterator<Item = Uuid>> {
-        // Verify the resource group exists in at least one collection
-        self.resource_group(resource_group_id)?;
-
-        Ok(self.resource_groups().filter_map(move |group| {
-            (group.parent_group_id() == Some(resource_group_id)).then_some(group.id())
-        }))
-    }
-
-    fn resource_group_child_resources(
-        &self,
-        resource_group_id: Uuid,
-    ) -> AnalyzerResult<impl Iterator<Item = Uuid>> {
-        // Verify the resource group exists in at least one collection
-        self.resource_group(resource_group_id)?;
-
-        Ok(self.simulator_resources().filter_map(move |resource| {
-            (resource.parent_group_id() == resource_group_id).then_some(resource.id())
-        }))
     }
 }
 
@@ -895,21 +808,7 @@ impl SimulatorModelBuilder {
             model.tasks.insert(task_id, task);
         }
 
-        RefTreeNode::try_new(&model)?;
-        let mut resource_group_types = derive_resource_group_types(&model)?;
-        // Bubble up all the used_by_entity fields in the group type decls.
-        for group_type_decl in resource_group_types.values_mut() {
-            for contained_resource_type in &group_type_decl.contains_resource_types {
-                if let Ok(resource_type) = model.resource_type(contained_resource_type) {
-                    for entity_type in &resource_type.used_by {
-                        group_type_decl
-                            .used_by_entity_types
-                            .insert(entity_type.clone());
-                    }
-                }
-            }
-        }
-        model.resource_group_types = resource_group_types;
+        model.resource_group_types = derive_resource_scope_types(&model)?;
         Ok(model)
     }
 }

@@ -38,9 +38,10 @@ use std::sync::Arc;
 use tracing::debug;
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, Span,
+    AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
     context::ContextInventory,
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
+    ref_tree::collection::RefTreeCollection,
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
@@ -382,17 +383,28 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .model
             .resources()
             .map(|resource| {
-                (
+                let parent_id = self
+                    .model
+                    .ref_tree_entity(resource.id())?
+                    .parent_id()
+                    .ok_or_else(|| {
+                        AnalyzerError::Validation(format!(
+                            "resource {} is the Reference Tree root",
+                            resource.id()
+                        ))
+                    })?;
+                Ok((
                     resource.id(),
                     Resource::from_analyzed(
                         resource,
                         self.model
                             .resource_instance_name(resource.id())
                             .unwrap_or_default(),
+                        parent_id,
                     ),
-                )
+                ))
             })
-            .collect();
+            .collect::<AnalyzerResult<_>>()?;
         let resource_types = self
             .model
             .resource_types
@@ -403,18 +415,18 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .model
             .task_executors
             .values()
-            .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup)
+            .map(|entity| entity as &dyn RefTreeEntity)
             .chain(
                 self.model
                     .networks
                     .values()
-                    .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.model
                     .gpus
                     .values()
-                    .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .map(|group| {
                 (
@@ -422,8 +434,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     ResourceGroup::from_analyzed(
                         group,
                         self.model
-                            .resource_group_instance_name(group.id())
+                            .resource_scope_instance_name(group.id())
                             .unwrap_or_default(),
+                        group.parent_id(),
                     ),
                 )
             })
@@ -432,7 +445,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .model
             .resource_group_types
             .iter()
-            .map(|(k, v)| (k.clone(), v.into()))
+            .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
 
         let task_decl = Task::fsm_type_declaration();
@@ -458,8 +471,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         debug!("deriving resource tree");
         let engine = view.engine()?;
-        let resource_tree =
-            convert_resource_tree(view.resource_tree()?, &view)?.unwrap_or_else(|| {
+        let resource_tree = convert_resource_tree(ResourceTreeNode::try_new(&view)?, &view)?
+            .unwrap_or_else(|| {
                 ResourceTree::ResourceGroup(ResourceGroupNode {
                     id: EntityRef::Engine(engine.id()),
                     children: vec![],
@@ -592,8 +605,10 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                 let resource_type = self.model.resource_type(&req.resource_type_name)?;
                 let long_entities_threshold = req.long_entities_threshold_s.map(to_nanosecs);
 
-                // Build the resource tree for this group
-                let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
+                let resource_tree = ResourceTreeNode::try_new(&self.model)?;
+                let tree = resource_tree
+                    .find(req.resource_group_id)
+                    .ok_or(AnalyzerError::InvalidId(req.resource_group_id))?;
                 // Collect all resource IDs of the requested type in the tree.
                 let resource_ids: HashSet<Uuid> = tree
                     .iter_resource_ids()
@@ -666,7 +681,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let view = self.model.query_view(request.app_params.query_id)?;
         // Prepare resource tree, we'll re-use this as it is potentially
         // expensive to build for every entry.
-        let resource_tree = view.resource_tree()?;
+        let resource_tree = ResourceTreeNode::try_new(&view)?;
 
         // Prepare builders, resource id filters, and operator filters, one for
         // each bulk entry. After populating this, we'll build a reverse index,
@@ -821,7 +836,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             .query_engine_model()
             .query_epoch(request.app_params.query_id)?;
         let view = self.model.query_view(request.app_params.query_id)?;
-        let resource_tree = view.resource_tree()?;
+        let resource_tree = ResourceTreeNode::try_new(&view)?;
 
         let n_configs = request.configs.len();
 
