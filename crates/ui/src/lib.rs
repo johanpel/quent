@@ -102,7 +102,7 @@ pub struct ResourceGroupTypeDecl {
     pub name: String,
     /// The type names of the entities that used Resource of this group.
     pub used_by_entity_types: Vec<String>,
-    /// The type names of the leaf Resources in this group or its children.
+    /// The resource type names in this group or its descendants.
     pub contains_resource_types: Vec<String>,
 }
 
@@ -165,30 +165,35 @@ where
     M: Model,
     <M as Model>::EntityIdType: TS + Serialize,
 {
-    match node {
-        ResourceTreeNode::ResourceGroup(id, children) => {
-            let entity_ref = model.try_entity_ref(id)?;
-            let children: Vec<ResourceTree<<M as Model>::EntityIdType>> = children
-                .into_iter()
-                .map(|child| convert_resource_tree(child, model))
-                .collect::<AnalyzerResult<Vec<Option<ResourceTree<<M as Model>::EntityIdType>>>>>()?
-                .into_iter()
-                .flatten()
-                .collect();
-            if !children.is_empty() {
-                Ok(Some(ResourceTree::ResourceGroup(ResourceGroupNode {
-                    id: entity_ref,
-                    children,
-                })))
-            } else {
-                Ok(None)
-            }
+    let ResourceTreeNode {
+        entity_id,
+        is_resource,
+        children,
+    } = node;
+    let entity_ref = model.try_entity_ref(entity_id)?;
+    if is_resource {
+        if !children.is_empty() {
+            return Err(a::AnalyzerError::Validation(
+                "legacy UI resource tree cannot represent a resource with children".to_owned(),
+            ));
         }
-        ResourceTreeNode::Resource(id) => {
-            // Try query engine entities first, otherwise it's a simulator resource
-            let entity_ref = model.try_entity_ref(id)?;
-            Ok(Some(ResourceTree::Resource(entity_ref)))
-        }
+        return Ok(Some(ResourceTree::Resource(entity_ref)));
+    }
+
+    let children: Vec<ResourceTree<<M as Model>::EntityIdType>> = children
+        .into_iter()
+        .map(|child| convert_resource_tree(child, model))
+        .collect::<AnalyzerResult<Vec<Option<ResourceTree<<M as Model>::EntityIdType>>>>>()?
+        .into_iter()
+        .flatten()
+        .collect();
+    if children.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(ResourceTree::ResourceGroup(ResourceGroupNode {
+            id: entity_ref,
+            children,
+        })))
     }
 }
 

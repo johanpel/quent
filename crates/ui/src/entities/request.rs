@@ -25,7 +25,7 @@ pub enum EntityScope {
 
 impl EntityScope {
     /// Resolve the scope to the resource IDs it covers: the single resource, or
-    /// the leaf resources of the group that have the requested type.
+    /// the resources in the group that have the requested type.
     pub fn resolve(&self, model: &impl Model) -> AnalyzerResult<HashSet<Uuid>> {
         match self {
             EntityScope::Resource { resource_id } => {
@@ -38,7 +38,7 @@ impl EntityScope {
             } => {
                 let tree = ResourceTreeNode::try_new(model, *resource_group_id)?;
                 Ok(tree
-                    .iter_leaf_ids()
+                    .iter_resource_ids()
                     .filter(|&id| {
                         model
                             .resource(id)

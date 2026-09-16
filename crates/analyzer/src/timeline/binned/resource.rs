@@ -343,7 +343,7 @@ mod tests {
 
         let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
             .unwrap()
-            .iter_leaf_refs(&resources)
+            .iter_resource_refs(&resources)
             .filter_map(|maybe_resource| {
                 maybe_resource
                     .ok()
@@ -679,7 +679,7 @@ mod tests {
 
         let group_resources = ResourceTreeNode::try_new(&resources, ROOT_RESOURCE_ID)
             .unwrap()
-            .iter_leaf_refs(&resources)
+            .iter_resource_refs(&resources)
             .filter_map(|maybe_resource| {
                 maybe_resource
                     .ok()

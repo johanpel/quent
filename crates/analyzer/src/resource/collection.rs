@@ -82,36 +82,33 @@ fn populate_group_types_from_tree(
     collection: &impl ResourceCollection,
     group_types: &mut HashMap<String, ResourceGroupTypeDecl>,
 ) -> AnalyzerResult<()> {
-    match node {
-        ResourceTreeNode::ResourceGroup(group_id, children) => {
-            let group = collection.resource_group(*group_id)?;
-            let group_type = group.type_name();
+    if !node.is_resource {
+        let group = collection.resource_group(node.entity_id)?;
+        let group_type = group.type_name();
 
-            // Insert type if not present
-            if !group_types.contains_key(group_type) {
-                group_types.insert(
-                    group_type.to_owned(),
-                    group.resource_group_type_decl(HashSet::new(), HashSet::new()),
-                );
-            }
+        // Insert type if not present
+        if !group_types.contains_key(group_type) {
+            group_types.insert(
+                group_type.to_owned(),
+                group.resource_group_type_decl(HashSet::new(), HashSet::new()),
+            );
+        }
 
-            // Collect all resource types in this subtree
-            for resource_id in node.iter_leaf_ids() {
-                let resource = collection.resource(resource_id)?;
-                let resource_type = resource.type_name();
+        // Collect all resource types in this subtree
+        for resource_id in node.iter_resource_ids() {
+            let resource = collection.resource(resource_id)?;
+            let resource_type = resource.type_name();
 
-                if let Some(group_type_decl) = group_types.get_mut(group_type) {
-                    group_type_decl
-                        .contains_resource_types
-                        .insert(resource_type.to_owned());
-                }
-            }
-
-            for child in children {
-                populate_group_types_from_tree(child, collection, group_types)?;
+            if let Some(group_type_decl) = group_types.get_mut(group_type) {
+                group_type_decl
+                    .contains_resource_types
+                    .insert(resource_type.to_owned());
             }
         }
-        ResourceTreeNode::Resource(_) => {}
+    }
+
+    for child in &node.children {
+        populate_group_types_from_tree(child, collection, group_types)?;
     }
     Ok(())
 }

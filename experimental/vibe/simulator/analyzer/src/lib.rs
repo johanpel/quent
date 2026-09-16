@@ -554,9 +554,9 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
                 // Build the resource tree for this group
                 let tree = ResourceTreeNode::try_new(&self.model, req.resource_group_id)?;
-                // Collect all leaf resource IDs of the requested type in the tree
+                // Collect all resource IDs of the requested type in the tree.
                 let resource_ids: HashSet<Uuid> = tree
-                    .iter_leaf_ids()
+                    .iter_resource_ids()
                     .filter(|&id| {
                         self.model
                             .resource(id)
@@ -1198,7 +1198,7 @@ impl SimulatorUiAnalyzer {
                     .find(rg.resource_group_id)
                     .ok_or(AnalyzerError::InvalidId(rg.resource_group_id))?;
                 let resource_ids: HashSet<Uuid> = subtree
-                    .iter_leaf_ids()
+                    .iter_resource_ids()
                     .filter(|&id| {
                         self.model
                             .resource(id)
