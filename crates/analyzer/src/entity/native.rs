@@ -43,6 +43,7 @@ impl<A: EntityEventAccumulator> AnalyzedEntity<A> {
     /// # Errors
     ///
     /// Returns [`AnalyzerError::Validation`] if `id` is nil.
+    // TODO rename to try_from_event to not imply it needs to be the first in timestamp order
     pub fn try_from_first_event(event: Event<A::Event>) -> AnalyzerResult<Self> {
         if event.id.is_nil() {
             Err(AnalyzerError::Validation(
@@ -150,12 +151,16 @@ mod tests {
     #[test]
     fn retains_observed_event_bounds() {
         let entity_id = Uuid::from_u128(1);
-        let mut entity = AnalyzedEntity::<Counter>::new(entity_id).unwrap();
+        let mut entity = AnalyzedEntity::<Counter>::try_from_first_event(Event::new(
+            entity_id,
+            20,
+            Increment,
+        ))
+        .unwrap();
 
-        entity.push(Event::new(entity_id, 20, Increment)).unwrap();
         entity.push(Event::new(entity_id, 10, Increment)).unwrap();
 
-        assert_eq!(entity.earliest_timestamp(), Some(10));
-        assert_eq!(entity.latest_timestamp(), Some(20));
+        assert_eq!(entity.earliest_timestamp(), 10);
+        assert_eq!(entity.latest_timestamp(), 20);
     }
 }
