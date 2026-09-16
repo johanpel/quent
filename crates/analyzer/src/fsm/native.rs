@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! FSM analysis interfaces and storage implementations.
+//! Analysis-time FSMs in Rust-native in-memory storage.
 
 pub use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::{EntityEvent, Event};

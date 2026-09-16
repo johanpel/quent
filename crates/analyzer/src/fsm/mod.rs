@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! FSM-related functionality
+//! FSM analysis interfaces and storage implementations.
 
 use quent_time::{Timestamp, span::SpanUnixNanoSec};
 #[cfg(feature = "ts")]

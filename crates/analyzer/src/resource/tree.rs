@@ -1,14 +1,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Resource hierarchy construction and traversal for schemas using both the Reference Tree and resource constraints.
+//! Resource hierarchy construction and traversal for schemas using both the
+//! Reference Tree and resource constraints.
 
 use std::collections::VecDeque;
 
+use rustc_hash::FxHashSet as HashSet;
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerResult,
+    AnalyzerError, AnalyzerResult,
+    ref_tree::tree::RefTreeNode,
     resource::{Resource, collection::ResourceCollection},
 };
 
@@ -20,6 +23,53 @@ pub struct ResourceTreeNode {
 }
 
 impl ResourceTreeNode {
+    /// Construct a resource hierarchy from a validated Reference Tree.
+    ///
+    /// Construction takes `O(e + r)` time and storage for `e` Reference Tree
+    /// entities and `r` resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AnalyzerError::Validation`] if resource IDs are duplicated or
+    /// do not occur in the Reference Tree.
+    pub fn try_from_ref_tree(
+        ref_tree: RefTreeNode,
+        resources: &impl ResourceCollection,
+    ) -> AnalyzerResult<Self> {
+        let mut resource_ids = HashSet::default();
+        for resource in resources.resources() {
+            let resource_id = resource.id();
+            if !resource_ids.insert(resource_id) {
+                return Err(AnalyzerError::Validation(format!(
+                    "duplicate resource id {resource_id}"
+                )));
+            }
+        }
+
+        let tree = Self::from_ref_tree(ref_tree, &mut resource_ids);
+        if let Some(resource_id) = resource_ids.into_iter().next() {
+            return Err(AnalyzerError::Validation(format!(
+                "resource {resource_id} is absent from the Reference Tree"
+            )));
+        }
+        Ok(tree)
+    }
+
+    fn from_ref_tree(ref_tree: RefTreeNode, resource_ids: &mut HashSet<Uuid>) -> Self {
+        let RefTreeNode {
+            entity_id,
+            children,
+        } = ref_tree;
+        Self {
+            entity_id,
+            is_resource: resource_ids.remove(&entity_id),
+            children: children
+                .into_iter()
+                .map(|child| Self::from_ref_tree(child, resource_ids))
+                .collect(),
+        }
+    }
+
     pub fn try_new(
         resources: &impl ResourceCollection,
         root_group_id: Uuid,
@@ -96,6 +146,29 @@ impl Iterator for ResourceTreeResourceIter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::resource::{
+        ResourceCapacities,
+        collection::{InMemoryResources, InMemoryResourcesBuilder},
+        runtime::RtResourceTransition,
+    };
+
+    fn resources(resource_ids: impl IntoIterator<Item = Uuid>) -> InMemoryResources {
+        let mut builder = InMemoryResourcesBuilder::default();
+        for resource_id in resource_ids {
+            let resource = builder.try_builder(resource_id).unwrap();
+            resource.set_type_name("test");
+            resource.set_instance_name(Some("test".to_owned()));
+            resource.set_parent_group_id(Uuid::from_u128(100));
+            resource.push(RtResourceTransition::Init(0));
+            resource.push(RtResourceTransition::Operating(
+                1,
+                ResourceCapacities(vec![]),
+            ));
+            resource.push(RtResourceTransition::Finalizing(2));
+            resource.push(RtResourceTransition::Exit(3));
+        }
+        builder.try_build().unwrap()
+    }
 
     fn node(
         entity_id: Uuid,
@@ -158,5 +231,45 @@ mod tests {
 
         assert_eq!(tree.find(child_id).unwrap().entity_id, child_id);
         assert!(tree.find(Uuid::from_u128(3)).is_none());
+    }
+
+    #[test]
+    fn constructs_from_reference_tree() {
+        let root_id = Uuid::from_u128(1);
+        let parent_resource_id = Uuid::from_u128(2);
+        let child_resource_id = Uuid::from_u128(3);
+        let ref_tree = RefTreeNode {
+            entity_id: root_id,
+            children: vec![RefTreeNode {
+                entity_id: parent_resource_id,
+                children: vec![RefTreeNode {
+                    entity_id: child_resource_id,
+                    children: vec![],
+                }],
+            }],
+        };
+        let resources = resources([parent_resource_id, child_resource_id]);
+
+        let tree = ResourceTreeNode::try_from_ref_tree(ref_tree, &resources).unwrap();
+
+        assert!(!tree.is_resource);
+        assert!(tree.children[0].is_resource);
+        assert!(tree.children[0].children[0].is_resource);
+    }
+
+    #[test]
+    fn rejects_resource_absent_from_reference_tree() {
+        let root_id = Uuid::from_u128(1);
+        let resource_id = Uuid::from_u128(2);
+        let ref_tree = RefTreeNode {
+            entity_id: root_id,
+            children: vec![],
+        };
+        let resources = resources([resource_id]);
+
+        assert!(matches!(
+            ResourceTreeNode::try_from_ref_tree(ref_tree, &resources),
+            Err(AnalyzerError::Validation(_))
+        ));
     }
 }
