@@ -30,7 +30,7 @@ impl EntityEventAccumulator for EngineAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct Engine(AnalyzedEntity<EngineAccumulator>);
+pub struct Engine(AnalyzedEntity<EngineAccumulator>);
 
 impl Engine {
     pub(crate) fn try_from_event(event: Event<schema::EngineEvent>) -> AnalyzerResult<Self> {

@@ -32,7 +32,7 @@ impl EntityEventAccumulator for PortAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct Port(AnalyzedEntity<PortAccumulator>);
+pub struct Port(AnalyzedEntity<PortAccumulator>);
 
 impl Port {
     pub(crate) fn try_from_event(event: Event<schema::PortEvent>) -> AnalyzerResult<Self> {

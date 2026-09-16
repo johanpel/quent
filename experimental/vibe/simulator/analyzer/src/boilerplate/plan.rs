@@ -36,7 +36,7 @@ impl EntityEventAccumulator for PlanAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct Plan(AnalyzedEntity<PlanAccumulator>);
+pub struct Plan(AnalyzedEntity<PlanAccumulator>);
 
 impl Plan {
     pub(crate) fn try_from_event(event: Event<schema::PlanEvent>) -> AnalyzerResult<Self> {

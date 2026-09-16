@@ -13,7 +13,8 @@ use quent_query_engine_ui::{
     DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
 };
 use quent_ui::{
-    FiniteStateMachine, ResourceGroupNode, ResourceTree, convert_resource_tree,
+    FiniteStateMachine, Resource, ResourceGroup, ResourceGroupNode, ResourceTree,
+    convert_resource_tree,
     quantity::{CapacityKind, QuantitySpec},
     timeline::{
         categorical::{
@@ -294,14 +295,13 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             builder.try_build()?
         };
 
-        let qe = &model.query_engine;
         tracing::info!(
             engines = 1,
-            query_groups = qe.query_groups.len(),
-            workers = qe.workers.len(),
-            plans = qe.plans.len(),
-            operators = qe.operators.len(),
-            ports = qe.ports.len(),
+            query_groups = model.query_groups.len(),
+            workers = model.workers.len(),
+            plans = model.plans.len(),
+            operators = model.operators.len(),
+            ports = model.ports.len(),
             task_executors = model.task_executors.len(),
             networks = model.networks.len(),
             gpus = model.gpus.len(),
@@ -312,7 +312,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             storage_channels = model.storage_channels.len(),
             pcie_channels = model.pcie_channels.len(),
             network_channels = model.network_channels.len(),
-            queries = qe.queries.len(),
+            queries = model.queries.len(),
             tasks = model.tasks.len(),
         );
 
@@ -381,7 +381,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let resources = self
             .model
             .resources()
-            .map(|res| (res.id(), res.into()))
+            .map(|resource| {
+                (
+                    resource.id(),
+                    Resource::from_analyzed(
+                        resource,
+                        self.model
+                            .resource_instance_name(resource.id())
+                            .unwrap_or_default(),
+                    ),
+                )
+            })
             .collect();
         let resource_types = self
             .model
@@ -406,7 +416,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     .values()
                     .map(|entity| entity as &dyn quent_analyzer::resource::ResourceGroup),
             )
-            .map(|res| (res.id(), res.into()))
+            .map(|group| {
+                (
+                    group.id(),
+                    ResourceGroup::from_analyzed(
+                        group,
+                        self.model
+                            .resource_group_instance_name(group.id())
+                            .unwrap_or_default(),
+                    ),
+                )
+            })
             .collect();
         let resource_group_types = self
             .model
@@ -496,6 +516,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     query_operators.contains(&op) && operator_matches(&operator_ids, Some(op))
                 })
             },
+            TaskExt::try_to_ui_fsm,
             entities::ListQuery {
                 scope: scope.as_ref(),
                 window,

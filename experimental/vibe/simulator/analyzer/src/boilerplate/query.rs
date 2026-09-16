@@ -6,7 +6,7 @@ use super::*;
 pub(crate) type QueryBuilder = FsmBuilder<schema::QueryEvent>;
 
 #[derive(Debug)]
-pub(crate) struct Query(AnalyzedFsm<schema::QueryEvent>);
+pub struct Query(AnalyzedFsm<schema::QueryEvent>);
 
 impl Query {
     pub(crate) fn try_from_builder(builder: QueryBuilder) -> AnalyzerResult<Self> {

@@ -1,12 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
-
-use quent_analyzer::{
-    self as a, Entity, AnalyzerResult, Model, resource::tree::ResourceTreeNode,
-};
-use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
+use quent_analyzer::{self as a, AnalyzerResult, Entity, Model, resource::tree::ResourceTreeNode};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{TimeSec, TimeUnixNanoSec, try_to_secs_relative};
 use serde::Serialize;
 use ts_rs::TS;
@@ -62,33 +58,15 @@ pub struct Resource {
     pub parent_group_id: Uuid,
 }
 
-fn instance_name(entity: &(impl Entity + ?Sized)) -> String {
-    entity
-        .attributes()
-        .into_iter()
-        .find_map(|attribute| match (&*attribute.key, attribute.value) {
-            ("instance_name", Some(DynamicValue::String(value))) => Some(value),
-            _ => None,
-        })
-        .unwrap_or_default()
-}
-
-impl<T: a::resource::Resource> From<&T> for Resource {
-    fn from(value: &T) -> Self {
+impl Resource {
+    /// Creates a UI resource from an analyzed resource and its display name.
+    pub fn from_analyzed(
+        value: &(impl a::resource::Resource + ?Sized),
+        instance_name: impl Into<String>,
+    ) -> Self {
         Self {
             id: value.id(),
-            instance_name: instance_name(value),
-            type_name: value.type_name().to_owned(),
-            parent_group_id: value.parent_group_id(),
-        }
-    }
-}
-
-impl From<&dyn a::resource::Resource> for Resource {
-    fn from(value: &dyn a::resource::Resource) -> Self {
-        Self {
-            id: value.id(),
-            instance_name: instance_name(value),
+            instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
         }
@@ -132,11 +110,15 @@ pub struct ResourceGroup {
     pub parent_group_id: Option<Uuid>,
 }
 
-impl From<&dyn a::resource::ResourceGroup> for ResourceGroup {
-    fn from(value: &dyn a::resource::ResourceGroup) -> Self {
+impl ResourceGroup {
+    /// Creates a UI resource group from an analyzed group and its display name.
+    pub fn from_analyzed(
+        value: &(impl a::resource::ResourceGroup + ?Sized),
+        instance_name: impl Into<String>,
+    ) -> Self {
         Self {
             id: value.id(),
-            instance_name: instance_name(value),
+            instance_name: instance_name.into(),
             type_name: value.type_name().to_owned(),
             parent_group_id: value.parent_group_id(),
         }
@@ -277,67 +259,6 @@ impl FiniteStateMachine {
                 .iter()
                 .map(|transition| FsmTransition::try_from_rt(transition, epoch))
                 .collect::<Result<Vec<_>, _>>()?,
-        })
-    }
-
-    /// Build from any application FSM via the [`FsmUsages`](a::fsm::FsmUsages)
-    /// interface.
-    ///
-    /// Usages are grouped onto their state's transition by state name, which is
-    /// unique within an FSM.
-    pub fn try_from_fsm<'a, F>(
-        fsm: &'a F,
-        epoch: TimeUnixNanoSec,
-    ) -> Result<Self, quent_time::TimeError>
-    where
-        F: a::fsm::FsmUsages<'a>,
-    {
-        use a::fsm::Transition;
-        use a::resource::Usage;
-        use quent_time::Timestamp;
-
-        let mut usages_by_state: HashMap<String, Vec<FsmUsage>> = HashMap::new();
-        for (state_name, usage) in fsm.usages_with_state_names() {
-            usages_by_state
-                .entry(state_name.to_owned())
-                .or_default()
-                .push(FsmUsage {
-                    resource: usage.resource_id(),
-                    capacities: usage
-                        .capacities()
-                        .map(|c| (c.name.to_string(), c.value))
-                        .collect(),
-                });
-        }
-
-        // 0..=len covers every transition including the exit transition.
-        let transitions = (0..=fsm.len())
-            .filter_map(|i| fsm.transition(i))
-            .map(|t| {
-                Ok(FsmTransition {
-                    name: t.name().to_owned(),
-                    usages: usages_by_state.remove(t.name()).unwrap_or_default(),
-                    timestamp: try_to_secs_relative(t.timestamp(), epoch)?,
-                    attributes: t.attributes(),
-                    derived_attributes: vec![],
-                })
-            })
-            .collect::<Result<Vec<_>, quent_time::TimeError>>()?;
-
-        let instance_name = transitions
-            .iter()
-            .flat_map(|transition| &transition.attributes)
-            .find_map(|attribute| match (&*attribute.key, &attribute.value) {
-                ("instance_name", Some(DynamicValue::String(value))) => Some(value.clone()),
-                _ => None,
-            })
-            .unwrap_or_default();
-
-        Ok(Self {
-            id: fsm.id(),
-            type_name: fsm.type_name().to_owned(),
-            instance_name,
-            transitions,
         })
     }
 }

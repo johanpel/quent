@@ -8,14 +8,35 @@ use quent_analyzer::{
     fsm::{
         Fsm, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration, FsmUsages,
         Transition,
-        native::{AnalyzedFsm as NativeFsm, FsmBuilder, Transition as NativeTransition},
+        native::{AnalyzedFsm as NativeFsm, AnalyzedTransition as NativeTransition, FsmBuilder},
     },
     resource::{Usage, Using},
 };
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_simulator_store as schema;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative};
 use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
 use uuid::Uuid;
+
+fn transition_attributes(event: &schema::TaskEvent) -> Vec<DynamicAttribute> {
+    match event {
+        schema::TaskEvent::Queueing { instance_name, .. } => {
+            vec![DynamicAttribute::string(
+                "instance_name",
+                instance_name.as_str(),
+            )]
+        }
+        schema::TaskEvent::Computing {
+            instance_name,
+            input_bytes,
+            ..
+        } => vec![
+            DynamicAttribute::string("instance_name", instance_name.as_str()),
+            DynamicAttribute::u64("input_bytes", *input_bytes),
+        ],
+        _ => Vec::new(),
+    }
+}
 
 fn declaration() -> FsmTypeDecl {
     let state = |name: &str, usages: &[&str]| FsmStateTypeDecl {
@@ -195,7 +216,7 @@ impl TaskExt for Task {
                         })
                         .collect(),
                     timestamp: to_secs_relative(t.timestamp(), epoch),
-                    attributes: t.attributes(),
+                    attributes: transition_attributes(&t.data),
                     derived_attributes,
                 })
             })

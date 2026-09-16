@@ -25,7 +25,7 @@ impl EntityEventAccumulator for QueryGroupAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct QueryGroup(AnalyzedEntity<QueryGroupAccumulator>);
+pub struct QueryGroup(AnalyzedEntity<QueryGroupAccumulator>);
 
 impl QueryGroup {
     pub(crate) fn try_from_event(event: Event<schema::QueryGroupEvent>) -> AnalyzerResult<Self> {

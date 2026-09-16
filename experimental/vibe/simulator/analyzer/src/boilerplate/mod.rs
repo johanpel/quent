@@ -7,7 +7,7 @@
 // https://github.com/rapidsai/quent/issues/288.
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, RefTreeEntity,
+    AnalyzerResult, Entity, RefTreeEntity,
     entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
@@ -43,20 +43,21 @@ mod task_executor;
 mod task_executor_thread;
 mod worker;
 
-pub(crate) use engine::Engine;
+pub use engine::Engine;
 pub(crate) use gpu::Gpu;
 pub(crate) use gpu_memory::GpuMemory;
 pub(crate) use host_memory::HostMemory;
 pub(crate) use network::Network;
 pub(crate) use network_channel::NetworkChannel;
-pub(crate) use operator::Operator;
+pub use operator::Operator;
 pub(crate) use pcie_channel::PcieChannel;
-pub(crate) use plan::Plan;
-pub(crate) use port::Port;
-pub(crate) use query::{Query, QueryBuilder};
-pub(crate) use query_group::QueryGroup;
+pub use plan::Plan;
+pub use port::Port;
+pub use query::Query;
+pub(crate) use query::QueryBuilder;
+pub use query_group::QueryGroup;
 pub(crate) use storage::Storage;
 pub(crate) use storage_channel::StorageChannel;
 pub(crate) use task_executor::TaskExecutor;
 pub(crate) use task_executor_thread::TaskExecutorThread;
-pub(crate) use worker::Worker;
+pub use worker::Worker;

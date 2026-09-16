@@ -14,170 +14,32 @@ use quent_analyzer::{
 };
 use quent_events::Event;
 use quent_query_engine_analyzer::{
-    OperatorEntityMut, QueryEngineEntityId, QueryEngineModel, QueryEngineModelMut,
-    model::{
-        self as query_engine, Engine, InMemoryQueryEngineModel, InMemoryQueryEngineModelBuilder,
-        Operator, Plan, Port, Query, QueryEngineEvent, QueryGroup, Worker,
-    },
-    plan_tree::PlanTree,
+    OperatorEntityMut, QueryEngineModel, QueryEngineModelMut, plan_tree::PlanTree,
 };
 use quent_query_engine_ui::EntityRef;
-use quent_simulator_store::{self as schema, SimulatorEvent};
+use quent_simulator_store::SimulatorEvent;
 use uuid::Uuid;
+
+pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, QueryGroup, Worker};
 
 use crate::{
     boilerplate::{
-        Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, Storage, StorageChannel,
-        TaskExecutor, TaskExecutorThread,
+        Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel, QueryBuilder, Storage,
+        StorageChannel, TaskExecutor, TaskExecutorThread,
     },
     task::{Task, TaskBuilder, TaskExt},
     view::SimulatorModelQueryView,
 };
 
-trait IntoQueryEngineEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent;
-}
-
-// TODO(johanpel): Generate query-engine semantic event adapters from schema metadata. See
-// https://github.com/rapidsai/quent/issues/288.
-impl IntoQueryEngineEvent for schema::EngineEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        QueryEngineEvent::Engine(match self {
-            Self::Init {
-                implementation,
-                instance_name,
-            } => query_engine::EngineEvent::Init {
-                implementation: query_engine::EngineImplementation {
-                    name: implementation.name,
-                    version: implementation.version,
-                    custom_attributes: implementation.custom_attributes,
-                },
-                instance_name,
-            },
-            Self::Exit => query_engine::EngineEvent::Exit,
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::WorkerEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        QueryEngineEvent::Worker(match self {
-            Self::Init {
-                parent_engine_id,
-                instance_name,
-            } => query_engine::WorkerEvent::Init {
-                parent_engine_id: parent_engine_id.target,
-                instance_name,
-            },
-            Self::Exit => query_engine::WorkerEvent::Exit,
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::QueryGroupEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        let Self::Declaration {
-            instance_name,
-            engine_id,
-        } = self;
-        QueryEngineEvent::QueryGroup(query_engine::QueryGroupEvent {
-            instance_name,
-            engine_id: engine_id.target,
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::QueryEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        QueryEngineEvent::Query(match self {
-            Self::Init {
-                seq,
-                instance_name,
-                query_group_id,
-            } => query_engine::QueryEvent::Init {
-                seq,
-                instance_name,
-                query_group_id: query_group_id.target,
-            },
-            Self::Planning { seq } => query_engine::QueryEvent::Planning { seq },
-            Self::Executing { seq } => query_engine::QueryEvent::Executing { seq },
-            Self::Done { seq } => query_engine::QueryEvent::Done { seq },
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::PlanEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        let Self::Declaration {
-            parent,
-            instance_name,
-            edges,
-            worker_id,
-        } = self;
-        QueryEngineEvent::Plan(query_engine::PlanEvent {
-            parent: query_engine::PlanParent {
-                query_id: parent.query_id.target,
-                plan_id: parent.plan_id.map(|plan| plan.target),
-            },
-            instance_name,
-            edges: edges
-                .into_iter()
-                .map(|edge| query_engine::Edge {
-                    source: edge.source.target,
-                    target: edge.target.target,
-                })
-                .collect(),
-            worker_id: worker_id.map(|worker| worker.target),
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::OperatorEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        QueryEngineEvent::Operator(match self {
-            Self::Declaration {
-                plan_id,
-                parent_operator_ids,
-                instance_name,
-                type_name,
-                custom_attributes,
-            } => query_engine::OperatorEvent::Declaration {
-                plan_id: plan_id.target,
-                parent_operator_ids: parent_operator_ids
-                    .into_iter()
-                    .map(|operator| operator.target)
-                    .collect(),
-                instance_name,
-                type_name,
-                custom_attributes,
-            },
-            Self::Statistics { custom_attributes } => {
-                query_engine::OperatorEvent::Statistics { custom_attributes }
-            }
-        })
-    }
-}
-
-impl IntoQueryEngineEvent for schema::PortEvent {
-    fn into_query_engine_event(self) -> QueryEngineEvent {
-        QueryEngineEvent::Port(match self {
-            Self::Declaration {
-                operator_id,
-                instance_name,
-            } => query_engine::PortEvent::Declaration {
-                operator_id: operator_id.target,
-                instance_name,
-            },
-            Self::Statistics { custom_attributes } => {
-                query_engine::PortEvent::Statistics { custom_attributes }
-            }
-        })
-    }
-}
-
 /// A model of the simulator engine
 pub struct SimulatorModel {
-    pub(crate) query_engine: InMemoryQueryEngineModel,
+    pub(crate) engine: Engine,
+    pub(crate) workers: HashMap<Uuid, Worker>,
+    pub(crate) query_groups: HashMap<Uuid, QueryGroup>,
+    pub(crate) queries: HashMap<Uuid, Query>,
+    pub(crate) plans: HashMap<Uuid, Plan>,
+    pub(crate) operators: HashMap<Uuid, Operator>,
+    pub(crate) ports: HashMap<Uuid, Port>,
     pub(crate) resource_types: HashMap<String, ResourceTypeDecl>,
     pub(crate) host_memories: HashMap<Uuid, HostMemory>,
     pub(crate) storages: HashMap<Uuid, Storage>,
@@ -197,16 +59,20 @@ impl Model for SimulatorModel {
     type EntityIdType = EntityRef;
 
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        if let Ok(qe_ref) = self.query_engine.try_entity_ref(entity_id) {
-            Ok(match qe_ref {
-                QueryEngineEntityId::Engine(uuid) => EntityRef::Engine(uuid),
-                QueryEngineEntityId::Worker(uuid) => EntityRef::Worker(uuid),
-                QueryEngineEntityId::QueryGroup(uuid) => EntityRef::QueryGroup(uuid),
-                QueryEngineEntityId::Query(uuid) => EntityRef::Query(uuid),
-                QueryEngineEntityId::Plan(uuid) => EntityRef::Plan(uuid),
-                QueryEngineEntityId::Operator(uuid) => EntityRef::Operator(uuid),
-                QueryEngineEntityId::Port(uuid) => EntityRef::Port(uuid),
-            })
+        if self.engine.id() == entity_id {
+            Ok(EntityRef::Engine(entity_id))
+        } else if self.workers.contains_key(&entity_id) {
+            Ok(EntityRef::Worker(entity_id))
+        } else if self.query_groups.contains_key(&entity_id) {
+            Ok(EntityRef::QueryGroup(entity_id))
+        } else if self.queries.contains_key(&entity_id) {
+            Ok(EntityRef::Query(entity_id))
+        } else if self.plans.contains_key(&entity_id) {
+            Ok(EntityRef::Plan(entity_id))
+        } else if self.operators.contains_key(&entity_id) {
+            Ok(EntityRef::Operator(entity_id))
+        } else if self.ports.contains_key(&entity_id) {
+            Ok(EntityRef::Port(entity_id))
         } else if self.resource(entity_id).is_ok() {
             Ok(EntityRef::Resource(entity_id))
         } else if self.task_executors.contains_key(&entity_id)
@@ -226,7 +92,7 @@ impl Model for SimulatorModel {
     }
 
     fn root(&self) -> AnalyzerResult<&impl ResourceGroup> {
-        self.query_engine.root()
+        Ok(&self.engine)
     }
 }
 
@@ -240,52 +106,66 @@ impl QueryEngineModel for SimulatorModel {
     type Port = Port;
 
     fn engine(&self) -> AnalyzerResult<&Engine> {
-        self.query_engine.engine()
+        Ok(&self.engine)
     }
     fn query(&self, query_id: Uuid) -> AnalyzerResult<&Query> {
-        self.query_engine.query(query_id)
+        self.queries
+            .get(&query_id)
+            .ok_or(AnalyzerError::InvalidId(query_id))
     }
     fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&QueryGroup> {
-        self.query_engine.query_group(query_group_id)
+        self.query_groups
+            .get(&query_group_id)
+            .ok_or(AnalyzerError::InvalidId(query_group_id))
     }
     fn worker(&self, worker_id: Uuid) -> AnalyzerResult<&Worker> {
-        self.query_engine.worker(worker_id)
+        self.workers
+            .get(&worker_id)
+            .ok_or(AnalyzerError::InvalidId(worker_id))
     }
     fn plan(&self, plan_id: Uuid) -> AnalyzerResult<&Plan> {
-        self.query_engine.plan(plan_id)
+        self.plans
+            .get(&plan_id)
+            .ok_or(AnalyzerError::InvalidId(plan_id))
     }
     fn operator(&self, operator_id: Uuid) -> AnalyzerResult<&Operator> {
-        self.query_engine.operator(operator_id)
+        self.operators
+            .get(&operator_id)
+            .ok_or(AnalyzerError::InvalidId(operator_id))
     }
     fn port(&self, port_id: Uuid) -> AnalyzerResult<&Port> {
-        self.query_engine.port(port_id)
+        self.ports
+            .get(&port_id)
+            .ok_or(AnalyzerError::InvalidId(port_id))
     }
     fn queries(&self) -> impl Iterator<Item = &Query> {
-        self.query_engine.queries()
+        self.queries.values()
     }
     fn query_groups(&self) -> impl Iterator<Item = &QueryGroup> {
-        self.query_engine.query_groups()
+        self.query_groups.values()
     }
     fn workers(&self) -> impl Iterator<Item = &Worker> {
-        self.query_engine.workers()
+        self.workers.values()
     }
     fn plans(&self) -> impl Iterator<Item = &Plan> {
-        self.query_engine.plans()
+        self.plans.values()
     }
     fn operators(&self) -> impl Iterator<Item = &Operator> {
-        self.query_engine.operators()
+        self.operators.values()
     }
     fn ports(&self) -> impl Iterator<Item = &Port> {
-        self.query_engine.ports()
+        self.ports.values()
     }
     fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree> {
-        self.query_engine.plan_tree(query_id)
+        PlanTree::try_new(self.plans.values(), query_id)
     }
 }
 
 impl QueryEngineModelMut for SimulatorModel {
     fn operator_mut(&mut self, operator_id: Uuid) -> AnalyzerResult<&mut Operator> {
-        self.query_engine.operator_mut(operator_id)
+        self.operators
+            .get_mut(&operator_id)
+            .ok_or(AnalyzerError::InvalidId(operator_id))
     }
 }
 
@@ -324,6 +204,18 @@ impl SimulatorModel {
                     .get(&resource_id)
                     .map(NetworkChannel::instance_name)
             })
+    }
+
+    pub(crate) fn resource_group_instance_name(&self, resource_group_id: Uuid) -> Option<&str> {
+        self.task_executors
+            .get(&resource_group_id)
+            .map(TaskExecutor::instance_name)
+            .or_else(|| {
+                self.networks
+                    .get(&resource_group_id)
+                    .map(Network::instance_name)
+            })
+            .or_else(|| self.gpus.get(&resource_group_id).map(Gpu::instance_name))
     }
 
     fn simulator_resource(&self, resource_id: Uuid) -> Option<&dyn Resource> {
@@ -397,6 +289,75 @@ impl SimulatorModel {
                     .map(|resource| resource as &dyn Resource),
             )
     }
+
+    fn query_engine_resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
+        std::iter::once(&self.engine as &dyn ResourceGroup)
+            .chain(
+                self.workers
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.query_groups
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.queries
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.plans
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.operators
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.ports
+                    .values()
+                    .map(|entity| entity as &dyn ResourceGroup),
+            )
+    }
+
+    fn query_engine_resource_group(&self, id: Uuid) -> Option<&dyn ResourceGroup> {
+        (self.engine.id() == id)
+            .then_some(&self.engine as &dyn ResourceGroup)
+            .or_else(|| {
+                self.workers
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.query_groups
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.queries
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.plans
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.operators
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.ports
+                    .get(&id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+    }
 }
 
 impl FsmCollection for SimulatorModel {
@@ -409,8 +370,37 @@ impl FsmCollection for SimulatorModel {
 
 impl RefTreeCollection for SimulatorModel {
     fn ref_tree_entities(&self) -> impl Iterator<Item = &dyn RefTreeEntity> {
-        self.query_engine
-            .ref_tree_entities()
+        std::iter::once(&self.engine as &dyn RefTreeEntity)
+            .chain(
+                self.workers
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.query_groups
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.queries
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.plans
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.operators
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
+            .chain(
+                self.ports
+                    .values()
+                    .map(|entity| entity as &dyn RefTreeEntity),
+            )
             .chain(
                 self.tasks
                     .values()
@@ -469,7 +459,19 @@ impl RefTreeCollection for SimulatorModel {
     }
 
     fn ref_tree_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn RefTreeEntity> {
-        if let Ok(entity) = self.query_engine.ref_tree_entity(entity_id) {
+        if self.engine.id() == entity_id {
+            Ok(&self.engine)
+        } else if let Some(entity) = self.workers.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.query_groups.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.queries.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.plans.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.operators.get(&entity_id) {
+            Ok(entity)
+        } else if let Some(entity) = self.ports.get(&entity_id) {
             Ok(entity)
         } else if let Some(entity) = self.tasks.get(&entity_id) {
             Ok(entity)
@@ -502,7 +504,6 @@ impl RefTreeCollection for SimulatorModel {
 impl ResourceCollection for SimulatorModel {
     fn resources(&self) -> impl Iterator<Item = &dyn Resource> {
         self.simulator_resources()
-            .chain(self.query_engine.resources())
     }
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
         self.task_executors
@@ -518,41 +519,35 @@ impl ResourceCollection for SimulatorModel {
                     .values()
                     .map(|entity| entity as &dyn ResourceGroup),
             )
-            .chain(self.query_engine.resource_groups())
+            .chain(self.query_engine_resource_groups())
     }
     fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&dyn Resource> {
         self.simulator_resource(resource_id)
             .ok_or(AnalyzerError::InvalidId(resource_id))
-            .or_else(|_| self.query_engine.resource(resource_id))
     }
     fn resource_type(&self, resource_type_name: &str) -> AnalyzerResult<&ResourceTypeDecl> {
-        self.query_engine
-            .resource_type(resource_type_name)
-            .or_else(|_| {
-                self.resource_types
-                    .get(resource_type_name)
-                    .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.to_owned()))
-            })
+        self.resource_types
+            .get(resource_type_name)
+            .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.to_owned()))
     }
     fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
-        self.query_engine
-            .resource_group(resource_group_id)
-            .or_else(|_| {
+        self.query_engine_resource_group(resource_group_id)
+            .or_else(|| {
                 self.task_executors
                     .get(&resource_group_id)
                     .map(|entity| entity as &dyn ResourceGroup)
-                    .or_else(|| {
-                        self.networks
-                            .get(&resource_group_id)
-                            .map(|entity| entity as &dyn ResourceGroup)
-                    })
-                    .or_else(|| {
-                        self.gpus
-                            .get(&resource_group_id)
-                            .map(|entity| entity as &dyn ResourceGroup)
-                    })
-                    .ok_or(AnalyzerError::InvalidId(resource_group_id))
             })
+            .or_else(|| {
+                self.networks
+                    .get(&resource_group_id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.gpus
+                    .get(&resource_group_id)
+                    .map(|entity| entity as &dyn ResourceGroup)
+            })
+            .ok_or(AnalyzerError::InvalidId(resource_group_id))
     }
 
     fn resource_group_child_groups(
@@ -562,30 +557,9 @@ impl ResourceCollection for SimulatorModel {
         // Verify the resource group exists in at least one collection
         self.resource_group(resource_group_id)?;
 
-        let engine = self
-            .query_engine
-            .resource_group_child_groups(resource_group_id)
-            .ok();
-
-        let sim = self
-            .task_executors
-            .values()
-            .map(|entity| entity as &dyn ResourceGroup)
-            .chain(
-                self.networks
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .chain(
-                self.gpus
-                    .values()
-                    .map(|entity| entity as &dyn ResourceGroup),
-            )
-            .filter_map(move |group| {
-                (group.parent_group_id() == Some(resource_group_id)).then_some(group.id())
-            });
-
-        Ok(engine.into_iter().flatten().chain(sim))
+        Ok(self.resource_groups().filter_map(move |group| {
+            (group.parent_group_id() == Some(resource_group_id)).then_some(group.id())
+        }))
     }
 
     fn resource_group_child_resources(
@@ -595,16 +569,9 @@ impl ResourceCollection for SimulatorModel {
         // Verify the resource group exists in at least one collection
         self.resource_group(resource_group_id)?;
 
-        let engine = self
-            .query_engine
-            .resource_group_child_resources(resource_group_id)
-            .ok();
-
-        let sim = self.simulator_resources().filter_map(move |resource| {
+        Ok(self.simulator_resources().filter_map(move |resource| {
             (resource.parent_group_id() == resource_group_id).then_some(resource.id())
-        });
-
-        Ok(engine.into_iter().flatten().chain(sim))
+        }))
     }
 }
 
@@ -615,7 +582,14 @@ impl Using for SimulatorModel {
 }
 
 pub struct SimulatorModelBuilder {
-    query_engine: InMemoryQueryEngineModelBuilder,
+    engine_id: Uuid,
+    engine: Option<Engine>,
+    workers: HashMap<Uuid, Worker>,
+    query_groups: HashMap<Uuid, QueryGroup>,
+    queries: HashMap<Uuid, QueryBuilder>,
+    plans: HashMap<Uuid, Plan>,
+    operators: HashMap<Uuid, Operator>,
+    ports: HashMap<Uuid, Port>,
     host_memories: HashMap<Uuid, HostMemory>,
     storages: HashMap<Uuid, Storage>,
     gpu_memories: HashMap<Uuid, GpuMemory>,
@@ -631,8 +605,20 @@ pub struct SimulatorModelBuilder {
 
 impl SimulatorModelBuilder {
     pub(crate) fn try_new(engine_id: Uuid) -> AnalyzerResult<Self> {
+        if engine_id.is_nil() {
+            return Err(AnalyzerError::Validation(
+                "engine id cannot be nil".to_owned(),
+            ));
+        }
         Ok(Self {
-            query_engine: InMemoryQueryEngineModelBuilder::try_new(engine_id)?,
+            engine_id,
+            engine: None,
+            workers: HashMap::default(),
+            query_groups: HashMap::default(),
+            queries: HashMap::default(),
+            plans: HashMap::default(),
+            operators: HashMap::default(),
+            ports: HashMap::default(),
             host_memories: HashMap::default(),
             storages: HashMap::default(),
             gpu_memories: HashMap::default(),
@@ -662,41 +648,82 @@ impl SimulatorModelBuilder {
                 task_builder.push_transition(Event::new(id, timestamp, t));
                 Ok(())
             }
-            SimulatorEvent::Engine(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::Worker(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::QueryGroup(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::Query(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::Plan(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::Operator(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
-            SimulatorEvent::Port(event) => self.query_engine.try_push(Event::new(
-                id,
-                timestamp,
-                event.into_query_engine_event(),
-            )),
+            SimulatorEvent::Engine(event) => {
+                if id != self.engine_id {
+                    return Err(AnalyzerError::Validation(format!(
+                        "multiple engine instances in one model: expected {}, found {id}",
+                        self.engine_id
+                    )));
+                }
+                let event = Event::new(id, timestamp, event);
+                if let Some(engine) = &mut self.engine {
+                    engine.push(event)
+                } else {
+                    self.engine = Some(Engine::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::Worker(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(worker) = self.workers.get_mut(&id) {
+                    worker.push(event)
+                } else {
+                    self.workers.insert(id, Worker::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::QueryGroup(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(group) = self.query_groups.get_mut(&id) {
+                    group.push(event)
+                } else {
+                    self.query_groups
+                        .insert(id, QueryGroup::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::Query(event) => {
+                match self.queries.entry(id) {
+                    std::collections::hash_map::Entry::Occupied(entry) => {
+                        entry
+                            .into_mut()
+                            .push_transition(Event::new(id, timestamp, event));
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        let mut builder = QueryBuilder::try_new(id)?;
+                        builder.push_transition(Event::new(id, timestamp, event));
+                        entry.insert(builder);
+                    }
+                }
+                Ok(())
+            }
+            SimulatorEvent::Plan(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(plan) = self.plans.get_mut(&id) {
+                    plan.push(event)
+                } else {
+                    self.plans.insert(id, Plan::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::Operator(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(operator) = self.operators.get_mut(&id) {
+                    operator.push(event)
+                } else {
+                    self.operators.insert(id, Operator::try_from_event(event)?);
+                    Ok(())
+                }
+            }
+            SimulatorEvent::Port(event) => {
+                let event = Event::new(id, timestamp, event);
+                if let Some(port) = self.ports.get_mut(&id) {
+                    port.push(event)
+                } else {
+                    self.ports.insert(id, Port::try_from_event(event)?);
+                    Ok(())
+                }
+            }
             SimulatorEvent::HostMemory(event) => {
                 let event = Event::new(id, timestamp, event);
                 if let Some(resource) = self.host_memories.get_mut(&id) {
@@ -798,6 +825,14 @@ impl SimulatorModelBuilder {
     }
 
     pub(crate) fn try_build(self) -> AnalyzerResult<SimulatorModel> {
+        let engine = self.engine.ok_or_else(|| {
+            AnalyzerError::IncompleteEntity(format!("engine {} has no events", self.engine_id))
+        })?;
+        let queries = self
+            .queries
+            .into_iter()
+            .map(|(id, builder)| Query::try_from_builder(builder).map(|query| (id, query)))
+            .collect::<AnalyzerResult<HashMap<_, _>>>()?;
         let resource_types = [
             HostMemory::resource_type_decl(),
             Storage::resource_type_decl(),
@@ -812,7 +847,13 @@ impl SimulatorModelBuilder {
         .collect();
 
         let mut model = SimulatorModel {
-            query_engine: self.query_engine.try_build()?,
+            engine,
+            workers: self.workers,
+            query_groups: self.query_groups,
+            queries,
+            plans: self.plans,
+            operators: self.operators,
+            ports: self.ports,
             resource_types,
             host_memories: self.host_memories,
             storages: self.storages,
@@ -846,7 +887,7 @@ impl SimulatorModelBuilder {
             }
             if let Some(operator_id) = task.operator_id()
                 && let Some(task_span) = task.active_span()
-                && let Ok(operator) = model.query_engine.operator_mut(operator_id)
+                && let Ok(operator) = model.operator_mut(operator_id)
             {
                 operator.extend_active_span(task_span);
             }

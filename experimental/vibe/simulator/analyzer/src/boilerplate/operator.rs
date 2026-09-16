@@ -44,7 +44,7 @@ impl EntityEventAccumulator for OperatorAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct Operator {
+pub struct Operator {
     entity: AnalyzedEntity<OperatorAccumulator>,
     pub(crate) active_span: Option<SpanUnixNanoSec>,
 }

@@ -30,7 +30,7 @@ impl EntityEventAccumulator for WorkerAccumulator {
 }
 
 #[derive(Debug)]
-pub(crate) struct Worker(AnalyzedEntity<WorkerAccumulator>);
+pub struct Worker(AnalyzedEntity<WorkerAccumulator>);
 
 impl Worker {
     pub(crate) fn try_from_event(event: Event<schema::WorkerEvent>) -> AnalyzerResult<Self> {

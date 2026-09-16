@@ -19,7 +19,7 @@
 use std::collections::HashSet;
 
 use quent_analyzer::{
-    Entity, AnalyzerError, AnalyzerResult, EntityId, Model, Span,
+    AnalyzerError, AnalyzerResult, Entity, EntityId, Model, Span,
     fsm::Fsm,
     resource::{ResourceGroup, Using},
 };

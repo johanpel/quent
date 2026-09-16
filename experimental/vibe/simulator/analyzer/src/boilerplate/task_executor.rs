@@ -34,6 +34,14 @@ impl TaskExecutor {
     pub(crate) fn push(&mut self, event: Event<schema::TaskExecutorEvent>) -> AnalyzerResult<()> {
         self.0.push(event)
     }
+
+    pub(crate) fn instance_name(&self) -> &str {
+        self.0
+            .accumulator()
+            .instance_name
+            .as_deref()
+            .expect("task executor must have a declaration event")
+    }
 }
 
 impl Entity for TaskExecutor {

@@ -7,19 +7,15 @@ use quent_analyzer::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
     },
 };
-use quent_query_engine_analyzer::{
-    QueryEngineEntityId as QeEntityRef, QueryEngineModel,
-    model::{
-        Engine, InMemoryQueryEngineModelView, Operator, Plan, Port, Query, QueryGroup, Worker,
-    },
-    plan_tree::PlanTree,
-};
+use quent_query_engine_analyzer::{QueryEngineModel, plan_tree::PlanTree};
 use quent_query_engine_ui::EntityRef;
-use rustc_hash::FxHashMap as HashMap;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use uuid::Uuid;
 
 use crate::{
-    boilerplate::{Gpu, Network, TaskExecutor},
+    boilerplate::{
+        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, TaskExecutor, Worker,
+    },
     model::SimulatorModel,
     task::Task,
 };
@@ -31,7 +27,13 @@ use crate::{
 // the entire engine could be modified by other queries.
 pub(crate) struct SimulatorModelQueryView<'a> {
     resource_types: HashMap<String, &'a ResourceTypeDecl>,
-    query_engine: InMemoryQueryEngineModelView<'a>,
+    engine: &'a Engine,
+    query_group: &'a QueryGroup,
+    query: &'a Query,
+    workers: HashMap<Uuid, &'a Worker>,
+    plans: HashMap<Uuid, &'a Plan>,
+    operators: HashMap<Uuid, &'a Operator>,
+    ports: HashMap<Uuid, &'a Port>,
     resources: HashMap<Uuid, &'a dyn Resource>,
     task_executors: HashMap<Uuid, &'a TaskExecutor>,
     networks: HashMap<Uuid, &'a Network>,
@@ -44,9 +46,32 @@ impl<'a> SimulatorModelQueryView<'a> {
         model: &'a SimulatorModel,
         query_id: Uuid,
     ) -> AnalyzerResult<SimulatorModelQueryView<'a>> {
-        // QE scoped to single query
-        let query_engine_view =
-            InMemoryQueryEngineModelView::try_new(&model.query_engine, query_id)?;
+        let query = model.query(query_id)?;
+        let query_group = model.query_group(query.query_group_id().unwrap_or_default())?;
+        let workers: HashMap<Uuid, &Worker> = model
+            .query_workers(query_id)?
+            .map(|entity| (entity.id(), entity))
+            .collect();
+        let plans: HashMap<Uuid, &Plan> = model
+            .query_plans(query_id)?
+            .map(|entity| (entity.id(), entity))
+            .collect();
+        let operators: HashMap<Uuid, &Operator> = model
+            .plans_operators(plans.values().copied())?
+            .map(|entity| (entity.id(), entity))
+            .collect();
+        let ports: HashMap<Uuid, &Port> = model
+            .operators_ports(operators.values().copied())?
+            .map(|entity| (entity.id(), entity))
+            .collect();
+        let query_engine_group_ids: HashSet<Uuid> = std::iter::once(model.engine.id())
+            .chain(std::iter::once(query_group.id()))
+            .chain(std::iter::once(query.id()))
+            .chain(workers.keys().copied())
+            .chain(plans.keys().copied())
+            .chain(operators.keys().copied())
+            .chain(ports.keys().copied())
+            .collect();
 
         let task_executors = model
             .task_executors
@@ -54,7 +79,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             .filter(|(_, entity)| {
                 entity
                     .parent_group_id()
-                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
+                    .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
             .map(|(id, entity)| (*id, entity))
             .collect::<HashMap<_, _>>();
@@ -64,7 +89,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             .filter(|(_, entity)| {
                 entity
                     .parent_group_id()
-                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
+                    .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
             .map(|(id, entity)| (*id, entity))
             .collect::<HashMap<_, _>>();
@@ -74,7 +99,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             .filter(|(_, entity)| {
                 entity
                     .parent_group_id()
-                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
+                    .is_some_and(|parent| query_engine_group_ids.contains(&parent))
             })
             .map(|(id, entity)| (*id, entity))
             .collect::<HashMap<_, _>>();
@@ -83,9 +108,7 @@ impl<'a> SimulatorModelQueryView<'a> {
             .resources()
             .filter(|resource| {
                 // This needs to reference a QE resource group:
-                let in_qe = query_engine_view
-                    .resource_group(resource.parent_group_id())
-                    .is_ok();
+                let in_qe = query_engine_group_ids.contains(&resource.parent_group_id());
                 // Or a simulator entity that groups resources.
                 let parent_id = resource.parent_group_id();
                 let in_sim = task_executors.contains_key(&parent_id)
@@ -104,7 +127,13 @@ impl<'a> SimulatorModelQueryView<'a> {
 
         let mut result = SimulatorModelQueryView {
             resource_types,
-            query_engine: query_engine_view,
+            engine: &model.engine,
+            query_group,
+            query,
+            workers,
+            plans,
+            operators,
+            ports,
             resources,
             task_executors,
             networks,
@@ -123,6 +152,61 @@ impl<'a> SimulatorModelQueryView<'a> {
             .collect();
         Ok(result)
     }
+
+    fn query_engine_resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
+        std::iter::once(self.engine as &dyn ResourceGroup)
+            .chain(std::iter::once(self.query_group as &dyn ResourceGroup))
+            .chain(std::iter::once(self.query as &dyn ResourceGroup))
+            .chain(
+                self.workers
+                    .values()
+                    .map(|entity| *entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.plans
+                    .values()
+                    .map(|entity| *entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.operators
+                    .values()
+                    .map(|entity| *entity as &dyn ResourceGroup),
+            )
+            .chain(
+                self.ports
+                    .values()
+                    .map(|entity| *entity as &dyn ResourceGroup),
+            )
+    }
+
+    fn query_engine_resource_group(&self, id: Uuid) -> Option<&dyn ResourceGroup> {
+        (self.engine.id() == id)
+            .then_some(self.engine as &dyn ResourceGroup)
+            .or_else(|| {
+                (self.query_group.id() == id).then_some(self.query_group as &dyn ResourceGroup)
+            })
+            .or_else(|| (self.query.id() == id).then_some(self.query as &dyn ResourceGroup))
+            .or_else(|| {
+                self.workers
+                    .get(&id)
+                    .map(|entity| *entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.plans
+                    .get(&id)
+                    .map(|entity| *entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.operators
+                    .get(&id)
+                    .map(|entity| *entity as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.ports
+                    .get(&id)
+                    .map(|entity| *entity as &dyn ResourceGroup)
+            })
+    }
 }
 
 impl<'a> QueryEngineModel for SimulatorModelQueryView<'a> {
@@ -135,62 +219,82 @@ impl<'a> QueryEngineModel for SimulatorModelQueryView<'a> {
     type Port = Port;
 
     fn engine(&self) -> AnalyzerResult<&Engine> {
-        self.query_engine.engine()
+        Ok(self.engine)
     }
     fn query(&self, query_id: Uuid) -> AnalyzerResult<&Query> {
-        self.query_engine.query(query_id)
+        (self.query.id() == query_id)
+            .then_some(self.query)
+            .ok_or(AnalyzerError::InvalidId(query_id))
     }
     fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&QueryGroup> {
-        self.query_engine.query_group(query_group_id)
+        (self.query_group.id() == query_group_id)
+            .then_some(self.query_group)
+            .ok_or(AnalyzerError::InvalidId(query_group_id))
     }
     fn worker(&self, worker_id: Uuid) -> AnalyzerResult<&Worker> {
-        self.query_engine.worker(worker_id)
+        self.workers
+            .get(&worker_id)
+            .copied()
+            .ok_or(AnalyzerError::InvalidId(worker_id))
     }
     fn plan(&self, plan_id: Uuid) -> AnalyzerResult<&Plan> {
-        self.query_engine.plan(plan_id)
+        self.plans
+            .get(&plan_id)
+            .copied()
+            .ok_or(AnalyzerError::InvalidId(plan_id))
     }
     fn operator(&self, operator_id: Uuid) -> AnalyzerResult<&Operator> {
-        self.query_engine.operator(operator_id)
+        self.operators
+            .get(&operator_id)
+            .copied()
+            .ok_or(AnalyzerError::InvalidId(operator_id))
     }
     fn port(&self, port_id: Uuid) -> AnalyzerResult<&Port> {
-        self.query_engine.port(port_id)
+        self.ports
+            .get(&port_id)
+            .copied()
+            .ok_or(AnalyzerError::InvalidId(port_id))
     }
     fn queries(&self) -> impl Iterator<Item = &Query> {
-        self.query_engine.queries()
+        std::iter::once(self.query)
     }
     fn query_groups(&self) -> impl Iterator<Item = &QueryGroup> {
-        self.query_engine.query_groups()
+        std::iter::once(self.query_group)
     }
     fn workers(&self) -> impl Iterator<Item = &Worker> {
-        self.query_engine.workers()
+        self.workers.values().copied()
     }
     fn plans(&self) -> impl Iterator<Item = &Plan> {
-        self.query_engine.plans()
+        self.plans.values().copied()
     }
     fn operators(&self) -> impl Iterator<Item = &Operator> {
-        self.query_engine.operators()
+        self.operators.values().copied()
     }
     fn ports(&self) -> impl Iterator<Item = &Port> {
-        self.query_engine.ports()
+        self.ports.values().copied()
     }
     fn plan_tree(&self, query_id: Uuid) -> AnalyzerResult<PlanTree> {
-        self.query_engine.plan_tree(query_id)
+        PlanTree::try_new(self.plans.values().copied(), query_id)
     }
 }
 
 impl<'a> Model for SimulatorModelQueryView<'a> {
     type EntityIdType = EntityRef;
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType> {
-        if let Ok(qe_ref) = self.query_engine.try_entity_ref(entity_id) {
-            Ok(match qe_ref {
-                QeEntityRef::Engine(uuid) => EntityRef::Engine(uuid),
-                QeEntityRef::Worker(uuid) => EntityRef::Worker(uuid),
-                QeEntityRef::QueryGroup(uuid) => EntityRef::QueryGroup(uuid),
-                QeEntityRef::Query(uuid) => EntityRef::Query(uuid),
-                QeEntityRef::Plan(uuid) => EntityRef::Plan(uuid),
-                QeEntityRef::Operator(uuid) => EntityRef::Operator(uuid),
-                QeEntityRef::Port(uuid) => EntityRef::Port(uuid),
-            })
+        if self.engine.id() == entity_id {
+            Ok(EntityRef::Engine(entity_id))
+        } else if self.workers.contains_key(&entity_id) {
+            Ok(EntityRef::Worker(entity_id))
+        } else if self.query_group.id() == entity_id {
+            Ok(EntityRef::QueryGroup(entity_id))
+        } else if self.query.id() == entity_id {
+            Ok(EntityRef::Query(entity_id))
+        } else if self.plans.contains_key(&entity_id) {
+            Ok(EntityRef::Plan(entity_id))
+        } else if self.operators.contains_key(&entity_id) {
+            Ok(EntityRef::Operator(entity_id))
+        } else if self.ports.contains_key(&entity_id) {
+            Ok(EntityRef::Port(entity_id))
         } else if self.resources.contains_key(&entity_id) {
             Ok(EntityRef::Resource(entity_id))
         } else if self.task_executors.contains_key(&entity_id)
@@ -209,7 +313,7 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
         }
     }
     fn root(&self) -> AnalyzerResult<&impl ResourceGroup> {
-        self.query_engine.root()
+        Ok(self.engine)
     }
 }
 
@@ -218,14 +322,16 @@ impl<'a> ResourceCollection for SimulatorModelQueryView<'a> {
         self.resources.values().map(|r| *r as &dyn Resource)
     }
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
-        let qe_groups = self.query_engine.resource_groups();
         let task_executors = self
             .task_executors
             .values()
             .map(|r| *r as &dyn ResourceGroup);
         let networks = self.networks.values().map(|r| *r as &dyn ResourceGroup);
         let gpus = self.gpus.values().map(|r| *r as &dyn ResourceGroup);
-        qe_groups.chain(task_executors).chain(networks).chain(gpus)
+        self.query_engine_resource_groups()
+            .chain(task_executors)
+            .chain(networks)
+            .chain(gpus)
     }
     fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&dyn Resource> {
         // qe model has no leaf resources.
@@ -241,25 +347,23 @@ impl<'a> ResourceCollection for SimulatorModelQueryView<'a> {
             .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.to_owned()))
     }
     fn resource_group(&self, resource_group_id: Uuid) -> AnalyzerResult<&dyn ResourceGroup> {
-        let qe_group = self.query_engine.resource_group(resource_group_id);
-        if qe_group.is_ok() {
-            qe_group
-        } else {
-            self.task_executors
-                .get(&resource_group_id)
-                .map(|r| *r as &dyn ResourceGroup)
-                .or_else(|| {
-                    self.networks
-                        .get(&resource_group_id)
-                        .map(|r| *r as &dyn ResourceGroup)
-                })
-                .or_else(|| {
-                    self.gpus
-                        .get(&resource_group_id)
-                        .map(|r| *r as &dyn ResourceGroup)
-                })
-                .ok_or(AnalyzerError::InvalidId(resource_group_id))
-        }
+        self.query_engine_resource_group(resource_group_id)
+            .or_else(|| {
+                self.task_executors
+                    .get(&resource_group_id)
+                    .map(|r| *r as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.networks
+                    .get(&resource_group_id)
+                    .map(|r| *r as &dyn ResourceGroup)
+            })
+            .or_else(|| {
+                self.gpus
+                    .get(&resource_group_id)
+                    .map(|r| *r as &dyn ResourceGroup)
+            })
+            .ok_or(AnalyzerError::InvalidId(resource_group_id))
     }
     fn resource_group_child_groups(
         &self,

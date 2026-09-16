@@ -34,6 +34,14 @@ impl Gpu {
     pub(crate) fn push(&mut self, event: Event<schema::GpuEvent>) -> AnalyzerResult<()> {
         self.0.push(event)
     }
+
+    pub(crate) fn instance_name(&self) -> &str {
+        self.0
+            .accumulator()
+            .instance_name
+            .as_deref()
+            .expect("GPU must have a declaration event")
+    }
 }
 
 impl Entity for Gpu {
