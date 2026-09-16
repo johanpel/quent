@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_analyzer::{
-    Entity, AnalyzerError, AnalyzerResult, Model,
+    AnalyzerError, AnalyzerResult, Entity, Model,
     resource::{
-        Resource, ResourceGroup, ResourceTypeDecl, Usage, Using,
-        collection::ResourceCollection,
-        runtime::{RtResource, RtResourceGroup},
+        Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
     },
 };
 use quent_query_engine_analyzer::{
@@ -20,7 +18,11 @@ use quent_query_engine_ui::EntityRef;
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use crate::{model::SimulatorModel, task::Task};
+use crate::{
+    boilerplate::{Gpu, Network, TaskExecutor},
+    model::SimulatorModel,
+    task::Task,
+};
 
 /// A view of the simulator model filtered to a specific query
 // TODO(johanpel): figure out a better way to construct these views, or to
@@ -30,8 +32,10 @@ use crate::{model::SimulatorModel, task::Task};
 pub(crate) struct SimulatorModelQueryView<'a> {
     resource_types: HashMap<String, &'a ResourceTypeDecl>,
     query_engine: InMemoryQueryEngineModelView<'a>,
-    resources: HashMap<Uuid, &'a RtResource>,
-    resource_groups: HashMap<Uuid, &'a RtResourceGroup>,
+    resources: HashMap<Uuid, &'a dyn Resource>,
+    task_executors: HashMap<Uuid, &'a TaskExecutor>,
+    networks: HashMap<Uuid, &'a Network>,
+    gpus: HashMap<Uuid, &'a Gpu>,
     tasks: HashMap<Uuid, &'a Task>,
 }
 
@@ -44,33 +48,52 @@ impl<'a> SimulatorModelQueryView<'a> {
         let query_engine_view =
             InMemoryQueryEngineModelView::try_new(&model.query_engine, query_id)?;
 
-        // Only keep arbitrary groups that reference one of the QE model groups
-        let resource_groups = model
-            .arbitrary_resources
-            .resource_groups
+        let task_executors = model
+            .task_executors
             .iter()
-            .filter(|(_, v)| {
-                v.parent_group_id
-                    .and_then(|parent| query_engine_view.resource_group(parent).ok())
-                    .is_some()
+            .filter(|(_, entity)| {
+                entity
+                    .parent_group_id()
+                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
             })
-            .map(|(k, v)| (*k, v))
+            .map(|(id, entity)| (*id, entity))
+            .collect::<HashMap<_, _>>();
+        let networks = model
+            .networks
+            .iter()
+            .filter(|(_, entity)| {
+                entity
+                    .parent_group_id()
+                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
+            })
+            .map(|(id, entity)| (*id, entity))
+            .collect::<HashMap<_, _>>();
+        let gpus = model
+            .gpus
+            .iter()
+            .filter(|(_, entity)| {
+                entity
+                    .parent_group_id()
+                    .is_some_and(|parent| query_engine_view.resource_group(parent).is_ok())
+            })
+            .map(|(id, entity)| (*id, entity))
             .collect::<HashMap<_, _>>();
 
         let resources = model
-            .arbitrary_resources
-            .resources
-            .iter()
-            .filter(|(_, resource)| {
+            .resources()
+            .filter(|resource| {
                 // This needs to reference a QE resource group:
                 let in_qe = query_engine_view
                     .resource_group(resource.parent_group_id())
                     .is_ok();
-                // Or an arbitrary resource group.
-                let in_sim = resource_groups.contains_key(&resource.parent_group_id());
+                // Or an application entity used for legacy resource grouping.
+                let parent_id = resource.parent_group_id();
+                let in_sim = task_executors.contains_key(&parent_id)
+                    || networks.contains_key(&parent_id)
+                    || gpus.contains_key(&parent_id);
                 in_qe || in_sim
             })
-            .map(|(k, v)| (*k, v))
+            .map(|resource| (resource.id(), resource))
             .collect::<HashMap<_, _>>();
 
         let resource_types = model
@@ -83,8 +106,10 @@ impl<'a> SimulatorModelQueryView<'a> {
         let mut result = SimulatorModelQueryView {
             resource_types,
             query_engine: query_engine_view,
-            resource_groups,
             resources,
+            task_executors,
+            networks,
+            gpus,
             tasks: HashMap::default(),
         };
 
@@ -169,7 +194,10 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
             })
         } else if self.resources.contains_key(&entity_id) {
             Ok(EntityRef::Resource(entity_id))
-        } else if self.resource_groups.contains_key(&entity_id) {
+        } else if self.task_executors.contains_key(&entity_id)
+            || self.networks.contains_key(&entity_id)
+            || self.gpus.contains_key(&entity_id)
+        {
             Ok(EntityRef::ResourceGroup(entity_id))
         } else {
             self.tasks
@@ -192,11 +220,13 @@ impl<'a> ResourceCollection for SimulatorModelQueryView<'a> {
     }
     fn resource_groups(&self) -> impl Iterator<Item = &dyn ResourceGroup> {
         let qe_groups = self.query_engine.resource_groups();
-        let sim_groups = self
-            .resource_groups
+        let task_executors = self
+            .task_executors
             .values()
             .map(|r| *r as &dyn ResourceGroup);
-        qe_groups.chain(sim_groups)
+        let networks = self.networks.values().map(|r| *r as &dyn ResourceGroup);
+        let gpus = self.gpus.values().map(|r| *r as &dyn ResourceGroup);
+        qe_groups.chain(task_executors).chain(networks).chain(gpus)
     }
     fn resource(&self, resource_id: Uuid) -> AnalyzerResult<&dyn Resource> {
         // qe model has no leaf resources.
@@ -216,9 +246,19 @@ impl<'a> ResourceCollection for SimulatorModelQueryView<'a> {
         if qe_group.is_ok() {
             qe_group
         } else {
-            self.resource_groups
+            self.task_executors
                 .get(&resource_group_id)
                 .map(|r| *r as &dyn ResourceGroup)
+                .or_else(|| {
+                    self.networks
+                        .get(&resource_group_id)
+                        .map(|r| *r as &dyn ResourceGroup)
+                })
+                .or_else(|| {
+                    self.gpus
+                        .get(&resource_group_id)
+                        .map(|r| *r as &dyn ResourceGroup)
+                })
                 .ok_or(AnalyzerError::InvalidId(resource_group_id))
         }
     }

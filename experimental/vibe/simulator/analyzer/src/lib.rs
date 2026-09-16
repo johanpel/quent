@@ -37,7 +37,7 @@ use std::sync::Arc;
 use tracing::debug;
 
 use quent_analyzer::{
-    Entity, AnalyzerError, AnalyzerResult, Model, Span,
+    AnalyzerError, AnalyzerResult, Entity, Model, Span,
     context::ContextInventory,
     fsm::{FsmTypeDeclaration, FsmUsages, Transition},
     resource::{
@@ -62,6 +62,7 @@ use crate::{
     task::{Task, TaskExt},
 };
 
+mod boilerplate;
 pub mod model;
 pub mod task;
 pub mod view;
@@ -301,8 +302,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             plans = qe.plans.len(),
             operators = qe.operators.len(),
             ports = qe.ports.len(),
-            resources = model.arbitrary_resources.resources.len(),
-            resource_groups = model.arbitrary_resources.resource_groups.len(),
+            resources = model.resources().count(),
+            resource_groups = model.task_executors.len() + model.networks.len() + model.gpus.len(),
             resource_types = model.arbitrary_resources.resource_types.len(),
             resource_group_types = model.resource_group_types.len(),
             tasks = model.tasks.len(),
@@ -372,7 +373,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         debug!("converting simulator model entities");
         let resources = self
             .model
-            .arbitrary_resources
             .resources()
             .map(|res| (res.id(), res.into()))
             .collect();
@@ -986,18 +986,12 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         // `DIMENSION_NONE` for states that hold no memory.
         let memory_names: HashMap<Uuid, String> = self
             .model
-            .arbitrary_resources
             .resources()
             .filter(|resource| MEMORY_TYPE_NAMES.contains(&resource.type_name()))
             .filter_map(|resource| {
-                resource
-                    .attributes()
-                    .into_iter()
-                    .find_map(|attribute| match (&*attribute.key, attribute.value) {
-                        ("instance_name", Some(DynamicValue::String(value))) => Some(value),
-                        _ => None,
-                    })
-                    .map(|name| (resource.id(), name))
+                self.model
+                    .resource_instance_name(resource.id())
+                    .map(|name| (resource.id(), name.to_owned()))
             })
             .collect();
 
