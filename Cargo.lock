@@ -3077,6 +3077,7 @@ dependencies = [
  "quent-io",
  "quent-query-engine-analyzer",
  "quent-query-engine-ui",
+ "quent-simulator",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
  "quent-simulator-store",

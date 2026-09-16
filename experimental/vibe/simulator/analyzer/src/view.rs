@@ -4,7 +4,7 @@
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
     ref_tree::collection::RefTreeCollection,
-    resource::{Resource, ResourceTypeDecl, Usage, Using, collection::ResourceCollection},
+    resource::{Resource, ResourceTypeDecl, collection::ResourceCollection},
 };
 use quent_query_engine_analyzer::{QueryEngineModel, plan_tree::PlanTree};
 use quent_query_engine_ui::EntityRef;
@@ -13,7 +13,8 @@ use uuid::Uuid;
 
 use crate::{
     boilerplate::{
-        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, Task, TaskExecutor, Worker,
+        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, Task, TaskExecutor, TaskExt,
+        Worker,
     },
     model::SimulatorModel,
 };
@@ -131,8 +132,8 @@ impl<'a> SimulatorModelQueryView<'a> {
             .values()
             .map(|task| (task.id(), task))
             .filter(|(_, task)| {
-                task.usages()
-                    .any(|usage| resources.contains_key(&usage.resource_id()))
+                task.operator_id()
+                    .is_some_and(|operator_id| operators.contains_key(&operator_id))
             })
             .collect();
         let scoped_entity_ids = std::iter::once(model.engine.id())
