@@ -44,6 +44,6 @@ pub trait Model {
     /// Type-safety wrapper around an entity ID.
     type EntityIdType;
 
-    /// Given an [`AnalyzedEntity`] ID, resolve it into an [`Self::EntityIdType`].
+    /// Given an [`Entity`] ID, resolve it into an [`Self::EntityIdType`].
     fn try_entity_ref(&self, entity_id: Uuid) -> AnalyzerResult<Self::EntityIdType>;
 }
