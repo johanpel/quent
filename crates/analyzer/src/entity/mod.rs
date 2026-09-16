@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{AnalyzerResult, Span};
 
+pub mod collection;
 pub mod native;
 
 /// Trait for analysis-time types that represent an entity.
