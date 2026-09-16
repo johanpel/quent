@@ -151,12 +151,9 @@ mod tests {
     #[test]
     fn retains_observed_event_bounds() {
         let entity_id = Uuid::from_u128(1);
-        let mut entity = AnalyzedEntity::<Counter>::try_from_first_event(Event::new(
-            entity_id,
-            20,
-            Increment,
-        ))
-        .unwrap();
+        let mut entity =
+            AnalyzedEntity::<Counter>::try_from_first_event(Event::new(entity_id, 20, Increment))
+                .unwrap();
 
         entity.push(Event::new(entity_id, 10, Increment)).unwrap();
 
