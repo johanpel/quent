@@ -7,7 +7,7 @@ use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult, Entity, ScopedEntity,
+    AnalyzerError, AnalyzerResult, Entity, RefTreeEntity,
     resource::{Resource, ResourceCapacities, ResourceGroup},
 };
 
@@ -165,8 +165,8 @@ impl Resource for RtResource {
     }
 }
 
-impl ScopedEntity for RtResource {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for RtResource {
+    fn parent_id(&self) -> Option<Uuid> {
         Some(self.parent_group_id)
     }
 }
@@ -235,8 +235,8 @@ impl ResourceGroup for RtResourceGroup {
     }
 }
 
-impl ScopedEntity for RtResourceGroup {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for RtResourceGroup {
+    fn parent_id(&self) -> Option<Uuid> {
         self.parent_group_id
     }
 }

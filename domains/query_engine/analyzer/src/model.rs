@@ -4,17 +4,15 @@
 //! Reusable in-memory query-engine model and semantic ingestion events.
 
 use quent_analyzer::{
-    AnalyzerError, AnalyzerResult, Entity, Model, ScopedEntity, Span,
-    entity::{
-        collection::ScopeCollection,
-        native::{AnalyzedEntity, EntityEventAccumulator},
-    },
+    AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity, Span,
+    entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
         native::{
             AnalyzedFsm as NativeFsm, DynamicAttribute, FsmBuilder, Transition as NativeTransition,
         },
     },
+    ref_tree::collection::RefTreeCollection,
     resource::{
         Resource, ResourceGroup, ResourceTypeDecl, Usage, Using, collection::ResourceCollection,
     },
@@ -306,8 +304,8 @@ impl ResourceGroup for Engine {
     }
 }
 
-impl ScopedEntity for Engine {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Engine {
+    fn parent_id(&self) -> Option<Uuid> {
         None
     }
 }
@@ -415,8 +413,8 @@ impl ResourceGroup for Worker {
     }
 }
 
-impl ScopedEntity for Worker {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Worker {
+    fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().parent_engine_id
     }
 }
@@ -496,8 +494,8 @@ impl ResourceGroup for QueryGroup {
     }
 }
 
-impl ScopedEntity for QueryGroup {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for QueryGroup {
+    fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().engine_id
     }
 }
@@ -617,8 +615,8 @@ impl ResourceGroup for Query {
     }
 }
 
-impl ScopedEntity for Query {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Query {
+    fn parent_id(&self) -> Option<Uuid> {
         self.query_group_id()
     }
 }
@@ -700,8 +698,8 @@ impl ResourceGroup for Plan {
     }
 }
 
-impl ScopedEntity for Plan {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Plan {
+    fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().parent_query_id
     }
 }
@@ -829,8 +827,8 @@ impl ResourceGroup for Operator {
     }
 }
 
-impl ScopedEntity for Operator {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Operator {
+    fn parent_id(&self) -> Option<Uuid> {
         self.inner.accumulator().plan_id
     }
 }
@@ -967,8 +965,8 @@ impl ResourceGroup for Port {
     }
 }
 
-impl ScopedEntity for Port {
-    fn scope_id(&self) -> Option<Uuid> {
+impl RefTreeEntity for Port {
+    fn parent_id(&self) -> Option<Uuid> {
         self.0.accumulator().operator_id
     }
 }
@@ -1104,42 +1102,42 @@ impl InMemoryQueryEngineModel {
     }
 }
 
-impl ScopeCollection for InMemoryQueryEngineModel {
-    fn scoped_entities(&self) -> impl Iterator<Item = &dyn ScopedEntity> {
-        std::iter::once(&self.engine as &dyn ScopedEntity)
+impl RefTreeCollection for InMemoryQueryEngineModel {
+    fn ref_tree_entities(&self) -> impl Iterator<Item = &dyn RefTreeEntity> {
+        std::iter::once(&self.engine as &dyn RefTreeEntity)
             .chain(
                 self.workers
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.query_groups
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.queries
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.plans
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.operators
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.ports
                     .values()
-                    .map(|entity| entity as &dyn ScopedEntity),
+                    .map(|entity| entity as &dyn RefTreeEntity),
             )
     }
 
-    fn scoped_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn ScopedEntity> {
+    fn ref_tree_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn RefTreeEntity> {
         match self.try_entity_ref(entity_id)? {
             QueryEngineEntityId::Engine(_) => Ok(&self.engine),
             QueryEngineEntityId::Worker(_) => Ok(self.workers.get(&entity_id).unwrap()),
@@ -1518,34 +1516,34 @@ impl QueryEngineModel for InMemoryQueryEngineModelView<'_> {
     }
 }
 
-impl ScopeCollection for InMemoryQueryEngineModelView<'_> {
-    fn scoped_entities(&self) -> impl Iterator<Item = &dyn ScopedEntity> {
-        std::iter::once(self.engine as &dyn ScopedEntity)
+impl RefTreeCollection for InMemoryQueryEngineModelView<'_> {
+    fn ref_tree_entities(&self) -> impl Iterator<Item = &dyn RefTreeEntity> {
+        std::iter::once(self.engine as &dyn RefTreeEntity)
             .chain(
                 self.workers
                     .values()
-                    .map(|entity| *entity as &dyn ScopedEntity),
+                    .map(|entity| *entity as &dyn RefTreeEntity),
             )
-            .chain(std::iter::once(self.query_group as &dyn ScopedEntity))
-            .chain(std::iter::once(self.query as &dyn ScopedEntity))
+            .chain(std::iter::once(self.query_group as &dyn RefTreeEntity))
+            .chain(std::iter::once(self.query as &dyn RefTreeEntity))
             .chain(
                 self.plans
                     .values()
-                    .map(|entity| *entity as &dyn ScopedEntity),
+                    .map(|entity| *entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.operators
                     .values()
-                    .map(|entity| *entity as &dyn ScopedEntity),
+                    .map(|entity| *entity as &dyn RefTreeEntity),
             )
             .chain(
                 self.ports
                     .values()
-                    .map(|entity| *entity as &dyn ScopedEntity),
+                    .map(|entity| *entity as &dyn RefTreeEntity),
             )
     }
 
-    fn scoped_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn ScopedEntity> {
+    fn ref_tree_entity(&self, entity_id: Uuid) -> AnalyzerResult<&dyn RefTreeEntity> {
         match self.try_entity_ref(entity_id)? {
             QueryEngineEntityId::Engine(_) => Ok(self.engine),
             QueryEngineEntityId::Worker(_) => Ok(*self.workers.get(&entity_id).unwrap()),
@@ -1758,56 +1756,53 @@ mod tests {
         assert_eq!(model.plans().count(), 1);
         assert_eq!(model.operators().count(), 1);
         assert_eq!(model.ports().count(), 2);
-        assert_eq!(model.engine().unwrap().scope_id(), None);
-        assert_eq!(model.worker(worker_id).unwrap().scope_id(), Some(engine_id));
+        assert_eq!(model.engine().unwrap().parent_id(), None);
         assert_eq!(
-            model.query_group(query_group_id).unwrap().scope_id(),
+            model.worker(worker_id).unwrap().parent_id(),
             Some(engine_id)
         );
         assert_eq!(
-            model.query(query_id).unwrap().scope_id(),
+            model.query_group(query_group_id).unwrap().parent_id(),
+            Some(engine_id)
+        );
+        assert_eq!(
+            model.query(query_id).unwrap().parent_id(),
             Some(query_group_id)
         );
-        assert_eq!(model.plan(plan_id).unwrap().scope_id(), Some(query_id));
+        assert_eq!(model.plan(plan_id).unwrap().parent_id(), Some(query_id));
         assert_eq!(
-            model.operator(operator_id).unwrap().scope_id(),
+            model.operator(operator_id).unwrap().parent_id(),
             Some(plan_id)
         );
         assert_eq!(
-            model.port(source_port_id).unwrap().scope_id(),
+            model.port(source_port_id).unwrap().parent_id(),
             Some(operator_id)
         );
-        assert_eq!(model.scoped_entities().count(), 8);
+        assert_eq!(model.ref_tree_entities().count(), 8);
         assert_eq!(
             model
-                .scope_children(engine_id)
+                .children(engine_id)
                 .map(Entity::id)
                 .collect::<std::collections::HashSet<_>>(),
             std::collections::HashSet::from([worker_id, query_group_id])
         );
         assert_eq!(
-            model
-                .scope_children(query_id)
-                .map(Entity::id)
-                .collect::<Vec<_>>(),
+            model.children(query_id).map(Entity::id).collect::<Vec<_>>(),
             [plan_id]
         );
         assert_eq!(
-            model
-                .scope_children(plan_id)
-                .map(Entity::id)
-                .collect::<Vec<_>>(),
+            model.children(plan_id).map(Entity::id).collect::<Vec<_>>(),
             [operator_id]
         );
         assert_eq!(
             model
-                .scope_children(operator_id)
+                .children(operator_id)
                 .map(Entity::id)
                 .collect::<std::collections::HashSet<_>>(),
             std::collections::HashSet::from([source_port_id, target_port_id])
         );
         assert_eq!(
-            model.scoped_entity(target_port_id).unwrap().id(),
+            model.ref_tree_entity(target_port_id).unwrap().id(),
             target_port_id
         );
         assert_eq!(
@@ -1827,15 +1822,15 @@ mod tests {
         );
         assert_eq!(view.workers().count(), 1);
         assert_eq!(view.operators().count(), 1);
-        assert_eq!(view.scoped_entities().count(), 8);
+        assert_eq!(view.ref_tree_entities().count(), 8);
         assert_eq!(
-            view.scope_children(engine_id)
+            view.children(engine_id)
                 .map(Entity::id)
                 .collect::<std::collections::HashSet<_>>(),
             std::collections::HashSet::from([worker_id, query_group_id])
         );
         assert_eq!(
-            view.scoped_entity(target_port_id).unwrap().id(),
+            view.ref_tree_entity(target_port_id).unwrap().id(),
             target_port_id
         );
     }

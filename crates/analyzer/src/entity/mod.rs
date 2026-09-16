@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::{AnalyzerResult, Span};
 
-pub mod collection;
 pub mod native;
 
 /// Trait for analysis-time types that represent an entity.
@@ -21,13 +20,6 @@ pub trait Entity {
     fn earliest_timestamp(&self) -> TimeUnixNanoSec;
     /// Return the latest observed event timestamp.
     fn latest_timestamp(&self) -> TimeUnixNanoSec;
-}
-
-/// Trait for entities participating in the model's scope tree.
-pub trait ScopedEntity: Entity {
-    /// Return the entity targeted by this entity's scoped reference, or `None`
-    /// for the root entity.
-    fn scope_id(&self) -> Option<Uuid>;
 }
 
 impl<E: Entity> Span for E {

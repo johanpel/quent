@@ -5,14 +5,16 @@
 
 pub use crate::error::AnalyzerError;
 use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
-pub use entity::{Entity, ScopedEntity};
+pub use entity::Entity;
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
+pub use ref_tree::RefTreeEntity;
 use uuid::Uuid;
 
 pub mod context;
 pub mod entity;
 pub mod error;
 pub mod fsm;
+pub mod ref_tree;
 pub mod resource;
 pub mod timeline;
 
