@@ -7,7 +7,7 @@ use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
-    AnalyzerError, AnalyzerResult, Entity,
+    AnalyzerError, AnalyzerResult, Entity, ScopedEntity,
     resource::{Resource, ResourceCapacities, ResourceGroup},
 };
 
@@ -165,6 +165,12 @@ impl Resource for RtResource {
     }
 }
 
+impl ScopedEntity for RtResource {
+    fn scope_id(&self) -> Option<Uuid> {
+        Some(self.parent_group_id)
+    }
+}
+
 /// A Group of [`Resource`]s.
 #[derive(Clone, Debug, Default)]
 pub struct RtResourceGroup {
@@ -225,6 +231,12 @@ impl Entity for RtResourceGroup {
 
 impl ResourceGroup for RtResourceGroup {
     fn parent_group_id(&self) -> Option<Uuid> {
+        self.parent_group_id
+    }
+}
+
+impl ScopedEntity for RtResourceGroup {
+    fn scope_id(&self) -> Option<Uuid> {
         self.parent_group_id
     }
 }
