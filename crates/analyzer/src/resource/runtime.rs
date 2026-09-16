@@ -8,7 +8,6 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult, Entity,
-    fsm::{Fsm, Transition},
     resource::{Resource, ResourceCapacities, ResourceGroup},
 };
 
@@ -38,18 +37,6 @@ impl OrderKey for RtResourceTransition {
 
     fn order_key(&self) -> Self::Key {
         self.timestamp()
-    }
-}
-
-impl Transition for RtResourceTransition {
-    fn name(&self) -> &str {
-        match self {
-            RtResourceTransition::Init(_) => "init",
-            RtResourceTransition::Operating(_, _) => "operating",
-            RtResourceTransition::Resizing(_) => "resizing",
-            RtResourceTransition::Finalizing(_) => "finalizing",
-            RtResourceTransition::Exit(_) => "exit",
-        }
     }
 }
 
@@ -169,16 +156,6 @@ impl Entity for RtResource {
             .last()
             .expect("analyzed resource must contain transitions")
             .timestamp()
-    }
-}
-
-impl Fsm for RtResource {
-    type TransitionType = RtResourceTransition;
-    fn len(&self) -> usize {
-        self.transitions.len() - 1 // -1 for the exit transition.
-    }
-    fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
-        self.transitions.get(index)
     }
 }
 
