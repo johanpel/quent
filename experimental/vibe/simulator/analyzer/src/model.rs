@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, hash_map::Entry};
 
 use rustc_hash::FxHashMap as HashMap;
 
@@ -553,10 +553,10 @@ impl SimulatorModelBuilder {
         } = event;
         match data {
             SimulatorEvent::Task(t) => {
-                let task_builder = self
-                    .tasks
-                    .entry(id)
-                    .or_insert_with(|| TaskBuilder::try_new(id).unwrap());
+                let task_builder = match self.tasks.entry(id) {
+                    Entry::Occupied(entry) => entry.into_mut(),
+                    Entry::Vacant(entry) => entry.insert(TaskBuilder::try_new(id)?),
+                };
                 task_builder.push_transition(Event::new(id, timestamp, t));
                 Ok(())
             }
@@ -809,5 +809,26 @@ impl SimulatorModelBuilder {
 
         model.resource_group_types = derive_resource_scope_types(&model)?;
         Ok(model)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quent_simulator_store::TaskEvent;
+
+    use super::*;
+
+    #[test]
+    fn rejects_nil_task_id() {
+        let mut builder = SimulatorModelBuilder::try_new(Uuid::from_u128(1)).unwrap();
+
+        assert!(matches!(
+            builder.try_push(Event::new(
+                Uuid::nil(),
+                0,
+                SimulatorEvent::Task(TaskEvent::Exit { seq: 0 }),
+            )),
+            Err(AnalyzerError::Validation(_))
+        ));
     }
 }
