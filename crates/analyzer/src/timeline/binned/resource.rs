@@ -228,6 +228,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 250)],
@@ -237,6 +238,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -311,6 +313,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -324,6 +327,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -411,6 +415,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "using".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 &[CapacityValue::new("a", 250), CapacityValue::new("b", 1)]
@@ -421,6 +426,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 1,
                             usages: vec![],
                             timestamp: 1000 - i * 250,
                             attributes: vec![],
@@ -499,6 +505,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "state_a".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 250)],
@@ -508,6 +515,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "state_b".into(),
+                            sequence: 1,
                             usages: vec![RtFsmStateUsage::new(
                                 resource_id,
                                 [CapacityValue::new("capacity_bytes", 42)],
@@ -517,6 +525,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 2,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -620,6 +629,7 @@ mod tests {
                     [
                         RtFsmTransition {
                             name: "state_a".into(),
+                            sequence: 0,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -633,6 +643,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "state_b".into(),
+                            sequence: 1,
                             usages: vec![RtFsmStateUsage::new(
                                 if i % 2 == 0 {
                                     resource_a_id
@@ -646,6 +657,7 @@ mod tests {
                         },
                         RtFsmTransition {
                             name: "exit".into(),
+                            sequence: 2,
                             usages: vec![],
                             timestamp: end,
                             attributes: vec![],
@@ -753,6 +765,7 @@ mod tests {
                 [
                     RtFsmTransition {
                         name: "using".into(),
+                        sequence: 0,
                         usages: vec![RtFsmStateUsage::new(
                             resource_id,
                             [CapacityValue::new("capacity_bytes", 1)],
@@ -762,6 +775,7 @@ mod tests {
                     },
                     RtFsmTransition {
                         name: "exit".into(),
+                        sequence: 1,
                         usages: vec![],
                         timestamp: end,
                         attributes: vec![],

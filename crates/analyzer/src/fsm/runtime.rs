@@ -44,6 +44,7 @@ impl RtFsmStateUsage {
 /// A run-time defined `StateTransition` of an [`Fsm`].
 pub struct RtFsmTransition {
     pub name: String,
+    pub sequence: u16,
     pub usages: Vec<RtFsmStateUsage>,
     pub timestamp: TimeUnixNanoSec,
     pub attributes: Vec<DynamicAttribute>,
@@ -56,10 +57,10 @@ impl Timestamp for RtFsmTransition {
 }
 
 impl OrderKey for RtFsmTransition {
-    type Key = TimeUnixNanoSec;
+    type Key = (TimeUnixNanoSec, u16);
 
     fn order_key(&self) -> Self::Key {
-        self.timestamp
+        (self.timestamp, self.sequence)
     }
 }
 
@@ -67,16 +68,11 @@ impl Transition for RtFsmTransition {
     fn name(&self) -> &str {
         self.name.as_str()
     }
-    fn attributes(&self) -> Vec<DynamicAttribute> {
-        self.attributes.clone()
-    }
-
     fn sequence(&self) -> u16 {
-        todo!()
+        self.sequence
     }
-
     fn is_final(&self) -> bool {
-        todo!()
+        self.name == "exit"
     }
 }
 
@@ -323,24 +319,28 @@ mod tests {
             [
                 RtFsmTransition {
                     name: "a".to_string(),
+                    sequence: 0,
                     usages: vec![],
                     timestamp: 1,
                     attributes: vec![],
                 },
                 RtFsmTransition {
                     name: "b".to_string(),
+                    sequence: 1,
                     usages: vec![],
                     timestamp: 2,
                     attributes: vec![],
                 },
                 RtFsmTransition {
                     name: "c".to_string(),
+                    sequence: 2,
                     usages: vec![],
                     timestamp: 3,
                     attributes: vec![],
                 },
                 RtFsmTransition {
                     name: "exit".to_string(),
+                    sequence: 3,
                     usages: vec![],
                     timestamp: 4,
                     attributes: vec![],
@@ -385,6 +385,7 @@ mod tests {
                 "test",
                 [RtFsmTransition {
                     name: "a".to_string(),
+                    sequence: 0,
                     usages: vec![],
                     timestamp: 1,
                     attributes: vec![]

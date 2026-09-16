@@ -7,7 +7,7 @@ use quent_time::{OrderKey, OrderedCollector, TimeUnixNanoSec, Timestamp};
 use uuid::Uuid;
 
 use crate::{
-    Entity, AnalyzerError, AnalyzerResult,
+    AnalyzerError, AnalyzerResult, Entity,
     fsm::{Fsm, Transition},
     resource::{Resource, ResourceCapacities, ResourceGroup},
 };
@@ -170,12 +170,6 @@ impl Entity for RtResource {
             .expect("analyzed resource must contain transitions")
             .timestamp()
     }
-    fn attributes(&self) -> Vec<quent_dynamic_attributes::DynamicAttribute> {
-        vec![quent_dynamic_attributes::DynamicAttribute::string(
-            "instance_name",
-            self.instance_name.clone(),
-        )]
-    }
 }
 
 impl Fsm for RtResource {
@@ -249,12 +243,6 @@ impl Entity for RtResourceGroup {
     }
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
         self.latest_timestamp
-    }
-    fn attributes(&self) -> Vec<quent_dynamic_attributes::DynamicAttribute> {
-        vec![quent_dynamic_attributes::DynamicAttribute::string(
-            "instance_name",
-            self.instance_name.clone(),
-        )]
     }
 }
 
