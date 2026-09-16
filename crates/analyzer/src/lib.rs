@@ -5,7 +5,7 @@
 
 pub use crate::error::AnalyzerError;
 use crate::resource::{ResourceGroup, collection::ResourceCollection, tree::ResourceTreeNode};
-pub use entity::Entity;
+pub use entity::{Entity, ScopedEntity};
 use quent_time::{TimeUnixNanoSec, span::SpanUnixNanoSec};
 use uuid::Uuid;
 

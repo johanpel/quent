@@ -22,6 +22,13 @@ pub trait Entity {
     fn latest_timestamp(&self) -> TimeUnixNanoSec;
 }
 
+/// Trait for entities participating in the model's scope tree.
+pub trait ScopedEntity: Entity {
+    /// Return the entity targeted by this entity's scoped reference, or `None`
+    /// for the root entity.
+    fn scope_id(&self) -> Option<Uuid>;
+}
+
 impl<E: Entity> Span for E {
     fn span(&self) -> AnalyzerResult<SpanUnixNanoSec> {
         Ok(SpanUnixNanoSec::try_new(
