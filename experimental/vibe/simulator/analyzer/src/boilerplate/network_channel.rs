@@ -8,10 +8,9 @@ pub(crate) struct NetworkChannelAccumulator {
     instance_name: Option<String>,
     network_id: Option<Uuid>,
 }
-impl quent_events::Entity for NetworkChannelAccumulator {
-    type Event = schema::NetworkChannelEvent;
-}
 impl EntityEventAccumulator for NetworkChannelAccumulator {
+    type Event = schema::NetworkChannelEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::NetworkChannelEvent::Declaration {
             instance_name,

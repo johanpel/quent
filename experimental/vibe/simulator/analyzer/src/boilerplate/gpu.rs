@@ -9,11 +9,9 @@ pub(crate) struct GpuAccumulator {
     worker_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for GpuAccumulator {
-    type Event = schema::GpuEvent;
-}
-
 impl EntityEventAccumulator for GpuAccumulator {
+    type Event = schema::GpuEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::GpuEvent::Declaration {
             instance_name,

@@ -8,10 +8,9 @@ pub(crate) struct PcieChannelAccumulator {
     instance_name: Option<String>,
     gpu_id: Option<Uuid>,
 }
-impl quent_events::Entity for PcieChannelAccumulator {
-    type Event = schema::PcieChannelEvent;
-}
 impl EntityEventAccumulator for PcieChannelAccumulator {
+    type Event = schema::PcieChannelEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::PcieChannelEvent::Declaration {
             instance_name,

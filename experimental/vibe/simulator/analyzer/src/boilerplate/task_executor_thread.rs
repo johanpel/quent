@@ -9,11 +9,9 @@ pub(crate) struct TaskExecutorThreadAccumulator {
     task_executor_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for TaskExecutorThreadAccumulator {
-    type Event = schema::TaskExecutorThreadEvent;
-}
-
 impl EntityEventAccumulator for TaskExecutorThreadAccumulator {
+    type Event = schema::TaskExecutorThreadEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::TaskExecutorThreadEvent::Declaration {
             instance_name,

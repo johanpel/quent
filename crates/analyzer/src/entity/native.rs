@@ -10,7 +10,10 @@ use uuid::Uuid;
 use crate::{AnalyzerError, AnalyzerResult};
 
 /// Accumulates events of its associated entity event type.
-pub trait EntityEventAccumulator: quent_events::Entity + Default {
+pub trait EntityEventAccumulator: Default {
+    /// The event payload accumulated by this type.
+    type Event: quent_events::EntityEvent;
+
     /// Incorporates one event payload into the retained analysis.
     fn push(&mut self, event: Self::Event);
 }
@@ -119,11 +122,9 @@ mod tests {
     #[derive(Default)]
     struct Counter(u32);
 
-    impl quent_events::Entity for Counter {
-        type Event = Increment;
-    }
-
     impl EntityEventAccumulator for Counter {
+        type Event = Increment;
+
         fn push(&mut self, _event: Self::Event) {
             self.0 += 1;
         }

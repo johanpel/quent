@@ -9,11 +9,9 @@ pub(crate) struct HostMemoryAccumulator {
     worker_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for HostMemoryAccumulator {
-    type Event = schema::HostMemoryEvent;
-}
-
 impl EntityEventAccumulator for HostMemoryAccumulator {
+    type Event = schema::HostMemoryEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::HostMemoryEvent::Declaration {
             instance_name,

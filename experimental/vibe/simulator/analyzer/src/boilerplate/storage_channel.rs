@@ -9,11 +9,9 @@ pub(crate) struct StorageChannelAccumulator {
     worker_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for StorageChannelAccumulator {
-    type Event = schema::StorageChannelEvent;
-}
-
 impl EntityEventAccumulator for StorageChannelAccumulator {
+    type Event = schema::StorageChannelEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::StorageChannelEvent::Declaration {
             instance_name,

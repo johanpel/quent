@@ -9,11 +9,9 @@ pub(crate) struct NetworkAccumulator {
     engine_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for NetworkAccumulator {
-    type Event = schema::NetworkEvent;
-}
-
 impl EntityEventAccumulator for NetworkAccumulator {
+    type Event = schema::NetworkEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::NetworkEvent::Declaration {
             instance_name,

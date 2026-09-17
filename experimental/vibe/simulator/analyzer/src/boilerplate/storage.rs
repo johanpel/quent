@@ -9,11 +9,9 @@ pub(crate) struct StorageAccumulator {
     worker_id: Option<Uuid>,
 }
 
-impl quent_events::Entity for StorageAccumulator {
-    type Event = schema::StorageEvent;
-}
-
 impl EntityEventAccumulator for StorageAccumulator {
+    type Event = schema::StorageEvent;
+
     fn push(&mut self, event: Self::Event) {
         let schema::StorageEvent::Declaration {
             instance_name,
