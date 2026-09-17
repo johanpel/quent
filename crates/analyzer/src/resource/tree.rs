@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     AnalyzerError, AnalyzerResult,
-    ref_tree::{collection::RefTreeCollection, tree::RefTreeNode},
+    ref_tree::{RefTreeCollection, RefTreeNode},
     resource::{Resource, collection::ResourceCollection},
 };
 

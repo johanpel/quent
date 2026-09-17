@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult,
-    ref_tree::collection::RefTreeCollection,
+    ref_tree::RefTreeCollection,
     resource::{collection::ResourceCollection, tree::ResourceTreeNode},
 };
 use quent_time::{TimeError, TimeSec, TimeUnixNanoSec, span::SpanUnixNanoSec, to_nanosecs};

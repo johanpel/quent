@@ -3,7 +3,7 @@
 
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
-    ref_tree::collection::RefTreeCollection,
+    ref_tree::RefTreeCollection,
     resource::{Resource, ResourceTypeDecl, collection::ResourceCollection},
 };
 use quent_query_engine_analyzer::{QueryEngineModel, plan_tree::PlanTree};

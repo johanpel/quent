@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap as HashMap;
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, Model, RefTreeEntity,
     fsm::collection::FsmCollection,
-    ref_tree::collection::RefTreeCollection,
+    ref_tree::RefTreeCollection,
     resource::{Resource, ResourceTypeDecl, Usage, Using, collection::ResourceCollection},
 };
 use quent_events::Event;

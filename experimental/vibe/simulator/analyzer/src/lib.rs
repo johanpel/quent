@@ -41,7 +41,7 @@ use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
     context::ContextInventory,
     fsm::{FsmUsages, Transition},
-    ref_tree::collection::RefTreeCollection,
+    ref_tree::RefTreeCollection,
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
     },
