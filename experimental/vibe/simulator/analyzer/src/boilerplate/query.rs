@@ -18,7 +18,7 @@ impl Query {
     }
 
     pub(crate) fn query_group_id(&self) -> Option<Uuid> {
-        match self.0.first_data()? {
+        match &self.0.transition(0)?.data {
             schema::QueryEvent::Init { query_group_id, .. } => Some(query_group_id.target),
             _ => None,
         }

@@ -7,7 +7,9 @@ use quent_analyzer::{
     AnalyzerResult, Entity, RefTreeEntity,
     fsm::{
         Fsm, FsmUsages, Transition,
-        native::{AnalyzedFsm as NativeFsm, AnalyzedTransition as NativeTransition, AnalyzedFsmBuilder},
+        native::{
+            AnalyzedFsm as NativeFsm, AnalyzedFsmBuilder, AnalyzedTransition as NativeTransition,
+        },
     },
     resource::{Usage, Using},
 };
@@ -100,7 +102,7 @@ impl Task {
     }
 
     fn first_data(&self) -> Option<&schema::TaskEvent> {
-        self.0.first_data()
+        self.0.transition(0).map(|transition| &transition.data)
     }
 }
 
@@ -180,7 +182,7 @@ impl TaskExt for Task {
 
     fn active_span(&self) -> Option<SpanUnixNanoSec> {
         let start = self.transitions().get(1)?.timestamp();
-        let end = self.transitions().last()?.timestamp();
+        let end = self.last()?.next_transition().timestamp();
         SpanUnixNanoSec::try_new(start, end).ok()
     }
 

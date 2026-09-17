@@ -182,9 +182,7 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
 
 /// An FSM reconstructed from application-specific transition data.
 ///
-/// This type can be constructed through [`AnalyzedFsmBuilder`], which
-/// guarantees that the order in which events are emitted from the
-/// instrumentation is retained, even if events are analyzed out of order.
+/// This type can be constructed through [`AnalyzedFsmBuilder`].
 ///
 /// Application-specific data remains available through [`Self::transitions`].
 pub struct AnalyzedFsm<T> {
@@ -204,14 +202,6 @@ impl<T: TransitionEvent> std::fmt::Debug for AnalyzedFsm<T> {
 impl<T> AnalyzedFsm<T> {
     pub fn transitions(&self) -> &[AnalyzedTransition<T>] {
         &self.transitions
-    }
-
-    /// Access the first transition's data (typically the entry state).
-    pub fn first_data(&self) -> Option<&T> {
-        self.transitions.first().map(|t| &t.data)
-    }
-    pub fn id(&self) -> Uuid {
-        self.id
     }
 }
 
@@ -336,6 +326,7 @@ mod tests {
 
         let fsm = builder.try_build().unwrap();
         assert_eq!(fsm.type_name(), TestTransition::NAME);
+        assert!(fsm.last().unwrap().next_transition().is_final());
         assert_eq!(
             fsm.transitions()
                 .iter()

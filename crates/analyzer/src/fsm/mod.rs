@@ -105,9 +105,16 @@ where
         self.fsm.transition(self.index).unwrap().name()
     }
 
+    /// Returns the transition that closes this state.
+    ///
+    /// For the last state of a complete FSM, this is the final transition.
+    pub fn next_transition(&self) -> &T {
+        self.fsm.transition(self.index + 1).unwrap()
+    }
+
     pub fn span(&self) -> SpanUnixNanoSec {
         let start = self.fsm.transition(self.index).unwrap().timestamp();
-        let end = self.fsm.transition(self.index + 1).unwrap().timestamp();
+        let end = self.next_transition().timestamp();
         SpanUnixNanoSec::try_new(start, end).unwrap()
     }
 }
