@@ -76,7 +76,98 @@ pub trait Fsm: Entity {
 
     /// Return the last state, if the FSM is not empty.
     fn last<'a>(&'a self) -> Option<FsmStateRef<'a, Self, Self::TransitionType>> {
-        self.state(self.len() - 1)
+        self.len()
+            .checked_sub(1)
+            .and_then(|index| self.state(index))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use quent_time::TimeUnixNanoSec;
+    use uuid::Uuid;
+
+    use super::*;
+
+    struct TestTransition {
+        timestamp: TimeUnixNanoSec,
+        final_transition: bool,
+    }
+
+    impl Timestamp for TestTransition {
+        fn timestamp(&self) -> TimeUnixNanoSec {
+            self.timestamp
+        }
+    }
+
+    impl Transition for TestTransition {
+        fn name(&self) -> &str {
+            "test"
+        }
+
+        fn sequence(&self) -> u16 {
+            0
+        }
+
+        fn is_final(&self) -> bool {
+            self.final_transition
+        }
+    }
+
+    struct TestFsm(Vec<TestTransition>);
+
+    impl Entity for TestFsm {
+        fn id(&self) -> Uuid {
+            Uuid::nil()
+        }
+
+        fn type_name(&self) -> &str {
+            "test"
+        }
+
+        fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+            0
+        }
+
+        fn latest_timestamp(&self) -> TimeUnixNanoSec {
+            0
+        }
+    }
+
+    impl Fsm for TestFsm {
+        type TransitionType = TestTransition;
+
+        fn len(&self) -> usize {
+            self.0.len().saturating_sub(1)
+        }
+
+        fn transition(&self, index: usize) -> Option<&Self::TransitionType> {
+            self.0.get(index)
+        }
+    }
+
+    #[test]
+    fn empty_fsm_has_no_last_state() {
+        assert!(TestFsm(Vec::new()).last().is_none());
+    }
+
+    #[test]
+    fn last_state_is_closed_by_final_transition() {
+        let fsm = TestFsm(vec![
+            TestTransition {
+                timestamp: 1,
+                final_transition: false,
+            },
+            TestTransition {
+                timestamp: 2,
+                final_transition: true,
+            },
+        ]);
+
+        let last_state = fsm.last().unwrap();
+        let closing_transition = last_state.next_transition();
+        assert_eq!(closing_transition.timestamp(), 2);
+        assert!(closing_transition.is_final());
     }
 }
 
