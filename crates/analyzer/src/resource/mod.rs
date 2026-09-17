@@ -14,6 +14,11 @@ use super::*;
 pub mod collection;
 pub mod tree;
 
+/// Number of capacity values stored inline before spilling to the heap.
+///
+/// The capacity is based on intuition rather than measurements.
+const INLINE_USAGE_CAPACITY: usize = 3;
+
 /// Trait for types that are considered a [`Resource`].
 pub trait Resource: Entity {}
 
@@ -23,7 +28,7 @@ pub struct AnalyzedUsage {
     /// Resource used by the entity.
     pub resource_id: Uuid,
     /// Capacity values reserved from the resource.
-    pub capacities: SmallVec<[CapacityValue; 3]>,
+    pub capacities: SmallVec<[CapacityValue; INLINE_USAGE_CAPACITY]>,
 }
 
 /// Trait for types that represent the [`Usage`] of a [`Resource`].
