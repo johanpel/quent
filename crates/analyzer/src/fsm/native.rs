@@ -97,7 +97,7 @@ impl<T> AnalyzedTransition<T> {
     }
 }
 
-pub struct UsageWithSpan<'a> {
+struct UsageWithSpan<'a> {
     entity_id: Uuid,
     usage: &'a AnalyzedUsage,
     span: SpanUnixNanoSec,
