@@ -2885,6 +2885,7 @@ dependencies = [
  "gix-url",
  "open",
  "prettyplease 0.3.0",
+ "proc-macro2",
  "quent-build-info",
  "quote",
  "reqwest",
