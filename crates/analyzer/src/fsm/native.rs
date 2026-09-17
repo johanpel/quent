@@ -26,6 +26,9 @@ pub trait TransitionEvent: EntityEvent {
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
 
+    /// Returns whether `next` may immediately follow this transition.
+    fn is_valid_next(&self, next: &Self) -> bool;
+
     /// Returns resources held until the next transition.
     fn usages(&self) -> SmallVec<[AnalyzedUsage; 1]> {
         SmallVec::new()
@@ -161,13 +164,14 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
 
     /// Builds an FSM from the collected transitions.
     ///
-    /// Missing intermediate events are not rejected and may produce inaccurate
-    /// state spans.
+    /// Missing intermediate events are detected only when they leave an invalid
+    /// topology edge and may otherwise produce inaccurate state spans.
     ///
     /// # Errors
     ///
     /// Returns [`AnalyzerError::Validation`] if two transitions have the same
-    /// timestamp and sequence number.
+    /// timestamp and sequence number, or if adjacent transitions violate the
+    /// FSM topology.
     ///
     /// Returns [`AnalyzerError::IncompleteFsm`] if no final transition was
     /// collected.
@@ -181,6 +185,18 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
         }
         let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
             self.transitions.into_inner().into();
+        if let Some(invalid) = transitions
+            .windows(2)
+            .find(|transitions| !transitions[0].data.is_valid_next(&transitions[1].data))
+        {
+            return Err(AnalyzerError::Validation(format!(
+                "fsm '{}' (id={}) cannot transition from '{}' to '{}'",
+                T::NAME,
+                self.id,
+                invalid[0].data.name(),
+                invalid[1].data.name(),
+            )));
+        }
         if !transitions
             .last()
             .is_some_and(|transition| transition.data.is_final())
@@ -319,6 +335,10 @@ mod tests {
         fn is_final(&self) -> bool {
             self.is_final
         }
+
+        fn is_valid_next(&self, _next: &Self) -> bool {
+            !self.is_final
+        }
     }
 
     #[test]
@@ -402,6 +422,33 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_final: true,
+            },
+        ));
+
+        assert!(matches!(
+            builder.try_build(),
+            Err(AnalyzerError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn invalid_transition_order_is_rejected() {
+        let id = Uuid::from_u128(1);
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: true,
+            },
+        ));
+        builder.push_transition(Event::new(
+            id,
+            101,
+            TestTransition {
+                sequence: 1,
                 is_final: true,
             },
         ));

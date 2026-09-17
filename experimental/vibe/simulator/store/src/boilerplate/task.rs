@@ -20,6 +20,27 @@ impl TransitionEvent for TaskEvent {
         matches!(self, Self::Exit { .. })
     }
 
+    fn is_valid_next(&self, next: &Self) -> bool {
+        match self {
+            Self::Queueing { .. } => matches!(next, Self::Allocating { .. }),
+            Self::Allocating { .. } => {
+                matches!(next, Self::Computing { .. } | Self::Loading { .. })
+            }
+            Self::Loading { .. } => {
+                matches!(next, Self::Computing { .. } | Self::Loading { .. })
+            }
+            Self::Computing { .. } => matches!(
+                next,
+                Self::Sending { .. } | Self::Spilling { .. } | Self::Exit { .. }
+            ),
+            Self::Spilling { .. } => matches!(next, Self::Allocating { .. }),
+            Self::Sending { .. } => {
+                matches!(next, Self::Queueing { .. } | Self::Exit { .. })
+            }
+            Self::Exit { .. } => false,
+        }
+    }
+
     fn name(&self) -> &'static str {
         match self {
             Self::Queueing { .. } => "queueing",

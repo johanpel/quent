@@ -17,6 +17,15 @@ impl TransitionEvent for QueryEvent {
         matches!(self, Self::Done { .. })
     }
 
+    fn is_valid_next(&self, next: &Self) -> bool {
+        match self {
+            Self::Init { .. } => matches!(next, Self::Planning { .. }),
+            Self::Planning { .. } => matches!(next, Self::Executing { .. }),
+            Self::Executing { .. } => matches!(next, Self::Done { .. }),
+            Self::Done { .. } => false,
+        }
+    }
+
     fn name(&self) -> &'static str {
         match self {
             Self::Init { .. } => "init",
