@@ -109,7 +109,8 @@ impl CapacityDecl {
     }
 }
 
-/// Declaration of a [`Resource`] type
+/// A run-time declaration of a [`Resource`] type
+// TODO(johanpel): figure out clearer placement for this after schema-based instrumentation migration
 #[derive(Clone, Debug)]
 pub struct ResourceTypeDecl {
     /// The unique type name for this type of Resource.

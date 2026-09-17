@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Resource hierarchy construction and traversal for schemas using both the
-//! Reference Tree and resource constraints.
+//! `quent-ref-tree` and `quent-resource` constraints.
 
 use std::collections::VecDeque;
 
