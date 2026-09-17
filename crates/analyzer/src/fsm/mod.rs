@@ -4,10 +4,6 @@
 //! FSM analysis interfaces and storage implementations.
 
 use quent_time::{Timestamp, span::SpanUnixNanoSec};
-#[cfg(feature = "ts")]
-use serde::Serialize;
-#[cfg(feature = "ts")]
-use ts_rs::TS;
 
 use crate::{Entity, resource::Usage};
 
@@ -113,46 +109,4 @@ where
         let end = self.fsm.transition(self.index + 1).unwrap().timestamp();
         SpanUnixNanoSec::try_new(start, end).unwrap()
     }
-}
-
-/// Trait for FSM types to deliver a run-time definition of their states and possible transitions.
-pub trait FsmTypeDeclaration {
-    fn fsm_type_declaration() -> FsmTypeDecl;
-}
-
-/// A declaration of an FSM state.
-#[derive(Debug)]
-#[cfg_attr(feature = "ts", derive(Serialize, TS))]
-pub struct FsmStateTypeDecl {
-    /// The name of this FSM state.
-    pub name: String,
-    // TODO(johanpel): figure out how to best do this
-    // The attributes this FSM state can have.
-    // pub attributes: Vec<DynamicAttribute>,
-    /// The names of the resource types this FSM state can use.
-    pub usages: Vec<String>,
-}
-
-/// A declaration of an FSM state transition.
-#[derive(Debug)]
-#[cfg_attr(feature = "ts", derive(Serialize, TS))]
-pub enum FsmTransitionDecl {
-    /// Initial transition into the state with this name.
-    Entry(String),
-    /// Transition from a state to a state with these names (from, to).
-    Transition(String, String),
-    /// Exit transition from the state with this name.
-    Exit(String),
-}
-
-/// A declaration of an FSM type.
-#[derive(Debug)]
-#[cfg_attr(feature = "ts", derive(Serialize, TS))]
-pub struct FsmTypeDecl {
-    /// The name of this FSM type.
-    pub name: String,
-    /// The states of this FSM type.
-    pub states: Vec<FsmStateTypeDecl>,
-    /// The possible transitions of this FSM type.
-    pub transitions: Vec<FsmTransitionDecl>,
 }

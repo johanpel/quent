@@ -8,12 +8,11 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_analyzer::fsm::FsmTypeDecl;
 use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree, ResourceTypeDecl,
-    quantity::QuantitySpec,
+    fsm::FsmTypeDecl, quantity::QuantitySpec,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

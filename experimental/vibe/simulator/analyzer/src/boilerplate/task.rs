@@ -6,8 +6,7 @@
 use quent_analyzer::{
     AnalyzerResult, Entity, RefTreeEntity,
     fsm::{
-        Fsm, FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration, FsmUsages,
-        Transition,
+        Fsm, FsmUsages, Transition,
         native::{AnalyzedFsm as NativeFsm, AnalyzedTransition as NativeTransition, FsmBuilder},
     },
     resource::{Usage, Using},
@@ -15,7 +14,10 @@ use quent_analyzer::{
 use quent_dynamic_attributes::DynamicAttribute;
 use quent_simulator_store as schema;
 use quent_time::{TimeUnixNanoSec, Timestamp, span::SpanUnixNanoSec, to_secs_relative};
-use quent_ui::{FiniteStateMachine, FsmTransition, FsmUsage};
+use quent_ui::{
+    FiniteStateMachine, FsmTransition, FsmUsage,
+    fsm::{FsmStateTypeDecl, FsmTransitionDecl, FsmTypeDecl, FsmTypeDeclaration},
+};
 use uuid::Uuid;
 
 fn transition_attributes(event: &schema::TaskEvent) -> Vec<DynamicAttribute> {

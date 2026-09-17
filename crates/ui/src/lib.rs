@@ -9,6 +9,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 pub mod entities;
+pub mod fsm;
 pub mod paginate;
 pub mod quantity;
 pub mod timeline;

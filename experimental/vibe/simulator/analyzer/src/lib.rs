@@ -40,7 +40,7 @@ use tracing::debug;
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
     context::ContextInventory,
-    fsm::{FsmTypeDeclaration, FsmUsages, Transition},
+    fsm::{FsmUsages, Transition},
     ref_tree::collection::RefTreeCollection,
     resource::{
         ResourceTypeDecl, Usage, Using, collection::ResourceCollection, tree::ResourceTreeNode,
@@ -57,6 +57,7 @@ use quent_dynamic_attributes::DynamicValue;
 use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
 use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
+use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
 
 pub use crate::boilerplate::{Task, TaskExt};

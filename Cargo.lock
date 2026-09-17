@@ -2626,10 +2626,8 @@ dependencies = [
  "quent-events",
  "quent-time",
  "rustc-hash",
- "serde",
  "smallvec",
  "thiserror",
- "ts-rs",
  "uuid",
 ]
 
