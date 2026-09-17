@@ -28,7 +28,7 @@ pub(crate) struct HostMemory(AnalyzedEntity<HostMemoryAccumulator>);
 
 impl HostMemory {
     pub(crate) fn try_from_event(event: Event<schema::HostMemoryEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(&mut self, event: Event<schema::HostMemoryEvent>) -> AnalyzerResult<()> {

@@ -30,7 +30,7 @@ impl TaskExecutorThread {
     pub(crate) fn try_from_event(
         event: Event<schema::TaskExecutorThreadEvent>,
     ) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(

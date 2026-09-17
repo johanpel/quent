@@ -28,7 +28,7 @@ pub(crate) struct Network(AnalyzedEntity<NetworkAccumulator>);
 
 impl Network {
     pub(crate) fn try_from_event(event: Event<schema::NetworkEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(&mut self, event: Event<schema::NetworkEvent>) -> AnalyzerResult<()> {

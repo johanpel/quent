@@ -29,7 +29,7 @@ pub struct QueryGroup(AnalyzedEntity<QueryGroupAccumulator>);
 
 impl QueryGroup {
     pub(crate) fn try_from_event(event: Event<schema::QueryGroupEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(&mut self, event: Event<schema::QueryGroupEvent>) -> AnalyzerResult<()> {

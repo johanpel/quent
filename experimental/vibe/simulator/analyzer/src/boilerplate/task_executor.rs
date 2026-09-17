@@ -28,7 +28,7 @@ pub(crate) struct TaskExecutor(AnalyzedEntity<TaskExecutorAccumulator>);
 
 impl TaskExecutor {
     pub(crate) fn try_from_event(event: Event<schema::TaskExecutorEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(&mut self, event: Event<schema::TaskExecutorEvent>) -> AnalyzerResult<()> {

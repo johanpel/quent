@@ -26,7 +26,7 @@ impl NetworkChannel {
     pub(crate) fn try_from_event(
         event: Event<schema::NetworkChannelEvent>,
     ) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
     pub(crate) fn push(&mut self, event: Event<schema::NetworkChannelEvent>) -> AnalyzerResult<()> {
         self.0.push(event)

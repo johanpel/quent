@@ -52,7 +52,7 @@ pub struct Operator {
 impl Operator {
     pub(crate) fn try_from_event(event: Event<schema::OperatorEvent>) -> AnalyzerResult<Self> {
         Ok(Self {
-            entity: AnalyzedEntity::try_from_first_event(event)?,
+            entity: AnalyzedEntity::try_from_event(event)?,
             active_span: None,
         })
     }

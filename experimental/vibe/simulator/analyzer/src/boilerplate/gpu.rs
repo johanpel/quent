@@ -28,7 +28,7 @@ pub(crate) struct Gpu(AnalyzedEntity<GpuAccumulator>);
 
 impl Gpu {
     pub(crate) fn try_from_event(event: Event<schema::GpuEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
 
     pub(crate) fn push(&mut self, event: Event<schema::GpuEvent>) -> AnalyzerResult<()> {

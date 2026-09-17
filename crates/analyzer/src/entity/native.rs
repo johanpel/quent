@@ -38,13 +38,12 @@ impl<A: EntityEventAccumulator> std::fmt::Debug for AnalyzedEntity<A> {
 }
 
 impl<A: EntityEventAccumulator> AnalyzedEntity<A> {
-    /// Create a new analyzed entity from some event.
+    /// Creates a new analyzed entity from an event.
     ///
     /// # Errors
     ///
     /// Returns [`AnalyzerError::Validation`] if `id` is nil.
-    // TODO rename to try_from_event to not imply it needs to be the first in timestamp order
-    pub fn try_from_first_event(event: Event<A::Event>) -> AnalyzerResult<Self> {
+    pub fn try_from_event(event: Event<A::Event>) -> AnalyzerResult<Self> {
         if event.id.is_nil() {
             Err(AnalyzerError::Validation(
                 "entity id cannot be nil".to_owned(),
@@ -134,8 +133,7 @@ mod tests {
     fn rejects_event_for_another_entity() {
         let entity_id = Uuid::from_u128(1);
         let mut entity =
-            AnalyzedEntity::<Counter>::try_from_first_event(Event::new(entity_id, 5, Increment))
-                .unwrap();
+            AnalyzedEntity::<Counter>::try_from_event(Event::new(entity_id, 5, Increment)).unwrap();
 
         assert!(matches!(
             entity.push(Event::new(Uuid::from_u128(2), 10, Increment)),
@@ -150,7 +148,7 @@ mod tests {
     fn retains_observed_event_bounds() {
         let entity_id = Uuid::from_u128(1);
         let mut entity =
-            AnalyzedEntity::<Counter>::try_from_first_event(Event::new(entity_id, 20, Increment))
+            AnalyzedEntity::<Counter>::try_from_event(Event::new(entity_id, 20, Increment))
                 .unwrap();
 
         entity.push(Event::new(entity_id, 10, Increment)).unwrap();

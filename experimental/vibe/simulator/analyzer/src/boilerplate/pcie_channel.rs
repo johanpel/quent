@@ -24,7 +24,7 @@ impl EntityEventAccumulator for PcieChannelAccumulator {
 pub(crate) struct PcieChannel(AnalyzedEntity<PcieChannelAccumulator>);
 impl PcieChannel {
     pub(crate) fn try_from_event(event: Event<schema::PcieChannelEvent>) -> AnalyzerResult<Self> {
-        Ok(Self(AnalyzedEntity::try_from_first_event(event)?))
+        Ok(Self(AnalyzedEntity::try_from_event(event)?))
     }
     pub(crate) fn push(&mut self, event: Event<schema::PcieChannelEvent>) -> AnalyzerResult<()> {
         self.0.push(event)
