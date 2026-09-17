@@ -14,9 +14,9 @@ use cargo_manifest::{
 };
 use quote::{format_ident, quote};
 
-use crate::compatibility::{ContextIndexing, NvtxRoutes};
+use crate::compatibility::{ContextIndexing, NVTX_SERVER_PACKAGE, nvtx_code};
 #[cfg(test)]
-use crate::compatibility::{IO_PACKAGE, LEGACY_IO_PACKAGE, NVTX_SERVER_PACKAGE};
+use crate::compatibility::{IO_PACKAGE, LEGACY_IO_PACKAGE};
 use crate::error::Result;
 use crate::spec::ViewerSpec;
 
@@ -36,17 +36,17 @@ pub fn generate(
     spec: &ViewerSpec,
     crate_dir: &Path,
     io_package: &str,
-    nvtx_routes: NvtxRoutes,
+    has_nvtx_routes: bool,
     context_indexing: ContextIndexing,
 ) -> Result<()> {
     std::fs::create_dir_all(crate_dir.join("src"))?;
     std::fs::write(
         crate_dir.join("Cargo.toml"),
-        cargo_toml(spec, io_package, nvtx_routes, context_indexing),
+        cargo_toml(spec, io_package, has_nvtx_routes, context_indexing),
     )?;
     std::fs::write(
         crate_dir.join("src/main.rs"),
-        main_rs(spec, nvtx_routes, context_indexing),
+        main_rs(spec, has_nvtx_routes, context_indexing),
     )?;
     Ok(())
 }
@@ -67,14 +67,17 @@ fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
 fn cargo_toml(
     spec: &ViewerSpec,
     io_package: &str,
-    nvtx_routes: NvtxRoutes,
+    has_nvtx_routes: bool,
     context_indexing: ContextIndexing,
 ) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
-    let nvtx_dependency = nvtx_routes
-        .server_package()
-        .map(|package| (package.to_string(), git_dep(quent.clone(), q_rev, &[])));
+    let nvtx_dependency = has_nvtx_routes.then(|| {
+        (
+            NVTX_SERVER_PACKAGE.to_string(),
+            git_dep(quent.clone(), q_rev, &[]),
+        )
+    });
     let context_dependency = (context_indexing == ContextIndexing::ContextInventory).then(|| {
         (
             "quent-analyzer".to_string(),
@@ -142,14 +145,10 @@ fn cargo_toml(
 /// Wrapper `src/main.rs`: wire `<analyzer>::Viewer`'s analyzer/importer into
 /// `analyzer_service_router` and serve it. Root (`<context-uuid>/` subdirs) and
 /// bind address come from env so one built binary serves any artifacts.
-fn main_rs(
-    spec: &ViewerSpec,
-    nvtx_routes: NvtxRoutes,
-    context_indexing: ContextIndexing,
-) -> String {
+fn main_rs(spec: &ViewerSpec, has_nvtx_routes: bool, context_indexing: ContextIndexing) -> String {
     let analyzer_crate = format_ident!("{}", spec.analyzer_crate());
     let (root_env, addr_env) = (ROOT_ENV, ADDR_ENV);
-    let nvtx = nvtx_routes.code();
+    let nvtx = nvtx_code(has_nvtx_routes);
     let indexing = context_indexing.code();
     let (route_imports, route_setup, router_call) = (nvtx.imports, nvtx.setup, nvtx.router);
     let (index_import, lister) = (indexing.import, indexing.lister);
@@ -214,7 +213,7 @@ mod tests {
         let manifest: toml::Value = toml::from_str(&cargo_toml(
             &spec(),
             IO_PACKAGE,
-            NvtxRoutes::Enabled,
+            true,
             ContextIndexing::ContextInventory,
         ))
         .unwrap();
@@ -249,7 +248,7 @@ mod tests {
         let manifest: toml::Value = toml::from_str(&cargo_toml(
             &spec(),
             LEGACY_IO_PACKAGE,
-            NvtxRoutes::Disabled,
+            false,
             ContextIndexing::QueryEngines,
         ))
         .unwrap();
@@ -274,7 +273,7 @@ mod tests {
         let manifest: toml::Value = toml::from_str(&cargo_toml(
             &spec(),
             IO_PACKAGE,
-            NvtxRoutes::Disabled,
+            false,
             ContextIndexing::QueryEngines,
         ))
         .unwrap();
@@ -283,11 +282,7 @@ mod tests {
 
     #[test]
     fn main_rs_wires_the_nvtx_viewer() {
-        let main = main_rs(
-            &spec(),
-            NvtxRoutes::Enabled,
-            ContextIndexing::ContextInventory,
-        );
+        let main = main_rs(&spec(), true, ContextIndexing::ContextInventory);
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
         assert!(main.contains("import_context_events"));
         assert!(main.contains("analyzer_service_router_with_routes"));
@@ -296,11 +291,7 @@ mod tests {
 
     #[test]
     fn main_rs_without_nvtx_uses_the_legacy_router() {
-        let main = main_rs(
-            &spec(),
-            NvtxRoutes::Disabled,
-            ContextIndexing::ContextInventory,
-        );
+        let main = main_rs(&spec(), false, ContextIndexing::ContextInventory);
         assert!(main.contains("use quent_query_engine_server::analyzer_service_router;"));
         assert!(!main.contains("nvtx_server"));
         assert!(!main.contains("analyzer_service_router_with_routes"));
@@ -308,8 +299,8 @@ mod tests {
 
     #[test]
     fn main_rs_imports_each_context_once_in_both_modes() {
-        for nvtx_routes in [NvtxRoutes::Enabled, NvtxRoutes::Disabled] {
-            let main = main_rs(&spec(), nvtx_routes, ContextIndexing::ContextInventory);
+        for has_nvtx_routes in [true, false] {
+            let main = main_rs(&spec(), has_nvtx_routes, ContextIndexing::ContextInventory);
             assert_eq!(
                 main.matches("<Viewer as QuentViewer>::import_events")
                     .count(),
@@ -321,7 +312,7 @@ mod tests {
 
     #[test]
     fn main_rs_supports_query_engine_specific_indexing() {
-        let main = main_rs(&spec(), NvtxRoutes::Enabled, ContextIndexing::QueryEngines);
+        let main = main_rs(&spec(), true, ContextIndexing::QueryEngines);
         assert!(main.contains("index_query_engines"));
         assert!(!main.contains("index_contexts"));
         assert!(!main.contains("context_inventory"));

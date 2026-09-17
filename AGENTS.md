@@ -22,3 +22,7 @@ change merged into `upstream/main`. If that ordering cannot be guaranteed, use
 the final merge commit or another commit that unambiguously contains the new
 contract. With a predecessor boundary, only strict descendants use the new
 contract; older and unrelated branch revisions use the preserved contract.
+
+Once releases are available, prefer the first release tag containing a new
+wrapper contract as its compatibility boundary. Keep full-SHA boundaries for
+artifacts produced from untagged development revisions.

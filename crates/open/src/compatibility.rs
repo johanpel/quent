@@ -20,56 +20,48 @@ pub(crate) const LEGACY_IO_PACKAGE: &str = "quent-exporter";
 pub(crate) const NVTX_SERVER_PACKAGE: &str = "nvtx-server";
 
 /// Boundary whose descendants provide the `quent-io` package.
+///
+/// Introduced by [commit `aa1e9b1`](https://github.com/rapidsai/quent/commit/aa1e9b1b394f5f978215b69cd5c526291c4b4723).
 const IO_PACKAGE_BOUNDARY: &str = "aa1e9b1b394f5f978215b69cd5c526291c4b4723";
 /// Boundary whose descendants provide NVTX routes and the extensible analyzer router.
-const NVTX_ROUTES_BOUNDARY: &str = "f40e69c2d4405c765c6270221e2a58e58ef704a6";
-/// Last `upstream/main` revision before context-inventory indexing was introduced.
 ///
-/// PR #699 is required to be the next change merged after this revision. Only strict
-/// descendants use context-inventory indexing; this revision, its ancestors, and
-/// revisions on older branches use query-engine indexing.
+/// Introduced by [commit `f40e69c`](https://github.com/rapidsai/quent/commit/f40e69c2d4405c765c6270221e2a58e58ef704a6).
+const NVTX_ROUTES_BOUNDARY: &str = "f40e69c2d4405c765c6270221e2a58e58ef704a6";
+/// Boundary whose strict descendants provide context-inventory indexing.
+///
+/// Introduced after [commit `5e6818e`](https://github.com/rapidsai/quent/commit/5e6818e89ccde0a41dc08a12819938a093969665).
 const CONTEXT_INVENTORY_PREDECESSOR: &str = "5e6818e89ccde0a41dc08a12819938a093969665";
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum NvtxRoutes {
-    Enabled,
-    Disabled,
-}
 
-impl NvtxRoutes {
-    pub(crate) fn server_package(self) -> Option<&'static str> {
-        (self == Self::Enabled).then_some(NVTX_SERVER_PACKAGE)
-    }
-
-    pub(crate) fn code(self) -> NvtxCode {
-        match self {
-            Self::Enabled => NvtxCode {
-                imports: quote! {
-                    use quent_query_engine_server::analyzer_service_router_with_routes;
-                    use nvtx_server::{import_context_events, routes as nvtx_routes};
-                },
-                setup: quote! {
-                    let nvtx_root = root.clone();
-                    let nvtx_importer = move |id: uuid::Uuid| {
-                        import_context_events(&nvtx_root, id)
-                    };
-                },
-                router: quote! {
-                    analyzer_service_router_with_routes::<Analyzer>(
-                        Box::new(importer),
-                        Box::new(lister),
-                        None,
-                        nvtx_routes(Box::new(nvtx_importer)),
-                    )
-                },
+pub(crate) fn nvtx_code(enabled: bool) -> NvtxCode {
+    if enabled {
+        NvtxCode {
+            imports: quote! {
+                use quent_query_engine_server::analyzer_service_router_with_routes;
+                use nvtx_server::{import_context_events, routes as nvtx_routes};
             },
-            Self::Disabled => NvtxCode {
-                imports: quote! {
-                    use quent_query_engine_server::analyzer_service_router;
-                },
-                setup: quote! {},
-                router: quote! {
-                    analyzer_service_router::<Analyzer>(Box::new(importer), Box::new(lister), None)
-                },
+            setup: quote! {
+                let nvtx_root = root.clone();
+                let nvtx_importer = move |id: uuid::Uuid| {
+                    import_context_events(&nvtx_root, id)
+                };
+            },
+            router: quote! {
+                analyzer_service_router_with_routes::<Analyzer>(
+                    Box::new(importer),
+                    Box::new(lister),
+                    None,
+                    nvtx_routes(Box::new(nvtx_importer)),
+                )
+            },
+        }
+    } else {
+        NvtxCode {
+            imports: quote! {
+                use quent_query_engine_server::analyzer_service_router;
+            },
+            setup: quote! {},
+            router: quote! {
+                analyzer_service_router::<Analyzer>(Box::new(importer), Box::new(lister), None)
             },
         }
     }
@@ -124,7 +116,7 @@ pub(crate) struct ContextIndexingCode {
 }
 
 pub(crate) struct WrapperCompatibility {
-    pub(crate) nvtx_routes: NvtxRoutes,
+    pub(crate) has_nvtx_routes: bool,
     pub(crate) io_package: &'static str,
     pub(crate) context_indexing: ContextIndexing,
 }
@@ -132,11 +124,7 @@ pub(crate) struct WrapperCompatibility {
 impl WrapperCompatibility {
     pub(crate) async fn resolve(repository: &Path, spec: &ViewerSpec) -> Result<Self> {
         let revision = revision::PinnedRevision::fetch(repository, &spec.quent).await?;
-        let nvtx_routes = if revision.contains(NVTX_ROUTES_BOUNDARY).await? {
-            NvtxRoutes::Enabled
-        } else {
-            NvtxRoutes::Disabled
-        };
+        let has_nvtx_routes = revision.contains(NVTX_ROUTES_BOUNDARY).await?;
         let io_package = if revision.contains(IO_PACKAGE_BOUNDARY).await? {
             IO_PACKAGE
         } else {
@@ -151,7 +139,7 @@ impl WrapperCompatibility {
             ContextIndexing::QueryEngines
         };
         Ok(Self {
-            nvtx_routes,
+            has_nvtx_routes,
             io_package,
             context_indexing,
         })

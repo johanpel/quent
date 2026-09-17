@@ -21,7 +21,7 @@ pub struct PinnedRevision<'a> {
 impl<'a> PinnedRevision<'a> {
     /// Fetch `pin` into `repository` without checking out its file contents.
     pub async fn fetch(repository: &'a Path, pin: &GitPin) -> Result<Self> {
-        std::fs::create_dir_all(repository)?;
+        tokio::fs::create_dir_all(repository).await?;
         if !repository.join("HEAD").is_file() {
             run_git(
                 Command::new("git")

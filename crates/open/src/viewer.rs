@@ -97,7 +97,7 @@ async fn build_one(group: ViewerGroup) -> Result<BuiltViewer> {
         &spec,
         &crate_dir,
         compatibility.io_package,
-        compatibility.nvtx_routes,
+        compatibility.has_nvtx_routes,
         compatibility.context_indexing,
     )?;
     let bin = cargo_build(&crate_dir).await?;
