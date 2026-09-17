@@ -15,6 +15,11 @@ use crate::{
     resource::{AnalyzedUsage, CapacityValue, Usage, Using},
 };
 
+/// Number of transitions stored inline before spilling to the heap.
+///
+/// The capacity is based on intuition rather than measurements.
+const INLINE_TRANSITION_CAPACITY: usize = 4;
+
 /// Trait for application-specific payloads of FSM transition events.
 pub trait TransitionEvent: EntityEvent {
     /// Return the name of the state transitioned into.
@@ -183,7 +188,7 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
                 self.id,
             )));
         }
-        let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
+        let transitions: SmallVec<[AnalyzedTransition<T>; INLINE_TRANSITION_CAPACITY]> =
             self.transitions.into_inner().into();
         if let Some(invalid) = transitions
             .windows(2)
@@ -221,7 +226,7 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
 /// Application-specific data remains available through [`Self::transitions`].
 pub struct AnalyzedFsm<T> {
     id: Uuid,
-    transitions: SmallVec<[AnalyzedTransition<T>; 4]>,
+    transitions: SmallVec<[AnalyzedTransition<T>; INLINE_TRANSITION_CAPACITY]>,
 }
 
 impl<T: TransitionEvent> std::fmt::Debug for AnalyzedFsm<T> {
