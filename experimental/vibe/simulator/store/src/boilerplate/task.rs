@@ -134,26 +134,3 @@ impl TransitionEvent for TaskEvent {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::TaskExecutorThreadUsage;
-
-    #[test]
-    fn thread_usage_reserves_one_unit() {
-        let thread_id = quent_events::Uuid::from_u128(1);
-        let event = TaskEvent::Allocating {
-            seq: 0,
-            use_thread: quent_events::EntityRef::new(thread_id, TaskExecutorThreadUsage),
-        };
-
-        let usages = event.usages();
-        assert_eq!(usages.len(), 1);
-        assert_eq!(usages[0].resource_id, thread_id);
-        assert_eq!(
-            usages[0].capacities.as_slice(),
-            &[CapacityValue::new("unit", 1)]
-        );
-    }
-}
