@@ -28,6 +28,9 @@ pub trait TransitionEvent: EntityEvent {
     /// Returns the per-FSM wrapping sequence number assigned in transition order.
     fn sequence(&self) -> u16;
 
+    /// Returns whether this transition starts the FSM's dynamic lifetime.
+    fn is_initial(&self) -> bool;
+
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
 
@@ -169,14 +172,15 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
 
     /// Builds an FSM from the collected transitions.
     ///
-    /// Missing intermediate events are detected only when they leave an invalid
-    /// topology edge and may otherwise produce inaccurate state spans.
+    /// Missing events are detected only when the observed sequence has no
+    /// initial or final transition, or contains an invalid topology edge. Other
+    /// missing events may produce inaccurate state spans.
     ///
     /// # Errors
     ///
     /// Returns [`AnalyzerError::Validation`] if two transitions have the same
-    /// timestamp and sequence number, or if adjacent transitions violate the
-    /// FSM topology.
+    /// timestamp and sequence number, if the first transition is not initial,
+    /// or if adjacent transitions violate the FSM topology.
     ///
     /// Returns [`AnalyzerError::IncompleteFsm`] if no final transition was
     /// collected.
@@ -190,6 +194,16 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
         }
         let transitions: SmallVec<[AnalyzedTransition<T>; INLINE_TRANSITION_CAPACITY]> =
             self.transitions.into_inner().into();
+        if let Some(first) = transitions.first()
+            && !first.data.is_initial()
+        {
+            return Err(AnalyzerError::Validation(format!(
+                "fsm '{}' (id={}) starts with non-initial transition '{}'",
+                T::NAME,
+                self.id,
+                first.data.name(),
+            )));
+        }
         if let Some(invalid) = transitions
             .windows(2)
             .find(|transitions| !transitions[0].data.is_valid_next(&transitions[1].data))
@@ -321,6 +335,7 @@ mod tests {
     #[derive(Debug, PartialEq, Eq)]
     struct TestTransition {
         sequence: u16,
+        is_initial: bool,
         is_final: bool,
     }
 
@@ -335,6 +350,10 @@ mod tests {
 
         fn sequence(&self) -> u16 {
             self.sequence
+        }
+
+        fn is_initial(&self) -> bool {
+            self.is_initial
         }
 
         fn is_final(&self) -> bool {
@@ -355,6 +374,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 1,
+                is_initial: false,
                 is_final: true,
             },
         ));
@@ -363,6 +383,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_initial: true,
                 is_final: false,
             },
         ));
@@ -388,6 +409,7 @@ mod tests {
             101,
             TestTransition {
                 sequence: 0,
+                is_initial: false,
                 is_final: true,
             },
         ));
@@ -396,6 +418,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: u16::MAX,
+                is_initial: true,
                 is_final: false,
             },
         ));
@@ -419,6 +442,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_initial: true,
                 is_final: false,
             },
         ));
@@ -427,6 +451,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_initial: false,
                 is_final: true,
             },
         ));
@@ -446,6 +471,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_initial: true,
                 is_final: true,
             },
         ));
@@ -454,6 +480,7 @@ mod tests {
             101,
             TestTransition {
                 sequence: 1,
+                is_initial: false,
                 is_final: true,
             },
         ));
@@ -473,6 +500,7 @@ mod tests {
             100,
             TestTransition {
                 sequence: 0,
+                is_initial: true,
                 is_final: false,
             },
         ));
@@ -480,6 +508,35 @@ mod tests {
         assert!(matches!(
             builder.try_build(),
             Err(AnalyzerError::IncompleteFsm(_))
+        ));
+    }
+
+    #[test]
+    fn non_initial_first_transition_is_rejected() {
+        let id = Uuid::from_u128(1);
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 1,
+                is_initial: false,
+                is_final: false,
+            },
+        ));
+        builder.push_transition(Event::new(
+            id,
+            101,
+            TestTransition {
+                sequence: 2,
+                is_initial: false,
+                is_final: true,
+            },
+        ));
+
+        assert!(matches!(
+            builder.try_build(),
+            Err(AnalyzerError::Validation(_))
         ));
     }
 }
