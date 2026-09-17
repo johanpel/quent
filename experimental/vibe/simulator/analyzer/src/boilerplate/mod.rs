@@ -11,7 +11,7 @@ use quent_analyzer::{
     entity::native::{AnalyzedEntity, EntityEventAccumulator},
     fsm::{
         Fsm, FsmUsages,
-        native::{AnalyzedFsm, AnalyzedTransition, FsmBuilder},
+        native::{AnalyzedFsm, AnalyzedTransition, AnalyzedFsmBuilder},
     },
     resource::{CapacityDecl, Resource, ResourceTypeDecl, Usage, Using},
 };

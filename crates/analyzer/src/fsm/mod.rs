@@ -11,12 +11,12 @@ pub mod collection;
 pub mod native;
 pub mod runtime;
 
-/// Trait for types that represent an [`Fsm`] state transition event.
+/// Trait for types that represent an [`Fsm`] state transition event payload.
 pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
 
-    /// Returns the per-entity ordering key for equal timestamps.
+    /// Returns the sequence number of this transition.
     fn sequence(&self) -> u16;
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.
@@ -25,12 +25,13 @@ pub trait Transition: Timestamp {
 
 /// Trait for types that represent a Finite State Machine (FSM).
 ///
-/// An FSM is modeled as a sequence of transitions between uniquely named
-/// states. Each FSM must have at least two transition, some entry transition
-/// and an exit transition. The number of states is always one less than the
-/// number of transitions.
+/// An FSM is modeled as an ordered sequence of transitions, where each adjacent
+/// pair delimits one state. A complete FSM has an entry transition and a final
+/// transition that closes the last state and ends its dynamic lifetime.
+///
+/// This trait may also represent an incomplete FSM with no delimited states.
 pub trait Fsm: Entity {
-    /// The type of transitions stored by this FSM.
+    /// The type of the transition event payload of this FSM.
     ///
     /// This associated type enables dyn-free access to underlying transition
     /// data.
@@ -39,7 +40,7 @@ pub trait Fsm: Entity {
     /// Return the number of states in this FSM.
     ///
     /// Each state spans two consecutive transitions, so this is always one less
-    /// than the number of transitions.
+    /// than the number of transition events.
     fn len(&self) -> usize;
 
     /// Return true if this FSM has no states (meaning the model of whatever it

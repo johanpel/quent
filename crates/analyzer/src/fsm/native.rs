@@ -16,7 +16,6 @@ use crate::{
 };
 
 /// Trait for application-specific payloads of FSM transition events.
-// TODO(johanpel): this trait will be implemented by generated analysis code.
 pub trait TransitionEvent: EntityEvent {
     /// Return the name of the state transitioned into.
     fn name(&self) -> &'static str;
@@ -36,7 +35,8 @@ pub trait TransitionEvent: EntityEvent {
 /// Rust-native struct wrapping around an application-specific FSM transition
 /// event payload.
 ///
-/// This pre-computes and caches generic transition properties.
+/// This structure exists to pre-compute and cache generic properties of
+/// transitions that are typically repeatedly requested by analysis consumers.
 pub struct AnalyzedTransition<T> {
     /// Time at which the transition entered its state.
     timestamp: TimeUnixNanoSec,
@@ -113,13 +113,16 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
     }
 }
 
-/// Builds an analyzed Rust-native [`AnalyzedFsm`] from application-specific events.
-pub struct FsmBuilder<T> {
+/// Builds an analyzed Rust-native [`AnalyzedFsm`] from application-specific
+/// events.
+///
+/// This builder orders events by the required transition sequence number.
+pub struct AnalyzedFsmBuilder<T> {
     id: Uuid,
     transitions: OrderedCollector<AnalyzedTransition<T>>,
 }
 
-impl<T: TransitionEvent> FsmBuilder<T> {
+impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
     pub fn try_new(id: Uuid) -> AnalyzerResult<Self> {
         if id.is_nil() {
             Err(AnalyzerError::Validation(
@@ -178,6 +181,10 @@ impl<T: TransitionEvent> FsmBuilder<T> {
 }
 
 /// An FSM reconstructed from application-specific transition data.
+///
+/// This type can be constructed through [`AnalyzedFsmBuilder`], which
+/// guarantees that the order in which events are emitted from the
+/// instrumentation is retained, even if events are analyzed out of order.
 ///
 /// Application-specific data remains available through [`Self::transitions`].
 pub struct AnalyzedFsm<T> {
@@ -309,7 +316,7 @@ mod tests {
     #[test]
     fn equal_timestamp_transitions_are_ordered_by_sequence() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmBuilder::try_new(id).unwrap();
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             100,
@@ -341,7 +348,7 @@ mod tests {
     #[test]
     fn sequence_wrap_is_ordered_by_timestamp() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmBuilder::try_new(id).unwrap();
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             101,
@@ -372,7 +379,7 @@ mod tests {
     #[test]
     fn incomplete_fsm_is_rejected() {
         let id = Uuid::from_u128(1);
-        let mut builder = FsmBuilder::try_new(id).unwrap();
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
         builder.push_transition(Event::new(
             id,
             100,

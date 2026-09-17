@@ -3,7 +3,7 @@
 
 use super::*;
 
-pub(crate) type QueryBuilder = FsmBuilder<schema::QueryEvent>;
+pub(crate) type QueryBuilder = AnalyzedFsmBuilder<schema::QueryEvent>;
 
 #[derive(Debug)]
 pub struct Query(AnalyzedFsm<schema::QueryEvent>);

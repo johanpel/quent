@@ -7,7 +7,7 @@ use quent_analyzer::{
     AnalyzerResult, Entity, RefTreeEntity,
     fsm::{
         Fsm, FsmUsages, Transition,
-        native::{AnalyzedFsm as NativeFsm, AnalyzedTransition as NativeTransition, FsmBuilder},
+        native::{AnalyzedFsm as NativeFsm, AnalyzedTransition as NativeTransition, AnalyzedFsmBuilder},
     },
     resource::{Usage, Using},
 };
@@ -105,7 +105,7 @@ impl Task {
 }
 
 /// Builder for Task FSMs.
-pub type TaskBuilder = FsmBuilder<schema::TaskEvent>;
+pub type TaskBuilder = AnalyzedFsmBuilder<schema::TaskEvent>;
 
 impl Entity for Task {
     fn id(&self) -> Uuid {
