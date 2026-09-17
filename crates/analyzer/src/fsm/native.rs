@@ -20,7 +20,7 @@ pub trait TransitionEvent: EntityEvent {
     /// Return the name of the state transitioned into.
     fn name(&self) -> &'static str;
 
-    /// Returns the per-entity ordering key for equal timestamps.
+    /// Returns the per-FSM wrapping sequence number assigned in transition order.
     fn sequence(&self) -> u16;
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.
@@ -67,6 +67,8 @@ impl<T: TransitionEvent> OrderKey for AnalyzedTransition<T> {
     type Key = (TimeUnixNanoSec, u16);
 
     fn order_key(&self) -> Self::Key {
+        // Since the sequence number may wrap, we need to compare both timestamp
+        // and sequence number.
         (self.timestamp, self.data.sequence())
     }
 }
@@ -116,10 +118,12 @@ impl<'a> Usage<'a> for UsageWithSpan<'a> {
 /// Builds an analyzed Rust-native [`AnalyzedFsm`] from application-specific
 /// events.
 ///
-/// This builder orders events by the required transition sequence number.
+/// This builder orders events by the combination of timestamp and (potentially
+/// wrapping) sequence number.
 pub struct AnalyzedFsmBuilder<T> {
     id: Uuid,
     transitions: OrderedCollector<AnalyzedTransition<T>>,
+    duplicate_order_key: Option<(TimeUnixNanoSec, u16)>,
 }
 
 impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
@@ -132,6 +136,7 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
             Ok(Self {
                 id,
                 transitions: OrderedCollector::default(),
+                duplicate_order_key: None,
             })
         }
     }
@@ -144,23 +149,36 @@ impl<T: TransitionEvent> AnalyzedFsmBuilder<T> {
     /// Adds one typed transition using its analyzer mapping.
     pub fn push_transition(&mut self, event: Event<T>) {
         let transition = event.data;
-        self.transitions.push(AnalyzedTransition {
+        let order_key = (event.timestamp, transition.sequence());
+        if self.transitions.push(AnalyzedTransition {
             timestamp: event.timestamp,
             usages: transition.usages(),
             data: transition,
-        });
+        }) {
+            self.duplicate_order_key.get_or_insert(order_key);
+        }
     }
 
     /// Builds an FSM from the collected transitions.
     ///
-    /// Missing intermediate events cannot be detected and may produce inaccurate
+    /// Missing intermediate events are not rejected and may produce inaccurate
     /// state spans.
     ///
     /// # Errors
     ///
+    /// Returns [`AnalyzerError::Validation`] if two transitions have the same
+    /// timestamp and sequence number.
+    ///
     /// Returns [`AnalyzerError::IncompleteFsm`] if no final transition was
     /// collected.
     pub fn try_build(self) -> AnalyzerResult<AnalyzedFsm<T>> {
+        if let Some((timestamp, sequence)) = self.duplicate_order_key {
+            return Err(AnalyzerError::Validation(format!(
+                "fsm '{}' (id={}) has multiple transitions with timestamp {timestamp} and sequence {sequence}",
+                T::NAME,
+                self.id,
+            )));
+        }
         let transitions: SmallVec<[AnalyzedTransition<T>; 4]> =
             self.transitions.into_inner().into();
         if !transitions
@@ -365,6 +383,33 @@ mod tests {
                 .collect::<Vec<_>>(),
             [(100, u16::MAX), (101, 0)]
         );
+    }
+
+    #[test]
+    fn duplicate_transition_order_key_is_rejected() {
+        let id = Uuid::from_u128(1);
+        let mut builder = AnalyzedFsmBuilder::try_new(id).unwrap();
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: false,
+            },
+        ));
+        builder.push_transition(Event::new(
+            id,
+            100,
+            TestTransition {
+                sequence: 0,
+                is_final: true,
+            },
+        ));
+
+        assert!(matches!(
+            builder.try_build(),
+            Err(AnalyzerError::Validation(_))
+        ));
     }
 
     #[test]

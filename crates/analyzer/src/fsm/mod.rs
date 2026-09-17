@@ -16,7 +16,7 @@ pub trait Transition: Timestamp {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
 
-    /// Returns the sequence number of this transition.
+    /// Returns the per-FSM wrapping sequence number assigned in transition order.
     fn sequence(&self) -> u16;
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.

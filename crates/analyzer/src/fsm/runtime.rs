@@ -108,7 +108,7 @@ where
     T: OrderKey,
 {
     pub fn push(&mut self, state: T) {
-        self.transitions.push(state)
+        self.transitions.push(state);
     }
 }
 
