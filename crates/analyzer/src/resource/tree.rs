@@ -43,8 +43,10 @@ impl ResourceTreeNode {
         ref_tree: RefTreeNode,
         resources: &impl ResourceCollection,
     ) -> AnalyzerResult<Self> {
-        let mut resource_ids = HashSet::default();
-        for resource in resources.resources() {
+        let resources = resources.resources();
+        let mut resource_ids =
+            HashSet::with_capacity_and_hasher(resources.size_hint().0, Default::default());
+        for resource in resources {
             let resource_id = resource.id();
             if !resource_ids.insert(resource_id) {
                 return Err(AnalyzerError::Validation(format!(
