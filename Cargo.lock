@@ -2627,6 +2627,7 @@ dependencies = [
  "quent-time",
  "rustc-hash",
  "smallvec",
+ "tempfile",
  "thiserror",
  "uuid",
 ]
@@ -3107,6 +3108,7 @@ dependencies = [
  "axum",
  "clap",
  "nvtx-server",
+ "quent-analyzer",
  "quent-io",
  "quent-query-engine-analyzer",
  "quent-query-engine-server",

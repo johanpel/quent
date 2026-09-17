@@ -101,15 +101,15 @@ impl ContextIndexing {
             },
             Self::ContextInventory => ContextIndexingCode {
                 import: quote! {
-                    use quent_query_engine_server::analyzer_cache::index_contexts;
+                    use quent_analyzer::context::index_contexts;
                 },
                 lister: quote! {
                     let lister_root = root.clone();
                     let lister = move || {
-                        index_contexts(&lister_root, |id| {
-                            Ok(<Viewer as QuentViewer>::context_inventory(
-                                &lister_root.join(id.to_string()),
-                            )?)
+                        index_contexts(&lister_root, |context_dir| {
+                            Ok::<_, quent_query_engine_server::error::ServerError>(
+                                <Viewer as QuentViewer>::context_inventory(context_dir)?,
+                            )
                         })
                     };
                 },

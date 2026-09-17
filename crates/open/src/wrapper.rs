@@ -42,7 +42,7 @@ pub fn generate(
     std::fs::create_dir_all(crate_dir.join("src"))?;
     std::fs::write(
         crate_dir.join("Cargo.toml"),
-        cargo_toml(spec, io_package, nvtx_routes),
+        cargo_toml(spec, io_package, nvtx_routes, context_indexing),
     )?;
     std::fs::write(
         crate_dir.join("src/main.rs"),
@@ -64,12 +64,23 @@ fn git_dep(url: String, rev: &str, features: &[&str]) -> Dependency {
 /// Wrapper `Cargo.toml`, built with `cargo-manifest`: pin quent crates to
 /// `quent.{remote,commit}` and the analyzer to `analyzer.{remote,commit}`; the
 /// empty `[workspace]` keeps the generated crate out of any parent workspace.
-fn cargo_toml(spec: &ViewerSpec, io_package: &str, nvtx_routes: NvtxRoutes) -> String {
+fn cargo_toml(
+    spec: &ViewerSpec,
+    io_package: &str,
+    nvtx_routes: NvtxRoutes,
+    context_indexing: ContextIndexing,
+) -> String {
     let quent = spec.quent.cargo_url();
     let q_rev = spec.quent.commit.as_str();
     let nvtx_dependency = nvtx_routes
         .server_package()
         .map(|package| (package.to_string(), git_dep(quent.clone(), q_rev, &[])));
+    let context_dependency = (context_indexing == ContextIndexing::ContextInventory).then(|| {
+        (
+            "quent-analyzer".to_string(),
+            git_dep(quent.clone(), q_rev, &[]),
+        )
+    });
     let dependencies: BTreeMap<String, Dependency> = BTreeMap::from([
         (
             "quent-query-engine-server".to_string(),
@@ -106,6 +117,7 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str, nvtx_routes: NvtxRoutes) -> S
     ])
     .into_iter()
     .chain(nvtx_dependency)
+    .chain(context_dependency)
     .collect();
 
     let mut package = Package::new(WRAPPER_PACKAGE.to_string(), "0.0.0".to_string());
@@ -199,8 +211,13 @@ mod tests {
 
     #[test]
     fn cargo_toml_pins_quent_and_analyzer() {
-        let manifest: toml::Value =
-            toml::from_str(&cargo_toml(&spec(), IO_PACKAGE, NvtxRoutes::Enabled)).unwrap();
+        let manifest: toml::Value = toml::from_str(&cargo_toml(
+            &spec(),
+            IO_PACKAGE,
+            NvtxRoutes::Enabled,
+            ContextIndexing::ContextInventory,
+        ))
+        .unwrap();
         assert!(manifest.get("workspace").is_some(), "standalone workspace");
         let deps = &manifest["dependencies"];
         let server = &deps["quent-query-engine-server"];
@@ -208,6 +225,10 @@ mod tests {
         assert_eq!(server["rev"].as_str().unwrap(), "quentcommit");
         assert_eq!(server["features"][0].as_str().unwrap(), "ui");
         assert_eq!(deps["nvtx-server"]["rev"].as_str().unwrap(), "quentcommit");
+        assert_eq!(
+            deps["quent-analyzer"]["rev"].as_str().unwrap(),
+            "quentcommit"
+        );
         // The exporter enables all formats so the analyzer detects the artifact's format at runtime.
         let exporter_features = deps["quent-io"]["features"].as_array().unwrap();
         for format in ["ndjson", "msgpack", "postcard"] {
@@ -229,12 +250,14 @@ mod tests {
             &spec(),
             LEGACY_IO_PACKAGE,
             NvtxRoutes::Disabled,
+            ContextIndexing::QueryEngines,
         ))
         .unwrap();
         let deps = &manifest["dependencies"];
         assert!(deps.get("quent-io").is_none());
         let exporter = &deps["quent-exporter"];
         assert!(deps.get("nvtx-server").is_none());
+        assert!(deps.get("quent-analyzer").is_none());
         assert_eq!(
             exporter["git"].as_str().unwrap(),
             "https://example.com/quent"
@@ -248,8 +271,13 @@ mod tests {
 
     #[test]
     fn cargo_toml_can_disable_nvtx_with_the_current_io_package() {
-        let manifest: toml::Value =
-            toml::from_str(&cargo_toml(&spec(), IO_PACKAGE, NvtxRoutes::Disabled)).unwrap();
+        let manifest: toml::Value = toml::from_str(&cargo_toml(
+            &spec(),
+            IO_PACKAGE,
+            NvtxRoutes::Disabled,
+            ContextIndexing::QueryEngines,
+        ))
+        .unwrap();
         assert!(manifest["dependencies"].get(NVTX_SERVER_PACKAGE).is_none());
     }
 

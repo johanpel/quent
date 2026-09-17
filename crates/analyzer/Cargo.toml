@@ -12,3 +12,6 @@ rustc-hash.workspace = true
 smallvec = { workspace = true, features = ["serde"] }
 thiserror.workspace = true
 uuid.workspace=true
+
+[dev-dependencies]
+tempfile = "3"

@@ -4,6 +4,7 @@
 //! Indexing of runtime contexts by the entities that contribute telemetry.
 
 use std::collections::BTreeSet;
+use std::path::Path;
 
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
@@ -36,12 +37,10 @@ pub struct ContextInventory {
     pub analysis_target_ids: BTreeSet<Uuid>,
 }
 
-/// Finds the contexts needed to analyze an entity.
+/// Maps each analysis target to all runtime contexts contributing telemetry.
 ///
-/// For example, analysis of a distributed application's driver uses the
-/// driver's context and every worker context. Independent targets may use the
-/// same or different contexts, such as two implementations running the same
-/// benchmark workload whose results will be compared.
+/// Multiple independent targets are supported, such as two implementations
+/// running the same benchmark workload whose results will be compared.
 #[derive(Debug, Default)]
 pub struct ContextIndex {
     contexts_by_analysis_target: FxHashMap<Uuid, BTreeSet<ContextId>>,
@@ -72,6 +71,37 @@ impl ContextIndex {
     }
 }
 
+/// Builds an index from inventories of UUID-named context directories.
+///
+/// Non-directory and non-UUID entries are ignored. Each direct child of `root` is visited once.
+pub fn index_contexts<E>(
+    root: &Path,
+    inventory: impl Fn(&Path) -> Result<ContextInventory, E>,
+) -> Result<ContextIndex, E>
+where
+    E: From<std::io::Error>,
+{
+    let mut index = ContextIndex::default();
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let context_dir = entry.path();
+        let Some(context_id) = context_dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| Uuid::parse_str(name).ok())
+            .map(ContextId::from)
+        else {
+            continue;
+        };
+
+        index.add_inventory(context_id, inventory(&context_dir)?);
+    }
+    Ok(index)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,6 +129,30 @@ mod tests {
         assert_eq!(
             index.contexts_of_analysis_target(analysis_target_id),
             vec![target_context.into(), child_context.into()]
+        );
+    }
+
+    #[test]
+    fn indexes_uuid_named_context_directories() {
+        let temp = tempfile::tempdir().unwrap();
+        let analysis_target_id = Uuid::from_u128(1);
+        let context_id = Uuid::from_u128(2);
+        let context_dir = temp.path().join(context_id.to_string());
+        std::fs::create_dir(&context_dir).unwrap();
+        std::fs::create_dir(temp.path().join("not-a-context")).unwrap();
+        std::fs::write(temp.path().join(Uuid::from_u128(3).to_string()), []).unwrap();
+
+        let index = index_contexts(temp.path(), |actual_context_dir| -> std::io::Result<_> {
+            assert_eq!(actual_context_dir, context_dir);
+            Ok(ContextInventory {
+                analysis_target_ids: BTreeSet::from([analysis_target_id]),
+            })
+        })
+        .unwrap();
+
+        assert_eq!(
+            index.contexts_of_analysis_target(analysis_target_id),
+            vec![context_id.into()]
         );
     }
 }

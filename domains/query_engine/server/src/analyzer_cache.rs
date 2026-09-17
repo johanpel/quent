@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use quent_analyzer::context::{ContextId, ContextIndex, ContextInventory};
+use quent_analyzer::context::{ContextId, ContextIndex};
 use quent_events::Event;
 use quent_query_engine_analyzer::ui::UiAnalyzer;
 use quent_query_engine_ui as ui;
@@ -22,30 +21,6 @@ pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Ev
 
 /// Produces the [`ContextIndex`] used to locate the contexts backing each analysis target.
 pub type ListerFn = dyn Fn() -> ServerResult<ContextIndex> + Send + Sync;
-
-/// Scans every `<output_dir>/<ctx>/` directory and indexes its entities.
-///
-/// The inventory callback determines how entities and analysis targets are identified for the
-/// application's event schema. The index is rebuilt from scratch on every call.
-pub fn index_contexts(
-    output_dir: &Path,
-    inventory: impl Fn(Uuid) -> ServerResult<ContextInventory>,
-) -> ServerResult<ContextIndex> {
-    let mut index = ContextIndex::default();
-    for entry in std::fs::read_dir(output_dir)? {
-        let context_dir = entry?.path();
-        let Some(context_id) = context_dir
-            .file_name()
-            .and_then(|s| s.to_str())
-            .and_then(|s| Uuid::parse_str(s).ok())
-        else {
-            continue;
-        };
-
-        index.add_inventory(context_id.into(), inventory(context_id)?);
-    }
-    Ok(index)
-}
 
 /// Chain one source-importer call per context into a single event stream.
 fn chain_context_events<A: UiAnalyzer>(
@@ -162,58 +137,5 @@ where
             .await
             .map(|v| v.into_value())
             .map_err(|e: Arc<ServerError>| ServerError::Cache(format!("{e:?}")))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn engine_context_inventory_is_deduplicated_and_sorted() {
-        let engine_id = Uuid::from_u128(1);
-        let earlier = Uuid::from_u128(2);
-        let later = Uuid::from_u128(3);
-        let mut index = ContextIndex::default();
-        let inventory = || ContextInventory {
-            analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
-        };
-        index.add_inventory(later.into(), inventory());
-        index.add_inventory(earlier.into(), inventory());
-        index.add_inventory(later.into(), inventory());
-
-        assert_eq!(
-            index.contexts_of_analysis_target(engine_id),
-            vec![earlier.into(), later.into()]
-        );
-        assert!(
-            index
-                .contexts_of_analysis_target(Uuid::from_u128(4))
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn context_inventory_associates_all_contexts_with_the_analysis_target() {
-        let engine_id = Uuid::from_u128(1);
-        let engine_context = Uuid::from_u128(2);
-        let worker_context = Uuid::from_u128(3);
-        let mut index = ContextIndex::default();
-        index.add_inventory(
-            engine_context.into(),
-            ContextInventory {
-                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
-            },
-        );
-        index.add_inventory(
-            worker_context.into(),
-            ContextInventory {
-                analysis_target_ids: std::collections::BTreeSet::from([engine_id]),
-            },
-        );
-
-        assert_eq!(
-            index.contexts_of_analysis_target(engine_id),
-            vec![engine_context.into(), worker_context.into()]
-        );
     }
 }
