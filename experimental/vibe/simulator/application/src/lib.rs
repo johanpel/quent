@@ -351,7 +351,7 @@ impl<T: Debug> Plan<T> {
             )
             .unwrap();
 
-        for node_idx in self.dag.node_indices().collect::<Vec<_>>() {
+        for node_idx in self.dag.node_indices() {
             let op = &mut self.dag[node_idx];
             op.handle
                 .declaration(
@@ -364,7 +364,7 @@ impl<T: Debug> Plan<T> {
                 .unwrap();
         }
 
-        for edge_idx in self.dag.edge_indices().collect::<Vec<_>>() {
+        for edge_idx in self.dag.edge_indices() {
             let (source_idx, target_idx) = self.dag.edge_endpoints(edge_idx).unwrap();
             let source_operator = self.dag[source_idx].handle.as_entity_ref();
             let target_operator = self.dag[target_idx].handle.as_entity_ref();
