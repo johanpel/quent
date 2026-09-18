@@ -2,11 +2,9 @@
 
 An instrumented application chooses an exporter when it creates the Quent
 context. The examples in this tutorial use the no-op exporter, so their events
-are discarded.
-
-If we would choose the NDJSON exporter with `./events` as its output root,
-Quent creates a directory like this (for the `minimal` schema of the previous
-page):
+are discarded. In this lesson, we'll show how to use an actually useful
+exporter - the NDJSON exporter - to export events in a human-readible
+self-describing form.
 
 ## Instrumentation API
 
@@ -39,6 +37,10 @@ with quent.Context(quent.ExporterOptions.ndjson("./events")) as context:
 
 ## Output
 
+If we choose the NDJSON exporter with `./events` as its output root like above,
+for the `minimal` schema of the previous page, Quent creates a directory like
+this:
+
 ```text
 events/
 └── 0199a1c2-3456-7890-abcd-ef0123456789/
@@ -53,9 +55,8 @@ separate application runs or contexts isolated.
 Each entity event stream gets its own directory, such as `Task`, containing one
 or more UUID-named event files.
 
-After the minimal model emits
-`started` and `ended` through the NDJSON exporter, its `Task` file looks like
-this (with shortened example values):
+After the minimal model emits `started` and `ended` through the NDJSON exporter,
+its `Task` file looks like this (with shortened example values):
 
 ```json
 {"id":"0199...6789","timestamp":1789675200000000000,"data":"Started"}
