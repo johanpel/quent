@@ -10,7 +10,13 @@ page):
 
 ## Instrumentation API
 
+These snippets show only how context construction changes when NDJSON support
+is enabled for the generated instrumentation library. They assume the generated
+module declaration and language-specific build wiring from the complete
+examples.
+
 ```rust
+use instrumentation::{Context, Minimal};
 use quent_instrumentation::{
     ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
