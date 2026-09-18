@@ -1,8 +1,8 @@
 # Quent Tutorial
 
-This tutorial builds a Quent model from basic events through finite-state
-machines and resources. Every lesson shows the complete YAML model beside the
-generated instrumentation API that uses it.
+This tutorial builds an application event model from basic events through
+finite-state machines and resources. Every lesson shows the complete YAML model
+beside the generated instrumentation API that uses it.
 
 Instrumentation examples are available in Rust, C++, and Python. Use the tabs
 above each example to select a language; the selection carries across lessons.
