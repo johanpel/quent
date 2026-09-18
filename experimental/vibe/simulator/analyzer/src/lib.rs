@@ -3,7 +3,7 @@
 
 use quent_events::Event;
 pub use quent_query_engine_analyzer::QueryEngineModel;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "filesystem")]
 use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
@@ -37,9 +37,10 @@ use std::collections::HashMap as StdHashMap;
 use std::sync::Arc;
 use tracing::debug;
 
+#[cfg(feature = "filesystem")]
+use quent_analyzer::context::ContextInventory;
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
-    context::ContextInventory,
     fsm::{FsmUsages, Transition},
     ref_tree::RefTreeCollection,
     resource::{
@@ -54,7 +55,10 @@ use quent_analyzer::{
     },
 };
 use quent_dynamic_attributes::DynamicValue;
-use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
+#[cfg(feature = "filesystem")]
+use quent_simulator_store::Simulator;
+use quent_simulator_store::{self as schema, SimulatorEvent};
+#[cfg(feature = "filesystem")]
 use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use quent_ui::fsm::FsmTypeDeclaration;
@@ -148,10 +152,10 @@ pub struct SimulatorUiAnalyzer {
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
 /// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
 /// `quent-open` names when building a viewer for this analyzer's models.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "filesystem")]
 pub struct Viewer;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "filesystem")]
 impl QuentViewer for Viewer {
     type Analyzer = SimulatorUiAnalyzer;
 
@@ -202,7 +206,7 @@ impl QuentViewer for Viewer {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "filesystem")]
 fn context_location(dir: &std::path::Path) -> quent_io::ImporterResult<(Uuid, &std::path::Path)> {
     let invalid_path = || {
         quent_io::ImporterError::other(std::io::Error::new(

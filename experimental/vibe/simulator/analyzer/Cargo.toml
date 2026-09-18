@@ -4,22 +4,24 @@ version.workspace = true
 edition.workspace =  true
 publish.workspace = true
 
+[features]
+default = ["filesystem"]
+filesystem = ["dep:quent-io", "dep:quent-store", "quent-simulator-store/filesystem"]
+
 [dependencies]
 quent-analyzer = { path = "../../../../crates/analyzer" }
 quent-dynamic-attributes = { path = "../../../../crates/dynamic-attributes" }
 quent-events = { path = "../../../../crates/events" }
-quent-io = { path = "../../../../crates/io" }
+quent-io = { path = "../../../../crates/io", default-features = false, optional = true }
 quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyzer" }
 quent-query-engine-ui = { path = "../../../../domains/query_engine/ui" }
-quent-simulator-store = { path = "../store" }
-quent-store = { path = "../../../../crates/store", features = [
-    "io-msgpack",
-    "io-ndjson",
-    "io-postcard",
-] }
+quent-simulator-store = { path = "../store", default-features = false }
 quent-time = { path = "../../../../crates/time" }
 quent-ui = { path = "../../../../crates/ui" }
 rustc-hash.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+quent-store = { path = "../../../../crates/store", default-features = false, optional = true }

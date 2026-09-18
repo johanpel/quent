@@ -60,6 +60,9 @@ pub struct Options {
     /// The consuming crate must enable at least one `quent-store` `io-*` feature.
     pub umbrella_event: bool,
 
+    /// Generate model-wide filesystem loading support when [`Self::umbrella_event`] is enabled.
+    pub filesystem: bool,
+
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
 
@@ -74,6 +77,7 @@ impl Default for Options {
             event_derives: Default::default(),
             record_derives: Default::default(),
             umbrella_event: false,
+            filesystem: true,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -135,7 +139,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
 
     let model = quent_instrumentation_build::generated_model_path(schema);
-    let stored_model = if opts.umbrella_event {
+    let stored_model = if opts.umbrella_event && opts.filesystem {
         let streams = schema.entities().map(|entity| {
             let event = quent_instrumentation_build::generated_entity_event_path(entity);
             quote! {
@@ -208,6 +212,18 @@ mod tests {
         assert!(!default_source.contains("filesystem::Model for Demo"));
         assert!(umbrella_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
         assert_eq!(umbrella_source.matches("import_event_files::<").count(), 2);
+
+        let events_only_source = generate_str(
+            &schema,
+            &Options {
+                umbrella_event: true,
+                filesystem: false,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+        assert!(events_only_source.contains("pub enum DemoEvent"));
+        assert!(!events_only_source.contains("filesystem::Model for Demo"));
     }
 
     #[test]
