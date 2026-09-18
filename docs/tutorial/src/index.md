@@ -1,5 +1,16 @@
 # Quent Tutorial
 
+Welcome to the Quent tutorial! You will learn how to:
+
+- Model application behavior with entities, events, and typed attributes.
+- Add lifecycle, reference, and resource semantics with semantic modules.
+- Generate and use typed instrumentation APIs in Rust, C++, and Python.
+
+Every lesson shows the complete YAML model beside the generated instrumentation
+API that uses it.
+
+## From application events to performance analysis
+
 Quent uses an application event model to connect instrumentation with
 domain-specific performance analysis. Its architecture follows four stages:
 
@@ -19,10 +30,6 @@ domain-specific performance analysis. Its architecture follows four stages:
    event store. Other event sources can contribute to the same data.
 4. **Analyze behavior.** Analysis services use schema semantics to interpret
    the stored events and provide application-specific results.
-
-This tutorial builds an application event model from basic events through
-finite-state machines and resources. Every lesson shows the complete YAML model
-beside the generated instrumentation API that uses it.
 
 Instrumentation examples are available in Rust, C++, and Python. Use the tabs
 above each example to select a language; the selection carries across lessons.
