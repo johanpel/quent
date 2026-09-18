@@ -29,8 +29,8 @@ const IO_PACKAGE_BOUNDARY: &str = "aa1e9b1b394f5f978215b69cd5c526291c4b4723";
 const NVTX_ROUTES_BOUNDARY: &str = "f40e69c2d4405c765c6270221e2a58e58ef704a6";
 /// Boundary whose strict descendants provide context-inventory indexing.
 ///
-/// Introduced after [commit `5e6818e`](https://github.com/rapidsai/quent/commit/5e6818e89ccde0a41dc08a12819938a093969665).
-const CONTEXT_INVENTORY_PREDECESSOR: &str = "5e6818e89ccde0a41dc08a12819938a093969665";
+/// Introduced after [commit `cee18e0`](https://github.com/rapidsai/quent/commit/cee18e047c5407dc91b8d9e6e150892444775bd1).
+const CONTEXT_INVENTORY_PREDECESSOR: &str = "cee18e047c5407dc91b8d9e6e150892444775bd1";
 
 pub(crate) fn nvtx_code(enabled: bool) -> NvtxCode {
     if enabled {
