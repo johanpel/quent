@@ -55,12 +55,13 @@ pub struct Options {
     /// Additional derives applied to every generated record struct.
     pub record_derives: &'static [&'static str],
 
-    /// Generate a model-wide umbrella event and model-wide filesystem loading support.
-    ///
-    /// The consuming crate must enable at least one `quent-store` `io-*` feature.
+    /// Generate a model-wide umbrella event.
     pub umbrella_event: bool,
 
-    /// Generate model-wide filesystem loading support when [`Self::umbrella_event`] is enabled.
+    /// Generate model-wide filesystem loading support.
+    ///
+    /// This has no effect unless [`Self::umbrella_event`] is enabled. The consuming crate must
+    /// enable at least one `quent-store` `io-*` feature.
     pub filesystem: bool,
 
     /// Directory the generated file is written into.
