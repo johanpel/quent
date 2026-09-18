@@ -32,7 +32,7 @@ pub struct AnalyzedEntity<A: EntityEventAccumulator> {
 
 impl<A: EntityEventAccumulator> std::fmt::Debug for AnalyzedEntity<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("EntityAnalysis")
+        f.debug_struct("AnalyzedEntity")
             .field("id", &self.id)
             .field("earliest_timestamp", &self.earliest_timestamp)
             .field("latest_timestamp", &self.latest_timestamp)

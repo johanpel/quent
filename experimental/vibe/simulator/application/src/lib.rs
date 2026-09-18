@@ -1417,7 +1417,7 @@ impl Worker {
             operator.handle.statistics(attributes.into()).unwrap();
         }
 
-        for edge_idx in physical_plan.dag.edge_indices().collect::<Vec<_>>() {
+        for edge_idx in physical_plan.dag.edge_indices() {
             let (source_idx, _) = physical_plan.dag.edge_endpoints(edge_idx).unwrap();
             let source = &physical_plan.dag[source_idx];
             let bytes = source.bytes_out.load(Ordering::Relaxed);

@@ -577,11 +577,12 @@ impl SimulatorModelBuilder {
             }
             SimulatorEvent::Worker(event) => {
                 let event = Event::new(id, timestamp, event);
-                if let Some(worker) = self.workers.get_mut(&id) {
-                    worker.push(event)
-                } else {
-                    self.workers.insert(id, Worker::try_from_event(event)?);
-                    Ok(())
+                match self.workers.entry(id) {
+                    Entry::Occupied(entry) => entry.into_mut().push(event),
+                    Entry::Vacant(entry) => {
+                        entry.insert(Worker::try_from_event(event)?);
+                        Ok(())
+                    }
                 }
             }
             SimulatorEvent::QueryGroup(event) => {
