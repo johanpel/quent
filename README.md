@@ -355,6 +355,6 @@ generators currently support C++ and Python:
 - Tutorials
   - Instrumentation
     - [x] Rust
-    - [ ] C++
-    - [ ] Python
+    - [x] C++
+    - [x] Python
   - [ ] Analysis

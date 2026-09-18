@@ -4,6 +4,18 @@ This tutorial builds a Quent model from basic events through finite-state
 machines and resources. Every lesson shows the complete YAML model beside the
 generated instrumentation API that uses it.
 
+Instrumentation examples are available in Rust, C++, and Python. Use the tabs
+above each example to select a language; the selection carries across lessons.
+The C++ and Python generators are currently experimental.
+
+To keep the lessons focused, the displayed snippets omit license headers and
+language-specific build wiring. The complete buildable sources remain available
+on GitHub in the [Rust examples], [C++ examples], and [Python examples].
+
+[Rust examples]: https://github.com/rapidsai/quent/tree/main/crates/yaml/examples
+[C++ examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/cpp/example/tutorial
+[Python examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/python/example/tutorial
+
 Use the [Quent Schema Explorer](https://rapidsai.github.io/quent/schema/) to
 inspect an Application Event Schema interactively.
 
