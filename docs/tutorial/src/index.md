@@ -1,5 +1,8 @@
 # Quent Tutorial
 
+Quent uses an application event model to connect instrumentation with
+domain-specific performance analysis. Its architecture follows four stages:
+
 <div class="architecture-overview" role="img" aria-label="Quent architecture from an Application Event Schema through generated instrumentation and analysis libraries">
 {{#include ../../figures/overview.svg}}
 </div>
