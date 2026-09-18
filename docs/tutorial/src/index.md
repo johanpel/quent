@@ -1,5 +1,22 @@
 # Quent Tutorial
 
+<div class="architecture-overview" role="img" aria-label="Quent architecture from an Application Event Schema through generated instrumentation and analysis libraries">
+{{#include ../../figures/overview.svg}}
+</div>
+
+1. **Model the application.** An Application Event Schema defines the entities,
+   events, and attributes that describe the application's behavior. Semantic
+   modules add reusable constraints and meaning for analysis and user
+   interfaces.
+2. **Generate typed libraries.** Code generation produces an
+   application-specific instrumentation library. A statically typed analysis
+   library generated from the same schema is a work in progress.
+3. **Capture events.** The application emits events through the generated
+   instrumentation API. The instrumentation library writes those events to the
+   event store. Other event sources can contribute to the same data.
+4. **Analyze behavior.** Analysis services use schema semantics to interpret
+   the stored events and provide application-specific results.
+
 This tutorial builds an application event model from basic events through
 finite-state machines and resources. Every lesson shows the complete YAML model
 beside the generated instrumentation API that uses it.
@@ -12,31 +29,8 @@ To keep the lessons focused, the displayed snippets omit license headers and
 language-specific build wiring. The complete buildable sources remain available
 on GitHub in the [Rust examples], [C++ examples], and [Python examples].
 
-[Rust examples]: https://github.com/rapidsai/quent/tree/main/crates/yaml/examples
-[C++ examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/cpp/example/tutorial
-[Python examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/python/example/tutorial
-
 Use the [Quent Schema Explorer](https://rapidsai.github.io/quent/schema/) to
 inspect an Application Event Schema interactively.
-
-## How Quent fits together
-
-<div class="architecture-overview" role="img" aria-label="Quent architecture from an Application Event Schema through generated instrumentation and analysis libraries">
-{{#include ../../figures/overview.svg}}
-</div>
-
-1. **Model the application.** An Application Event Schema defines the entities,
-   events, and attributes that describe the application's behavior. Semantic
-   modules add reusable constraints and meaning for analysis and user
-   interfaces.
-2. **Generate typed libraries.** Code generation produces application-specific
-   instrumentation and analysis libraries from the same schema.
-3. **Capture events.** The application emits events through the generated
-   instrumentation API. The instrumentation library writes those events to the
-   event store. Other event sources can contribute to the same data.
-4. **Analyze behavior.** An analysis service uses the generated analysis
-   library to interpret the stored events and provide application-specific
-   results.
 
 <div class="badger-note">
   <div class="badger-mark" role="img" aria-label="Quent honey badger">
@@ -49,3 +43,7 @@ inspect an Application Event Schema interactively.
 </div>
 
 Use the arrow on the right or the sidebar to begin.
+
+[Rust examples]: https://github.com/rapidsai/quent/tree/main/crates/yaml/examples
+[C++ examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/cpp/example/tutorial
+[Python examples]: https://github.com/rapidsai/quent/tree/main/experimental/vibe/codegen/python/example/tutorial
