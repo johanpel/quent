@@ -297,8 +297,6 @@ generators currently support C++ and Python:
 - [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
 - [Development guide](DEVELOPMENT.md)
 - [Contributing guide](CONTRIBUTING.md)
-- [Legacy documentation](docs/legacy/) — outdated and may not match current
-  APIs.
 
 ## Roadmap
 
