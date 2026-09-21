@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Constraint that identifies Quent entities as operating-system processes and threads.
+//! Constraint that identifies Quent entities as operating-system processes and
+//! threads.
 //!
 //! The constraint asserts that an entity represents a specific OS process or
 //! thread. This identity lets consumers correlate data about the same runtime
@@ -404,7 +405,10 @@ pub enum OsError {
         entity: Path,
         record: Path,
     },
-    #[error("{entity}: OS record `{record}` may be carried by only one event, found {events:?}")]
+    #[error(
+        "{entity}: OS record `{record}` may be carried by only one event, found:\n{}",
+        bullet_list(.events)
+    )]
     OsRecordUsedByMultipleEvents {
         entity: Path,
         record: Path,

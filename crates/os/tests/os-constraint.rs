@@ -308,10 +308,14 @@ fn os_record_may_be_carried_by_only_one_event() {
         ],
     );
 
-    assert!(
-        validate(&schema([process_entity], [process]))
-            .iter()
-            .any(|error| matches!(error, OsError::OsRecordUsedByMultipleEvents { .. }))
+    let error = validate(&schema([process_entity], [process]))
+        .into_iter()
+        .find(|error| matches!(error, OsError::OsRecordUsedByMultipleEvents { .. }))
+        .expect("multiple event uses should be rejected");
+
+    assert_eq!(
+        error.to_string(),
+        "MyProcess: OS record `quent::os::Process` may be carried by only one event, found:\n  - Started\n  - Observed"
     );
 }
 
