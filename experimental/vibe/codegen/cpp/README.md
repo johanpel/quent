@@ -66,6 +66,9 @@ specialize `FsmHandle<Entity>` for a new instance and
 target-state specialization, so transitions that are not present in the
 schema do not compile. Transition sequence numbers are assigned by the
 instrumentation runtime and are not part of the C++ payload types.
+Consuming any FSM handle with `into_dynamic()` produces a
+`DynamicFsmHandle<Entity>`. It exposes every transition and reports transitions that
+are invalid from its current dynamic state.
 
 Observers and handles retain their scoped telemetry runtime independently of
 `Context`. Destroying a context prevents obtaining new observers, but exporter

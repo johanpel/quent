@@ -12,7 +12,28 @@ pub trait FsmEvent {
     fn set_sequence(&mut self, sequence: u16);
 }
 
-#[derive(Debug, Default)]
+/// An invalid transition attempted through a dynamic-state FSM handle.
+#[derive(Debug, thiserror::Error)]
+#[error("cannot transition `{entity}` from `{state}` to `{target}`")]
+pub struct FsmTransitionError {
+    entity: &'static str,
+    state: &'static str,
+    target: &'static str,
+}
+
+impl FsmTransitionError {
+    /// Creates an error for an invalid dynamic-state transition.
+    #[doc(hidden)]
+    pub fn new(entity: &'static str, state: &'static str, target: &'static str) -> Self {
+        Self {
+            entity,
+            state,
+            target,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
 struct SequenceCounter(u16);
 
 impl SequenceCounter {
@@ -42,13 +63,27 @@ where
     E: InstrumentedEntity,
     E::Event: FsmEvent,
 {
-    /// Assigns the next sequence number, emits `event`, and advances the
-    /// wrapping counter.
-    pub fn transition(mut self, mut event: E::Event) -> Self {
+    /// Emits `event` with the next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this primitive to implement
+    /// in-place transitions on dynamic-state FSM handles; application code uses
+    /// the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition_mut(&mut self, mut event: E::Event) {
         let (sequence, next) = self.sequence.advance();
         event.set_sequence(sequence);
         self.handle.emit(event);
         self.sequence = next;
+    }
+
+    /// Emits `event` with the next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this consuming primitive
+    /// to implement typestate transitions that return the target-state handle;
+    /// application code uses the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition(mut self, event: E::Event) -> Self {
+        self.transition_mut(event);
         self
     }
 }

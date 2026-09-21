@@ -50,6 +50,10 @@ name = "finite-state-machine"
 path = "finite-state-machine/src/main.rs"
 
 [[bin]]
+name = "fsm-dynamic-state"
+path = "fsm-dynamic-state/src/main.rs"
+
+[[bin]]
 name = "fsm-self-loop"
 path = "fsm-self-loop/src/main.rs"
 

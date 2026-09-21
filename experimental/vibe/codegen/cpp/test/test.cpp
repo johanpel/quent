@@ -10,6 +10,7 @@
 
 using JobQueued = quent::FsmHandle<quent::Job, quent::job_state::Queued>;
 using JobRunning = quent::FsmHandle<quent::Job, quent::job_state::Running>;
+using JobDynamic = quent::DynamicFsmHandle<quent::Job>;
 
 template <typename Handle>
 concept CanFinish = requires(Handle handle) {
@@ -36,6 +37,10 @@ static_assert(std::is_same_v<
               JobQueued>);
 static_assert(!CanFinish<JobQueued>);
 static_assert(CanFinish<JobRunning>);
+static_assert(CanFinish<JobDynamic>);
+static_assert(std::is_same_v<
+              decltype(std::declval<JobRunning>().into_dynamic()),
+              JobDynamic>);
 
 quent::DynamicAttributes make_dynamic_attributes();
 int run_example();

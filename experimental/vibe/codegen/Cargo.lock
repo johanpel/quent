@@ -898,6 +898,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-tutorial-fsm-dynamic-state-cpp-bridge"
+version = "0.0.0"
+dependencies = [
+ "cxx",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
+name = "quent-tutorial-fsm-dynamic-state-python-bridge"
+version = "0.0.0"
+dependencies = [
+ "pyo3",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
 name = "quent-tutorial-fsm-self-loop-cpp-bridge"
 version = "0.0.0"
 dependencies = [

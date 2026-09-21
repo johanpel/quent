@@ -160,6 +160,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         "EventAlreadyEmittedError",
         "ExporterOptions",
         "HandleConsumedError",
+        "InvalidFsmTransitionError",
         "Iterable",
         "Mapping",
         "PathLike",
@@ -193,6 +194,10 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             .expect("schema was validated")
             .is_some()
         {
+            reserve_name(
+                &mut names,
+                format!("{}DynamicFsmHandle", path_pascal(entity.path())),
+            )?;
             for state in entity.events() {
                 reserve_name(
                     &mut names,
@@ -207,6 +212,12 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         let mut methods = ["uuid".to_owned()]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
+        if Fsm::try_from_entity(entity)
+            .expect("schema was validated")
+            .is_some()
+        {
+            methods.insert("into_dynamic".to_owned());
+        }
         for event in entity.events() {
             let method = py_safe(&to_case(event.name(), Case::Snake));
             reserve_name(&mut methods, method.clone())?;
@@ -369,6 +380,7 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
         pyo3::create_exception!(#module, EventAlreadyEmittedError, QuentError);
         pyo3::create_exception!(#module, ContextClosedError, QuentError);
         pyo3::create_exception!(#module, HandleConsumedError, QuentError);
+        pyo3::create_exception!(#module, InvalidFsmTransitionError, QuentError);
 
         fn __python_uuid(py: Python<'_>, value: #runtime::Uuid) -> PyResult<Py<PyAny>> {
             Ok(py.import("uuid")?
@@ -890,8 +902,10 @@ fn fsm_entity_bindings(
     let name = path_pascal(entity.path());
     let observer = format_ident!("Py{name}Observer");
     let initial_handle = format_ident!("Py{name}Handle");
+    let dynamic_handle = format_ident!("Py{name}DynamicFsmHandle");
     let observer_export = format!("{name}Observer");
     let initial_handle_export = format!("{name}Handle");
+    let dynamic_handle_export = format!("{name}DynamicFsmHandle");
     let entity_ty = rust_path(instrumentation, entity.path(), "");
     let modules = entity
         .path()
@@ -938,6 +952,7 @@ fn fsm_entity_bindings(
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let state_name = state.name().to_string();
+            let into_dynamic = fsm_into_dynamic_method(&dynamic_handle);
             Ok::<_, GenerateError>(quote! {
                 /// Represents one FSM entity in this state.
                 #[pyclass(name = #handle_export)]
@@ -971,11 +986,17 @@ fn fsm_entity_bindings(
                             None => format!("{}(consumed=True)", #handle_export),
                         }
                     }
+                    #into_dynamic
                     #(#methods)*
                 }
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let dynamic_methods = entity
+        .events()
+        .map(|event| fsm_dynamic_transition_method(schema, event, instrumentation, runtime))
+        .collect::<Result<Vec<_>, _>>()?;
+    let initial_into_dynamic = fsm_into_dynamic_method(&dynamic_handle);
 
     Ok(quote! {
         /// Creates handles for this FSM entity type.
@@ -1021,10 +1042,98 @@ fn fsm_entity_bindings(
                     None => format!("{}(consumed=True)", #initial_handle_export),
                 }
             }
+            #initial_into_dynamic
             #initial_method
         }
 
         #(#state_classes)*
+
+        /// Represents an FSM entity whose state is checked at runtime.
+        #[pyclass(name = #dynamic_handle_export)]
+        pub struct #dynamic_handle {
+            inner: #instrumentation::DynamicFsmHandle<#entity_ty>,
+        }
+
+        impl #dynamic_handle {
+            fn raw_uuid(&self) -> #runtime::Uuid { self.inner.uuid() }
+        }
+
+        #[pymethods]
+        impl #dynamic_handle {
+            #[getter]
+            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                __python_uuid(py, self.raw_uuid())
+            }
+            pub fn __repr__(&self) -> String {
+                format!(
+                    "{}(uuid='{}', state='{:?}')",
+                    #dynamic_handle_export,
+                    self.inner.uuid(),
+                    self.inner.state(),
+                )
+            }
+            #(#dynamic_methods)*
+        }
+    })
+}
+
+fn fsm_into_dynamic_method(target_handle: &syn::Ident) -> TokenStream {
+    quote! {
+        /// Converts this typestate handle into a dynamic-state FSM handle.
+        pub fn into_dynamic(mut slf: PyRefMut<'_, Self>) -> PyResult<#target_handle> {
+            let inner = slf.inner.take().ok_or_else(|| {
+                HandleConsumedError::new_err("FSM handle was consumed")
+            })?;
+            Ok(#target_handle { inner: inner.into_dynamic() })
+        }
+    }
+}
+
+fn fsm_dynamic_transition_method(
+    schema: &Schema,
+    event: &quent_schema::Event,
+    instrumentation: &syn::Path,
+    runtime: &syn::Path,
+) -> Result<TokenStream, GenerateError> {
+    let model_method = raw_ident(to_case(event.name(), Case::Snake));
+    let method = raw_ident(py_safe(&to_case(event.name(), Case::Snake)));
+    let fields = event
+        .fields()
+        .filter(|field| field.name() != SEQUENCE_FIELD_NAME)
+        .collect::<Vec<_>>();
+    let params = fields.iter().map(|field| {
+        let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
+        quote! { #name: &Bound<'_, PyAny> }
+    });
+    let bindings = fields
+        .iter()
+        .map(|field| {
+            let name = raw_ident(py_safe(&to_case(field.name(), Case::Snake)));
+            let value = conversion::convert(
+                schema,
+                field.ty(),
+                quote! { #name },
+                instrumentation,
+                runtime,
+            )?;
+            Ok::<_, GenerateError>(quote! { let #name = #value; })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let args = fields
+        .iter()
+        .map(|field| raw_ident(py_safe(&to_case(field.name(), Case::Snake))))
+        .collect::<Vec<_>>();
+    let signature = (!args.is_empty()).then(|| {
+        quote! { #[pyo3(signature = (*, #(#args),*))] }
+    });
+    Ok(quote! {
+        #signature
+        #[allow(clippy::too_many_arguments)]
+        pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
+            #(#bindings)*
+            self.inner.#model_method(#(#args),*)
+                .map_err(|error| InvalidFsmTransitionError::new_err(error.to_string()))
+        }
     })
 }
 
@@ -1109,6 +1218,10 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             .expect("schema was validated")
             .is_some()
         {
+            handles.push(format_ident!(
+                "Py{}DynamicFsmHandle",
+                path_pascal(entity.path())
+            ));
             handles.extend(
                 entity
                     .events()
@@ -1132,6 +1245,10 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add(
                 "HandleConsumedError",
                 module.py().get_type::<HandleConsumedError>(),
+            )?;
+            module.add(
+                "InvalidFsmTransitionError",
+                module.py().get_type::<InvalidFsmTransitionError>(),
             )?;
             module.add_function(wrap_pyfunction!(now_v7, module)?)?;
             module.add_function(wrap_pyfunction!(nil_uuid, module)?)?;

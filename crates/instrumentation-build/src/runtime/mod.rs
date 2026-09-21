@@ -112,6 +112,7 @@ pub(crate) fn reexports() -> TokenStream {
         pub use ::quent_instrumentation::{
             AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
             DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
+            FsmTransitionError,
         };
     }
 }

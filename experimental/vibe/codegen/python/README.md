@@ -35,6 +35,10 @@ for the target state. Type checkers and editor completion therefore expose only
 legal transitions. Reusing a consumed handle raises `HandleConsumedError`;
 transition sequence numbers are assigned by the instrumentation runtime and are
 not Python parameters.
+Calling `into_dynamic()` on any FSM handle produces an entity-specific
+`DynamicFsmHandle`. It exposes every transition and raises
+`InvalidFsmTransitionError` when a transition is invalid from its current
+dynamic state.
 
 `Context()` creates a no-op context. `Context.close()` prevents creation of new
 observers; existing observers and handles retain their scoped telemetry runtime.

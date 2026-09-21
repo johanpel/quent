@@ -25,6 +25,9 @@ The Rust and C++ examples show the state-specific handle types directly. The
 generated Python type stubs expose the same transition constraints to type
 checkers and editors.
 
+When control flow must return an FSM in a state selected at runtime, use a
+[dynamic-state handle](dynamic-state.md) (see next lesson).
+
 ```rust
 {{#include ../../../../../../crates/yaml/examples/finite-state-machine/src/main.rs:9:}}
 ```

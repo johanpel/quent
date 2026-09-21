@@ -16,6 +16,7 @@
     - [Reference Tree](instrumentation/modules/reference-tree/index.md)
     - [Finite-State Machine](instrumentation/modules/finite-state-machine/index.md)
       - [Basic lifecycle](instrumentation/modules/finite-state-machine/basic-lifecycle.md)
+      - [Dynamic state](instrumentation/modules/finite-state-machine/dynamic-state.md)
       - [Self-loops](instrumentation/modules/finite-state-machine/self-loops.md)
     - [Resource](instrumentation/modules/resource/index.md)
       - [Unit resources](instrumentation/modules/resource/unit-resources.md)

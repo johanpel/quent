@@ -18,6 +18,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "entity-references/model.yaml",
         "scoped-references/model.yaml",
         "finite-state-machine/model.yaml",
+        "fsm-dynamic-state/model.yaml",
         "fsm-self-loop/model.yaml",
         "unit-resource/model.yaml",
         "resource-capacity/model.yaml",

@@ -24,6 +24,13 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(bridge.content.contains("pub fn handle("));
     assert!(bridge.content.contains("pub struct PyThreadIdleHandle"));
     assert!(bridge.content.contains("pub struct PyThreadActiveHandle"));
+    assert!(
+        bridge
+            .content
+            .contains("pub struct PyThreadDynamicFsmHandle")
+    );
+    assert!(bridge.content.contains("pub fn into_dynamic("));
+    assert!(bridge.content.contains("InvalidFsmTransitionError"));
     assert!(bridge.content.contains("-> PyResult<PyThreadActiveHandle>"));
     assert!(!bridge.content.contains("enum PyThreadState"));
     assert!(!bridge.content.contains("struct PyUuid"));
@@ -89,6 +96,12 @@ fn generates_schema_driven_bridge_and_stubs() {
             .contains("def handle(self, id: uuid.UUID | None = None) -> WorkerHandle")
     );
     assert!(stubs[0].content.contains("class ThreadIdleHandle:"));
+    assert!(stubs[0].content.contains("class ThreadDynamicFsmHandle:"));
+    assert!(
+        stubs[0]
+            .content
+            .contains("def into_dynamic(self) -> ThreadDynamicFsmHandle")
+    );
     assert!(
         stubs[0]
             .content
