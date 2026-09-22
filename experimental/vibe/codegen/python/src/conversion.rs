@@ -98,6 +98,10 @@ pub(crate) fn convert(
                     .expect("schema was validated")
                     .is_some()
                 {
+                    handles.push(format_ident!(
+                        "Py{}DynamicFsmHandle",
+                        path_pascal(target.as_ref()),
+                    ));
                     handles.extend(entity.events().map(|state| {
                         format_ident!(
                             "Py{}{}Handle",

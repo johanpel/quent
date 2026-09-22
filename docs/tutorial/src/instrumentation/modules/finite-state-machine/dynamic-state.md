@@ -21,7 +21,7 @@ queued ─┬─> loading_input ───────────┐
 
 The two branches return different Rust types:
 
-```rust,compile_fail
+```rust
 fn prepare_job(
     job: FsmHandle<Job, job_state::Queued>,
     restore: bool,

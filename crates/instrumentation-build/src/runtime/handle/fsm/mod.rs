@@ -6,7 +6,7 @@
 use proc_macro2::TokenStream;
 use quent_constraints::Constraint as _;
 use quent_fsm::Fsm;
-use quent_schema::{Entity, Schema};
+use quent_schema::{Entity, Identifier, Schema};
 use quote::quote;
 
 use super::GeneratedHandle;
@@ -18,6 +18,15 @@ mod typestate;
 
 /// The maximum number of declared FSM states, leaving zero for the new state.
 pub(crate) const MAX_FSM_STATES: usize = u8::MAX as usize;
+
+const RESERVED_HANDLE_METHOD_NAMES: [&str; 4] = ["state", "state_name", "try_into", "into_dynamic"];
+
+fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
+    let method = crate::common::to_case(state, convert_case::Case::Snake);
+    RESERVED_HANDLE_METHOD_NAMES
+        .into_iter()
+        .find(|reserved| *reserved == method)
+}
 
 pub(super) fn entity_handle(
     entity: &Entity,
@@ -32,6 +41,15 @@ pub(super) fn entity_handle(
             entity: entity.path().clone(),
             count: state_count,
         });
+    }
+    for state in entity.events() {
+        if let Some(method) = reserved_handle_method(state.name()) {
+            return Err(GenerateError::ReservedFsmHandleMethod {
+                entity: entity.path().clone(),
+                state: state.name().clone(),
+                method,
+            });
+        }
     }
     let handle_ty = typestate::handle_type_path(entity);
     let fsm_event = fsm_event_impl(entity);
@@ -243,5 +261,32 @@ mod tests {
             entity_handle(&entity, &Options::default()),
             Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
+    }
+
+    #[test]
+    fn rejects_state_names_reserved_by_generated_handles() {
+        for (state_name, expected_method) in [
+            ("State", "state"),
+            ("StateName", "state_name"),
+            ("tryInto", "try_into"),
+            ("into_dynamic", "into_dynamic"),
+        ] {
+            let entity = FsmEntityBuilder::new("Reserved".parse::<quent_schema::Path>().unwrap())
+                .with_states([
+                    state(state_name, &["done"], true, vec![]),
+                    state("done", &[], false, vec![]),
+                ])
+                .build()
+                .unwrap();
+
+            assert!(matches!(
+                entity_handle(&entity, &Options::default()),
+                Err(GenerateError::ReservedFsmHandleMethod {
+                    state,
+                    method,
+                    ..
+                }) if state == state_name && method == expected_method
+            ));
+        }
     }
 }

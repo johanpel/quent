@@ -268,3 +268,22 @@ def test_dynamic_fsm_preserves_transition_sequence(tmp_path: Path) -> None:
     )
     for sequence in range(3):
         assert f'"seq":{sequence}' in serialized
+
+
+def test_dynamic_fsm_handle_is_accepted_as_entity_reference() -> None:
+    context = quent.Context()
+    worker_id = uuid.uuid4()
+    dynamic_thread = (
+        context.thread_observer().handle().idle(worker=worker_id).into_dynamic()
+    )
+    queued_task = context.task_observer().handle().queued(
+        instance_name="task",
+        index=1,
+        worker=worker_id,
+        use_queue=None,
+    )
+
+    queued_task.computing(
+        use_thread={"target": dynamic_thread, "data": {}},
+        use_memory=None,
+    )
