@@ -39,6 +39,10 @@
 //! ([`Cardinality::Once`](quent_schema::Cardinality::Once)) events at 64 per
 //! entity; beyond that, generation fails with
 //! [`GenerateError::TooManyOnceEvents`].
+//! FSM instrumentation supports up to 255 declared states per entity because
+//! dynamic handles use a `u8` state index and reserve zero for a handle that
+//! has not entered its initial state. An FSM with 256 or more states fails with
+//! [`GenerateError::TooManyFsmStates`].
 //!
 //! Serde derives are opt-in through [`Options::serde`]. The generated crate
 //! must also depend on `serde` with its derive feature and enable the matching
@@ -159,6 +163,16 @@ pub enum GenerateError {
         /// The number of once-cardinality events the entity declares.
         count: usize,
     },
+    #[error(
+        "FSM entity `{entity}` declares {count} states, exceeding the maximum of {max}",
+        max = crate::runtime::MAX_FSM_STATES
+    )]
+    TooManyFsmStates {
+        /// The offending entity.
+        entity: Path,
+        /// The number of states the entity declares.
+        count: usize,
+    },
     #[error("generated observer type `{generated}` conflicts with schema type `{schema_path}`")]
     GeneratedTypeCollision {
         /// The generated Rust type name.
@@ -230,8 +244,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// Returns [`GenerateError`] if schema validation fails, a generated observer
 /// type conflicts with a schema type, a field type exceeds the supported
-/// nesting depth, a derive entry is not a parseable Rust path, or the generated
-/// code is not valid Rust.
+/// nesting depth, an entity exceeds an instrumentation event or state limit, a
+/// derive entry is not a parseable Rust path, or the generated code is not
+/// valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     validate_schema(schema)?;
     generate_str_unvalidated(schema, opts)

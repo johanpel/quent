@@ -12,6 +12,22 @@ pub trait FsmEvent {
     fn set_sequence(&mut self, sequence: u16);
 }
 
+/// Maps a generated typestate marker to its dynamic FSM state.
+#[doc(hidden)]
+pub trait FsmState<Entity> {
+    /// Identifies this state in a dynamic handle.
+    ///
+    /// States are numbered from 1 to 255. Zero means that the FSM has not
+    /// entered its initial state yet. Code generation rejects an FSM entity
+    /// that declares 256 or more states, so every state index fits in a `u8`.
+    #[doc(hidden)]
+    const DYNAMIC_STATE_INDEX: u8;
+
+    /// Schema name of this state.
+    #[doc(hidden)]
+    const NAME: &'static str;
+}
+
 /// An invalid transition attempted through a dynamic-state FSM handle.
 #[derive(Debug, thiserror::Error)]
 #[error("cannot transition `{entity}` from `{state}` to `{target}`")]
@@ -20,6 +36,65 @@ pub struct FsmTransitionError {
     state: &'static str,
     target: &'static str,
 }
+
+/// A dynamic FSM handle whose state did not match a requested typestate.
+pub struct FsmStateMismatch<H> {
+    handle: H,
+    entity: &'static str,
+    state: &'static str,
+    expected: &'static str,
+}
+
+impl<H> FsmStateMismatch<H> {
+    /// Creates an error that retains the dynamic handle.
+    #[doc(hidden)]
+    pub fn new(
+        handle: H,
+        entity: &'static str,
+        state: &'static str,
+        expected: &'static str,
+    ) -> Self {
+        Self {
+            handle,
+            entity,
+            state,
+            expected,
+        }
+    }
+
+    /// Borrows the dynamic handle.
+    pub fn handle(&self) -> &H {
+        &self.handle
+    }
+
+    /// Consumes this error and returns the dynamic handle.
+    pub fn into_handle(self) -> H {
+        self.handle
+    }
+}
+
+impl<H> ::core::fmt::Debug for FsmStateMismatch<H> {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        formatter
+            .debug_struct("FsmStateMismatch")
+            .field("entity", &self.entity)
+            .field("state", &self.state)
+            .field("expected", &self.expected)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<H> ::core::fmt::Display for FsmStateMismatch<H> {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        write!(
+            formatter,
+            "cannot convert `{}` FSM from dynamic state `{}` to typestate `{}`",
+            self.entity, self.state, self.expected,
+        )
+    }
+}
+
+impl<H> ::std::error::Error for FsmStateMismatch<H> {}
 
 impl FsmTransitionError {
     /// Creates an error for an invalid dynamic-state transition.

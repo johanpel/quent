@@ -241,6 +241,8 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             .collect::<std::collections::BTreeSet<_>>();
         if fsm_variants.is_some() {
             methods.insert("into_dynamic".to_owned());
+            methods.insert("dynamic_state".to_owned());
+            methods.insert("try_into".to_owned());
         }
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));

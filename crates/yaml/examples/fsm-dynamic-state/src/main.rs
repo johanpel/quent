@@ -27,6 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let queued = context.observer::<Job>().handle().queued();
     let mut job = prepare_job(queued, restore_from_checkpoint);
     job.running()?;
-    job.completed()?;
+    let job = job.try_into::<job_state::Running>()?;
+    job.completed();
     Ok(())
 }

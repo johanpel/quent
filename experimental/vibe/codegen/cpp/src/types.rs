@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use convert_case::Case;
-use proc_macro2::TokenStream;
+use proc_macro2::{Literal, TokenStream};
 use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 use quent_ref_target::RefTarget;
 use quent_schema::{Cardinality, DataType, Entity, Path, Schema};
@@ -266,8 +266,28 @@ fn fsm_entity_file(
     );
 
     let entity_ty = rust_path(instrumentation, entity.path(), "");
+    let dynamic_state_ty = rust_path(instrumentation, entity.path(), "DynamicState");
     let observer_ident = format_ident!("{observer_name}");
     let handle_ident = format_ident!("{handle_name}");
+    extern_body.push_str(&format!(
+        "        fn dynamic_state(self: &{handle_name}) -> u8;\n"
+    ));
+    let state_arms = entity
+        .events()
+        .enumerate()
+        .map(|(index, event)| {
+            let variant = format_ident!("{}", to_case(event.name(), Case::Pascal));
+            let index = u8::try_from(index + 1).map_err(|_| {
+                GenerateError::InvalidSchema(format!(
+                    "FSM entity `{}` declares more than {} states",
+                    entity.path(),
+                    u8::MAX,
+                ))
+            })?;
+            let index = Literal::u8_unsuffixed(index);
+            Ok::<_, GenerateError>(quote! { #dynamic_state_ty::#variant => #index })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut methods = Vec::new();
     for event in entity.events() {
@@ -360,6 +380,12 @@ pub mod ffi {{
         impl #handle_ident {
             pub fn uuid(&self) -> ffi::UUID {
                 self.inner.uuid().into()
+            }
+            pub fn dynamic_state(&self) -> u8 {
+                match self.inner.state() {
+                    #dynamic_state_ty::New => 0,
+                    #(#state_arms),*
+                }
             }
             #(#methods)*
         }

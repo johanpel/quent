@@ -5,6 +5,8 @@
 
 #include "quent-tutorial-fsm-dynamic-state-cpp-bridge/gen/quent.hpp"
 
+#include <iostream>
+
 quent::DynamicFsmHandle<quent::Job> prepare_job(
     quent::FsmHandle<quent::Job, quent::job_state::Queued> job,
     bool restore_from_checkpoint) {
@@ -20,6 +22,11 @@ int main(int argc, char**) {
   auto queued = context.job_observer()->handle().queued();
   auto job = prepare_job(std::move(queued), restore_from_checkpoint);
   job.running();
-  job.completed();
+  auto running = std::move(job).try_into<quent::job_state::Running>();
+  if (!running) {
+    std::cerr << "job did not reach the running state\n";
+    return 1;
+  }
+  std::move(*running).completed();
   return 0;
 }

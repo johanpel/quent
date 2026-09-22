@@ -109,6 +109,12 @@ def test_generated_api_accepts_general_mappings() -> None:
     dynamic_thread.active()
     with pytest.raises(quent.InvalidFsmTransitionError):
         dynamic_thread.active()
+    with pytest.raises(quent.InvalidFsmStateError):
+        dynamic_thread.try_into_idle()
+    active_thread = dynamic_thread.try_into_active()
+    with pytest.raises(quent.HandleConsumedError):
+        dynamic_thread.try_into_active()
+    active_thread.idle(worker=worker)
 
     context.close()
     assert context.closed

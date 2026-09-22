@@ -77,6 +77,12 @@ fn generates_schema_driven_bridge() {
             .content
             .contains("DynamicFsmHandle<::quent::Thread> into_dynamic() &&")
     );
+    assert!(facade.content.contains(
+        "std::optional<FsmHandle<::quent::Thread, State>> try_into() &&"
+    ));
+    assert!(facade.content.contains(
+        "struct FsmStateIndex<::quent::Thread, ::quent::thread_state::Active>"
+    ));
     assert!(!facade.content.contains("ThreadActiveHandle"));
     assert!(!facade.content.contains("friend class ThreadHandle"));
     assert!(!facade.content.contains("struct Active {"));

@@ -70,7 +70,11 @@ class EntityId final {{
   Uuid value_;
 }};
 
-namespace facade_detail {{ struct InitialFsmState final {{}}; }}
+namespace facade_detail {{
+struct InitialFsmState final {{}};
+template <typename Entity, typename State>
+struct FsmStateIndex;
+}}
 
 template <typename Entity>
 class Handle;
@@ -547,6 +551,18 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
                 ));
             }
             output.push_str(" }\n");
+            let base_namespace = &options.namespace;
+            output.push_str(&format!(
+                "namespace {base_namespace}::facade_detail {{\ntemplate <>\nstruct FsmStateIndex<{entity_type}, InitialFsmState> final {{ static constexpr std::uint8_t value = 0; }};\n"
+            ));
+            for (index, event) in entity.events().enumerate() {
+                let state_type = public_fsm_state_type(entity, event, options);
+                let index = index + 1;
+                output.push_str(&format!(
+                    "template <>\nstruct FsmStateIndex<{entity_type}, {state_type}> final {{ static constexpr std::uint8_t value = {index}; }};\n"
+                ));
+            }
+            output.push_str(&format!("}}  // namespace {base_namespace}::facade_detail\n"));
         }
         output.push_str(&format!(
             "namespace {namespace} {{ using {name}Id = ::{}::EntityId<{entity_type}>; class {name}Observer; }}\n",
@@ -765,7 +781,7 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
     }
 
     output.push_str(&format!(
-        "template <>\nclass DynamicFsmHandle<{entity_type}> final {{\n public:\n  DynamicFsmHandle(DynamicFsmHandle&&) = default;\n  DynamicFsmHandle& operator=(DynamicFsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n"
+        "template <>\nclass DynamicFsmHandle<{entity_type}> final {{\n public:\n  DynamicFsmHandle(DynamicFsmHandle&&) = default;\n  DynamicFsmHandle& operator=(DynamicFsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n  template <typename State>\n  std::optional<FsmHandle<{entity_type}, State>> try_into() && {{\n    if (inner_->dynamic_state() != facade_detail::FsmStateIndex<{entity_type}, State>::value) {{\n      return std::nullopt;\n    }}\n    return facade_detail::HandleAccess::make<FsmHandle<{entity_type}, State>>(std::move(inner_));\n  }}\n"
     ));
     for event in entity.events() {
         let method = cxx_safe(&to_case(event.name(), Case::Snake));

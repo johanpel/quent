@@ -26,7 +26,7 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
             E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>,
         > {
             inner: ::quent_instrumentation::FsmHandleInner<E>,
-            state: usize,
+            state: u8,
         }
 
         impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>>
@@ -72,6 +72,7 @@ pub(super) fn entity_impl(
     let marker_ty = marker_ident(entity);
     let typestate_handle_ty = super::typestate::handle_type_path(entity);
     let handle_ty = relative_root_type("DynamicFsmHandle", entity.path().namespace());
+    let mismatch_ty = relative_root_type("FsmStateMismatch", entity.path().namespace());
     let state_module = raw_ident(format!(
         "{}_state",
         to_case(entity.path().name(), Case::Snake)
@@ -130,7 +131,13 @@ pub(super) fn entity_impl(
     let state_conversions = entity.events().enumerate().map(|(index, event)| {
         let marker = raw_ident(to_case(event.name(), Case::Pascal));
         let state = Literal::usize_unsuffixed(index + 1);
+        let state_name = event.name().to_string();
         quote! {
+            impl ::quent_instrumentation::FsmState<#marker_ty> for #state_module::#marker {
+                const DYNAMIC_STATE_INDEX: u8 = #state;
+                const NAME: &'static str = #state_name;
+            }
+
             impl #typestate_handle_ty<#marker_ty, #state_module::#marker> {
                 /// Converts this typestate handle into a dynamic-state FSM handle.
                 pub fn into_dynamic(self) -> #handle_ty<#marker_ty> {
@@ -147,6 +154,11 @@ pub(super) fn entity_impl(
             /// No transition has been emitted yet.
             New,
             #(#variants),*
+        }
+
+        impl ::quent_instrumentation::FsmState<#marker_ty> for () {
+            const DYNAMIC_STATE_INDEX: u8 = 0;
+            const NAME: &'static str = "new";
         }
 
         impl #typestate_handle_ty<#marker_ty> {
@@ -174,6 +186,36 @@ pub(super) fn entity_impl(
                     #(#state_name_arms,)*
                     _ => unreachable!("generated dynamic FSM state is valid"),
                 }
+            }
+
+            /// Converts this dynamic-state handle into the requested typestate.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`FsmStateMismatch`] with ownership of this handle when
+            /// its current state does not match `S`.
+            pub fn try_into<S>(
+                self,
+            ) -> ::core::result::Result<
+                #typestate_handle_ty<#marker_ty, S>,
+                #mismatch_ty<Self>,
+            >
+            where
+                S: ::quent_instrumentation::FsmState<#marker_ty>,
+            {
+                if self.state != S::DYNAMIC_STATE_INDEX {
+                    let state = self.state_name();
+                    return ::core::result::Result::Err(#mismatch_ty::new(
+                        self,
+                        #entity_name,
+                        state,
+                        S::NAME,
+                    ));
+                }
+                ::core::result::Result::Ok(#typestate_handle_ty {
+                    inner: self.inner,
+                    _state: ::core::marker::PhantomData,
+                })
             }
 
             #(#transition_methods)*

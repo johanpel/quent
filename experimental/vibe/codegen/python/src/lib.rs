@@ -160,6 +160,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         "EventAlreadyEmittedError",
         "ExporterOptions",
         "HandleConsumedError",
+        "InvalidFsmStateError",
         "InvalidFsmTransitionError",
         "Iterable",
         "Mapping",
@@ -217,6 +218,10 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             .is_some()
         {
             methods.insert("into_dynamic".to_owned());
+            methods.insert("try_into_initial".to_owned());
+            methods.extend(entity.events().map(|state| {
+                format!("try_into_{}", to_case(state.name(), Case::Snake))
+            }));
         }
         for event in entity.events() {
             let method = py_safe(&to_case(event.name(), Case::Snake));
@@ -380,6 +385,7 @@ fn helpers(options: &Options, runtime: &syn::Path, dynamic: &syn::Path) -> Token
         pyo3::create_exception!(#module, EventAlreadyEmittedError, QuentError);
         pyo3::create_exception!(#module, ContextClosedError, QuentError);
         pyo3::create_exception!(#module, HandleConsumedError, QuentError);
+        pyo3::create_exception!(#module, InvalidFsmStateError, QuentError);
         pyo3::create_exception!(#module, InvalidFsmTransitionError, QuentError);
 
         fn __python_uuid(py: Python<'_>, value: #runtime::Uuid) -> PyResult<Py<PyAny>> {
@@ -996,6 +1002,20 @@ fn fsm_entity_bindings(
         .events()
         .map(|event| fsm_dynamic_transition_method(schema, event, instrumentation, runtime))
         .collect::<Result<Vec<_>, _>>()?;
+    let initial_try_into = fsm_dynamic_try_into_method(
+        raw_ident("try_into_initial"),
+        &initial_handle,
+        quote! { () },
+    );
+    let dynamic_try_into_methods = entity.events().map(|state| {
+        let method = raw_ident(format!(
+            "try_into_{}",
+            to_case(state.name(), Case::Snake)
+        ));
+        let target = fsm_state_handle_ident(entity, state.name());
+        let marker = raw_ident(to_case(state.name(), Case::Pascal));
+        fsm_dynamic_try_into_method(method, &target, quote! { #state_module::#marker })
+    });
     let initial_into_dynamic = fsm_into_dynamic_method(&dynamic_handle);
 
     Ok(quote! {
@@ -1051,27 +1071,37 @@ fn fsm_entity_bindings(
         /// Represents an FSM entity whose state is checked at runtime.
         #[pyclass(name = #dynamic_handle_export)]
         pub struct #dynamic_handle {
-            inner: #instrumentation::DynamicFsmHandle<#entity_ty>,
+            inner: Option<#instrumentation::DynamicFsmHandle<#entity_ty>>,
         }
 
         impl #dynamic_handle {
-            fn raw_uuid(&self) -> #runtime::Uuid { self.inner.uuid() }
+            fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
+                self.inner
+                    .as_ref()
+                    .map(|inner| inner.uuid())
+                    .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
+            }
         }
 
         #[pymethods]
         impl #dynamic_handle {
             #[getter]
             pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-                __python_uuid(py, self.raw_uuid())
+                __python_uuid(py, self.raw_uuid()?)
             }
             pub fn __repr__(&self) -> String {
-                format!(
-                    "{}(uuid='{}', state='{:?}')",
-                    #dynamic_handle_export,
-                    self.inner.uuid(),
-                    self.inner.state(),
-                )
+                match self.inner.as_ref() {
+                    Some(inner) => format!(
+                        "{}(uuid='{}', state='{:?}')",
+                        #dynamic_handle_export,
+                        inner.uuid(),
+                        inner.state(),
+                    ),
+                    None => format!("{}(consumed=True)", #dynamic_handle_export),
+                }
             }
+            #initial_try_into
+            #(#dynamic_try_into_methods)*
             #(#dynamic_methods)*
         }
     })
@@ -1084,7 +1114,30 @@ fn fsm_into_dynamic_method(target_handle: &syn::Ident) -> TokenStream {
             let inner = slf.inner.take().ok_or_else(|| {
                 HandleConsumedError::new_err("FSM handle was consumed")
             })?;
-            Ok(#target_handle { inner: inner.into_dynamic() })
+            Ok(#target_handle { inner: Some(inner.into_dynamic()) })
+        }
+    }
+}
+
+fn fsm_dynamic_try_into_method(
+    method: syn::Ident,
+    target_handle: &syn::Ident,
+    state: TokenStream,
+) -> TokenStream {
+    quote! {
+        /// Converts this dynamic-state handle into the requested typestate handle.
+        pub fn #method(mut slf: PyRefMut<'_, Self>) -> PyResult<#target_handle> {
+            let inner = slf.inner.take().ok_or_else(|| {
+                HandleConsumedError::new_err("FSM handle was consumed")
+            })?;
+            match inner.try_into::<#state>() {
+                Ok(inner) => Ok(#target_handle { inner: Some(inner) }),
+                Err(error) => {
+                    let message = error.to_string();
+                    slf.inner = Some(error.into_handle());
+                    Err(InvalidFsmStateError::new_err(message))
+                }
+            }
         }
     }
 }
@@ -1131,7 +1184,10 @@ fn fsm_dynamic_transition_method(
         #[allow(clippy::too_many_arguments)]
         pub fn #method(&mut self, #(#params),*) -> PyResult<()> {
             #(#bindings)*
-            self.inner.#model_method(#(#args),*)
+            self.inner
+                .as_mut()
+                .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))?
+                .#model_method(#(#args),*)
                 .map_err(|error| InvalidFsmTransitionError::new_err(error.to_string()))
         }
     })
@@ -1245,6 +1301,10 @@ fn module_registration(schema: &Schema, options: &Options) -> TokenStream {
             module.add(
                 "HandleConsumedError",
                 module.py().get_type::<HandleConsumedError>(),
+            )?;
+            module.add(
+                "InvalidFsmStateError",
+                module.py().get_type::<InvalidFsmStateError>(),
             )?;
             module.add(
                 "InvalidFsmTransitionError",

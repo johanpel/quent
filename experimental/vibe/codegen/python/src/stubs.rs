@@ -23,6 +23,7 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         "class EventAlreadyEmittedError(QuentError): ...\n",
         "class ContextClosedError(QuentError): ...\n",
         "class HandleConsumedError(QuentError): ...\n\n",
+        "class InvalidFsmStateError(QuentError): ...\n\n",
         "class InvalidFsmTransitionError(QuentError): ...\n\n",
         "def now_v7() -> uuid.UUID: ...\n",
         "def nil_uuid() -> uuid.UUID: ...\n\n",
@@ -234,6 +235,17 @@ fn emit_fsm_handles(
         "\nclass {entity_name}DynamicFsmHandle:\n    \"\"\"Represents a `{}` state machine checked dynamically.\"\"\"\n    @property\n    def uuid(self) -> uuid.UUID: ...\n    def __repr__(self) -> str: ...\n",
         entity.path(),
     ));
+    output.push_str(&format!(
+        "    def try_into_initial(self) -> {entity_name}Handle: ...\n"
+    ));
+    for state in entity.events() {
+        let method = py_safe(&format!(
+            "try_into_{}",
+            to_case(state.name(), Case::Snake)
+        ));
+        let target = state_handle_name(entity, state.name());
+        output.push_str(&format!("    def {method}(self) -> {target}: ...\n"));
+    }
     for event in entity.events() {
         emit_event_method(output, schema, event, "None", true);
     }

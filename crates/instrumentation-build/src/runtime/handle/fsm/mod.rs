@@ -16,6 +16,9 @@ use crate::{GenerateError, Options};
 mod dynamic;
 mod typestate;
 
+/// The maximum number of declared FSM states, leaving zero for the new state.
+pub(crate) const MAX_FSM_STATES: usize = u8::MAX as usize;
+
 pub(super) fn entity_handle(
     entity: &Entity,
     opts: &Options,
@@ -23,6 +26,13 @@ pub(super) fn entity_handle(
     let Some(fsm) = Fsm::try_from_entity(entity)? else {
         return Ok(None);
     };
+    let state_count = entity.events().count();
+    if state_count > MAX_FSM_STATES {
+        return Err(GenerateError::TooManyFsmStates {
+            entity: entity.path().clone(),
+            count: state_count,
+        });
+    }
     let handle_ty = typestate::handle_type_path(entity);
     let fsm_event = fsm_event_impl(entity);
     let typestate = typestate::entity_impl(entity, &fsm, opts)?;
@@ -135,8 +145,15 @@ mod tests {
         assert!(source.contains("seq: 0"));
         assert!(!source.contains("seq: u16"));
         assert!(source.contains("pub enum QueryDynamicState"));
+        assert!(
+            source.contains(
+                "impl ::quent_instrumentation::FsmState<Query> for query_state::Submitted"
+            )
+        );
         assert!(source.contains("impl DynamicFsmHandle<Query>"));
         assert!(source.contains("pub fn into_dynamic(self) -> DynamicFsmHandle<Query>"));
+        assert!(source.contains("pub fn try_into<S>("));
+        assert!(source.contains("S: ::quent_instrumentation::FsmState<Query>"));
         assert!(source.contains("pub fn submitted(\n        &mut self"));
         assert!(source.contains("self.inner.transition_mut("));
         assert!(source.contains("impl FsmHandle<Query, query_state::Ready>"));
@@ -197,6 +214,34 @@ mod tests {
         assert!(matches!(
             entity_handle(&entity, &Options::default()),
             Ok(Some(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_more_states_than_the_dynamic_representation_supports() {
+        let states = (0..=MAX_FSM_STATES)
+            .map(|index| {
+                let name = format!("state_{index}");
+                let next = (index < MAX_FSM_STATES).then(|| format!("state_{}", index + 1));
+                StateDecl {
+                    name: Identifier::try_new(name).unwrap(),
+                    attributes: vec![],
+                    to: next
+                        .into_iter()
+                        .map(|target| Identifier::try_new(target).unwrap())
+                        .collect(),
+                    initial: index == 0,
+                }
+            })
+            .collect::<Vec<_>>();
+        let entity = FsmEntityBuilder::new("Large".parse::<quent_schema::Path>().unwrap())
+            .with_states(states)
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            entity_handle(&entity, &Options::default()),
+            Err(GenerateError::TooManyFsmStates { count, .. }) if count == MAX_FSM_STATES + 1
         ));
     }
 }

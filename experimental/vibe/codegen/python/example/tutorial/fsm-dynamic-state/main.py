@@ -20,7 +20,8 @@ def main() -> None:
         queued = context.job_observer().handle().queued()
         job = prepare_job(queued, restore_from_checkpoint)
         job.running()
-        job.completed()
+        running = job.try_into_running()
+        running.completed()
 
 
 if __name__ == "__main__":

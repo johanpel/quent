@@ -72,6 +72,19 @@ Converting a typestate handle preserves its current state and entity ID. In
 Python, the generated type stubs still distinguish each typestate handle, while
 the dynamic handle gives type checkers a common return type for both branches.
 
+When the current state becomes known again, convert back to a typestate handle.
+Rust uses `try_into::<job_state::Running>()`, C++ uses
+`try_into<quent::job_state::Running>()`, and Python exposes the state-specific
+`try_into_running()` method. A successful conversion consumes the dynamic
+handle. A mismatch does not: Rust returns it in `FsmStateMismatch`, C++ returns
+an empty `std::optional` without moving from the handle, and Python raises
+`InvalidFsmStateError` without consuming it.
+
+Instrumentation supports up to 255 declared states in one FSM. Dynamic handles
+use a compact state index, with one additional value for a handle that has not
+entered its initial state. Code generation rejects an FSM with 256 or more
+states.
+
 ## When to use it
 
 Use `DynamicFsmHandle` when an API boundary must represent multiple possible
