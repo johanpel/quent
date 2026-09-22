@@ -39,6 +39,13 @@ pub type TimeNanoSec = u64;
 /// An amount of seconds.
 pub type TimeSec = f64;
 
+/// Return whether this build can override timestamps for deterministic tests.
+#[doc(hidden)]
+#[inline(always)]
+pub const fn timestamp_override_enabled() -> bool {
+    cfg!(feature = "__test-clock-override")
+}
+
 /// Error type
 #[derive(Clone, Debug, Error)]
 pub enum TimeError {

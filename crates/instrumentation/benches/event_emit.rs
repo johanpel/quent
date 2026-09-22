@@ -12,10 +12,10 @@
 //! - `collector` — connect to an in-process gRPC server bound to a random
 //!   localhost port, whose own backing exporter is ndjson into a temp dir.
 //!
-//! All exporters share the same caller-side hot path: `emit` builds an
-//! `Event<T>` and pushes onto an unbounded mpsc. Serialization + I/O happen
-//! asynchronously in the forwarder task, so the numbers reflect what
-//! callers actually pay per event at the API boundary.
+//! Active exporters share the same caller-side hot path: `emit` captures a raw
+//! counter and appends an event to a thread-local SPSC queue. The forwarder
+//! converts the counter to Unix nanoseconds before asynchronous serialization
+//! and I/O, so the numbers reflect what callers actually pay at the API boundary.
 
 use std::fs::File;
 use std::hint::black_box;

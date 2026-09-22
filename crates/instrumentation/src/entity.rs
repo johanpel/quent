@@ -51,7 +51,10 @@ impl<E: InstrumentedEntity> Observer<E> {
 
     /// Forwards an existing event through this observer.
     #[doc(hidden)]
-    pub fn forward(&self, event: crate::Event<E::Event>) {
+    pub fn forward(&self, event: crate::Event<E::Event>)
+    where
+        E::Event: Send + 'static,
+    {
         self.inner.send(event);
     }
 }

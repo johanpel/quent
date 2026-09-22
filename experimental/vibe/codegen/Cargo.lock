@@ -639,6 +639,7 @@ dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
+ "quent-time",
  "serde",
  "thiserror",
  "tokio",

@@ -109,8 +109,8 @@ fn regular_entity_file(
             }
         } else {
             quote! {
-                pub fn #rust_method(&self) -> Result<(), String> {
-                    self.inner.#rust_method().map_err(|error| error.to_string())
+                pub fn #rust_method(&self) {
+                    let _ = self.inner.#rust_method();
                 }
             }
         };
@@ -123,22 +123,26 @@ fn regular_entity_file(
             }
         } else {
             quote! {
-                pub fn #rust_method(&self, data: ffi::#payload_name) -> Result<(), String> {
-                    self.inner.#rust_method(#(#call_args),*)
-                        .map_err(|error| error.to_string())
+                pub fn #rust_method(&self, data: ffi::#payload_name) {
+                    let _ = self.inner.#rust_method(#(#call_args),*);
                 }
             }
         };
+        let return_type = if event.cardinality() == Cardinality::Once {
+            " -> Result<()>"
+        } else {
+            ""
+        };
         if event.fields().next().is_none() {
             extern_body.push_str(&format!(
-                "{cxx_name}        fn {}({receiver}) -> Result<()>;\n",
-                rust_method
+                "{cxx_name}        fn {}({receiver}){return_type};\n",
+                rust_method,
             ));
             methods.push(implementation);
         } else {
             extern_body.push_str(&format!(
-                "{cxx_name}        fn {}({receiver}, data: {}) -> Result<()>;\n",
-                rust_method, payload_name
+                "{cxx_name}        fn {}({receiver}, data: {}){return_type};\n",
+                rust_method, payload_name,
             ));
             methods.push(implementation_with_data);
         }

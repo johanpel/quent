@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::{InstrumentedEntity, ObserverInner};
+use crate::{EventSender, InstrumentedEntity, ObserverInner};
 
 /// An error from emitting through a generated entity handle.
 #[derive(Debug, thiserror::Error)]
@@ -30,7 +30,9 @@ pub struct HandleInner<E: InstrumentedEntity> {
     id: crate::Uuid,
     /// One bit per once-cardinality event, set once that event is emitted.
     once_flags: u64,
-    observer: Arc<ObserverInner<E::Event>>,
+    /// Keeps the observer pipeline alive for `sender`.
+    _observer: Arc<ObserverInner<E::Event>>,
+    sender: EventSender<E::Event>,
 }
 
 impl<E: InstrumentedEntity> HandleInner<E> {
@@ -39,10 +41,12 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     }
 
     pub(crate) fn with_id(id: crate::Uuid, observer: Arc<ObserverInner<E::Event>>) -> Self {
+        let sender = observer.retained_sender();
         Self {
             id,
             once_flags: 0,
-            observer,
+            _observer: observer,
+            sender,
         }
     }
 
@@ -75,8 +79,12 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     ///
     /// Hidden because generated event methods provide the typed API.
     #[doc(hidden)]
-    pub fn emit(&self, event: E::Event) {
-        self.observer.emit(self.id, event);
+    #[inline(always)]
+    pub fn emit(&self, event: E::Event)
+    where
+        E::Event: Send + 'static,
+    {
+        self.sender.emit(self.id, event);
     }
 
     /// Emits an event unless the bit at `INDEX` was previously set.
@@ -91,14 +99,17 @@ impl<E: InstrumentedEntity> HandleInner<E> {
         &mut self,
         event_name: &'static str,
         event: E::Event,
-    ) -> Result<(), HandleError> {
+    ) -> Result<(), HandleError>
+    where
+        E::Event: Send + 'static,
+    {
         const { assert!(INDEX < u64::BITS, "once-event bit index out of range") };
         let mask = 1u64 << INDEX;
         if self.once_flags & mask != 0 {
             return Err(HandleError::OnceAlreadyEmitted { event: event_name });
         }
         self.once_flags |= mask;
-        self.observer.emit(self.id, event);
+        self.sender.emit(self.id, event);
         Ok(())
     }
 

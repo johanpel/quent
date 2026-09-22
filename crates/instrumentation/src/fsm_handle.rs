@@ -40,7 +40,7 @@ impl<E: InstrumentedEntity> From<HandleInner<E>> for FsmHandleInner<E> {
 impl<E> FsmHandleInner<E>
 where
     E: InstrumentedEntity,
-    E::Event: FsmEvent,
+    E::Event: FsmEvent + Send + 'static,
 {
     /// Assigns the next sequence number, emits `event`, and advances the
     /// wrapping counter.

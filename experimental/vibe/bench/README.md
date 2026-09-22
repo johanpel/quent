@@ -53,16 +53,17 @@ Text formats are:
 | Python | logging | Formatted text |
 | Python | OpenTelemetry | Console JSON exporter |
 
-Timestamp capture is part of every timed comparison. Quent captures its own
-event timestamp. The Rust `tracing`, `log`, and `slog` sinks capture timestamps;
-their core record types do not contain them. Quill is measured twice: its
-default TSC timestamp is captured on the caller
-thread and converted to epoch time on the backend, while its system-clock mode
-calls `system_clock::now()` on the caller thread. spdlog, Python `logging`, and
-Loguru capture timestamps while creating their native records. The structlog
-processor calls `time_ns()` and includes it in JSON output. Each OpenTelemetry
-case leaves both timestamp fields unset so the SDK captures its native observed
-timestamp during emission.
+Timestamp capture is part of every timed comparison. Quent captures a raw
+hardware-counter timestamp on supported CPUs and converts it to Unix nanoseconds on its
+forwarder; unsupported architectures use its system-clock path. The Rust
+`tracing`, `log`, and `slog` sinks capture timestamps; their core record types do
+not contain them. Quill is measured twice: its default TSC timestamp is captured
+on the caller thread and converted to epoch time on the backend, while its
+system-clock mode calls `system_clock::now()` on the caller thread. spdlog,
+Python `logging`, and Loguru capture timestamps while creating their native
+records. The structlog processor calls `time_ns()` and includes it in JSON
+output. Each OpenTelemetry case leaves both timestamp fields unset so the SDK
+captures its native observed timestamp during emission.
 
 Quent carries the UUID as its native 128-bit event-envelope ID. Comparisons use
 their native structured context or record field with the UUID string prepared
