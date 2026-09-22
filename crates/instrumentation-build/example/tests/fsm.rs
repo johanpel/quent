@@ -17,6 +17,7 @@ fn dynamic_to_typestate_retains_handle_on_mismatch() {
         .handle()
         .submitted("select 1".to_owned(), connection.as_entity_ref())
         .into_dynamic();
+    let query_id = dynamic.uuid();
 
     let mismatch = match dynamic.try_into::<query_state::Running>() {
         Ok(_) => panic!("submitted unexpectedly converted to running"),
@@ -26,5 +27,5 @@ fn dynamic_to_typestate_retains_handle_on_mismatch() {
         .into_handle()
         .try_into::<query_state::Submitted>()
         .unwrap();
-    submitted.running(1);
+    assert_eq!(submitted.uuid(), query_id);
 }
