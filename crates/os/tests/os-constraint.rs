@@ -235,6 +235,113 @@ fn thread_may_be_transitively_scoped_under_process() {
 }
 
 #[test]
+fn thread_scope_resolves_through_shared_nested_record_in_reference_payload() {
+    let scope = RecordBuilder::new(path("Scope"))
+        .with_field(field("process", scope_ref("MyProcess")))
+        .build()
+        .unwrap();
+    let metadata = RecordBuilder::new(path("Metadata"))
+        .with_field(field("scope", DataType::Record(path("Scope"))))
+        .build()
+        .unwrap();
+    let process_entity = entity(
+        "MyProcess",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("process", DataType::Record(process_path()))],
+        )],
+    );
+    let worker = entity(
+        "Worker",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("metadata", DataType::Record(path("Metadata")))],
+        )],
+    );
+    let thread_entity = entity(
+        "MyThread",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [
+                field("thread", DataType::Record(thread_path())),
+                field(
+                    "worker",
+                    DataType::EntityRef {
+                        data: Some(Box::new(DataType::Record(path("Metadata")))),
+                        annotations: Annotations::default(),
+                    },
+                ),
+            ],
+        )],
+    );
+
+    assert!(
+        validate(&schema(
+            [process_entity, worker, thread_entity],
+            [process_record(), thread_record(), scope, metadata],
+        ))
+        .is_empty()
+    );
+}
+
+#[test]
+fn cyclic_scope_does_not_satisfy_process_scope() {
+    let process_entity = entity(
+        "MyProcess",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("process", DataType::Record(process_path()))],
+        )],
+    );
+    let thread_entity = entity(
+        "MyThread",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [
+                field("thread", DataType::Record(thread_path())),
+                field("parent", scope_ref("Worker")),
+            ],
+        )],
+    );
+    let worker = entity(
+        "Worker",
+        [event(
+            "Init",
+            Cardinality::Once,
+            [field("parent", scope_ref("MyThread"))],
+        )],
+    );
+    let report =
+        quent_constraints::validate::<(OsConstraint, RefTargetConstraint, RefTreeConstraint)>(
+            &schema(
+                [process_entity, thread_entity, worker],
+                [process_record(), thread_record()],
+            ),
+        );
+
+    assert!(report.base_constraints.is_ok());
+    assert!(report.unregistered_constraints.is_empty());
+    let (os, ref_target, ref_tree) = report.results;
+    assert!(ref_target.is_ok(), "{ref_target:?}");
+    assert!(ref_tree.is_err());
+    let errors = match os {
+        Ok(()) => Vec::new(),
+        Err(OsError::Multiple(errors)) => errors,
+        Err(error) => vec![error],
+    };
+    assert!(
+        errors
+            .iter()
+            .any(|error| matches!(error, OsError::ThreadOutsideProcessScope { .. }))
+    );
+}
+
+#[test]
 fn thread_must_be_scoped_under_process() {
     let root = entity("Root", [event("Init", Cardinality::Once, [])]);
     let process_entity = entity(
