@@ -1,0 +1,8 @@
+quent: alpha
+model: instrumentation_latency
+
+entities:
+  Entity:
+    events:
+      tick:
+        multi: true

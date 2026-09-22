@@ -1,0 +1,25 @@
+[package]
+name = "quent-bench-rust"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[dependencies]
+log = { version = "0.4.28", features = ["kv"] }
+opentelemetry = { version = "0.33", features = ["logs"] }
+opentelemetry_sdk = { version = "0.33", features = ["logs"] }
+quent-instrumentation.workspace = true
+quent-io.workspace = true
+serde.workspace = true
+serde_json = "1"
+slog = "2.8"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "registry"] }
+
+[build-dependencies]
+quent-bench-build-support.workspace = true
+
+[[bench]]
+name = "latency"
+harness = false

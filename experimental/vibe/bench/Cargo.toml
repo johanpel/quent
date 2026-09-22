@@ -1,0 +1,20 @@
+[workspace]
+resolver = "3"
+members = [
+    "build-support",
+    "rust",
+    "cpp/bridge",
+    "python/bridge",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+quent-bench-build-support = { path = "build-support" }
+quent-dynamic-attributes = { path = "../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../crates/instrumentation", features = ["io-ndjson"] }
+quent-io = { path = "../../../crates/io", default-features = false, features = ["ndjson"] }
+serde = { version = "1", features = ["derive"] }

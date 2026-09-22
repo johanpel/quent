@@ -1,0 +1,42 @@
+[workspace]
+name = "quent-instrumentation-latency-benchmarks"
+channels = ["conda-forge"]
+platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
+requires-pixi = ">=0.68"
+
+[dependencies]
+benchmark = ">=1.9,<2"
+cmake = ">=3.24"
+cpp-opentelemetry-api = ">=1.27,<2"
+cpp-opentelemetry-sdk = ">=1.27,<2"
+cxx-compiler = ">=1,<2"
+loguru = ">=0.7,<1"
+matplotlib = ">=3.10,<4"
+maturin = ">=1.14,<2"
+ninja = ">=1.13,<2"
+pip = ">=26,<27"
+pyperf = ">=2.10,<3"
+python = ">=3.11,<3.15"
+quill = ">=13,<14"
+rust = "=1.97.0"
+spdlog = ">=1.17,<2"
+structlog = ">=26,<27"
+
+[pypi-dependencies]
+opentelemetry-api = ">=1.44,<2"
+opentelemetry-sdk = ">=1.44,<2"
+
+[tasks.build]
+cmd = "python report.py build"
+
+[tasks.bench]
+cmd = "python report.py run"
+
+[tasks.report]
+cmd = "python report.py report"
+
+[tasks.smoke]
+cmd = "python report.py smoke"
+
+[tasks.test]
+cmd = "python -m unittest discover -s tests -v"
