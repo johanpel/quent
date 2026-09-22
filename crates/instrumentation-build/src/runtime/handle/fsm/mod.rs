@@ -19,7 +19,17 @@ mod typestate;
 /// The maximum number of declared FSM states, leaving zero for the new state.
 pub(crate) const MAX_FSM_STATES: usize = u8::MAX as usize;
 
-const RESERVED_HANDLE_METHOD_NAMES: [&str; 4] = ["state", "state_name", "try_into", "into_dynamic"];
+const RESERVED_HANDLE_METHOD_NAMES: [&str; 9] = [
+    "state",
+    "state_name",
+    "try_into",
+    "into_dynamic",
+    "uuid",
+    "as_entity_ref",
+    "as_entity_ref_with",
+    "as_any_entity_ref",
+    "as_any_entity_ref_with",
+];
 
 fn reserved_handle_method(state: &Identifier) -> Option<&'static str> {
     let method = crate::common::to_case(state, convert_case::Case::Snake);
@@ -270,6 +280,11 @@ mod tests {
             ("StateName", "state_name"),
             ("tryInto", "try_into"),
             ("into_dynamic", "into_dynamic"),
+            ("Uuid", "uuid"),
+            ("asEntityRef", "as_entity_ref"),
+            ("as_entity_ref_with", "as_entity_ref_with"),
+            ("AsAnyEntityRef", "as_any_entity_ref"),
+            ("asAnyEntityRefWith", "as_any_entity_ref_with"),
         ] {
             let entity = FsmEntityBuilder::new("Reserved".parse::<quent_schema::Path>().unwrap())
                 .with_states([

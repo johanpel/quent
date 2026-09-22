@@ -43,8 +43,8 @@
 //! dynamic handles use a `u8` state index and reserve zero for a handle that
 //! has not entered its initial state. An FSM with 256 or more states fails with
 //! [`GenerateError::TooManyFsmStates`].
-//! FSM state names that generate the handle methods `state`, `state_name`,
-//! `try_into`, or `into_dynamic` are rejected.
+//! FSM state names that generate methods already provided by an FSM handle,
+//! such as `state`, `try_into`, `uuid`, or `as_entity_ref`, are rejected.
 //!
 //! Serde derives are opt-in through [`Options::serde`]. The generated crate
 //! must also depend on `serde` with its derive feature and enable the matching
