@@ -12,6 +12,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<OperatingSystem>::try_new(Noop)?;
 
     let mut process = context.observer::<Process>().handle();
+    // This is the native OS process ID, not the Quent entity ID.
     process.started(instrumentation::quent::os::Process {
         native_id: std::process::id(),
     })?;
@@ -19,6 +20,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let process = process.as_entity_ref();
     let mut thread = context.observer::<Thread>().handle();
     std::thread::spawn(move || {
+        // This is the worker's native OS thread ID, not the Quent entity ID.
         let native_id = current_native_thread_id()?;
         thread
             .started(instrumentation::quent::os::Thread { native_id }, process)

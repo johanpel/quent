@@ -51,7 +51,7 @@ focus on the instrumentation API; the full sources linked below contain the
 platform-specific code that reads the native IDs.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/operating-system/src/main.rs:9:31}}
+{{#include ../../../../../../crates/yaml/examples/operating-system/src/main.rs:9:33}}
 ```
 
 ```cpp
@@ -63,7 +63,7 @@ platform-specific code that reads the native IDs.
 ```
 
 ```python
-{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/operating-system/main.py:4:26}}
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/operating-system/main.py:4:27}}
 ```
 
 ## Platform considerations
