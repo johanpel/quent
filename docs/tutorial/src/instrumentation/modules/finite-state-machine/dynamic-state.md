@@ -4,8 +4,9 @@ Typestate handles are the preferred FSM API because they make invalid
 transitions impossible to express at compile-time. Sometimes, however, a
 function can finish in one of several states selected at runtime.
 
-Consider a function that prepares the `Job` from the [basic lifecycle](basic-lifecycle.md).
-It either loads input or restores a checkpoint:
+Consider a function that prepares the `Job` from the
+[basic lifecycle](basic-lifecycle.md). It either loads input or restores a
+checkpoint:
 
 ```text
 queued ─┬─> loading_input ───────────┐
