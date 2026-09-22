@@ -219,9 +219,11 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         {
             methods.insert("into_dynamic".to_owned());
             methods.insert("try_into_initial".to_owned());
-            methods.extend(entity.events().map(|state| {
-                format!("try_into_{}", to_case(state.name(), Case::Snake))
-            }));
+            methods.extend(
+                entity
+                    .events()
+                    .map(|state| format!("try_into_{}", to_case(state.name(), Case::Snake))),
+            );
         }
         for event in entity.events() {
             let method = py_safe(&to_case(event.name(), Case::Snake));
@@ -1008,10 +1010,7 @@ fn fsm_entity_bindings(
         quote! { () },
     );
     let dynamic_try_into_methods = entity.events().map(|state| {
-        let method = raw_ident(format!(
-            "try_into_{}",
-            to_case(state.name(), Case::Snake)
-        ));
+        let method = raw_ident(format!("try_into_{}", to_case(state.name(), Case::Snake)));
         let target = fsm_state_handle_ident(entity, state.name());
         let marker = raw_ident(to_case(state.name(), Case::Pascal));
         fsm_dynamic_try_into_method(method, &target, quote! { #state_module::#marker })

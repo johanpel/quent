@@ -99,7 +99,11 @@ fn generates_schema_driven_bridge_and_stubs() {
     );
     assert!(stubs[0].content.contains("class ThreadIdleHandle:"));
     assert!(stubs[0].content.contains("class ThreadDynamicFsmHandle:"));
-    assert!(stubs[0].content.contains("class InvalidFsmStateError(QuentError):"));
+    assert!(
+        stubs[0]
+            .content
+            .contains("class InvalidFsmStateError(QuentError):")
+    );
     assert!(
         stubs[0]
             .content

@@ -239,10 +239,7 @@ fn emit_fsm_handles(
         "    def try_into_initial(self) -> {entity_name}Handle: ...\n"
     ));
     for state in entity.events() {
-        let method = py_safe(&format!(
-            "try_into_{}",
-            to_case(state.name(), Case::Snake)
-        ));
+        let method = py_safe(&format!("try_into_{}", to_case(state.name(), Case::Snake)));
         let target = state_handle_name(entity, state.name());
         output.push_str(&format!("    def {method}(self) -> {target}: ...\n"));
     }

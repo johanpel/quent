@@ -562,7 +562,9 @@ fn emit_handle_forwards(schema: &Schema, options: &Options, output: &mut String)
                     "template <>\nstruct FsmStateIndex<{entity_type}, {state_type}> final {{ static constexpr std::uint8_t value = {index}; }};\n"
                 ));
             }
-            output.push_str(&format!("}}  // namespace {base_namespace}::facade_detail\n"));
+            output.push_str(&format!(
+                "}}  // namespace {base_namespace}::facade_detail\n"
+            ));
         }
         output.push_str(&format!(
             "namespace {namespace} {{ using {name}Id = ::{}::EntityId<{entity_type}>; class {name}Observer; }}\n",
