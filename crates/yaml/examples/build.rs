@@ -22,6 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "unit-resource/model.yaml",
         "resource-capacity/model.yaml",
         "bounded-resource/model.yaml",
+        "operating-system/model.yaml",
         "job-workload/model.yaml",
     ] {
         let model = root.join(relative_path);

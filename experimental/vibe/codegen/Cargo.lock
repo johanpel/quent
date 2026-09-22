@@ -971,6 +971,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-tutorial-operating-system-cpp-bridge"
+version = "0.0.0"
+dependencies = [
+ "cxx",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
+name = "quent-tutorial-operating-system-python-bridge"
+version = "0.0.0"
+dependencies = [
+ "pyo3",
+ "quent-codegen-tutorial-build",
+ "quent-dynamic-attributes",
+ "quent-instrumentation",
+]
+
+[[package]]
 name = "quent-tutorial-records-cpp-bridge"
 version = "0.0.0"
 dependencies = [

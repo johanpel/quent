@@ -493,9 +493,11 @@ dependencies = [
 name = "quent-yaml-examples"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
+ "windows-sys",
 ]
 
 [[package]]
