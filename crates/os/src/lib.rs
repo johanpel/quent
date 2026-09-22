@@ -72,6 +72,9 @@ pub use record::{process_record, thread_record};
 ///    scoped under a process entity by tree-forming entity references.
 /// 4. Canonical record declarations must carry the [`OsConstraint`] annotation.
 /// 5. Canonical record declarations must match their required shape exactly.
+/// 6. Validation must include [`quent_ref_target::RefTargetConstraint`] and
+///    [`RefTreeConstraint`]. Callers must check base validation and every
+///    constraint result.
 ///
 /// [`getpid`]: https://man7.org/linux/man-pages/man2/getpid.2.html
 /// [`gettid`]: https://man7.org/linux/man-pages/man2/gettid.2.html
