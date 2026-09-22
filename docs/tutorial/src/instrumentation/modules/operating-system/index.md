@@ -32,9 +32,18 @@ Use ordinary attributes for those values instead.
 {{#include ../../../../../../crates/yaml/examples/operating-system/model.yaml}}
 ```
 
-The `os: process` field identifies the `Process` entity as the process with the
-reported native ID. Similarly, `os: thread` identifies the `Thread` entity as
-the thread with the reported native ID.
+Using the `os` as an event field type adds Quent's standard operating-system
+records to the schema and uses it as the field's type:
+
+- `{ os: process }` adds the `quent::os::Process` record.
+- `{ os: thread }` adds the `quent::os::Thread` record.
+
+The generated event API requires values for these fields when the event is
+emitted.
+
+We use these standard records so event analysis tools know that the entity
+itself represents a process or thread. Because every model uses the same record
+names and fields, generated APIs and other tools can handle them consistently.
 
 These fields can also be used as attributes of an FSM state. That state must not
 be part of a cycle because states on a cycle may occur more than once.
