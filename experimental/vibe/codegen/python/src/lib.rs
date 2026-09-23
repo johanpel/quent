@@ -175,7 +175,6 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     let mut references = std::collections::BTreeMap::<String, String>::new();
     for record in schema.records() {
         reserve_name(&mut names, format!("{}Dict", path_pascal(record.path())))?;
-        reserve_name(&mut names, format!("{}Input", path_pascal(record.path())))?;
         validate_python_fields(record.fields().map(|field| field.name().as_ref()))?;
         for field in record.fields() {
             collect_reference_names(field.ty(), &mut references)?;
@@ -224,10 +223,6 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
     }
     for name in references.keys() {
         reserve_name(&mut names, name.clone())?;
-        reserve_name(
-            &mut names,
-            format!("{}Input", name.trim_end_matches("Dict")),
-        )?;
     }
     Ok(())
 }

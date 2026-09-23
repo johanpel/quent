@@ -113,13 +113,11 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(
         stubs[0]
             .content
-            .contains("use_queue: QueueUsageRefInput | None")
+            .contains("use_queue: QueueUsageRefDict | None")
     );
-    assert!(
-        stubs[0]
-            .content
-            .contains("QueueUsageRefInput: TypeAlias = QueueUsageRefDict | Mapping[str, object]")
-    );
+    assert!(stubs[0].content.contains("details: ChecksumDict"));
+    assert!(stubs[0].content.contains("data: QueueUsageDict"));
+    assert!(!stubs[0].content.contains("Mapping[str, object]"));
     assert!(stubs[0].content.contains("class DynamicValue:"));
     assert!(
         stubs[0]

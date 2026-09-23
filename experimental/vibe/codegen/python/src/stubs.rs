@@ -92,10 +92,6 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
                 ));
             }
         }
-        output.push_str(&format!(
-            "\n{}Input: TypeAlias = {name} | Mapping[str, object]\n",
-            path_pascal(record.path()),
-        ));
     }
 
     let mut reference_types = BTreeMap::new();
@@ -114,10 +110,6 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
     for (name, (target, data)) in reference_types {
         output.push_str(&format!(
             "\nclass {name}(TypedDict):\n    target: {target}\n    data: {data}\n"
-        ));
-        output.push_str(&format!(
-            "\n{}Input: TypeAlias = {name} | Mapping[str, object]\n",
-            name.trim_end_matches("Dict"),
         ));
     }
 
@@ -293,17 +285,14 @@ fn py_type(schema: &Schema, ty: &DataType) -> String {
         DataType::F32 | DataType::F64 => "float".to_owned(),
         DataType::Option(inner) => format!("{} | None", py_type(schema, inner)),
         DataType::List(inner) => format!("Iterable[{}]", py_type(schema, inner)),
-        DataType::Record(path) => format!("{}Input", path_pascal(path)),
+        DataType::Record(path) => format!("{}Dict", path_pascal(path)),
         DataType::DynamicRecord => "DynamicAttributes".to_owned(),
         DataType::EntityRef { data, annotations } => {
             let target = RefTarget::from_annotations(annotations)
                 .map(|target| entity_reference_type(schema, target.as_ref()))
                 .unwrap_or_else(|| "uuid.UUID".to_owned());
             match data {
-                Some(data) => format!(
-                    "{}Input",
-                    ref_stub_name(data, annotations).trim_end_matches("Dict")
-                ),
+                Some(data) => ref_stub_name(data, annotations),
                 None => target,
             }
         }
