@@ -77,7 +77,7 @@ fsms:
 }
 
 #[test]
-fn entity_declared_as_both_entity_and_fsm_is_rejected() {
+fn duplicate_entity_and_fsm_path_is_rejected() {
     let errors = errors_of(
         "\
 quent: alpha
@@ -89,13 +89,11 @@ entities:
 fsms:
   E:
     states:
-      a: { initial: true }
+      a: { initial: true, to: [b] }
+      b: {}
 ",
     );
-    assert!(
-        errors.contains("both an entity and an FSM") && errors.contains("E"),
-        "{errors}"
-    );
+    assert!(errors.contains("duplicate type path `E`"), "{errors}");
 }
 
 #[test]

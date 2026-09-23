@@ -78,35 +78,12 @@ impl Elaborator {
         let mut entities = Vec::new();
         let mut records = Vec::new();
         for (name, spec) in &model.fsms {
-            if model.entities.contains_key(name) {
-                sink.error(
-                    &format!("fsms.{name}"),
-                    format!("`{name}` is declared as both an entity and an FSM"),
-                    None,
-                );
-                continue;
-            }
             if let Some((entity, generated)) = fsm::elaborate(name, spec, self, sink) {
                 entities.push(entity);
                 records.extend(generated);
             }
         }
         for (name, spec) in &model.logs {
-            let collision = if model.entities.contains_key(name) {
-                Some("an entity and a log sink")
-            } else if model.fsms.contains_key(name) {
-                Some("an FSM and a log sink")
-            } else {
-                None
-            };
-            if let Some(kinds) = collision {
-                sink.error(
-                    &format!("logs.{name}"),
-                    format!("`{name}` is declared as both {kinds}"),
-                    None,
-                );
-                continue;
-            }
             if let Some(entity) = log::elaborate(name, spec, self, sink) {
                 entities.push(entity);
             }

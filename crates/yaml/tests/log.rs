@@ -227,11 +227,11 @@ fn log_declarations_cannot_contain_events() {
 }
 
 #[test]
-fn entity_and_log_names_cannot_collide() {
+fn duplicate_entity_and_log_path_is_rejected() {
     let errors = errors_of(
         "quent: alpha\nmodel: m\nentities:\n  Log:\n    events:\n      emitted: {}\nlogs:\n  Log:\n    levels: [{ name: info }]\n",
     );
-    assert!(errors.contains("both an entity and a log sink"), "{errors}");
+    assert!(errors.contains("duplicate type path `Log`"), "{errors}");
 }
 
 #[test]
