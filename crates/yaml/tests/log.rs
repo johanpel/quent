@@ -80,11 +80,11 @@ entities:
       owner: platform
     log:
       attributes:
-        target: { option: string }
-        file: { option: string }
-        line: { option: u32 }
-        module: { option: string }
-        thread_name: { option: string }
+        target: string
+        file: string
+        line: u32
+        module: string
+        thread_name: string
       levels:
         - name: trace
         - name: debug
@@ -92,10 +92,10 @@ entities:
           doc: Informational messages.
         - name: warning
           attributes:
-            category: { option: string }
+            category: string
         - name: error
           attributes:
-            error_code: { option: u32 }
+            error_code: u32
 ",
     );
     let entity = schema.entity(&path("AppLog")).unwrap();

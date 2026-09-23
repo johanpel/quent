@@ -297,22 +297,23 @@ entities:
     doc: Application logging sink.
     log:
       attributes:
-        target: { option: string }
-        file: { option: string }
-        line: { option: u32 }
-        module: { option: string }
-        thread_name: { option: string }
+        target: string
+        file: string
+        line: u32
+        module: string
+        thread_name: string
       levels:
         - name: info
           doc: Informational messages.
         - name: error
           attributes:
-            error_code: { option: u32 }
+            error_code: u32
 ```
 
 Only `message` has built-in meaning. Names such as `target`, `file`, `line`, and
-`module` are ordinary attributes; a model may omit, rename, or change their
-types. `events:` and `log:` are mutually exclusive on the same entity.
+`module` are ordinary attributes. This example requires every call to provide
+them; another model may leave them out, rename them, or change their types.
+`events:` and `log:` are mutually exclusive on the same entity.
 
 - [YAML model](examples/log-sink/model.yaml)
 - [Instrumentation API usage](examples/log-sink/src/main.rs)

@@ -33,9 +33,8 @@ Quent adds a required `message: string` attribute to every level event, so each
 generated level method takes the message as an argument.
 
 The `target`, `file`, `line`, `module`, and `thread_name` fields in this example
-are arbitrary attributes. They can be omitted, renamed, or given different
-types. Because they are declared directly under `log.attributes`, they are added
-to every level.
+are arbitrary attributes. Because they are declared directly under
+`log.attributes`, they are added to every level.
 
 Attributes under a level are also arbitrary, but are added only to that level.
 Here, `category` is added to `warning`, while `error_code` is added to `error`.
@@ -47,7 +46,15 @@ The generated API has one method for each level. This example calls `info` and
 translate each log record into the matching generated method call.
 
 ```rust
-{{#include ../../../../../../crates/yaml/examples/log-sink/src/main.rs}}
+{{#include ../../../../../../crates/yaml/examples/log-sink/src/main.rs:9:}}
+```
+
+```cpp
+{{#include ../../../../../../experimental/vibe/codegen/cpp/example/tutorial/log-sink/main.cpp:6:}}
+```
+
+```python
+{{#include ../../../../../../experimental/vibe/codegen/python/example/tutorial/log-sink/main.py:4:}}
 ```
 
 <div class="badger-note">
@@ -84,6 +91,10 @@ translate each log record into the matching generated method call.
 
 - [YAML model][yaml-model]
 - [Rust source][rust-source]
+- [C++ source][cpp-source]
+- [Python source][python-source]
 
 [yaml-model]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/log-sink/model.yaml
 [rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/log-sink/src/main.rs
+[cpp-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/cpp/example/tutorial/log-sink/main.cpp
+[python-source]: https://github.com/rapidsai/quent/blob/main/experimental/vibe/codegen/python/example/tutorial/log-sink/main.py

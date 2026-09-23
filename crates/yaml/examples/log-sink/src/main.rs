@@ -12,22 +12,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let context = Context::<LoggingSink>::try_new(Noop)?;
     let log = context.observer::<AppLog>().handle();
 
+    // A logging API would typically use a macro to capture `file!()`, `line!()`,
+    // and any other call-site context required by the schema.
     log.info(
         "application started".to_owned(),
-        Some("startup".to_owned()),
-        Some(file!().to_owned()),
-        Some(line!()),
-        Some(module_path!().to_owned()),
-        Some("main".to_owned()),
+        "startup".to_owned(),
+        file!().to_owned(),
+        line!(),
+        module_path!().to_owned(),
+        "main".to_owned(),
     )?;
     log.warning(
         "retrying request".to_owned(),
-        Some("network".to_owned()),
-        Some(file!().to_owned()),
-        Some(line!()),
-        Some(module_path!().to_owned()),
-        Some("main".to_owned()),
-        Some("transient".to_owned()),
+        "network".to_owned(),
+        file!().to_owned(),
+        line!(),
+        module_path!().to_owned(),
+        "main".to_owned(),
+        "transient".to_owned(),
     )?;
 
     Ok(())
