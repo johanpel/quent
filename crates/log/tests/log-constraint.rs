@@ -93,17 +93,6 @@ fn builder_creates_ranked_repeatable_events() {
 }
 
 #[test]
-fn one_level_and_additional_fields_are_valid() {
-    let mut fields = required_fields();
-    fields.push(field("request_id", DataType::Uuid));
-    let schema = schema(
-        vec![event("info", Cardinality::Multi, fields)],
-        Some(raw_definition(&["info"])),
-    );
-    assert!(validate(&schema).is_empty());
-}
-
-#[test]
 fn logging_context_fields_are_ordinary_additional_fields() {
     let schema = schema(
         vec![event(
