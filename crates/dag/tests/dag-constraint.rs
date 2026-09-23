@@ -200,6 +200,49 @@ fn membership_target_must_be_a_dag() {
 }
 
 #[test]
+fn topology_targets_must_name_declared_entities() {
+    let errors = errors(&dag_schema([
+        dag("Plan"),
+        vertex("Operator", "MissingPlan"),
+        edge(
+            "PlanEdge",
+            "Plan",
+            ref_to(Some("MissingSource")),
+            ref_to(Some("MissingTarget")),
+            Cardinality::Once,
+        ),
+    ]));
+
+    let targets: Vec<_> = errors
+        .iter()
+        .filter_map(|error| match error {
+            DagError::UnknownTarget { target, .. } => Some(target.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(targets, ["MissingPlan", "MissingSource", "MissingTarget"]);
+}
+
+#[test]
+fn diagnostics_follow_entity_declaration_order() {
+    let without_membership =
+        |name| entity_with_role(name, DagRole::Vertex, [event("declared", [])]);
+    let errors = errors(&dag_schema([
+        without_membership("LaterAlphabetically"),
+        without_membership("EarlierAlphabetically"),
+    ]));
+
+    let entities: Vec<_> = errors
+        .iter()
+        .filter_map(|error| match error {
+            DagError::MissingMemberOf { entity, .. } => Some(entity.to_string()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(entities, ["LaterAlphabetically", "EarlierAlphabetically"]);
+}
+
+#[test]
 fn membership_must_be_a_direct_event_field() {
     let membership = RecordBuilder::new(ident("Membership"))
         .with_field(role_field("dag", ref_to(Some("Plan")), DagRole::MemberOf))
