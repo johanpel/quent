@@ -10,12 +10,18 @@ mod bridge {
 mod tests {
     unsafe extern "C" {
         fn quent_demo_cpp_smoke() -> std::ffi::c_int;
+        fn quent_demo_cpp_dynamic_try_into() -> std::ffi::c_int;
         fn quent_demo_cpp_dynamic_values(output_dir: *const std::ffi::c_char) -> std::ffi::c_int;
     }
 
     #[test]
     fn compiles_links_and_runs_cpp_facade() {
         assert_eq!(unsafe { quent_demo_cpp_smoke() }, 0);
+    }
+
+    #[test]
+    fn dynamic_try_into_retains_handle_on_mismatch() {
+        assert_eq!(unsafe { quent_demo_cpp_dynamic_try_into() }, 0);
     }
 
     #[test]

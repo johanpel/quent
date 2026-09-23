@@ -23,6 +23,8 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
         "class EventAlreadyEmittedError(QuentError): ...\n",
         "class ContextClosedError(QuentError): ...\n",
         "class HandleConsumedError(QuentError): ...\n\n",
+        "class InvalidFsmStateError(QuentError): ...\n\n",
+        "class InvalidFsmTransitionError(QuentError): ...\n\n",
         "def now_v7() -> uuid.UUID: ...\n",
         "def nil_uuid() -> uuid.UUID: ...\n\n",
         "class DynamicValue:\n",
@@ -92,10 +94,6 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
                 ));
             }
         }
-        output.push_str(&format!(
-            "\n{}Input: TypeAlias = {name} | Mapping[str, object]\n",
-            path_pascal(record.path()),
-        ));
     }
 
     let mut reference_types = BTreeMap::new();
@@ -114,10 +112,6 @@ pub(crate) fn emit(schema: &Schema, options: &Options) -> Vec<GeneratedFile> {
     for (name, (target, data)) in reference_types {
         output.push_str(&format!(
             "\nclass {name}(TypedDict):\n    target: {target}\n    data: {data}\n"
-        ));
-        output.push_str(&format!(
-            "\n{}Input: TypeAlias = {name} | Mapping[str, object]\n",
-            name.trim_end_matches("Dict"),
         ));
     }
 
@@ -200,6 +194,9 @@ fn emit_fsm_handles(
         "\nclass {entity_name}Handle:\n    \"\"\"Starts one `{}` state machine.\"\"\"\n    @property\n    def uuid(self) -> uuid.UUID: ...\n    def __repr__(self) -> str: ...\n",
         entity.path(),
     ));
+    output.push_str(&format!(
+        "    def into_dynamic(self) -> {entity_name}DynamicFsmHandle: ...\n"
+    ));
     let initial_target = state_handle_name(entity, initial.name());
     emit_event_method(output, schema, initial, &initial_target, true);
 
@@ -209,6 +206,9 @@ fn emit_fsm_handles(
             "\nclass {class_name}:\n    \"\"\"Represents a `{}` entity in the `{}` state.\"\"\"\n    @property\n    def uuid(self) -> uuid.UUID: ...\n    def __repr__(self) -> str: ...\n",
             entity.path(),
             state.name(),
+        ));
+        output.push_str(&format!(
+            "    def into_dynamic(self) -> {entity_name}DynamicFsmHandle: ...\n"
         ));
         for transition in fsm
             .transitions()
@@ -221,6 +221,22 @@ fn emit_fsm_handles(
             let target_name = state_handle_name(entity, target.name());
             emit_event_method(output, schema, target, &target_name, true);
         }
+    }
+
+    output.push_str(&format!(
+        "\nclass {entity_name}DynamicFsmHandle:\n    \"\"\"Represents a `{}` state machine checked dynamically.\"\"\"\n    @property\n    def uuid(self) -> uuid.UUID: ...\n    def __repr__(self) -> str: ...\n",
+        entity.path(),
+    ));
+    output.push_str(&format!(
+        "    def try_into_initial(self) -> {entity_name}Handle: ...\n"
+    ));
+    for state in entity.events() {
+        let method = py_safe(&format!("try_into_{}", to_case(state.name(), Case::Snake)));
+        let target = state_handle_name(entity, state.name());
+        output.push_str(&format!("    def {method}(self) -> {target}: ...\n"));
+    }
+    for event in entity.events() {
+        emit_event_method(output, schema, event, "None", true);
     }
 }
 
@@ -267,6 +283,7 @@ fn entity_reference_type(schema: &Schema, path: &quent_schema::Path) -> String {
         .expect("validated entity reference target");
     let mut handles = vec![format!("{}Handle", path_pascal(path))];
     if Fsm::try_from_entity(entity).ok().flatten().is_some() {
+        handles.push(format!("{}DynamicFsmHandle", path_pascal(path)));
         handles.extend(
             entity
                 .events()
@@ -293,17 +310,14 @@ fn py_type(schema: &Schema, ty: &DataType) -> String {
         DataType::F32 | DataType::F64 => "float".to_owned(),
         DataType::Option(inner) => format!("{} | None", py_type(schema, inner)),
         DataType::List(inner) => format!("Iterable[{}]", py_type(schema, inner)),
-        DataType::Record(path) => format!("{}Input", path_pascal(path)),
+        DataType::Record(path) => format!("{}Dict", path_pascal(path)),
         DataType::DynamicRecord => "DynamicAttributes".to_owned(),
         DataType::EntityRef { data, annotations } => {
             let target = RefTarget::from_annotations(annotations)
                 .map(|target| entity_reference_type(schema, target.as_ref()))
                 .unwrap_or_else(|| "uuid.UUID".to_owned());
             match data {
-                Some(data) => format!(
-                    "{}Input",
-                    ref_stub_name(data, annotations).trim_end_matches("Dict")
-                ),
+                Some(data) => ref_stub_name(data, annotations),
                 None => target,
             }
         }

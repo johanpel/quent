@@ -12,5 +12,9 @@ reached a final state, and measure how long entities remained in each state. A
 user interface can also present the declared lifecycle and the observed path
 through it.
 
+When an API must return an FSM whose current state is selected at runtime, the
+[Dynamic state](dynamic-state.md) lesson shows how to preserve that state while
+moving transition validation to runtime.
+
 The [Resource](../resource/index.md) lessons later show how an FSM state can
 declare the resources an entity uses while it remains in that state.

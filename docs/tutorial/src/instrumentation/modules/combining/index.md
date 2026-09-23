@@ -40,20 +40,20 @@ The generated API distinguishes the worker's `WorkerBounds` from the job's
   </div>
 </div>
 
-<section class="check-yourself" data-lesson="13">
+<section class="check-yourself" data-lesson="14">
   <h2>Check yourself</h2>
   <fieldset data-answer="b" data-explanation="WorkerBounds publishes the worker's available thread capacity.">
     <legend>What does <code>WorkerBounds { threads: 16 }</code> represent?</legend>
-    <label><input type="radio" name="q13a" value="a"> Threads requested by one job</label>
-    <label><input type="radio" name="q13a" value="b"> Threads available on the worker</label>
-    <label><input type="radio" name="q13a" value="c"> Jobs completed by the worker</label>
+    <label><input type="radio" name="q14a" value="a"> Threads requested by one job</label>
+    <label><input type="radio" name="q14a" value="b"> Threads available on the worker</label>
+    <label><input type="radio" name="q14a" value="c"> Jobs completed by the worker</label>
     <p class="question-feedback"></p>
   </fieldset>
   <fieldset data-answer="c" data-explanation="running accepts the worker reference carrying the job's WorkerUsage claim.">
     <legend>Which call records where the job runs and how many threads it occupies?</legend>
-    <label><input type="radio" name="q13b" value="a"> <code>worker.ready(...)</code></label>
-    <label><input type="radio" name="q13b" value="b"> <code>job.queued(...)</code></label>
-    <label><input type="radio" name="q13b" value="c"> <code>job.running(...)</code></label>
+    <label><input type="radio" name="q14b" value="a"> <code>worker.ready(...)</code></label>
+    <label><input type="radio" name="q14b" value="b"> <code>job.queued(...)</code></label>
+    <label><input type="radio" name="q14b" value="c"> <code>job.running(...)</code></label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>

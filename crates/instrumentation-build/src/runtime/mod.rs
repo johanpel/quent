@@ -17,7 +17,7 @@ use crate::common::{path_name_pascal, raw_ident, relative_root_type, to_case};
 mod context;
 mod handle;
 
-pub(crate) use handle::MAX_ONCE_EVENTS;
+pub(crate) use handle::{MAX_FSM_STATES, MAX_ONCE_EVENTS};
 
 pub(crate) fn entity_runtime_types(
     schema: &Schema,
@@ -112,6 +112,8 @@ pub(crate) fn reexports() -> TokenStream {
         pub use ::quent_instrumentation::{
             AnyEntity, Context, DynamicAttribute, DynamicAttributes, DynamicList, DynamicStruct,
             DynamicNull, DynamicValue, EntityRef, Event, HandleError, Noop, Observer, Uuid,
+            FsmTransitionError,
+            FsmStateMismatch,
         };
     }
 }

@@ -15,6 +15,8 @@ use crate::{GenerateError, Options};
 
 mod fsm;
 
+pub(crate) use fsm::MAX_FSM_STATES;
+
 /// The maximum once-events an ordinary entity may declare: one bit per event
 /// in the handle's `u64` once-flag word.
 pub(crate) const MAX_ONCE_EVENTS: usize = u64::BITS as usize;

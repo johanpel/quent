@@ -14,9 +14,14 @@ import {
 import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { useQueryBundle, useDataFlow } from '@quent/client';
 import { useQueryPlanVisualization } from '@/hooks/useQueryPlanVisualization';
-import { TreeSelect } from '@quent/components';
+import { Badge, getSelectedOperatorCountsByPlan, TreeSelect } from '@quent/components';
 import { thinScrollbarClass, type QueryPlanDataItem } from '@quent/components';
-import { useSelectedPlanId, useSetSelectedPlanId, useSetHoveredWorkerId } from '@quent/hooks';
+import {
+  useSelectedOperatorIds,
+  useSelectedPlanId,
+  useSetSelectedPlanId,
+  useSetHoveredWorkerId,
+} from '@quent/hooks';
 import {
   DAGNodeInfoPanel,
   DAGSettingsPopover,
@@ -57,6 +62,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   const planId = useSelectedPlanId();
   const setPlanId = useSetSelectedPlanId();
   const setHoveredWorkerId = useSetHoveredWorkerId();
+  const selectedOperatorIds = useSelectedOperatorIds();
   const [dagSettingsOpen, setDagSettingsOpen] = useState(false);
   const [operatorDetailsExpanded, setOperatorDetailsExpanded] = useState(false);
   const [operatorDetailsPreferredHeight, setOperatorDetailsPreferredHeight] = useState(
@@ -73,6 +79,13 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
     isLoading: queryBundleLoading,
     error: queryBundleError,
   } = useQueryBundle({ engineId, queryId });
+  const selectedOperatorCountsByPlan = useMemo(
+    () =>
+      queryBundle
+        ? getSelectedOperatorCountsByPlan(queryBundle, selectedOperatorIds)
+        : new Map<string, number>(),
+    [queryBundle, selectedOperatorIds]
+  );
 
   const { dagData, treeData, error: dagError } = useQueryPlanVisualization(queryBundle, planId);
   const operators = useMemo(
@@ -196,6 +209,12 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
         ? (item.planType ?? item.name)
         : [item.planType, item.id].filter(Boolean).join(': ');
     const lines = [primary];
+    const selectedOperatorCount = selectedOperatorCountsByPlan.get(item.id) ?? 0;
+    if (selectedOperatorCount > 0) {
+      lines.push(
+        `${selectedOperatorCount} operator${selectedOperatorCount === 1 ? '' : 's'} selected`
+      );
+    }
     if (item.workerId) {
       lines.push(`Worker: ${item.workerId}`);
     }
@@ -206,29 +225,46 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   };
 
   const renderPlanItem = (item: QueryPlanDataItem, hasChildren: boolean, compact = false) => {
+    const selectedOperatorCount = selectedOperatorCountsByPlan.get(item.id) ?? 0;
+    const selectedOperatorLabel = `${selectedOperatorCount} operator${
+      selectedOperatorCount === 1 ? '' : 's'
+    } selected`;
+
     return (
       <div
         className={cn('flex w-full min-w-0 flex-col items-start overflow-hidden pl-1', {
           'py-0.5': !compact,
         })}
       >
-        {singleQueryPlan ? (
-          <span className="block w-full truncate text-xs">
-            Query: <DataText>{item.queryId}</DataText>
-          </span>
-        ) : (
-          <span className="block w-full truncate text-xs">
-            <DataText className="capitalize">{item.planType}</DataText>
-            {!hasChildren && (
-              <span>
-                : <DataText>{item.id}</DataText>
-              </span>
-            )}
-          </span>
-        )}
+        <div className="flex w-full min-w-0 items-center gap-1.5">
+          {singleQueryPlan ? (
+            <span className="block min-w-0 shrink truncate text-xs">
+              Query: <DataText>{item.queryId}</DataText>
+            </span>
+          ) : (
+            <span className="block min-w-0 shrink truncate text-xs">
+              <DataText className="capitalize">{item.planType}</DataText>
+              {!hasChildren && (
+                <span>
+                  : <DataText>{item.id}</DataText>
+                </span>
+              )}
+            </span>
+          )}
+          {selectedOperatorCount > 0 && (
+            <Badge
+              variant="secondary"
+              className="h-4 min-w-4 shrink-0 rounded-full px-1 py-0 text-[10px] leading-none"
+              aria-label={selectedOperatorLabel}
+              title={selectedOperatorLabel}
+            >
+              {selectedOperatorCount}
+            </Badge>
+          )}
+        </div>
         {item.workerId && (
           <span className="block w-full truncate text-xs text-muted-foreground">
-            <DataText>Worker: {item.workerId}</DataText>
+            <DataText>Worker: {item.workerName ?? item.workerId}</DataText>
           </span>
         )}
         {hasChildren && (

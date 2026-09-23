@@ -61,11 +61,18 @@ retain their input order.
 
 Plain entities specialize `Handle<Entity>` with their event methods. FSMs
 specialize `FsmHandle<Entity>` for a new instance and
-`FsmHandle<Entity, entity_state::State>` for every state. Their
-`&&`-qualified transition methods consume the current handle and return the
-target-state specialization, so transitions that are not present in the
-schema do not compile. Transition sequence numbers are assigned by the
-instrumentation runtime and are not part of the C++ payload types.
+`FsmHandle<Entity, entity_state::State>` for every state. Their `&&`-qualified
+transition methods consume the current handle and return the target-state
+specialization, so transitions that are not present in the schema do not
+compile. Transition sequence numbers are assigned by the instrumentation runtime
+and are not part of the C++ payload types. Consuming any FSM handle with
+`into_dynamic()` produces a `DynamicFsmHandle<Entity>`. It exposes every
+transition and reports transitions that are invalid from its current dynamic
+state. Once the current state is known, `try_into<State>() &&` returns an
+`std::optional<FsmHandle<Entity, State>>`. A state mismatch returns an empty
+optional without moving from the dynamic handle, so the same handle can be
+checked again. A successful conversion consumes it. FSM entities may declare up
+to 255 states; generation rejects 256 or more.
 
 Observers and handles retain their scoped telemetry runtime independently of
 `Context`. Destroying a context prevents obtaining new observers, but exporter

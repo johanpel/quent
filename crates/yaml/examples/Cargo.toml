@@ -9,6 +9,12 @@ publish = false
 [dependencies]
 quent-instrumentation = { path = "../../instrumentation", features = ["io-callback"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }
+
 [build-dependencies]
 quent-instrumentation-build = { path = "../../instrumentation-build" }
 quent-yaml = { path = ".." }
@@ -50,6 +56,10 @@ name = "finite-state-machine"
 path = "finite-state-machine/src/main.rs"
 
 [[bin]]
+name = "fsm-dynamic-state"
+path = "fsm-dynamic-state/src/main.rs"
+
+[[bin]]
 name = "fsm-self-loop"
 path = "fsm-self-loop/src/main.rs"
 
@@ -64,6 +74,10 @@ path = "resource-capacity/src/main.rs"
 [[bin]]
 name = "bounded-resource"
 path = "bounded-resource/src/main.rs"
+
+[[bin]]
+name = "operating-system"
+path = "operating-system/src/main.rs"
 
 [[bin]]
 name = "job-workload"

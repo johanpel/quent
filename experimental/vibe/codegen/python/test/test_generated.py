@@ -102,6 +102,20 @@ def test_generated_api_accepts_general_mappings() -> None:
     idle_thread = active_thread.idle(worker=worker)
     idle_thread.exit()
 
+    dynamic_thread = context.thread_observer().handle().into_dynamic()
+    with pytest.raises(quent.InvalidFsmTransitionError):
+        dynamic_thread.active()
+    dynamic_thread.idle(worker=worker)
+    dynamic_thread.active()
+    with pytest.raises(quent.InvalidFsmTransitionError):
+        dynamic_thread.active()
+    with pytest.raises(quent.InvalidFsmStateError):
+        dynamic_thread.try_into_idle()
+    active_thread = dynamic_thread.try_into_active()
+    with pytest.raises(quent.HandleConsumedError):
+        dynamic_thread.try_into_active()
+    active_thread.idle(worker=worker)
+
     context.close()
     assert context.closed
     with pytest.raises(quent.ContextClosedError):
@@ -236,3 +250,40 @@ def test_dynamic_attributes_preserve_insertion_order(tmp_path: Path) -> None:
         '"List":[{"U8":[1,2]},{"List":[{"String":["nested"]}]}]',
     ]:
         assert value in serialized
+
+
+def test_dynamic_fsm_preserves_transition_sequence(tmp_path: Path) -> None:
+    context = quent.Context(quent.ExporterOptions.ndjson(str(tmp_path)))
+    worker_id = uuid.uuid4()
+    dynamic_thread = (
+        context.thread_observer().handle().idle(worker=worker_id).into_dynamic()
+    )
+    dynamic_thread.active()
+    dynamic_thread.idle(worker=worker_id)
+    context.close()
+    del dynamic_thread
+
+    serialized = "".join(
+        path.read_text() for path in tmp_path.rglob("*") if path.is_file()
+    )
+    for sequence in range(3):
+        assert f'"seq":{sequence}' in serialized
+
+
+def test_dynamic_fsm_handle_is_accepted_as_entity_reference() -> None:
+    context = quent.Context()
+    worker_id = uuid.uuid4()
+    dynamic_thread = (
+        context.thread_observer().handle().idle(worker=worker_id).into_dynamic()
+    )
+    queued_task = context.task_observer().handle().queued(
+        instance_name="task",
+        index=1,
+        worker=worker_id,
+        use_queue=None,
+    )
+
+    queued_task.computing(
+        use_thread={"target": dynamic_thread, "data": {}},
+        use_memory=None,
+    )

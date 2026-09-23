@@ -1,0 +1,16 @@
+quent: alpha
+model: operating_system
+
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          process: { os: process }
+
+  Thread:
+    events:
+      started:
+        attributes:
+          thread: { os: thread }
+          process: { scope-ref: Process }

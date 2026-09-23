@@ -24,7 +24,7 @@ mod sidecar;
 pub use collector::{CollectorRouter, CollectorSink, deserialize_event, serialize_event};
 pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
-pub use fsm_handle::{FsmEvent, FsmHandleInner};
+pub use fsm_handle::{FsmEvent, FsmHandleInner, FsmState, FsmStateMismatch, FsmTransitionError};
 pub use handle::{HandleError, HandleInner};
 pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
 pub use noop::Noop;

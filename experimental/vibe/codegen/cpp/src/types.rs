@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use convert_case::Case;
-use proc_macro2::TokenStream;
+use proc_macro2::{Literal, TokenStream};
 use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 use quent_ref_target::RefTarget;
 use quent_schema::{Cardinality, DataType, Entity, Path, Schema};
@@ -22,10 +22,11 @@ pub(crate) fn entity_file(
     instrumentation: &syn::Path,
     runtime: &syn::Path,
 ) -> Result<GeneratedFile, GenerateError> {
-    if let Some(fsm) = Fsm::try_from_entity(entity)
+    if Fsm::try_from_entity(entity)
         .map_err(|error| GenerateError::InvalidSchema(error.to_string()))?
+        .is_some()
     {
-        return fsm_entity_file(schema, entity, &fsm, options, instrumentation, runtime);
+        return fsm_entity_file(schema, entity, options, instrumentation, runtime);
     }
     regular_entity_file(schema, entity, options, instrumentation, runtime)
 }
@@ -217,7 +218,6 @@ pub mod ffi {{
 fn fsm_entity_file(
     schema: &Schema,
     entity: &Entity,
-    fsm: &Fsm,
     options: &Options,
     instrumentation: &syn::Path,
     runtime: &syn::Path,
@@ -246,7 +246,6 @@ fn fsm_entity_file(
     let entity_name = path_pascal(entity.path());
     let observer_name = format!("{entity_name}Observer");
     let handle_name = format!("{entity_name}Handle");
-    let state_name = format!("{entity_name}FsmState");
     let detail_namespace = format!("{}::detail", options.namespace);
     let namespace = cxx_namespace(&detail_namespace, entity.path());
     let uuid_include = format!("{}/{}/uuid.rs.h", options.crate_name, options.bridge_path);
@@ -267,32 +266,28 @@ fn fsm_entity_file(
     );
 
     let entity_ty = rust_path(instrumentation, entity.path(), "");
+    let dynamic_state_ty = rust_path(instrumentation, entity.path(), "DynamicState");
     let observer_ident = format_ident!("{observer_name}");
     let handle_ident = format_ident!("{handle_name}");
-    let state_ident = format_ident!("{state_name}");
-    let modules = entity
-        .path()
-        .namespace()
-        .iter()
-        .map(|part| raw_ident(to_case(part, Case::Snake)));
-    let state_module = raw_ident(format!(
-        "{}_state",
-        to_case(entity.path().name(), Case::Snake)
+    extern_body.push_str(&format!(
+        "        fn dynamic_state(self: &{handle_name}) -> u8;\n"
     ));
-    let state_module = quote! { #instrumentation::#(#modules::)*#state_module };
-    let state_variants = entity.events().map(|event| {
-        let variant = raw_ident(to_case(event.name(), Case::Pascal));
-        let marker = raw_ident(to_case(event.name(), Case::Pascal));
-        quote! {
-            #variant(#instrumentation::FsmHandle<#entity_ty, #state_module::#marker>)
-        }
-    });
-    let uuid_arms = std::iter::once(quote! { #state_ident::New(inner) => inner.uuid() }).chain(
-        entity.events().map(|event| {
-            let variant = raw_ident(to_case(event.name(), Case::Pascal));
-            quote! { #state_ident::#variant(inner) => inner.uuid() }
-        }),
-    );
+    let state_arms = entity
+        .events()
+        .enumerate()
+        .map(|(index, event)| {
+            let variant = format_ident!("{}", to_case(event.name(), Case::Pascal));
+            let index = u8::try_from(index + 1).map_err(|_| {
+                GenerateError::InvalidSchema(format!(
+                    "FSM entity `{}` declares more than {} states",
+                    entity.path(),
+                    u8::MAX,
+                ))
+            })?;
+            let index = Literal::u8_unsuffixed(index);
+            Ok::<_, GenerateError>(quote! { #dynamic_state_ty::#variant => #index })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     let mut methods = Vec::new();
     for event in entity.events() {
@@ -314,39 +309,13 @@ fn fsm_entity_file(
                 registry.convert(field.ty(), quote! { data.#ffi_name })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let target = raw_ident(to_case(event.name(), Case::Pascal));
-        let mut transition_arms = Vec::new();
-        if event.name() == fsm.initial_state() {
-            transition_arms.push(quote! {
-                #state_ident::New(inner) => #state_ident::#target(inner.#rust_method(#(#call_args),*))
-            });
-        }
-        for transition in fsm
-            .transitions()
-            .iter()
-            .filter(|transition| transition.target() == event.name())
-        {
-            let source = raw_ident(to_case(transition.source(), Case::Pascal));
-            transition_arms.push(quote! {
-                #state_ident::#source(inner) => #state_ident::#target(inner.#rust_method(#(#call_args),*))
-            });
-        }
-        let invalid = format!("invalid `{}` FSM transition", event.name());
         let implementation = if fields.is_empty() {
             extern_body.push_str(&format!(
                 "{cxx_name}        fn {rust_method}(self: &mut {handle_name}) -> Result<()>;\n"
             ));
             quote! {
                 pub fn #rust_method(&mut self) -> Result<(), String> {
-                    let current = self.inner.take().ok_or_else(|| "FSM handle is unavailable".to_owned())?;
-                    self.inner = Some(match current {
-                        #(#transition_arms,)*
-                        current => {
-                            self.inner = Some(current);
-                            return Err(#invalid.to_owned());
-                        }
-                    });
-                    Ok(())
+                    self.inner.#rust_method().map_err(|error| error.to_string())
                 }
             }
         } else {
@@ -356,15 +325,7 @@ fn fsm_entity_file(
             ));
             quote! {
                 pub fn #rust_method(&mut self, data: ffi::#payload_name) -> Result<(), String> {
-                    let current = self.inner.take().ok_or_else(|| "FSM handle is unavailable".to_owned())?;
-                    self.inner = Some(match current {
-                        #(#transition_arms,)*
-                        current => {
-                            self.inner = Some(current);
-                            return Err(#invalid.to_owned());
-                        }
-                    });
-                    Ok(())
+                    self.inner.#rust_method(#(#call_args),*).map_err(|error| error.to_string())
                 }
             }
         };
@@ -396,13 +357,8 @@ pub mod ffi {{
 "#
     );
     let tokens = quote! {
-        enum #state_ident {
-            New(#instrumentation::FsmHandle<#entity_ty>),
-            #(#state_variants,)*
-        }
-
         pub struct #observer_ident { inner: #instrumentation::Observer<#entity_ty> }
-        pub struct #handle_ident { inner: Option<#state_ident> }
+        pub struct #handle_ident { inner: #instrumentation::DynamicFsmHandle<#entity_ty> }
 
         pub fn create_observer(ctx: &super::context::Context) -> Box<#observer_ident> {
             Box::new(#observer_ident { inner: ctx.inner.observer::<#entity_ty>() })
@@ -410,22 +366,26 @@ pub mod ffi {{
 
         impl #observer_ident {
             pub fn handle(&self) -> Box<#handle_ident> {
-                Box::new(#handle_ident { inner: Some(#state_ident::New(self.inner.handle())) })
+                Box::new(#handle_ident { inner: self.inner.handle().into_dynamic() })
             }
             pub fn handle_with_id(&self, id: ffi::UUID) -> Box<#handle_ident> {
                 Box::new(#handle_ident {
-                    inner: Some(#state_ident::New(
-                        self.inner.handle_with_id(#runtime::Uuid::from(id))
-                    )),
+                    inner: self.inner
+                        .handle_with_id(#runtime::Uuid::from(id))
+                        .into_dynamic(),
                 })
             }
         }
 
         impl #handle_ident {
             pub fn uuid(&self) -> ffi::UUID {
-                match self.inner.as_ref().expect("FSM handle is available") {
-                    #(#uuid_arms,)*
-                }.into()
+                self.inner.uuid().into()
+            }
+            pub fn dynamic_state(&self) -> u8 {
+                match self.inner.state() {
+                    #dynamic_state_ty::New => 0,
+                    #(#state_arms),*
+                }
             }
             #(#methods)*
         }

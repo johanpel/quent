@@ -1,47 +1,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of consuming typestate handles for FSM entities.
+//! Generation of consuming typestate FSM handles.
 
 use std::collections::HashSet;
 
 use convert_case::Case;
 use proc_macro2::TokenStream;
-use quent_constraints::Constraint as _;
 use quent_fsm::{Fsm, SEQUENCE_FIELD_NAME};
 use quent_schema::{Entity, Event, Schema};
 use quote::quote;
 
-use super::{GeneratedHandle, event_construct, event_fields, event_params};
+use super::super::{event_construct, event_fields, event_params};
 use crate::common::{doc_attr_or, raw_ident, relative_root_type, to_case};
 use crate::runtime::{event_ident, marker_ident, model_ident};
 use crate::{GenerateError, Options};
 
-pub(super) fn entity_handle(
-    entity: &Entity,
-    opts: &Options,
-) -> Result<Option<GeneratedHandle>, GenerateError> {
-    let Some(fsm) = Fsm::try_from_entity(entity)? else {
-        return Ok(None);
-    };
-    let handle_ty = relative_root_type("FsmHandle", entity.path().namespace());
-    Ok(Some(GeneratedHandle {
-        tokens: generate(entity, &fsm, opts)?,
-        associated_type: quote! { #handle_ty<Self> },
-    }))
-}
-
 pub(super) fn handle_type(schema: &Schema) -> TokenStream {
-    if !schema.entities().any(|entity| {
-        entity
-            .annotations()
-            .has_constraint(quent_fsm::FsmConstraint::NAME)
-    }) {
-        return TokenStream::new();
-    }
     let model = model_ident(schema);
     let docs = format!(
-        "Handle to one FSM entity instance in the `{}` instrumentation model.",
+        "Typestate handle to one FSM entity instance in the `{}` instrumentation model.",
         schema.name()
     );
     quote! {
@@ -101,16 +79,23 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
     }
 }
 
-fn generate(entity: &Entity, fsm: &Fsm, opts: &Options) -> Result<TokenStream, GenerateError> {
+pub(super) fn handle_type_path(entity: &Entity) -> TokenStream {
+    relative_root_type("FsmHandle", entity.path().namespace())
+}
+
+pub(super) fn entity_impl(
+    entity: &Entity,
+    fsm: &Fsm,
+    opts: &Options,
+) -> Result<TokenStream, GenerateError> {
     let event_ty = event_ident(entity);
     let marker_ty = marker_ident(entity);
-    let handle_ty = relative_root_type("FsmHandle", entity.path().namespace());
+    let handle_ty = handle_type_path(entity);
     let state_module = raw_ident(format!(
         "{}_state",
         to_case(entity.path().name(), Case::Snake)
     ));
     let state_module_doc = format!("Typestate markers for the `{}` FSM.", entity.path());
-
     let markers = entity.events().map(|event| {
         let marker = raw_ident(to_case(event.name(), Case::Pascal));
         let marker_doc = format!(
@@ -121,11 +106,6 @@ fn generate(entity: &Entity, fsm: &Fsm, opts: &Options) -> Result<TokenStream, G
             #[doc = #marker_doc]
             pub enum #marker {}
         }
-    });
-
-    let sequence_arms = entity.events().map(|event| {
-        let variant = raw_ident(to_case(event.name(), Case::Pascal));
-        quote! { Self::#variant { seq, .. } => *seq = sequence }
     });
 
     let initial_event = entity
@@ -185,14 +165,6 @@ fn generate(entity: &Entity, fsm: &Fsm, opts: &Options) -> Result<TokenStream, G
             #(#markers)*
         }
 
-        impl ::quent_instrumentation::FsmEvent for #event_ty {
-            fn set_sequence(&mut self, sequence: u16) {
-                match self {
-                    #(#sequence_arms),*
-                }
-            }
-        }
-
         impl #handle_ty<#marker_ty> {
             #initial_method
         }
@@ -232,126 +204,4 @@ fn transition_method(
             }
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use quent_fsm::{FsmEntityBuilder, StateDecl};
-    use quent_schema::{DataType, Field, Identifier};
-
-    use super::*;
-    use crate::common::pretty;
-    use crate::runtime::handle::MAX_ONCE_EVENTS;
-
-    fn state(name: &str, to: &[&str], initial: bool, fields: Vec<Field>) -> StateDecl {
-        StateDecl {
-            name: Identifier::try_new(name).unwrap(),
-            attributes: fields,
-            to: to
-                .iter()
-                .map(|target| Identifier::try_new(*target).unwrap())
-                .collect(),
-            initial,
-        }
-    }
-
-    fn source(entity: &Entity) -> String {
-        pretty(
-            entity_handle(entity, &Options::default())
-                .unwrap()
-                .unwrap()
-                .tokens,
-        )
-    }
-
-    #[test]
-    fn generates_consuming_linear_transitions_without_sequence_parameters() {
-        let entity = FsmEntityBuilder::new("Query".parse::<quent_schema::Path>().unwrap())
-            .with_states([
-                state(
-                    "submitted",
-                    &["running"],
-                    true,
-                    vec![Field::new(
-                        Identifier::try_new("text").unwrap(),
-                        DataType::String,
-                        Default::default(),
-                    )],
-                ),
-                state("running", &["ready"], false, vec![]),
-                state("ready", &[], false, vec![]),
-            ])
-            .build()
-            .unwrap();
-
-        let source = source(&entity);
-
-        assert!(source.contains("pub mod query_state"));
-        assert!(source.contains("pub enum Submitted"));
-        assert!(source.contains("impl FsmHandle<Query>"));
-        assert!(source.contains("pub fn submitted(self, text: String)"));
-        assert!(source.contains("-> FsmHandle<Query, query_state::Submitted>"));
-        assert!(source.contains("impl FsmHandle<Query, query_state::Submitted>"));
-        assert!(source.contains(".transition(QueryEvent::Submitted"));
-        assert!(source.contains("seq: 0"));
-        assert!(!source.contains("seq: u16"));
-        assert!(!source.contains("impl FsmHandle<Query, query_state::Ready>"));
-    }
-
-    #[test]
-    fn generates_branching_cycles_self_transitions_and_namespaced_states() {
-        let entity = FsmEntityBuilder::new("jobs::Query".parse::<quent_schema::Path>().unwrap())
-            .with_states([
-                state("submitted", &["running", "failed"], true, vec![]),
-                state(
-                    "running",
-                    &["running", "running", "ready", "failed"],
-                    false,
-                    vec![],
-                ),
-                state("ready", &[], false, vec![]),
-                state("failed", &[], false, vec![]),
-            ])
-            .build()
-            .unwrap();
-
-        let source = source(&entity);
-
-        assert!(source.contains("impl super::FsmHandle<Query>"));
-        assert!(source.contains("impl super::FsmHandle<Query, query_state::Running>"));
-        assert!(source.contains("-> super::FsmHandle<Query, query_state::Running>"));
-        assert_eq!(source.matches("pub fn running(").count(), 2);
-        assert!(source.contains("pub fn ready("));
-        assert!(source.contains("pub fn failed("));
-        assert!(!source.contains("impl super::FsmHandle<Query, query_state::Ready>"));
-        assert!(!source.contains("impl super::FsmHandle<Query, query_state::Failed>"));
-    }
-
-    #[test]
-    fn fsm_entities_bypass_the_once_event_limit() {
-        let states = (0..=MAX_ONCE_EVENTS)
-            .map(|index| {
-                let name = format!("state_{index}");
-                let next = (index < MAX_ONCE_EVENTS).then(|| format!("state_{}", index + 1));
-                StateDecl {
-                    name: Identifier::try_new(name).unwrap(),
-                    attributes: vec![],
-                    to: next
-                        .into_iter()
-                        .map(|target| Identifier::try_new(target).unwrap())
-                        .collect(),
-                    initial: index == 0,
-                }
-            })
-            .collect::<Vec<_>>();
-        let entity = FsmEntityBuilder::new("Large".parse::<quent_schema::Path>().unwrap())
-            .with_states(states)
-            .build()
-            .unwrap();
-
-        assert!(matches!(
-            entity_handle(&entity, &Options::default()),
-            Ok(Some(_))
-        ));
-    }
 }

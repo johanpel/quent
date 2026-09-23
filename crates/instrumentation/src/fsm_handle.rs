@@ -12,7 +12,103 @@ pub trait FsmEvent {
     fn set_sequence(&mut self, sequence: u16);
 }
 
-#[derive(Debug, Default)]
+/// Maps a generated typestate marker to its dynamic FSM state.
+#[doc(hidden)]
+pub trait FsmState<Entity> {
+    /// Identifies this state in a dynamic handle.
+    ///
+    /// States are numbered from 1 to 255. Zero means that the FSM has not
+    /// entered its initial state yet. Code generation rejects an FSM entity
+    /// that declares 256 or more states, so every state index fits in a `u8`.
+    #[doc(hidden)]
+    const DYNAMIC_STATE_INDEX: u8;
+
+    /// Schema name of this state.
+    #[doc(hidden)]
+    const NAME: &'static str;
+}
+
+/// An invalid transition attempted through a dynamic-state FSM handle.
+#[derive(Debug, thiserror::Error)]
+#[error("cannot transition `{entity}` from `{state}` to `{target}`")]
+pub struct FsmTransitionError {
+    entity: &'static str,
+    state: &'static str,
+    target: &'static str,
+}
+
+/// A dynamic FSM handle whose state did not match a requested typestate.
+pub struct FsmStateMismatch<H> {
+    handle: H,
+    entity: &'static str,
+    state: &'static str,
+    expected: &'static str,
+}
+
+impl<H> FsmStateMismatch<H> {
+    /// Creates an error that retains the dynamic handle.
+    #[doc(hidden)]
+    pub fn new(
+        handle: H,
+        entity: &'static str,
+        state: &'static str,
+        expected: &'static str,
+    ) -> Self {
+        Self {
+            handle,
+            entity,
+            state,
+            expected,
+        }
+    }
+
+    /// Borrows the dynamic handle.
+    pub fn handle(&self) -> &H {
+        &self.handle
+    }
+
+    /// Consumes this error and returns the dynamic handle.
+    pub fn into_handle(self) -> H {
+        self.handle
+    }
+}
+
+impl<H> ::core::fmt::Debug for FsmStateMismatch<H> {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        formatter
+            .debug_struct("FsmStateMismatch")
+            .field("entity", &self.entity)
+            .field("state", &self.state)
+            .field("expected", &self.expected)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<H> ::core::fmt::Display for FsmStateMismatch<H> {
+    fn fmt(&self, formatter: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        write!(
+            formatter,
+            "cannot convert `{}` FSM from dynamic state `{}` to typestate `{}`",
+            self.entity, self.state, self.expected,
+        )
+    }
+}
+
+impl<H> ::std::error::Error for FsmStateMismatch<H> {}
+
+impl FsmTransitionError {
+    /// Creates an error for an invalid dynamic-state transition.
+    #[doc(hidden)]
+    pub fn new(entity: &'static str, state: &'static str, target: &'static str) -> Self {
+        Self {
+            entity,
+            state,
+            target,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
 struct SequenceCounter(u16);
 
 impl SequenceCounter {
@@ -42,13 +138,27 @@ where
     E: InstrumentedEntity,
     E::Event: FsmEvent,
 {
-    /// Assigns the next sequence number, emits `event`, and advances the
-    /// wrapping counter.
-    pub fn transition(mut self, mut event: E::Event) -> Self {
+    /// Emits `event` with the next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this primitive to implement
+    /// in-place transitions on dynamic-state FSM handles; application code uses
+    /// the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition_mut(&mut self, mut event: E::Event) {
         let (sequence, next) = self.sequence.advance();
         event.set_sequence(sequence);
         self.handle.emit(event);
         self.sequence = next;
+    }
+
+    /// Emits `event` with the next wrapping transition sequence number.
+    ///
+    /// Hidden because generated instrumentation uses this consuming primitive
+    /// to implement typestate transitions that return the target-state handle;
+    /// application code uses the generated transition methods instead.
+    #[doc(hidden)]
+    pub fn transition(mut self, event: E::Event) -> Self {
+        self.transition_mut(event);
         self
     }
 }
