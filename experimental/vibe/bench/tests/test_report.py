@@ -77,6 +77,25 @@ class ReportParserTests(unittest.TestCase):
                 ],
             )
 
+    def test_labels_baseline_and_optimized_quent_next_to_each_other(self) -> None:
+        current = [
+            report._row("rust", "clock", "noop", 10, 1_000_000, "rust-instant"),
+            report._row("rust", "quent", "noop", 20, 1_000_000, "rust-instant"),
+            report._row("rust", "tracing", "noop", 30, 1_000_000, "rust-instant"),
+        ]
+        baseline = [
+            report._row("rust", "quent", "noop", 40, 1_000_000, "rust-instant")
+        ]
+
+        rows = report.label_quent_revisions(current, baseline)
+
+        self.assertEqual(
+            [row["implementation"] for row in rows],
+            ["clock", "quent-main", "quent-optimized", "tracing"],
+        )
+        self.assertEqual(rows[1]["average_ns"], 40)
+        self.assertEqual(rows[2]["average_ns"], 20)
+
     def temporary_file(self, contents: str):
         return TemporaryTextFile(contents)
 

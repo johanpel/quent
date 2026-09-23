@@ -3,7 +3,8 @@
 This directory compares the latency of the smallest Quent instrumentation call
 with popular logging and OpenTelemetry APIs in C++, Rust, and Python. It is a
 microbenchmark of the caller-visible emission path, not a throughput or storage
-benchmark. It contains separate no-op and text-output suites.
+benchmark. It contains separate no-op and text-output suites and reports both
+the selected main-branch Quent baseline and the active optimized checkout.
 
 Each implementation runs one timed batch of 1,000,000 calls. The reported
 latency is the total batch time divided by the call count. This amortizes timer
@@ -53,7 +54,8 @@ Text formats are:
 | Python | logging | Formatted text |
 | Python | OpenTelemetry | Console JSON exporter |
 
-Timestamp capture is part of every timed comparison. Quent captures a raw
+Timestamp capture is part of every timed comparison. Quent main uses the clock
+implementation at the selected baseline revision. The optimized checkout captures a raw
 hardware-counter timestamp on supported CPUs and converts it to Unix nanoseconds on its
 forwarder; unsupported architectures use its system-clock path. The Rust
 `tracing`, `log`, and `slog` sinks capture timestamps; their core record types do
@@ -87,12 +89,17 @@ Install [Pixi](https://pixi.sh/), then run from the repository root:
 pixi run --manifest-path experimental/vibe/bench/pixi.toml bench
 ```
 
-The task builds release binaries, executes each native benchmark harness, and
-writes a timestamped directory under `experimental/vibe/bench/results/`. Each
-result contains:
+The task resolves `upstream/main`, archives that revision into a temporary
+directory, copies the same benchmark harness into it, and measures its Quent
+implementation before rebuilding and measuring the active checkout. Override
+the baseline with `python experimental/vibe/bench/report.py run --baseline-ref
+REF`. Neither build modifies the working tree.
 
-- `raw/`: merged Rust, Google Benchmark, and pyperf JSON plus each isolated
-  implementation's native result;
+The task writes a timestamped directory under
+`experimental/vibe/bench/results/`. Each result contains:
+
+- `raw/`: current-checkout native results plus Quent-only main results under
+  `raw/main/`;
 - `results.json`: the versioned normalized result document;
 - `results.csv`: the normalized benchmark rows;
 - `latency.pdf`: one linear-scale average-latency panel per language and output
@@ -100,9 +107,11 @@ result contains:
   a measurement legend describing the timed work and captured data.
 
 Full runs execute exactly 1,000,000 measured calls per framework/output-mode
-pair. Smoke tests execute one measured call so they remain compilation and
-integration checks rather than performance runs. Text smoke runs also require a
-non-empty output file from every non-clock measurement.
+pair. The resolved main commit is recorded in `results.json` and displayed in
+the PDF legend. Smoke tests execute one measured call against only the active
+checkout so they remain compilation and integration checks rather than
+performance runs. Text smoke runs also require a non-empty output file from
+every non-clock measurement.
 
 Other tasks are:
 

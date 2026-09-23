@@ -6,16 +6,19 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import csv
 from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 
 BENCH_DIR = Path(__file__).resolve().parent
@@ -24,6 +27,7 @@ TARGET_DIR = BENCH_DIR / "target"
 CPP_BUILD_DIR = TARGET_DIR / "cpp-build"
 RESULTS_DIR = BENCH_DIR / "results"
 CALL_COUNT = 1_000_000
+DEFAULT_BASELINE_REF = "upstream/main"
 OUTPUT_MODES = ("noop", "text")
 RUST_IMPLEMENTATIONS = ("clock", "quent", "tracing", "log", "slog", "opentelemetry")
 CPP_IMPLEMENTATIONS = (
@@ -43,6 +47,16 @@ PYTHON_IMPLEMENTATIONS = (
     "opentelemetry",
 )
 UNIT_TO_NS = {"ns": 1.0, "us": 1_000.0, "ms": 1_000_000.0, "s": 1_000_000_000.0}
+BASELINE_WORKSPACE_DEPENDENCIES = (
+    'convert_case = "0.11"',
+    'proc-macro2 = "1"',
+    'quent-constraints = { path = "crates/constraints" }',
+    'quent-fsm = { path = "crates/fsm" }',
+    'quent-ref-target = { path = "crates/ref-target" }',
+    'quent-schema = { path = "crates/schema" }',
+    'quent-yaml = { path = "crates/yaml" }',
+    'quote = "1"',
+)
 
 
 def run(
@@ -126,7 +140,15 @@ def build() -> None:
     )
 
 
-def run_isolated_batches(raw_dir: Path, calls: int, *, quiet: bool = False) -> None:
+def run_isolated_batches(
+    raw_dir: Path,
+    calls: int,
+    *,
+    quiet: bool = False,
+    rust_implementations: Iterable[str] = RUST_IMPLEMENTATIONS,
+    cpp_implementations: Iterable[str] = CPP_IMPLEMENTATIONS,
+    python_implementations: Iterable[str] = PYTHON_IMPLEMENTATIONS,
+) -> None:
     """Run each implementation in a fresh process and merge native result files."""
     language_dirs = {language: raw_dir / language for language in ("rust", "cpp", "python")}
     for directory in language_dirs.values():
@@ -134,7 +156,7 @@ def run_isolated_batches(raw_dir: Path, calls: int, *, quiet: bool = False) -> N
 
     rust_paths = []
     for output_mode in OUTPUT_MODES:
-        for implementation in RUST_IMPLEMENTATIONS:
+        for implementation in rust_implementations:
             output = language_dirs["rust"] / f"{output_mode}-{implementation}.json"
             rust_paths.append(output)
             with tempfile.TemporaryDirectory(prefix="quent-bench-export-") as export_dir:
@@ -166,7 +188,7 @@ def run_isolated_batches(raw_dir: Path, calls: int, *, quiet: bool = False) -> N
 
     cpp_paths = []
     for output_mode in OUTPUT_MODES:
-        for implementation in CPP_IMPLEMENTATIONS:
+        for implementation in cpp_implementations:
             output = language_dirs["cpp"] / f"{output_mode}-{implementation}.json"
             cpp_paths.append(output)
             command = [
@@ -185,7 +207,7 @@ def run_isolated_batches(raw_dir: Path, calls: int, *, quiet: bool = False) -> N
 
     python_paths = []
     for output_mode in OUTPUT_MODES:
-        for implementation in PYTHON_IMPLEMENTATIONS:
+        for implementation in python_implementations:
             output = language_dirs["python"] / f"{output_mode}-{implementation}.json"
             python_paths.append(output)
             command = [
@@ -320,18 +342,51 @@ def parse_python(path: Path) -> list[dict[str, Any]]:
     return rows
 
 
-def normalize(raw_dir: Path) -> dict[str, Any]:
-    """Normalize the three native output formats into one versioned document."""
-    rows = [
+def parse_native_results(raw_dir: Path) -> list[dict[str, Any]]:
+    """Parse one complete or Quent-only set of native benchmark results."""
+    return [
         *parse_rust(raw_dir / "rust.json"),
         *parse_cpp(raw_dir / "cpp.json"),
         *parse_python(raw_dir / "python.json"),
     ]
+
+
+def label_quent_revisions(
+    current_rows: Iterable[dict[str, Any]], baseline_rows: Iterable[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Place the baseline and current Quent results next to each other."""
+    baseline = {
+        (row["language"], row["output_mode"]): row
+        for row in baseline_rows
+        if row["implementation"] == "quent"
+    }
+    rows = []
+    for current in current_rows:
+        if current["implementation"] != "quent":
+            rows.append(current)
+            continue
+        key = (current["language"], current["output_mode"])
+        if key not in baseline:
+            raise ValueError(f"missing baseline Quent result for {key[0]}/{key[1]}")
+        rows.append({**baseline[key], "implementation": "quent-main"})
+        rows.append({**current, "implementation": "quent-optimized"})
+    return rows
+
+
+def normalize(raw_dir: Path) -> dict[str, Any]:
+    """Normalize the three native output formats into one versioned document."""
+    rows = parse_native_results(raw_dir)
+    baseline_dir = raw_dir / "main"
+    baseline_revision = None
+    if baseline_dir.is_dir():
+        rows = label_quent_revisions(rows, parse_native_results(baseline_dir))
+        baseline_revision = (baseline_dir / "revision.txt").read_text().strip()
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "metadata": {
             "generated_at": datetime.now(UTC).isoformat(),
             "git_revision": _git_revision(),
+            "baseline_revision": baseline_revision,
             "platform": platform.platform(),
             "machine": platform.machine(),
             "python": platform.python_version(),
@@ -360,19 +415,122 @@ def write_report(result_dir: Path, *, expected_call_count: int | None = None) ->
         writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(document["benchmarks"])
-    _plot(document["benchmarks"], result_dir / "latency.pdf")
+    _plot(document["benchmarks"], result_dir / "latency.pdf", document["metadata"])
     print(f"Wrote {result_dir}")
 
 
-def run_benchmarks(result_dir: Path | None = None) -> Path:
+def run_benchmarks(
+    result_dir: Path | None = None, *, baseline_ref: str = DEFAULT_BASELINE_REF
+) -> Path:
     """Build and execute the complete benchmark matrix."""
-    build()
     result_dir = result_dir or _new_result_dir()
     raw_dir = result_dir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        capture_baseline(raw_dir / "main", CALL_COUNT, baseline_ref)
+    finally:
+        # The baseline build installs its Python extension into the active Pixi
+        # environment. Rebuilding here restores the current checkout even when
+        # baseline execution fails.
+        build()
     run_isolated_batches(raw_dir, CALL_COUNT)
     write_report(result_dir, expected_call_count=CALL_COUNT)
     return result_dir
+
+
+def capture_quent(raw_dir: Path, calls: int) -> None:
+    """Build this checkout and capture only its Quent measurements."""
+    build()
+    raw_dir.mkdir(parents=True, exist_ok=False)
+    run_isolated_batches(
+        raw_dir,
+        calls,
+        rust_implementations=("quent",),
+        cpp_implementations=("quent",),
+        python_implementations=("quent",),
+    )
+
+
+def capture_baseline(raw_dir: Path, calls: int, baseline_ref: str) -> None:
+    """Capture Quent measurements from an immutable archived revision."""
+    revision = _resolve_revision(baseline_ref)
+    with archived_baseline(revision) as baseline_repo:
+        baseline_report = baseline_repo / "experimental" / "vibe" / "bench" / "report.py"
+        run(
+            [
+                sys.executable,
+                str(baseline_report),
+                "capture-quent",
+                "--results",
+                str(raw_dir),
+                "--calls",
+                str(calls),
+            ]
+        )
+    (raw_dir / "revision.txt").write_text(revision + "\n")
+
+
+@contextmanager
+def archived_baseline(revision: str) -> Iterator[Path]:
+    """Yield a temporary source archive with the current benchmark harness."""
+    with tempfile.TemporaryDirectory(prefix="quent-bench-main-") as temporary:
+        repository = Path(temporary)
+        process = subprocess.Popen(
+            ["git", "archive", "--format=tar", revision],
+            cwd=REPO_DIR,
+            stdout=subprocess.PIPE,
+        )
+        assert process.stdout is not None
+        try:
+            with tarfile.open(fileobj=process.stdout, mode="r|") as archive:
+                archive.extractall(repository, filter="data")
+        finally:
+            process.stdout.close()
+        if process.wait() != 0:
+            raise subprocess.CalledProcessError(process.returncode, process.args)
+
+        destination = repository / "experimental" / "vibe" / "bench"
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(
+            BENCH_DIR,
+            destination,
+            ignore=shutil.ignore_patterns(".pixi", "target", "results", "__pycache__", "*.pyc"),
+        )
+        _add_baseline_workspace_dependencies(repository / "Cargo.toml")
+        subprocess.run(
+            [
+                "cargo",
+                "metadata",
+                "--manifest-path",
+                str(destination / "Cargo.toml"),
+                "--offline",
+                "--format-version",
+                "1",
+            ],
+            cwd=repository,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        yield repository
+
+
+def _add_baseline_workspace_dependencies(manifest: Path) -> None:
+    """Add workspace declarations needed only to compile the copied harness."""
+    contents = manifest.read_text()
+    marker = "[workspace.dependencies]\n"
+    start = contents.index(marker) + len(marker)
+    end = contents.find("\n[", start)
+    end = len(contents) if end == -1 else end
+    section = contents[start:end]
+    missing = [
+        dependency
+        for dependency in BASELINE_WORKSPACE_DEPENDENCIES
+        if f"{dependency.split(' =', maxsplit=1)[0]} =" not in section
+    ]
+    if missing:
+        contents = contents[:start] + "\n".join(missing) + "\n" + contents[start:]
+        manifest.write_text(contents)
 
 
 def smoke() -> None:
@@ -420,6 +578,12 @@ def _git_revision() -> str:
     return run(["git", "rev-parse", "HEAD"], capture=True).strip()
 
 
+def _resolve_revision(reference: str) -> str:
+    return run(
+        ["git", "rev-parse", "--verify", f"{reference}^{{commit}}"], capture=True
+    ).strip()
+
+
 def _new_result_dir() -> Path:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     revision = _git_revision()[:12]
@@ -439,12 +603,15 @@ def _latest_result_dir() -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
+def _plot(
+    rows: Iterable[dict[str, Any]], output: Path, metadata: dict[str, Any] | None = None
+) -> None:
     matplotlib_cache = TARGET_DIR / "matplotlib"
     matplotlib_cache.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(matplotlib_cache))
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
+    from matplotlib.ticker import MaxNLocator, StrMethodFormatter
 
     rows = list(rows)
     grouped = {
@@ -458,12 +625,14 @@ def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
     }
     call_counts = sorted({row["calls"] for values in grouped.values() for row in values})
     call_summary = "/".join(f"{count:,}" for count in call_counts)
-    figure, axes = plt.subplots(2, 3, figsize=(16, 10))
+    figure, axes = plt.subplots(2, 3, figsize=(18, 10))
     for axis, ((output_mode, language), values) in zip(axes.flat, grouped.items()):
         colors = [
             (
                 "#0f766e"
-                if row["implementation"] == "quent"
+                if row["implementation"] in ("quent", "quent-optimized")
+                else "#d97706"
+                if row["implementation"] == "quent-main"
                 else "#94a3b8"
                 if row["implementation"] == "clock"
                 else "#2563eb"
@@ -479,6 +648,8 @@ def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
         )
         axis.set_title(f"{language.upper()} — {output_mode.upper()}")
         axis.set_xlabel("average latency (ns)")
+        axis.xaxis.set_major_locator(MaxNLocator(nbins=5))
+        axis.xaxis.set_major_formatter(StrMethodFormatter("{x:,.0f}"))
         axis.grid(axis="x", color="#d1d5db", linestyle="--", linewidth=0.8)
         axis.set_axisbelow(True)
         axis.set_xlim(0, max(row["average_ns"] for row in values) * 1.25)
@@ -493,14 +664,22 @@ def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
     figure.legend(
         handles=[
             Patch(facecolor="#94a3b8", alpha=0.8, label="Clock: timestamp-call baseline"),
-            Patch(facecolor="#0f766e", alpha=0.8, label="Quent entity.tick()"),
+            Patch(facecolor="#d97706", alpha=0.8, label="Quent main entity.tick()"),
+            Patch(facecolor="#0f766e", alpha=0.8, label="Quent optimized entity.tick()"),
             Patch(facecolor="#2563eb", alpha=0.8, label="Comparison framework"),
         ],
         loc="lower center",
         bbox_to_anchor=(0.5, 0.205),
-        ncol=3,
+        ncol=4,
         frameon=False,
         title="Series",
+    )
+    baseline_revision = (metadata or {}).get("baseline_revision")
+    revision_summary = (
+        f" Quent main is built from {baseline_revision[:12]}; Quent optimized is built from "
+        f"{(metadata or {}).get('git_revision', 'the active checkout')[:12]}."
+        if baseline_revision
+        else ""
     )
     explanation = (
         "MEASUREMENT LEGEND\n"
@@ -508,8 +687,10 @@ def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
         "logger. The bar is total batch time divided by the call count. Every record captures a "
         "timestamp and carries a pre-created entity UUID; setup, UUID creation/string conversion, "
         "preflight calls, final draining, and shutdown are outside timing. Each framework/mode pair "
-        "runs in a fresh process with a fresh temporary output directory.\n"
-        "Timestamp capture: Quent captures its timestamp inside tick(). Rust tracing/log/slog capture "
+        "runs in a fresh process with a fresh temporary output directory."
+        f"{revision_summary}\n"
+        "Timestamp capture: Quent main calls its system clock inside tick(); Quent optimized captures "
+        "a raw counter there and converts it on the forwarder. Rust tracing/log/slog capture "
         "SystemTime on their dispatch paths. spdlog, Python logging, and Loguru use native "
         "record timestamps; structlog calls time_ns(). Quill-TSC captures a counter on the caller and "
         "converts it on the backend; Quill-system calls system_clock. The OpenTelemetry SDK captures an "
@@ -528,7 +709,7 @@ def _plot(rows: Iterable[dict[str, Any]], output: Path) -> None:
     )
     figure.text(0.03, 0.155, explanation, ha="left", va="top", fontsize=8, wrap=True)
     figure.subplots_adjust(
-        left=0.1, right=0.98, top=0.92, bottom=0.34, wspace=0.7, hspace=0.7
+        left=0.13, right=0.98, top=0.92, bottom=0.34, wspace=0.85, hspace=0.7
     )
     figure.savefig(output, bbox_inches="tight", pad_inches=0.15)
     plt.close(figure)
@@ -544,17 +725,29 @@ def _format_ns(value: float) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("build", "run", "report", "smoke"))
+    parser.add_argument(
+        "command", choices=("build", "run", "report", "smoke", "capture-quent")
+    )
     parser.add_argument("--results", type=Path, help="result directory to create or report")
+    parser.add_argument(
+        "--baseline-ref",
+        default=DEFAULT_BASELINE_REF,
+        help=f"Quent baseline revision for a full run (default: {DEFAULT_BASELINE_REF})",
+    )
+    parser.add_argument("--calls", type=int, help=argparse.SUPPRESS)
     arguments = parser.parse_args()
     if arguments.command == "build":
         build()
     elif arguments.command == "run":
-        run_benchmarks(arguments.results)
+        run_benchmarks(arguments.results, baseline_ref=arguments.baseline_ref)
     elif arguments.command == "report":
         write_report(arguments.results or _latest_result_dir())
-    else:
+    elif arguments.command == "smoke":
         smoke()
+    else:
+        if arguments.results is None or arguments.calls is None:
+            parser.error("capture-quent requires --results and --calls")
+        capture_quent(arguments.results, arguments.calls)
 
 
 if __name__ == "__main__":
