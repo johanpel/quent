@@ -134,6 +134,7 @@ pub enum DagRoleParseError {
 pub struct DagConstraint {
     errors: Vec<DagError>,
     entities: Set<Path>,
+    entity_order: Vec<Path>,
     roles: Map<Path, DagRole>,
     member_of: Map<Path, Vec<MemberOf>>,
     endpoints: Map<Path, Vec<Endpoint>>,
@@ -163,6 +164,7 @@ impl Visitor for DagConstraint {
         match cursor.current() {
             Element::Entity(entity) => {
                 self.entities.insert(entity.path().clone());
+                self.entity_order.push(entity.path().clone());
                 match self.decode_role(cursor, entity.annotations()) {
                     Some(role @ (DagRole::Dag | DagRole::Vertex | DagRole::Edge)) => {
                         self.roles.insert(entity.path().clone(), role);
@@ -252,13 +254,17 @@ impl Visitor for DagConstraint {
         let DagConstraint {
             mut errors,
             entities,
+            entity_order,
             roles,
             member_of,
             endpoints,
         } = self;
 
         let mut dag_parents = Map::default();
-        for (entity, role) in &roles {
+        for entity in &entity_order {
+            let Some(role) = roles.get(entity) else {
+                continue;
+            };
             if !matches!(role, DagRole::Vertex | DagRole::Edge) {
                 continue;
             }
@@ -299,6 +305,10 @@ impl Visitor for DagConstraint {
                 continue;
             };
             if !entities.contains(target) {
+                errors.push(DagError::UnknownTarget {
+                    location: member.location.clone(),
+                    target: target.clone(),
+                });
                 continue;
             }
             if roles.get(target) != Some(&DagRole::Dag) {
@@ -311,7 +321,10 @@ impl Visitor for DagConstraint {
             dag_parents.insert(entity.clone(), target.clone());
         }
 
-        for (entity, declared) in &member_of {
+        for entity in &entity_order {
+            let Some(declared) = member_of.get(entity) else {
+                continue;
+            };
             if !matches!(roles.get(entity), Some(DagRole::Vertex | DagRole::Edge)) {
                 for member in declared {
                     errors.push(DagError::MemberOfOnNonMember {
@@ -322,7 +335,10 @@ impl Visitor for DagConstraint {
             }
         }
 
-        for (entity, declared) in &endpoints {
+        for entity in &entity_order {
+            let Some(declared) = endpoints.get(entity) else {
+                continue;
+            };
             if roles.get(entity) != Some(&DagRole::Edge) {
                 for endpoint in declared {
                     errors.push(DagError::EndpointOnNonEdge {
@@ -334,7 +350,10 @@ impl Visitor for DagConstraint {
             }
         }
 
-        for (edge, role) in &roles {
+        for edge in &entity_order {
+            let Some(role) = roles.get(edge) else {
+                continue;
+            };
             if *role != DagRole::Edge {
                 continue;
             }
@@ -454,6 +473,10 @@ fn check_endpoint_target(
         return;
     };
     if !entities.contains(target) {
+        errors.push(DagError::UnknownTarget {
+            location: endpoint.location.clone(),
+            target: target.clone(),
+        });
         return;
     }
     if roles.get(target) != Some(&DagRole::Vertex) {
@@ -538,6 +561,8 @@ pub enum DagError {
     InvalidMemberOfType { location: String },
     #[error("{location}: `member-of` must have a reference target")]
     UntargetedMemberOf { location: String },
+    #[error("{location}: DAG reference targets unknown entity \"{target}\"")]
+    UnknownTarget { location: String, target: Path },
     #[error("{location}: `member-of` targets \"{target}\", which is not a DAG entity")]
     MemberOfTargetNotDag { location: String, target: Path },
     #[error("entity \"{entity}\" declares `member-of` in multi-event \"{event}\"")]
