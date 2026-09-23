@@ -13,8 +13,8 @@ metrics](../resource/index.md).
 
 ## YAML model
 
-Set the `log:` key under an entity to make it a log sink. Each item under
-`levels` creates a repeatable event with the same name. Quent adds a
+Add an entry under the top-level `logs:` key to declare a log sink. Each item
+under `levels` creates a repeatable event with the same name. Quent adds a
 `message: string` attribute to every level event. There is no separate level
 attribute: an `info` message is an `info` event, and an `error` message is an
 `error` event.

@@ -16,7 +16,7 @@ use serde::Deserialize;
 
 use crate::extensions::{
     fsm::FsmSpec,
-    log::{EventMap, LogSpec},
+    log::LogSpec,
     os::OsType,
     reference::{RefForm, ScopeForm},
     resource::{ResourceBoundsField, ResourceDecl, UsesForm},
@@ -50,6 +50,8 @@ pub(crate) struct Model {
     // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) fsms: IndexMap<String, FsmSpec>,
+    #[serde(default)]
+    pub(crate) logs: IndexMap<String, LogSpec>,
 }
 
 /// A record: named fields plus annotations.
@@ -77,11 +79,9 @@ pub(crate) struct Entity {
     #[serde(default)]
     pub(crate) metadata: AnnotationMap,
     #[serde(default)]
-    pub(crate) events: EventMap,
+    pub(crate) events: IndexMap<String, Event>,
 
     // Built-in extension AST nodes.
-    #[serde(default, deserialize_with = "crate::extensions::log::present")]
-    pub(crate) log: Option<LogSpec>,
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
 }

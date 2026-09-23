@@ -5,50 +5,28 @@
 
 use indexmap::IndexMap;
 use quent_log::{LevelDecl, LogEntityBuilder};
+use quent_schema::Entity;
 use quent_schema::builder::AnnotationsBuilder;
-use quent_schema::{Annotations, Entity, Identifier};
 use serde::Deserialize;
 
-use crate::ast;
+use crate::ast::{self, AnnotationMap};
 use crate::diag::Diagnostics;
 use crate::extensions::{Elaborator, EventContext};
-use crate::lower::{build_or_diagnose, event_fields, ident};
-
-/// Deserialize a present optional field without accepting YAML `null` as
-/// equivalent to absence.
-pub(crate) fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    T::deserialize(deserializer).map(Some)
-}
-
-/// Entity events together with whether the `events:` key was present.
-///
-/// Presence is retained so an empty `events: {}` still conflicts with `log:`.
-#[derive(Debug, Default)]
-pub(crate) struct EventMap {
-    pub(crate) present: bool,
-    pub(crate) entries: IndexMap<String, ast::Event>,
-}
-
-impl<'de> Deserialize<'de> for EventMap {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self {
-            present: true,
-            entries: IndexMap::deserialize(deserializer)?,
-        })
-    }
-}
+use crate::lower::{annotations_builder, build_or_diagnose, event_fields, ident, type_decl_ident};
 
 /// A log sink: common attributes and ordered levels.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct LogSpec {
+    // Fields shared with core entities.
+    #[serde(default)]
+    doc: Option<String>,
+    #[serde(default)]
+    constraints: AnnotationMap,
+    #[serde(default)]
+    metadata: AnnotationMap,
+
+    // Log extension fields.
     #[serde(default)]
     attributes: IndexMap<String, ast::Field>,
     levels: Vec<LogLevel>,
@@ -65,21 +43,29 @@ struct LogLevel {
     attributes: IndexMap<String, ast::Field>,
 }
 
-/// Elaborate a `log:` block into one repeatable event per declared level.
+/// Elaborate a `logs:` declaration into one repeatable event per declared level.
 pub(crate) fn elaborate(
-    id: Identifier,
+    name: &str,
     spec: &LogSpec,
-    annotations: Annotations,
-    entity_path: &str,
-    event_context: &EventContext,
     extensions: &Elaborator,
     sink: &mut Diagnostics,
 ) -> Option<Entity> {
-    let log_path = format!("{entity_path}.log");
+    let log_path = format!("logs.{name}");
+    let id = type_decl_ident(name, "logs", sink);
+    let annotations = annotations_builder(
+        &spec.doc,
+        &spec.constraints,
+        &spec.metadata,
+        extensions,
+        &log_path,
+        sink,
+    );
+    let annotations = build_or_diagnose(annotations.build(), &log_path, sink).unwrap_or_default();
+    let event_context = EventContext::default();
     let common = event_fields(
         &spec.attributes,
         &format!("{log_path}.attributes"),
-        event_context,
+        &event_context,
         extensions,
         sink,
     );
@@ -95,7 +81,7 @@ pub(crate) fn elaborate(
         let attributes = event_fields(
             &level.attributes,
             &format!("{level_path}.attributes"),
-            event_context,
+            &event_context,
             extensions,
             sink,
         );
@@ -118,7 +104,7 @@ pub(crate) fn elaborate(
         return None;
     }
 
-    match LogEntityBuilder::new(id)
+    match LogEntityBuilder::new(id?)
         .with_annotations(annotations)
         .with_attributes(common)
         .with_levels(levels)

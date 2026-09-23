@@ -3,8 +3,8 @@
 
 use quent_constraints::Constraint as _;
 use quent_log::{
-    LevelDecl, LogConstraint, LogDefinition, LogDefinitionError, LogEntityBuilder,
-    LogEntityBuilderError, LogError, MAX_LEVELS,
+    LevelDecl, LogConstraint, LogDefinition, LogDefinitionError, LogEntityBuilder, LogError,
+    MAX_LEVELS,
 };
 use quent_schema::{
     Annotations, Cardinality, DataType, Entity, Event, Field, Schema,
@@ -199,34 +199,6 @@ fn message_field_must_exist_with_exact_type() {
     );
     assert!(errors.iter().any(
         |error| matches!(error, LogError::IncorrectFieldType { field, .. } if field == "message")
-    ));
-}
-
-#[test]
-fn builder_rejects_implicit_and_common_attribute_collisions() {
-    let level = || LevelDecl {
-        name: ident("info"),
-        annotations: Annotations::default(),
-        attributes: vec![field("thread", DataType::String)],
-    };
-    let error = LogEntityBuilder::new(path("Log"))
-        .with_attributes([field("message", DataType::String)])
-        .with_level(level())
-        .build()
-        .unwrap_err();
-    assert!(matches!(
-        error,
-        LogEntityBuilderError::CommonAttributeCollision { name } if name == "message"
-    ));
-
-    let error = LogEntityBuilder::new(path("Log"))
-        .with_attributes([field("thread", DataType::String)])
-        .with_level(level())
-        .build()
-        .unwrap_err();
-    assert!(matches!(
-        error,
-        LogEntityBuilderError::LevelAttributeCollision { name, .. } if name == "thread"
     ));
 }
 

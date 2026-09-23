@@ -163,24 +163,9 @@ fn entity_of(
     let records = entity_elaboration.records;
     let event_context = entity_elaboration.event_context;
 
-    if entity.events.present && entity.log.is_some() {
-        sink.error(
-            &path,
-            "`events:` and `log:` are mutually exclusive on an entity",
-            None,
-        );
-        return None;
-    }
-
     let annotations = build_or_diagnose(anns.build(), &path, sink).unwrap_or_default();
-    if let Some(log) = &entity.log {
-        let entity = extensions.elaborate_log(id?, log, annotations, &path, &event_context, sink);
-        return entity.map(|entity| (entity, records));
-    }
-
     let events: Vec<_> = entity
         .events
-        .entries
         .iter()
         .filter_map(|(event_name, event)| {
             event_of(event_name, event, &path, &event_context, extensions, sink)

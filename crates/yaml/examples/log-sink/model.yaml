@@ -1,24 +1,23 @@
 quent: alpha
 model: logging_sink
 
-entities:
+logs:
   AppLog:
     doc: Application logging sink.
-    log:
-      attributes:
-        target: string
-        file: string
-        line: u32
-        module: string
-        thread_name: string
-      levels:
-        - name: trace
-        - name: debug
-        - name: info
-          doc: Informational messages.
-        - name: warning
-          attributes:
-            category: string
-        - name: error
-          attributes:
-            error_code: u32
+    attributes:
+      target: string
+      file: string
+      line: u32
+      module: string
+      thread_name: string
+    levels:
+      - name: trace
+      - name: debug
+      - name: info
+        doc: Informational messages.
+      - name: warning
+        attributes:
+          category: string
+      - name: error
+        attributes:
+          error_code: u32

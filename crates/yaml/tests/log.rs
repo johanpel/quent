@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Log tests: a `log:` block declares a log-sink entity with one repeatable
+//! Log tests: a `logs:` entry declares a log-sink entity with one repeatable
 //! event per ordered level.
 
 use quent_instrumentation_build::{Options, generate_str};
@@ -24,15 +24,14 @@ fn errors_of(src: &str) -> String {
 const MINIMAL: &str = "\
 quent: alpha
 model: Application
-entities:
+logs:
   AppLog:
-    log:
-      levels:
-        - name: trace
-        - name: debug
-        - name: info
-        - name: warning
-        - name: error
+    levels:
+      - name: trace
+      - name: debug
+      - name: info
+      - name: warning
+      - name: error
 ";
 
 #[test]
@@ -71,31 +70,30 @@ fn complete_log_preserves_annotations_and_attribute_scopes() {
         "\
 quent: alpha
 model: Application
-entities:
+logs:
   AppLog:
     doc: Application logging sink.
     constraints:
       application.constraint.v0.1.0:
     metadata:
       owner: platform
-    log:
-      attributes:
-        target: string
-        file: string
-        line: u32
-        module: string
-        thread_name: string
-      levels:
-        - name: trace
-        - name: debug
-        - name: info
-          doc: Informational messages.
-        - name: warning
-          attributes:
-            category: string
-        - name: error
-          attributes:
-            error_code: u32
+    attributes:
+      target: string
+      file: string
+      line: u32
+      module: string
+      thread_name: string
+    levels:
+      - name: trace
+      - name: debug
+      - name: info
+        doc: Informational messages.
+      - name: warning
+        attributes:
+          category: string
+      - name: error
+        attributes:
+          error_code: u32
 ",
     );
     let entity = schema.entity(&path("AppLog")).unwrap();
@@ -148,15 +146,14 @@ fn logging_context_uses_ordinary_attributes() {
         "\
 quent: alpha
 model: m
-entities:
+logs:
   Log:
-    log:
-      attributes:
-        target: u64
-        file: bool
-        line: string
-        module: dynamic
-      levels: [{ name: info }]
+    attributes:
+      target: u64
+      file: bool
+      line: string
+      module: dynamic
+    levels: [{ name: info }]
 ",
     );
     let entity = schema.entity(&path("Log")).unwrap();
@@ -179,7 +176,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
         ("[{ name: not-valid }]", "invalid name"),
     ] {
         let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      levels: {levels}\n"
+            "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels: {levels}\n"
         ));
         assert!(errors.contains(expected), "{errors}");
     }
@@ -188,7 +185,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
         .map(|rank| format!("        - name: level{rank}\n"))
         .collect::<String>();
     let errors = errors_of(&format!(
-        "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      levels:\n{levels}"
+        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels:\n{levels}"
     ));
     assert!(
         errors.contains("257 levels") && errors.contains("256"),
@@ -199,7 +196,7 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
 #[test]
 fn user_attributes_cannot_collide_with_generated_fields() {
     let errors = errors_of(
-        "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      attributes: { message: string }\n      levels: [{ name: info }]\n",
+        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    attributes: { message: string }\n    levels: [{ name: info }]\n",
     );
     assert!(errors.contains("conflicts"), "{errors}");
 }
@@ -210,38 +207,43 @@ fn level_attributes_cannot_repeat_common_attributes() {
         "\
 quent: alpha
 model: m
-entities:
+logs:
   Log:
-    log:
-      attributes: { thread: string }
-      levels:
-        - name: info
-          attributes: { thread: string }
+    attributes: { thread: string }
+    levels:
+      - name: info
+        attributes: { thread: string }
 ",
     );
     assert!(errors.contains("`thread` conflicts"), "{errors}");
 }
 
 #[test]
-fn events_and_log_are_mutually_exclusive_even_when_events_are_empty() {
-    for events in ["{}", "{ emitted: { multi: true } }"] {
-        let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    events: {events}\n    log:\n      levels: [{{ name: info }}]\n"
-        ));
-        assert!(errors.contains("mutually exclusive"), "{errors}");
-    }
+fn log_declarations_cannot_contain_events() {
+    let errors = errors_of(
+        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels: [{ name: info }]\n    events: {}\n",
+    );
+    assert!(errors.contains("unknown field"), "{errors}");
 }
 
 #[test]
-fn log_must_use_supported_form() {
-    let _ = errors_of("quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n");
+fn entity_and_log_names_cannot_collide() {
+    let errors = errors_of(
+        "quent: alpha\nmodel: m\nentities:\n  Log:\n    events:\n      emitted: {}\nlogs:\n  Log:\n    levels: [{ name: info }]\n",
+    );
+    assert!(errors.contains("both an entity and a log sink"), "{errors}");
+}
+
+#[test]
+fn logs_must_use_supported_form() {
+    let _ = errors_of("quent: alpha\nmodel: m\nlogs:\n  Log:\n");
 }
 
 #[test]
 fn removed_context_shortcuts_are_rejected() {
     for field in ["target: true", "source: true"] {
         let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      {field}\n      levels: [{{ name: info }}]\n"
+            "quent: alpha\nmodel: m\nlogs:\n  Log:\n    {field}\n    levels: [{{ name: info }}]\n"
         ));
         assert!(errors.contains("unknown field"), "{errors}");
     }
@@ -261,7 +263,7 @@ entities:
       info: { multi: true, attributes: { message: string } }
 ",
     );
-    assert!(errors.contains("`log:` block"), "{errors}");
+    assert!(errors.contains("`logs:` declaration"), "{errors}");
 }
 
 #[test]

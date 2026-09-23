@@ -273,47 +273,45 @@ cargo run --manifest-path crates/yaml/examples/Cargo.toml --bin job-workload
 
 ## Log sinks
 
-A `log:` block declares an entity-scoped logging sink. Its ordered levels become
-repeatable events with an implicit `message: string` attribute:
+A `logs:` entry declares an entity-scoped logging sink. Its ordered levels
+become repeatable events with an implicit `message: string` attribute:
 
 ```yaml
-entities:
+logs:
   AppLog:
-    log:
-      levels:
-        - name: trace
-        - name: debug
-        - name: info
-        - name: warning
-        - name: error
+    levels:
+      - name: trace
+      - name: debug
+      - name: info
+      - name: warning
+      - name: error
 ```
 
 Common and level-specific attributes use the ordinary field syntax. A sink can
 use common attributes to preserve information supplied by a logging facade:
 
 ```yaml
-entities:
+logs:
   AppLog:
     doc: Application logging sink.
-    log:
-      attributes:
-        target: string
-        file: string
-        line: u32
-        module: string
-        thread_name: string
-      levels:
-        - name: info
-          doc: Informational messages.
-        - name: error
-          attributes:
-            error_code: u32
+    attributes:
+      target: string
+      file: string
+      line: u32
+      module: string
+      thread_name: string
+    levels:
+      - name: info
+        doc: Informational messages.
+      - name: error
+        attributes:
+          error_code: u32
 ```
 
 Only `message` has built-in meaning. Names such as `target`, `file`, `line`, and
 `module` are ordinary attributes. This example requires every call to provide
-them; another model may leave them out, rename them, or change their types.
-`events:` and `log:` are mutually exclusive on the same entity.
+them; another model may leave them out, rename them, or change their types. A
+log declaration contains only the events generated from its levels.
 
 - [YAML model](examples/log-sink/model.yaml)
 - [Instrumentation API usage](examples/log-sink/src/main.rs)
