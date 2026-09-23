@@ -49,8 +49,8 @@ pub(super) fn handle_type(schema: &Schema) -> TokenStream {
         > FsmHandle<E, S>
         {
             /// Returns the entity instance ID.
-            pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
-                self.inner.uuid()
+            pub fn id(&self) -> ::quent_instrumentation::Uuid {
+                self.inner.id()
             }
 
             /// Returns a typed reference to this instance carrying no data.

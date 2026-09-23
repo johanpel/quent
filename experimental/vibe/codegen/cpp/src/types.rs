@@ -75,7 +75,7 @@ fn regular_entity_file(
          fn create_observer(ctx: &Context) -> Box<{observer_name}>;\n\
          fn handle(self: &{observer_name}) -> Box<{handle_name}>;\n\
          fn handle_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
-         fn uuid(self: &{handle_name}) -> UUID;\n"
+         fn id(self: &{handle_name}) -> UUID;\n"
     );
 
     let entity_ty = rust_path(instrumentation, entity.path(), "");
@@ -204,7 +204,7 @@ pub mod ffi {{
         }
 
         impl #handle_ident {
-            pub fn uuid(&self) -> ffi::UUID { self.inner.uuid().into() }
+            pub fn id(&self) -> ffi::UUID { self.inner.id().into() }
             #(#methods)*
         }
     };
@@ -262,7 +262,7 @@ fn fsm_entity_file(
          fn create_observer(ctx: &Context) -> Box<{observer_name}>;\n\
          fn handle(self: &{observer_name}) -> Box<{handle_name}>;\n\
          fn handle_with_id(self: &{observer_name}, id: UUID) -> Box<{handle_name}>;\n\
-         fn uuid(self: &{handle_name}) -> UUID;\n"
+         fn id(self: &{handle_name}) -> UUID;\n"
     );
 
     let entity_ty = rust_path(instrumentation, entity.path(), "");
@@ -378,8 +378,8 @@ pub mod ffi {{
         }
 
         impl #handle_ident {
-            pub fn uuid(&self) -> ffi::UUID {
-                self.inner.uuid().into()
+            pub fn id(&self) -> ffi::UUID {
+                self.inner.id().into()
             }
             pub fn dynamic_state(&self) -> u8 {
                 match self.inner.state() {

@@ -77,7 +77,9 @@ fn generates_schema_driven_bridge_and_stubs() {
     }
 
     let stubs = emit_stubs(&schema, &options).unwrap();
-    assert!(stubs[0].content.contains("def now_v7() -> uuid.UUID"));
+    assert!(stubs[0].content.contains("import uuid as _uuid\n"));
+    assert!(stubs[0].content.contains("def now_v7() -> _uuid.UUID"));
+    assert!(!stubs[0].content.contains("import uuid\n"));
     assert!(!stubs[0].content.contains("class Uuid:"));
     assert!(stubs[0].content.contains("class QuentError(Exception):"));
     assert!(
@@ -91,14 +93,19 @@ fn generates_schema_driven_bridge_and_stubs() {
             .contains("def ndjson(output_dir: str | PathLike[str]) -> ExporterOptions")
     );
     assert!(stubs[0].content.contains("class WorkerHandle:"));
+    assert!(class_body(&stubs[0].content, "WorkerHandle").contains("def id(self) -> _uuid.UUID"));
     assert!(stubs[0].content.contains("class WorkerObserver:"));
     assert!(
         stubs[0]
             .content
-            .contains("def handle(self, id: uuid.UUID | None = None) -> WorkerHandle")
+            .contains("def handle(self, id: _uuid.UUID | None = None) -> WorkerHandle")
     );
     assert!(stubs[0].content.contains("class ThreadIdleHandle:"));
     assert!(stubs[0].content.contains("class ThreadDynamicFsmHandle:"));
+    assert!(
+        class_body(&stubs[0].content, "ThreadDynamicFsmHandle")
+            .contains("def id(self) -> _uuid.UUID")
+    );
     assert!(
         stubs[0]
             .content
@@ -115,6 +122,9 @@ fn generates_schema_driven_bridge_and_stubs() {
             .contains("def into_dynamic(self) -> ThreadDynamicFsmHandle")
     );
     assert!(
+        class_body(&stubs[0].content, "ThreadIdleHandle").contains("def id(self) -> _uuid.UUID")
+    );
+    assert!(
         stubs[0]
             .content
             .contains("def active(self) -> ThreadActiveHandle")
@@ -128,7 +138,7 @@ fn generates_schema_driven_bridge_and_stubs() {
     assert!(
         stubs[0]
             .content
-            .contains("cluster: ClusterHandle | uuid.UUID")
+            .contains("cluster: ClusterHandle | _uuid.UUID")
     );
     assert!(
         stubs[0]
@@ -230,7 +240,7 @@ entities:
 quent: alpha
 model: collision
 entities:
-  Server: { events: { uuid: {} } }
+  Server: { events: { id: {} } }
 "#,
         r#"
 quent: alpha

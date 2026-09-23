@@ -27,6 +27,7 @@ fn generates_schema_driven_bridge() {
     assert!(worker.content.contains("pub struct WorkerHandle"));
     assert!(worker.content.contains("pub fn handle(&self)"));
     assert!(worker.content.contains("pub fn handle_with_id(&self"));
+    assert!(worker.content.contains("pub fn id(&self) -> ffi::UUID"));
     assert!(worker.content.contains("pub struct BridgeRecordDetails"));
     assert!(worker.content.contains("pub fn declaration"));
     let facade = files.iter().find(|file| file.name == "quent.hpp").unwrap();
@@ -72,6 +73,7 @@ fn generates_schema_driven_bridge() {
             .content
             .contains("class DynamicFsmHandle<::quent::Thread> final")
     );
+    assert!(facade.content.contains("ThreadId id() const"));
     assert!(
         facade
             .content
@@ -220,7 +222,7 @@ entities:
 quent: alpha
 model: collision
 entities:
-  Server: { events: { uuid: {} } }
+  Server: { events: { id: {} } }
 "#,
         r#"
 quent: alpha

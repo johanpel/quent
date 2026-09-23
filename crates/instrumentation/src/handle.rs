@@ -47,28 +47,28 @@ impl<E: InstrumentedEntity> HandleInner<E> {
     }
 
     /// Returns the entity instance ID.
-    pub fn uuid(&self) -> crate::Uuid {
+    pub fn id(&self) -> crate::Uuid {
         self.id
     }
 
     /// Returns a typed reference to this instance carrying no data.
     pub fn as_entity_ref(&self) -> crate::EntityRef<E> {
-        crate::EntityRef::new(self.uuid(), ())
+        crate::EntityRef::new(self.id(), ())
     }
 
     /// Returns a typed reference to this instance carrying `data`.
     pub fn as_entity_ref_with<T>(&self, data: T) -> crate::EntityRef<E, T> {
-        crate::EntityRef::new(self.uuid(), data)
+        crate::EntityRef::new(self.id(), data)
     }
 
     /// Returns an untyped reference to this instance carrying no data.
     pub fn as_any_entity_ref(&self) -> crate::EntityRef<crate::AnyEntity> {
-        crate::EntityRef::new(self.uuid(), ())
+        crate::EntityRef::new(self.id(), ())
     }
 
     /// Returns an untyped reference to this instance carrying `data`.
     pub fn as_any_entity_ref_with<T>(&self, data: T) -> crate::EntityRef<crate::AnyEntity, T> {
-        crate::EntityRef::new(self.uuid(), data)
+        crate::EntityRef::new(self.id(), data)
     }
 
     /// Emits an event without cardinality tracking.

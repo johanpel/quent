@@ -1468,7 +1468,7 @@ impl Engine {
         num_threads: usize,
         num_gpus: usize,
     ) {
-        info!("Simulating Engine {}", self.handle.uuid());
+        info!("Simulating Engine {}", self.handle.id());
         self.handle
             .init(
                 instr::EngineImplementationAttributes {
@@ -1492,7 +1492,7 @@ impl Engine {
                 num_threads,
                 num_gpus,
             );
-            worker.spawn(context, self.handle.uuid());
+            worker.spawn(context, self.handle.id());
             self.workers.insert(*worker_id, worker);
         }
 

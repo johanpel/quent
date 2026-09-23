@@ -25,6 +25,14 @@ pub(crate) fn entity_runtime_types(
     opts: &Options,
 ) -> Result<TokenStream, GenerateError> {
     let handle = handle::entity_handle(entity, opts)?;
+    if entity
+        .events()
+        .any(|event| to_case(event.name(), Case::Snake) == "id")
+    {
+        return Err(GenerateError::HandleIdCollision {
+            entity: entity.path().clone(),
+        });
+    }
     let entity_impl = entity_impl(schema, entity, &handle.associated_type);
     let handle = handle.tokens;
     Ok(quote! {
@@ -71,8 +79,8 @@ pub(crate) fn entity_types(schema: &Schema) -> TokenStream {
         impl<E: ::quent_instrumentation::InstrumentedEntity<Context = Context<#model>>> Handle<E>
         {
             /// Returns the entity instance ID.
-            pub fn uuid(&self) -> ::quent_instrumentation::Uuid {
-                self.inner.uuid()
+            pub fn id(&self) -> ::quent_instrumentation::Uuid {
+                self.inner.id()
             }
 
             /// Returns a typed reference to this instance carrying no data.
@@ -150,11 +158,36 @@ fn entity_impl(schema: &Schema, entity: &Entity, handle_type: &TokenStream) -> T
 mod tests {
     use super::*;
     use crate::common::pretty;
+
     use quent_fsm::{FsmEntityBuilder, StateDecl};
     use quent_schema::Cardinality;
     use quent_schema::DataType;
     use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
     use quent_schema::test_utils::{entity, event, field, ident};
+
+    #[test]
+    fn rejects_event_named_like_handle_id() {
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Task", [event("id", [])]))
+            .build()
+            .unwrap();
+
+        assert!(matches!(
+            crate::generate_str(&schema, &Options::default()),
+            Err(GenerateError::HandleIdCollision { .. })
+        ));
+        assert!(
+            crate::generate_str(
+                &schema,
+                &Options {
+                    instrumentation: false,
+                    ..Options::default()
+                }
+            )
+            .is_ok()
+        );
+    }
 
     fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
         StateDecl {

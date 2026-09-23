@@ -169,7 +169,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
         "Sequence",
         "TypeAlias",
         "TypedDict",
-        "uuid",
+        "_uuid",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -210,7 +210,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
                 )?;
             }
         }
-        let mut methods = ["uuid".to_owned()]
+        let mut methods = ["id".to_owned()]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
         if Fsm::try_from_entity(entity)
@@ -883,17 +883,17 @@ fn entity_bindings(
         pub struct #handle { inner: #instrumentation::Handle<#entity_ty> }
 
         impl #handle {
-            fn raw_uuid(&self) -> PyResult<#runtime::Uuid> { Ok(self.inner.uuid()) }
+            fn raw_uuid(&self) -> PyResult<#runtime::Uuid> { Ok(self.inner.id()) }
         }
 
         #[pymethods]
         impl #handle {
             #[getter]
-            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            pub fn id(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                 __python_uuid(py, self.raw_uuid()?)
             }
             pub fn __repr__(&self) -> String {
-                format!("{}(uuid='{}')", #handle_export, self.inner.uuid())
+                format!("{}(id='{}')", #handle_export, self.inner.id())
             }
             #(#methods)*
         }
@@ -972,7 +972,7 @@ fn fsm_entity_bindings(
                     fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
                         self.inner
                             .as_ref()
-                            .map(|inner| inner.uuid())
+                            .map(|inner| inner.id())
                             .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
                     }
                 }
@@ -980,15 +980,15 @@ fn fsm_entity_bindings(
                 #[pymethods]
                 impl #handle {
                     #[getter]
-                    pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+                    pub fn id(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                         __python_uuid(py, self.raw_uuid()?)
                     }
                     pub fn __repr__(&self) -> String {
                         match self.inner.as_ref() {
                             Some(inner) => format!(
-                                "{}(uuid='{}', state='{}')",
+                                "{}(id='{}', state='{}')",
                                 #handle_export,
-                                inner.uuid(),
+                                inner.id(),
                                 #state_name,
                             ),
                             None => format!("{}(consumed=True)", #handle_export),
@@ -1044,7 +1044,7 @@ fn fsm_entity_bindings(
             fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
                 self.inner
                     .as_ref()
-                    .map(|inner| inner.uuid())
+                    .map(|inner| inner.id())
                     .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
             }
         }
@@ -1052,12 +1052,12 @@ fn fsm_entity_bindings(
         #[pymethods]
         impl #initial_handle {
             #[getter]
-            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            pub fn id(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                 __python_uuid(py, self.raw_uuid()?)
             }
             pub fn __repr__(&self) -> String {
                 match self.inner.as_ref() {
-                    Some(inner) => format!("{}(uuid='{}')", #initial_handle_export, inner.uuid()),
+                    Some(inner) => format!("{}(id='{}')", #initial_handle_export, inner.id()),
                     None => format!("{}(consumed=True)", #initial_handle_export),
                 }
             }
@@ -1077,7 +1077,7 @@ fn fsm_entity_bindings(
             fn raw_uuid(&self) -> PyResult<#runtime::Uuid> {
                 self.inner
                     .as_ref()
-                    .map(|inner| inner.uuid())
+                    .map(|inner| inner.id())
                     .ok_or_else(|| HandleConsumedError::new_err("FSM handle was consumed"))
             }
         }
@@ -1085,15 +1085,15 @@ fn fsm_entity_bindings(
         #[pymethods]
         impl #dynamic_handle {
             #[getter]
-            pub fn uuid(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+            pub fn id(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                 __python_uuid(py, self.raw_uuid()?)
             }
             pub fn __repr__(&self) -> String {
                 match self.inner.as_ref() {
                     Some(inner) => format!(
-                        "{}(uuid='{}', state='{:?}')",
+                        "{}(id='{}', state='{:?}')",
                         #dynamic_handle_export,
-                        inner.uuid(),
+                        inner.id(),
                         inner.state(),
                     ),
                     None => format!("{}(consumed=True)", #dynamic_handle_export),

@@ -19,13 +19,14 @@ def test_generated_api_accepts_general_mappings() -> None:
     cluster_observer = context.cluster_observer()
     cluster_id = uuid.uuid4()
     cluster = cluster_observer.handle(cluster_id)
-    assert cluster.uuid == cluster_id
+    assert cluster.id == cluster_id
     cluster.declaration(instance_name="cluster")
     assert cluster.declaration_emitted()
     with pytest.raises(quent.EventAlreadyEmittedError):
         cluster.declaration(instance_name="duplicate")
 
     worker = context.worker_observer().handle()
+    assert isinstance(worker.id, uuid.UUID)
     worker.declaration(
         instance_name="worker",
         cluster=cluster,
@@ -75,9 +76,11 @@ def test_generated_api_accepts_general_mappings() -> None:
     queue = context.queue_observer().handle()
     queue.declaration(instance_name="queue", worker=worker)
     thread = context.thread_observer().handle()
+    thread_id = thread.id
     with pytest.raises(AttributeError):
         thread.active()
     idle_thread = thread.idle(worker=worker)
+    assert idle_thread.id == thread_id
     active_thread = idle_thread.active()
     with pytest.raises(quent.HandleConsumedError):
         idle_thread.active()
@@ -258,6 +261,7 @@ def test_dynamic_fsm_preserves_transition_sequence(tmp_path: Path) -> None:
     dynamic_thread = (
         context.thread_observer().handle().idle(worker=worker_id).into_dynamic()
     )
+    assert isinstance(dynamic_thread.id, uuid.UUID)
     dynamic_thread.active()
     dynamic_thread.idle(worker=worker_id)
     context.close()

@@ -236,7 +236,7 @@ fn validate_names(schema: &Schema) -> Result<(), GenerateError> {
             .ok()
             .flatten()
             .map(|_| std::collections::BTreeSet::from(["New".to_owned()]));
-        let mut methods = ["id".to_owned(), "uuid".to_owned()]
+        let mut methods = ["id".to_owned()]
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
         if fsm_variants.is_some() {

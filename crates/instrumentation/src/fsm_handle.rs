@@ -165,8 +165,8 @@ where
 
 impl<E: InstrumentedEntity> FsmHandleInner<E> {
     /// Returns the entity instance ID.
-    pub fn uuid(&self) -> Uuid {
-        self.handle.uuid()
+    pub fn id(&self) -> Uuid {
+        self.handle.id()
     }
 
     /// Returns a typed reference to this instance carrying no data.

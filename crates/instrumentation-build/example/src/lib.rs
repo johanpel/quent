@@ -104,7 +104,7 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
         .running(10, thread.as_entity_ref_with(ThreadUsage))
         .running(20, thread.as_entity_ref_with(ThreadUsage))
         .ready(true);
-    let _query_id = query.uuid();
+    let _query_id = query.id();
 
     conn.closed()?;
 

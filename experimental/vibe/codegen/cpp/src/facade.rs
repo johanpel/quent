@@ -701,7 +701,7 @@ fn emit_handles(schema: &Schema, options: &Options, output: &mut String) {
         let entity_type = public_entity_type(entity, options);
         let public_handle = format!("::{base_namespace}::Handle<{entity_type}>");
         output.push_str(&format!(
-            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n"
+            "namespace {namespace} {{\nclass {name}Observer final {{\n public:\n  {public_handle} handle() const;\n  {public_handle} handle({name}Id id) const;\n\n private:\n  explicit {name}Observer(::rust::Box<::{raw_namespace}::{raw_observer}> inner) : inner_(std::move(inner)) {{}}\n  ::rust::Box<::{raw_namespace}::{raw_observer}> inner_;\n  friend class ::{base_namespace}::Context;\n}};\n}}  // namespace {namespace}\n\nnamespace {base_namespace} {{\ntemplate <>\nclass Handle<{entity_type}> final {{\n public:\n  Handle(Handle&&) = default;\n  Handle& operator=(Handle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n"
         ));
         for event in entity.events() {
             let method = cxx_safe(&to_case(event.name(), Case::Snake));
@@ -756,7 +756,7 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
             |event| public_fsm_state_type(entity, event, options),
         );
         output.push_str(&format!(
-            "template <>\nclass FsmHandle<{entity_type}, {state_type}> final {{\n public:\n  FsmHandle(FsmHandle&&) = default;\n  FsmHandle& operator=(FsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n  DynamicFsmHandle<{entity_type}> into_dynamic() &&;\n"
+            "template <>\nclass FsmHandle<{entity_type}, {state_type}> final {{\n public:\n  FsmHandle(FsmHandle&&) = default;\n  FsmHandle& operator=(FsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n  DynamicFsmHandle<{entity_type}> into_dynamic() &&;\n"
         ));
         if let Some(state) = state {
             for transition in fsm
@@ -783,7 +783,7 @@ fn emit_fsm_handles(entity: &Entity, fsm: &Fsm, options: &Options, output: &mut 
     }
 
     output.push_str(&format!(
-        "template <>\nclass DynamicFsmHandle<{entity_type}> final {{\n public:\n  DynamicFsmHandle(DynamicFsmHandle&&) = default;\n  DynamicFsmHandle& operator=(DynamicFsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->uuid()); }}\n  template <typename State>\n  std::optional<FsmHandle<{entity_type}, State>> try_into() && {{\n    if (inner_->dynamic_state() != facade_detail::FsmStateIndex<{entity_type}, State>::value) {{\n      return std::nullopt;\n    }}\n    return facade_detail::HandleAccess::make<FsmHandle<{entity_type}, State>>(std::move(inner_));\n  }}\n"
+        "template <>\nclass DynamicFsmHandle<{entity_type}> final {{\n public:\n  DynamicFsmHandle(DynamicFsmHandle&&) = default;\n  DynamicFsmHandle& operator=(DynamicFsmHandle&&) = default;\n  ::{namespace}::{name}Id id() const {{ return ::{namespace}::{name}Id(inner_->id()); }}\n  template <typename State>\n  std::optional<FsmHandle<{entity_type}, State>> try_into() && {{\n    if (inner_->dynamic_state() != facade_detail::FsmStateIndex<{entity_type}, State>::value) {{\n      return std::nullopt;\n    }}\n    return facade_detail::HandleAccess::make<FsmHandle<{entity_type}, State>>(std::move(inner_));\n  }}\n"
     ));
     for event in entity.events() {
         let method = cxx_safe(&to_case(event.name(), Case::Snake));

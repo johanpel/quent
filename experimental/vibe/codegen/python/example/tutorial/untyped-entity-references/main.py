@@ -10,7 +10,7 @@ def main() -> None:
         worker.started()
 
         task = context.task_observer().handle()
-        task.started(source=worker.uuid)
+        task.started(source=worker.id)
         task.ended()
         worker.ended()
 

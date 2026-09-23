@@ -191,6 +191,8 @@ pub enum GenerateError {
         /// The schema type whose generated name conflicts.
         schema_path: Path,
     },
+    #[error("generated handle method `id` conflicts with an event on entity `{entity}`")]
+    HandleIdCollision { entity: Path },
     #[error("`collector_sink` requires serde generation")]
     CollectorSinkRequiresSerde,
     #[error("field type nesting exceeds the maximum depth of {max}")]
@@ -256,8 +258,9 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// Returns [`GenerateError`] if schema validation fails, a generated observer
 /// type conflicts with a schema type, a field type exceeds the supported
 /// nesting depth, an entity exceeds an instrumentation event or state limit,
-/// an FSM state conflicts with a generated handle method, a derive entry is not
-/// a parseable Rust path, or the generated code is not valid Rust.
+/// an FSM state conflicts with a generated handle method, an ordinary handle
+/// event is named `id`, a derive entry is not a parseable Rust path, or the
+/// generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     validate_schema(schema)?;
     generate_str_unvalidated(schema, opts)
