@@ -121,9 +121,11 @@ prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
 quent-collector-client = { path = "crates/collector/client" }
+quent-constraints = { path = "crates/constraints" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-events = { path = "crates/events" }
 quent-resource = { path = "crates/resource" }
+quent-schema = { path = "crates/schema" }
 rmp-serde = "1"
 rustc-hash = "2"
 serde = { version = "1.0.228", features = ["derive"] }

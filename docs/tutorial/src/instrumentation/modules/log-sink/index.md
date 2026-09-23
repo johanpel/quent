@@ -34,7 +34,7 @@ generated level method takes the message as an argument.
 
 The `target`, `file`, `line`, `module`, and `thread_name` fields in this example
 are arbitrary attributes. Because they are declared directly under
-`log.attributes`, they are added to every level.
+`logs.AppLog.attributes`, they are added to every level.
 
 Attributes under a level are also arbitrary, but are added only to that level.
 Here, `category` is added to `warning`, while `error_code` is added to `error`.
@@ -76,9 +76,9 @@ translate each log record into the matching generated method call.
     <label><input type="radio" name="qLogA" value="c"> As a separate entity</label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="a" data-explanation="Attributes directly under log.attributes are added to every generated level event.">
+  <fieldset data-answer="a" data-explanation="Attributes under logs.&lt;name&gt;.attributes are added to every generated level event.">
     <legend>Where do you declare an arbitrary attribute used by every level?</legend>
-    <label><input type="radio" name="qLogB" value="a"> Under <code>log.attributes</code></label>
+    <label><input type="radio" name="qLogB" value="a"> Under <code>logs.&lt;name&gt;.attributes</code></label>
     <label><input type="radio" name="qLogB" value="b"> Under one item in <code>levels</code></label>
     <label><input type="radio" name="qLogB" value="c"> As a new log entity</label>
     <p class="question-feedback"></p>
