@@ -63,7 +63,7 @@ translate each log record into the matching generated method call.
   </div>
   <div>
     <strong>Key point</strong>
-    <p>The entity identifies the sink. The event name identifies the level.</p>
+    <p>The entity identifies the sink. Each declared level identifies one log event.</p>
   </div>
 </div>
 
@@ -86,6 +86,41 @@ translate each log record into the matching generated method call.
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Advanced example
+
+A log sink can have events unrelated to the events produced from the level
+definitions. This can be useful to add other, arbitrary events (e.g.
+`initialized`) to the sink.
+
+Such events may even be required if you're also leveraging the [Reference Tree
+module](../reference-tree/index.md), because that module adds the rule that all
+entities (indirectly) refer to some root entity in the shape of a tree.
+
+Below is a typical example where a log sink is nested under an entity
+representing a process through the [Operating System
+module](../operating-system/index.md):
+
+```yaml
+entities:
+  CoolApp:
+    events:
+      started:
+        attributes:
+          process: { os: process }
+
+logs:
+  AppLog:
+    events:
+      initialized:
+        attributes:
+          process: { scope-ref: CoolApp }
+      flushed: {}
+    levels:
+      - name: info
+      - name: error
+      # etc.
+```
 
 ## Full code
 

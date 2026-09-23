@@ -12,7 +12,9 @@ use serde::Deserialize;
 use crate::ast::{self, AnnotationMap};
 use crate::diag::Diagnostics;
 use crate::extensions::{Elaborator, EventContext};
-use crate::lower::{annotations_builder, build_or_diagnose, event_fields, ident, type_decl_ident};
+use crate::lower::{
+    annotations_builder, build_or_diagnose, event_fields, event_of, ident, type_decl_ident,
+};
 
 /// A log sink: common attributes and ordered levels.
 #[derive(Debug, Deserialize)]
@@ -25,6 +27,8 @@ pub(crate) struct LogSpec {
     constraints: AnnotationMap,
     #[serde(default)]
     metadata: AnnotationMap,
+    #[serde(default)]
+    events: IndexMap<String, ast::Event>,
 
     // Log extension fields.
     #[serde(default)]
@@ -62,6 +66,20 @@ pub(crate) fn elaborate(
     );
     let annotations = build_or_diagnose(annotations.build(), &log_path, sink).unwrap_or_default();
     let event_context = EventContext::default();
+    let events = spec
+        .events
+        .iter()
+        .filter_map(|(event_name, event)| {
+            event_of(
+                event_name,
+                event,
+                &log_path,
+                &event_context,
+                extensions,
+                sink,
+            )
+        })
+        .collect::<Vec<_>>();
     let common = event_fields(
         &spec.attributes,
         &format!("{log_path}.attributes"),
@@ -106,6 +124,7 @@ pub(crate) fn elaborate(
 
     match LogEntityBuilder::new(id?)
         .with_annotations(annotations)
+        .with_events(events)
         .with_attributes(common)
         .with_levels(levels)
         .build()

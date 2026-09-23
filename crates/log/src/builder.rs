@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use quent_constraints::Constraint as _;
 use quent_schema::{
-    Annotations, Cardinality, DataType, Entity, Field, Identifier, Path,
+    Annotations, Cardinality, DataType, Entity, Event, Field, Identifier, Path,
     builder::{AnnotationsBuilder, BuilderError, EntityBuilder, EventBuilder},
 };
 use thiserror::Error;
@@ -22,10 +22,11 @@ pub struct LevelDecl {
     pub attributes: Vec<Field>,
 }
 
-/// Builds a log-sink entity with one repeatable event per level.
+/// Builds a log-sink entity with ordinary events and one repeatable event per level.
 pub struct LogEntityBuilder {
     path: Path,
     annotations: AnnotationsBuilder,
+    events: Vec<Event>,
     attributes: Vec<Field>,
     levels: Vec<LevelDecl>,
 }
@@ -36,6 +37,7 @@ impl LogEntityBuilder {
         Self {
             path: path.into(),
             annotations: AnnotationsBuilder::new(),
+            events: Vec::new(),
             attributes: Vec::new(),
             levels: Vec::new(),
         }
@@ -50,6 +52,18 @@ impl LogEntityBuilder {
     /// Add fields shared by every generated level event.
     pub fn with_attributes(mut self, attributes: impl IntoIterator<Item = Field>) -> Self {
         self.attributes.extend(attributes);
+        self
+    }
+
+    /// Add an ordinary event without log-level semantics.
+    pub fn with_event(mut self, event: Event) -> Self {
+        self.events.push(event);
+        self
+    }
+
+    /// Add ordinary events without log-level semantics.
+    pub fn with_events(mut self, events: impl IntoIterator<Item = Event>) -> Self {
+        self.events.extend(events);
         self
     }
 
@@ -75,6 +89,7 @@ impl LogEntityBuilder {
         let Self {
             path,
             mut annotations,
+            events,
             attributes,
             levels,
         } = self;
@@ -83,7 +98,7 @@ impl LogEntityBuilder {
             LogDefinition::new(levels.iter().map(|level| level.name.clone()).collect())?;
         validate_attributes(&attributes, &levels)?;
 
-        let mut entity = EntityBuilder::new(path);
+        let mut entity = EntityBuilder::new(path).with_events(events);
         for level in levels {
             let fields = implicit_fields()
                 .into_iter()

@@ -193,7 +193,7 @@ fn entity_of(
 }
 
 /// Lower one event, including extension-owned fields.
-fn event_of(
+pub(crate) fn event_of(
     name: &str,
     event: &ast::Event,
     entity_path: &str,

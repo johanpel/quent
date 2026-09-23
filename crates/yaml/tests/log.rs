@@ -219,11 +219,45 @@ logs:
 }
 
 #[test]
-fn log_declarations_cannot_contain_events() {
-    let errors = errors_of(
-        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    levels: [{ name: info }]\n    events: {}\n",
+fn initialization_event_can_attach_log_instance_to_os_process() {
+    let schema = schema_of(
+        "\
+quent: alpha
+model: m
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          process: { os: process }
+logs:
+  Log:
+    events:
+      initialized:
+        attributes:
+          process: { scope-ref: Process }
+    levels: [{ name: info }]
+",
     );
-    assert!(errors.contains("unknown field"), "{errors}");
+    let entity = schema.entity(&path("Log")).unwrap();
+    let initialized = entity.event(&ident("initialized")).unwrap();
+    assert_eq!(initialized.cardinality(), Cardinality::Once);
+    assert!(initialized.field(&ident("message")).is_none());
+    assert!(
+        LogDefinition::from_entity(entity)
+            .unwrap()
+            .unwrap()
+            .level(&ident("initialized"))
+            .is_none()
+    );
+}
+
+#[test]
+fn non_level_event_cannot_reuse_a_level_name() {
+    let errors = errors_of(
+        "quent: alpha\nmodel: m\nlogs:\n  Log:\n    events:\n      info: {}\n    levels: [{ name: info }]\n",
+    );
+    assert!(errors.contains("duplicate name \"info\""), "{errors}");
 }
 
 #[test]

@@ -3,11 +3,11 @@
 
 //! The Quent built-in log-sink constraint.
 //!
-//! A log sink is an entity whose events represent severity-ranked messages.
+//! A log sink is an entity with events representing severity-ranked messages.
 //! The entity path supplies the static scope, while each entity instance
 //! supplies runtime identity. Every declared level is represented by a
-//! repeatable event with a required `message: string` field. Additional fields
-//! are defined by the schema and have no log-specific meaning.
+//! repeatable event with a required `message: string` field. Additional events
+//! and fields are defined by the schema and have no log-specific meaning.
 //! Level names are copied verbatim to event names and must follow the
 //! [`Identifier`] grammar `[A-Za-z][A-Za-z0-9_]*`. No scope or runtime level
 //! attribute is generated; the entity and event identities provide them.
@@ -22,10 +22,11 @@
 //!
 //! 1. The ordered level list contains between one and 256 unique valid
 //!    [`Identifier`] values. A level's zero-based position is its `u8` rank.
-//! 2. Every level names an event, and every event is named by a level.
+//! 2. Every level names an event.
 //! 3. Every level event has [`Cardinality::Multi`].
 //! 4. Every level event contains `message: string`.
-//! 5. Additional event fields are allowed.
+//! 5. Additional events and event fields are allowed and have no log-specific
+//!    meaning.
 //! 6. The constraint appears only on the log-sink entity.
 
 use std::collections::HashSet;
@@ -248,10 +249,6 @@ fn check_entity(entity: &Entity, definition: &LogDefinition, errors: &mut Vec<Lo
     }
     for event in entity.events() {
         if !levels.contains(event.name()) {
-            errors.push(LogError::UnexpectedEvent {
-                entity: entity.path().clone(),
-                event: event.name().clone(),
-            });
             continue;
         }
         if event.cardinality() != Cardinality::Multi {
@@ -312,8 +309,6 @@ pub enum LogError {
     Misplaced { location: String },
     #[error("entity \"{entity}\" log: level \"{level}\" does not match any event")]
     MissingLevelEvent { entity: Path, level: Identifier },
-    #[error("entity \"{entity}\" log: event \"{event}\" is not a declared level")]
-    UnexpectedEvent { entity: Path, event: Identifier },
     #[error("entity \"{entity}\" log: event \"{event}\" must be repeatable, found {found:?}")]
     CardinalityMismatch {
         entity: Path,

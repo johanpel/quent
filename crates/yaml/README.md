@@ -310,8 +310,29 @@ logs:
 
 Only `message` has built-in meaning. Names such as `target`, `file`, `line`, and
 `module` are ordinary attributes. This example requires every call to provide
-them; another model may leave them out, rename them, or change their types. A
-log declaration contains only the events generated from its levels.
+them; another model may leave them out, rename them, or change their types.
+
+A log declaration may contain ordinary events when another constraint needs
+them. These events are not log levels and do not receive an implicit `message`
+attribute. For example, a one-time event can attach each log instance to a
+reference tree without repeating the parent reference on every message:
+
+```yaml
+entities:
+  Application:
+    events:
+      started: {}
+
+logs:
+  AppLog:
+    events:
+      initialized:
+        attributes:
+          application: { scope-ref: Application }
+    levels:
+      - name: info
+      - name: error
+```
 
 - [YAML model](examples/log-sink/model.yaml)
 - [Instrumentation API usage](examples/log-sink/src/main.rs)

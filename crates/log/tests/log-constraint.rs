@@ -147,23 +147,27 @@ fn level_limit_accepts_256_and_rejects_257() {
 }
 
 #[test]
-fn event_set_must_equal_level_set() {
+fn declared_levels_must_have_events() {
     let schema = schema(
-        vec![
-            event("info", Cardinality::Multi, required_fields()),
-            event("extra", Cardinality::Multi, required_fields()),
-        ],
+        vec![event("info", Cardinality::Multi, required_fields())],
         Some(raw_definition(&["info", "error"])),
     );
-    let errors = validate(&schema);
-    assert!(errors.iter().any(
-        |error| matches!(error, LogError::MissingLevelEvent { level, .. } if level == "error")
+    assert!(matches!(
+        validate(&schema).as_slice(),
+        [LogError::MissingLevelEvent { level, .. }] if level == "error"
     ));
-    assert!(
-        errors.iter().any(
-            |error| matches!(error, LogError::UnexpectedEvent { event, .. } if event == "extra")
-        )
+}
+
+#[test]
+fn non_level_events_are_allowed() {
+    let schema = schema(
+        vec![
+            event("initialized", Cardinality::Once, Vec::new()),
+            event("info", Cardinality::Multi, required_fields()),
+        ],
+        Some(raw_definition(&["info"])),
     );
+    assert!(validate(&schema).is_empty());
 }
 
 #[test]
