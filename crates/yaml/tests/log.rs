@@ -5,7 +5,7 @@
 //! event per ordered level.
 
 use quent_instrumentation_build::{Options, generate_str};
-use quent_log::{LogDefinition, SourceFields};
+use quent_log::LogDefinition;
 use quent_schema::test_utils::{ident, path};
 use quent_schema::{Cardinality, DataType, Schema};
 use quent_yaml::{Error, parse_from_str};
@@ -79,12 +79,11 @@ entities:
     metadata:
       owner: platform
     log:
-      target: true
-      source:
-        file: true
-        line: true
-        module: true
       attributes:
+        target: { option: string }
+        file: { option: string }
+        line: { option: u32 }
+        module: { option: string }
         thread_name: { option: string }
       levels:
         - name: trace
@@ -114,9 +113,6 @@ entities:
         Some("platform")
     );
 
-    let definition = LogDefinition::from_entity(entity).unwrap().unwrap();
-    assert!(definition.target_enabled());
-    assert_eq!(definition.source(), SourceFields::all());
     for event in entity.events() {
         for name in ["message", "target", "file", "line", "module", "thread_name"] {
             assert!(
@@ -147,7 +143,7 @@ entities:
 }
 
 #[test]
-fn source_true_enables_all_source_fields() {
+fn logging_context_uses_ordinary_attributes() {
     let schema = schema_of(
         "\
 quent: alpha
@@ -155,59 +151,23 @@ model: m
 entities:
   Log:
     log:
-      source: true
+      attributes:
+        target: u64
+        file: bool
+        line: string
+        module: dynamic
       levels: [{ name: info }]
 ",
     );
     let entity = schema.entity(&path("Log")).unwrap();
     let event = entity.event(&ident("info")).unwrap();
-    assert_eq!(
-        event.field(&ident("file")).unwrap().ty(),
-        &DataType::Option(Box::new(DataType::String))
-    );
-    assert_eq!(
-        event.field(&ident("line")).unwrap().ty(),
-        &DataType::Option(Box::new(DataType::U32))
-    );
-    assert_eq!(
-        event.field(&ident("module")).unwrap().ty(),
-        &DataType::Option(Box::new(DataType::String))
-    );
-}
-
-#[test]
-fn detailed_source_selects_fields_independently() {
-    let schema = schema_of(
-        "\
-quent: alpha
-model: m
-entities:
-  Log:
-    log:
-      source: { file: true, module: true }
-      levels: [{ name: info }]
-",
-    );
-    let entity = schema.entity(&path("Log")).unwrap();
-    let definition = LogDefinition::from_entity(entity).unwrap().unwrap();
-    assert_eq!(definition.source(), SourceFields::new(true, false, true));
-    let event = entity.event(&ident("info")).unwrap();
-    assert!(event.field(&ident("file")).is_some());
-    assert!(event.field(&ident("line")).is_none());
-    assert!(event.field(&ident("module")).is_some());
-}
-
-#[test]
-fn absent_and_false_source_generate_no_source_fields() {
-    for source in ["", "      source: false\n"] {
-        let schema = schema_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n{source}      levels: [{{ name: info }}]\n"
-        ));
-        let entity = schema.entity(&path("Log")).unwrap();
-        let event = entity.event(&ident("info")).unwrap();
-        for name in ["file", "line", "module"] {
-            assert!(event.field(&ident(name)).is_none());
-        }
+    for (name, ty) in [
+        ("target", DataType::U64),
+        ("file", DataType::Bool),
+        ("line", DataType::String),
+        ("module", DataType::DynamicRecord),
+    ] {
+        assert_eq!(event.field(&ident(name)).unwrap().ty(), &ty);
     }
 }
 
@@ -238,18 +198,10 @@ fn levels_must_be_nonempty_unique_valid_and_at_most_256() {
 
 #[test]
 fn user_attributes_cannot_collide_with_generated_fields() {
-    for body in [
-        "attributes: { message: string }",
-        "target: true\n      attributes: { target: string }",
-        "source: { file: true }\n      attributes: { file: string }",
-        "source: { line: true }\n      attributes: { line: u32 }",
-        "source: { module: true }\n      attributes: { module: string }",
-    ] {
-        let errors = errors_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      {body}\n      levels: [{{ name: info }}]\n"
-        ));
-        assert!(errors.contains("conflicts"), "{errors}");
-    }
+    let errors = errors_of(
+        "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      attributes: { message: string }\n      levels: [{ name: info }]\n",
+    );
+    assert!(errors.contains("conflicts"), "{errors}");
 }
 
 #[test]
@@ -281,11 +233,17 @@ fn events_and_log_are_mutually_exclusive_even_when_events_are_empty() {
 }
 
 #[test]
-fn log_and_source_must_use_supported_forms() {
-    for body in ["log:", "log: { source: null, levels: [{ name: info }] }"] {
-        let _ = errors_of(&format!(
-            "quent: alpha\nmodel: m\nentities:\n  Log:\n    {body}\n"
+fn log_must_use_supported_form() {
+    let _ = errors_of("quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n");
+}
+
+#[test]
+fn removed_context_shortcuts_are_rejected() {
+    for field in ["target: true", "source: true"] {
+        let errors = errors_of(&format!(
+            "quent: alpha\nmodel: m\nentities:\n  Log:\n    log:\n      {field}\n      levels: [{{ name: info }}]\n"
         ));
+        assert!(errors.contains("unknown field"), "{errors}");
     }
 }
 

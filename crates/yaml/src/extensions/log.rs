@@ -4,7 +4,7 @@
 //! Log-sink forms and their schema elaboration.
 
 use indexmap::IndexMap;
-use quent_log::{LevelDecl, LogEntityBuilder, SourceFields};
+use quent_log::{LevelDecl, LogEntityBuilder};
 use quent_schema::builder::AnnotationsBuilder;
 use quent_schema::{Annotations, Entity, Identifier};
 use serde::Deserialize;
@@ -45,37 +45,13 @@ impl<'de> Deserialize<'de> for EventMap {
     }
 }
 
-/// A log sink: standard fields, common attributes, and ordered levels.
+/// A log sink: common attributes and ordered levels.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct LogSpec {
     #[serde(default)]
-    target: bool,
-    #[serde(default, deserialize_with = "present")]
-    source: Option<LogSource>,
-    #[serde(default)]
     attributes: IndexMap<String, ast::Field>,
     levels: Vec<LogLevel>,
-}
-
-/// Source-field selection, either all fields or an independent selection.
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum LogSource {
-    All(bool),
-    Detailed(LogSourceFields),
-}
-
-/// Individually selected log source fields.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LogSourceFields {
-    #[serde(default)]
-    file: bool,
-    #[serde(default)]
-    line: bool,
-    #[serde(default)]
-    module: bool,
 }
 
 /// One log level and its event-specific additions.
@@ -100,13 +76,6 @@ pub(crate) fn elaborate(
     sink: &mut Diagnostics,
 ) -> Option<Entity> {
     let log_path = format!("{entity_path}.log");
-    let source = match &spec.source {
-        None | Some(LogSource::All(false)) => SourceFields::default(),
-        Some(LogSource::All(true)) => SourceFields::all(),
-        Some(LogSource::Detailed(source)) => {
-            SourceFields::new(source.file, source.line, source.module)
-        }
-    };
     let common = event_fields(
         &spec.attributes,
         &format!("{log_path}.attributes"),
@@ -151,8 +120,6 @@ pub(crate) fn elaborate(
 
     match LogEntityBuilder::new(id)
         .with_annotations(annotations)
-        .with_target(spec.target)
-        .with_source(source)
         .with_attributes(common)
         .with_levels(levels)
         .build()

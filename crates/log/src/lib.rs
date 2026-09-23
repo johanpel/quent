@@ -6,8 +6,8 @@
 //! A log sink is an entity whose events represent severity-ranked messages.
 //! The entity path supplies the static scope, while each entity instance
 //! supplies runtime identity. Every declared level is represented by a
-//! repeatable event with a required `message: string` field. Optional standard
-//! fields preserve facade-provided target and source information.
+//! repeatable event with a required `message: string` field. Additional fields
+//! are defined by the schema and have no log-specific meaning.
 //! Level names are copied verbatim to event names and must follow the
 //! [`Identifier`] grammar `[A-Za-z][A-Za-z0-9_]*`. No scope or runtime level
 //! attribute is generated; the entity and event identities provide them.
@@ -25,11 +25,8 @@
 //! 2. Every level names an event, and every event is named by a level.
 //! 3. Every level event has [`Cardinality::Multi`].
 //! 4. Every level event contains `message: string`.
-//! 5. When enabled, every level event contains `target: option<string>`.
-//! 6. Enabled source fields occur on every level event as `file:
-//!    option<string>`, `line: option<u32>`, and `module: option<string>`.
-//! 7. Additional event fields are allowed.
-//! 8. The constraint appears only on the log-sink entity.
+//! 5. Additional event fields are allowed.
+//! 6. The constraint appears only on the log-sink entity.
 
 use std::collections::HashSet;
 
@@ -48,62 +45,16 @@ pub use builder::{LevelDecl, LogEntityBuilder, LogEntityBuilderError};
 /// Maximum number of levels in one log definition.
 pub const MAX_LEVELS: usize = u8::MAX as usize + 1;
 
-/// Standard source attributes supported by a log sink.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SourceFields {
-    file: bool,
-    line: bool,
-    module: bool,
-}
-
-impl SourceFields {
-    /// Enable all supported source attributes.
-    pub const fn all() -> Self {
-        Self {
-            file: true,
-            line: true,
-            module: true,
-        }
-    }
-
-    /// Select individual source attributes.
-    pub const fn new(file: bool, line: bool, module: bool) -> Self {
-        Self { file, line, module }
-    }
-
-    /// Whether the optional `file` attribute is enabled.
-    pub const fn file(self) -> bool {
-        self.file
-    }
-
-    /// Whether the optional `line` attribute is enabled.
-    pub const fn line(self) -> bool {
-        self.line
-    }
-
-    /// Whether the optional `module` attribute is enabled.
-    pub const fn module(self) -> bool {
-        self.module
-    }
-}
-
 /// Definition carried by a log-sink entity's constraint annotation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct LogDefinition {
     levels: Vec<Identifier>,
-    target: bool,
-    source: SourceFields,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawLogDefinition {
     levels: Vec<String>,
-    #[serde(default)]
-    target: bool,
-    #[serde(default)]
-    source: SourceFields,
 }
 
 impl LogDefinition {
@@ -115,17 +66,9 @@ impl LogDefinition {
     /// # Errors
     ///
     /// Returns an error if levels are empty, repeated, or exceed 256 entries.
-    pub fn new(
-        levels: Vec<Identifier>,
-        target: bool,
-        source: SourceFields,
-    ) -> Result<Self, LogDefinitionError> {
+    pub fn new(levels: Vec<Identifier>) -> Result<Self, LogDefinitionError> {
         validate_levels(&levels)?;
-        Ok(Self {
-            levels,
-            target,
-            source,
-        })
+        Ok(Self { levels })
     }
 
     /// Decode the log definition on `entity`, or return `None` if it is not a
@@ -149,16 +92,6 @@ impl LogDefinition {
     /// Return the ranked level named `name`, if declared.
     pub fn level(&self, name: &Identifier) -> Option<RankedLevel<'_>> {
         self.levels().find(|level| level.name == name)
-    }
-
-    /// Whether the optional `target` attribute is enabled.
-    pub const fn target_enabled(&self) -> bool {
-        self.target
-    }
-
-    /// Return the enabled source attributes.
-    pub const fn source(&self) -> SourceFields {
-        self.source
     }
 
     /// Encode this definition as a constraint payload.
@@ -190,7 +123,7 @@ impl LogDefinition {
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Self::new(levels, raw.target, raw.source)
+        Self::new(levels)
     }
 }
 
@@ -329,23 +262,7 @@ fn check_entity(entity: &Entity, definition: &LogDefinition, errors: &mut Vec<Lo
             });
         }
         check_field(entity, event, "message", &DataType::String, errors);
-        if definition.target {
-            check_field(entity, event, "target", &optional(DataType::String), errors);
-        }
-        if definition.source.file {
-            check_field(entity, event, "file", &optional(DataType::String), errors);
-        }
-        if definition.source.line {
-            check_field(entity, event, "line", &optional(DataType::U32), errors);
-        }
-        if definition.source.module {
-            check_field(entity, event, "module", &optional(DataType::String), errors);
-        }
     }
-}
-
-fn optional(ty: DataType) -> DataType {
-    DataType::Option(Box::new(ty))
 }
 
 fn check_field(

@@ -5,12 +5,11 @@ entities:
   AppLog:
     doc: Application logging sink.
     log:
-      target: true
-      source:
-        file: true
-        line: true
-        module: true
       attributes:
+        target: { option: string }
+        file: { option: string }
+        line: { option: u32 }
+        module: { option: string }
         thread_name: { option: string }
       levels:
         - name: trace

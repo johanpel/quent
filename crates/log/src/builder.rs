@@ -10,7 +10,7 @@ use quent_schema::{
 };
 use thiserror::Error;
 
-use crate::{LogConstraint, LogDefinition, LogDefinitionError, SourceFields, check_entity};
+use crate::{LogConstraint, LogDefinition, LogDefinitionError, check_entity};
 
 /// One level used to build a log-sink entity.
 pub struct LevelDecl {
@@ -26,8 +26,6 @@ pub struct LevelDecl {
 pub struct LogEntityBuilder {
     path: Path,
     annotations: AnnotationsBuilder,
-    target: bool,
-    source: SourceFields,
     attributes: Vec<Field>,
     levels: Vec<LevelDecl>,
 }
@@ -38,8 +36,6 @@ impl LogEntityBuilder {
         Self {
             path: path.into(),
             annotations: AnnotationsBuilder::new(),
-            target: false,
-            source: SourceFields::default(),
             attributes: Vec::new(),
             levels: Vec::new(),
         }
@@ -48,18 +44,6 @@ impl LogEntityBuilder {
     /// Set entity annotations, preserving them alongside the log constraint.
     pub fn with_annotations(mut self, annotations: Annotations) -> Self {
         self.annotations = AnnotationsBuilder::from_annotations(&annotations);
-        self
-    }
-
-    /// Enable or disable the optional `target` field.
-    pub fn with_target(mut self, target: bool) -> Self {
-        self.target = target;
-        self
-    }
-
-    /// Select the optional source fields.
-    pub fn with_source(mut self, source: SourceFields) -> Self {
-        self.source = source;
         self
     }
 
@@ -91,22 +75,17 @@ impl LogEntityBuilder {
         let Self {
             path,
             mut annotations,
-            target,
-            source,
             attributes,
             levels,
         } = self;
 
-        let definition = LogDefinition::new(
-            levels.iter().map(|level| level.name.clone()).collect(),
-            target,
-            source,
-        )?;
-        validate_attributes(&attributes, &levels, target, source)?;
+        let definition =
+            LogDefinition::new(levels.iter().map(|level| level.name.clone()).collect())?;
+        validate_attributes(&attributes, &levels)?;
 
         let mut entity = EntityBuilder::new(path);
         for level in levels {
-            let fields = standard_fields(target, source)
+            let fields = implicit_fields()
                 .into_iter()
                 .chain(attributes.iter().cloned())
                 .chain(level.attributes);
@@ -133,10 +112,8 @@ impl LogEntityBuilder {
 fn validate_attributes(
     common: &[Field],
     levels: &[LevelDecl],
-    target: bool,
-    source: SourceFields,
 ) -> Result<(), LogEntityBuilderError> {
-    let implicit: HashSet<_> = standard_fields(target, source)
+    let implicit: HashSet<_> = implicit_fields()
         .into_iter()
         .map(|field| field.name().clone())
         .collect();
@@ -165,7 +142,7 @@ fn validate_attributes(
     Ok(())
 }
 
-fn standard_fields(target: bool, source: SourceFields) -> Vec<Field> {
+fn implicit_fields() -> Vec<Field> {
     let field = |name: &str, ty| {
         Field::new(
             Identifier::try_new(name).unwrap(),
@@ -173,21 +150,7 @@ fn standard_fields(target: bool, source: SourceFields) -> Vec<Field> {
             Annotations::default(),
         )
     };
-    let optional = |ty| DataType::Option(Box::new(ty));
-    let mut fields = vec![field("message", DataType::String)];
-    if target {
-        fields.push(field("target", optional(DataType::String)));
-    }
-    if source.file() {
-        fields.push(field("file", optional(DataType::String)));
-    }
-    if source.line() {
-        fields.push(field("line", optional(DataType::U32)));
-    }
-    if source.module() {
-        fields.push(field("module", optional(DataType::String)));
-    }
-    fields
+    vec![field("message", DataType::String)]
 }
 
 /// A problem that prevents building a valid log-sink entity.

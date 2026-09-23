@@ -289,16 +289,18 @@ entities:
 ```
 
 Common and level-specific attributes use the ordinary field syntax. A sink can
-also preserve facade-provided target and source information:
+use common attributes to preserve information supplied by a logging facade:
 
 ```yaml
 entities:
   AppLog:
     doc: Application logging sink.
     log:
-      target: true
-      source: true
       attributes:
+        target: { option: string }
+        file: { option: string }
+        line: { option: u32 }
+        module: { option: string }
         thread_name: { option: string }
       levels:
         - name: info
@@ -308,9 +310,9 @@ entities:
             error_code: { option: u32 }
 ```
 
-`source: true` enables the optional `file`, `line`, and `module` attributes.
-The mapping form selects them independently. `events:` and `log:` are mutually
-exclusive on the same entity.
+Only `message` has built-in meaning. Names such as `target`, `file`, `line`, and
+`module` are ordinary attributes; a model may omit, rename, or change their
+types. `events:` and `log:` are mutually exclusive on the same entity.
 
 - [YAML model](examples/log-sink/model.yaml)
 - [Instrumentation API usage](examples/log-sink/src/main.rs)

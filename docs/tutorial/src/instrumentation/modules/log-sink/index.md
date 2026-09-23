@@ -1,30 +1,50 @@
-# Log Sink
+# Log
 
-The Log Sink semantic module models an entity as a logging destination. Each
-declared level becomes a repeatable event with an implicit `message: string`
-attribute. The level's position in the declaration is its zero-based severity
-rank.
+Sometimes you just want to simply log something human-readable. The log module
+provides a simple way to declare an entity that behaves as a general purpose log
+sink. At run-time, an instance of this entity will typically be leveraged as a
+general-purpose logging API. It could also receive messages from an already
+existing logging API that supports different backends.
+
+The benefit is that those logs can follow the same export and analysis path as
+all other types of events, such that they can be correlated at analysis-time.
+For example, a UI could display them right alongside [resource utilization
+metrics](../resource/index.md).
 
 ## YAML model
+
+Set the `log:` key under an entity to make it a log sink. Each item under
+`levels` creates a repeatable event with the same name. Quent adds a
+`message: string` attribute to every level event. There is no separate level
+attribute: an `info` message is an `info` event, and an `error` message is an
+`error` event.
+
+The order of `levels` sets their ranks. The first level has rank 0, the next has
+rank 1, and so on.
 
 ```yaml
 {{#include ../../../../../../crates/yaml/examples/log-sink/model.yaml}}
 ```
 
-`AppLog` is the static logging scope, while each `AppLog` handle identifies one
-runtime sink instance. The `target` attribute preserves a facade-provided
-logical category. The source attributes preserve the file, line, and module of
-the call site.
+`AppLog` defines the levels and attributes supported by this kind of log sink.
+Each `AppLog` instance has its own runtime identity.
 
-`thread_name` is common to every level. `category` appears only on `warning`,
-and `error_code` appears only on `error`. Every generated level event also
-contains `message` and is repeatable.
+Quent adds a required `message: string` attribute to every level event, so each
+generated level method takes the message as an argument.
+
+The `target`, `file`, `line`, `module`, and `thread_name` fields in this example
+are arbitrary attributes. They can be omitted, renamed, or given different
+types. Because they are declared directly under `log.attributes`, they are added
+to every level.
+
+Attributes under a level are also arbitrary, but are added only to that level.
+Here, `category` is added to `warning`, while `error_code` is added to `error`.
 
 ## Instrumentation API
 
-The generated API exposes one method per declared level. This example calls it
-directly; a logging-facade adapter can supply the same arguments later without
-changing the schema contract.
+The generated API has one method for each level. This example calls `info` and
+`warning` directly. A backend for an existing logging API could instead
+translate each log record into the matching generated method call.
 
 ```rust
 {{#include ../../../../../../crates/yaml/examples/log-sink/src/main.rs}}
@@ -36,7 +56,7 @@ changing the schema contract.
   </div>
   <div>
     <strong>Key point</strong>
-    <p>The entity identifies the logging scope, and the event identifies the level.</p>
+    <p>The entity identifies the sink. The event name identifies the level.</p>
   </div>
 </div>
 
@@ -49,13 +69,21 @@ changing the schema contract.
     <label><input type="radio" name="qLogA" value="c"> As a separate entity</label>
     <p class="question-feedback"></p>
   </fieldset>
-  <fieldset data-answer="c" data-explanation="A separate log entity defines a separate static scope; target and module remain optional event data.">
-    <legend>How do you define a separate static logging scope?</legend>
-    <label><input type="radio" name="qLogB" value="a"> Emit a different <code>target</code></label>
-    <label><input type="radio" name="qLogB" value="b"> Enable <code>source.module</code></label>
-    <label><input type="radio" name="qLogB" value="c"> Declare another entity with a <code>log:</code> block</label>
+  <fieldset data-answer="a" data-explanation="Attributes directly under log.attributes are added to every generated level event.">
+    <legend>Where do you declare an arbitrary attribute used by every level?</legend>
+    <label><input type="radio" name="qLogB" value="a"> Under <code>log.attributes</code></label>
+    <label><input type="radio" name="qLogB" value="b"> Under one item in <code>levels</code></label>
+    <label><input type="radio" name="qLogB" value="c"> As a new log entity</label>
     <p class="question-feedback"></p>
   </fieldset>
   <button type="button" class="check-answers">Check answers</button>
   <p class="quiz-result" aria-live="polite"></p>
 </section>
+
+## Full code
+
+- [YAML model][yaml-model]
+- [Rust source][rust-source]
+
+[yaml-model]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/log-sink/model.yaml
+[rust-source]: https://github.com/rapidsai/quent/blob/main/crates/yaml/examples/log-sink/src/main.rs

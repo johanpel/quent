@@ -4,7 +4,7 @@
 use quent_constraints::Constraint as _;
 use quent_log::{
     LevelDecl, LogConstraint, LogDefinition, LogDefinitionError, LogEntityBuilder,
-    LogEntityBuilderError, LogError, MAX_LEVELS, SourceFields,
+    LogEntityBuilderError, LogError, MAX_LEVELS,
 };
 use quent_schema::{
     Annotations, Cardinality, DataType, Entity, Event, Field, Schema,
@@ -19,17 +19,8 @@ fn annotations(data: Option<String>) -> Annotations {
         .unwrap()
 }
 
-fn raw_definition(levels: &[&str], target: bool, source: SourceFields) -> String {
-    serde_json::json!({
-        "levels": levels,
-        "target": target,
-        "source": {
-            "file": source.file(),
-            "line": source.line(),
-            "module": source.module(),
-        },
-    })
-    .to_string()
+fn raw_definition(levels: &[&str]) -> String {
+    serde_json::json!({ "levels": levels }).to_string()
 }
 
 fn event(name: &str, cardinality: Cardinality, fields: Vec<Field>) -> Event {
@@ -39,22 +30,8 @@ fn event(name: &str, cardinality: Cardinality, fields: Vec<Field>) -> Event {
         .unwrap()
 }
 
-fn required_fields(target: bool, source: SourceFields) -> Vec<Field> {
-    let optional = |ty| DataType::Option(Box::new(ty));
-    let mut fields = vec![field("message", DataType::String)];
-    if target {
-        fields.push(field("target", optional(DataType::String)));
-    }
-    if source.file() {
-        fields.push(field("file", optional(DataType::String)));
-    }
-    if source.line() {
-        fields.push(field("line", optional(DataType::U32)));
-    }
-    if source.module() {
-        fields.push(field("module", optional(DataType::String)));
-    }
-    fields
+fn required_fields() -> Vec<Field> {
+    vec![field("message", DataType::String)]
 }
 
 fn schema(events: Vec<Event>, data: Option<String>) -> Schema {
@@ -83,12 +60,10 @@ fn validate(schema: &Schema) -> Vec<LogError> {
 #[test]
 fn builder_creates_ranked_repeatable_events() {
     let entity = LogEntityBuilder::new(path("AppLog"))
-        .with_target(true)
-        .with_source(SourceFields::all())
-        .with_attributes([field(
-            "thread_name",
-            DataType::Option(Box::new(DataType::String)),
-        )])
+        .with_attributes([
+            field("target", DataType::String),
+            field("thread_name", DataType::Option(Box::new(DataType::String))),
+        ])
         .with_levels(["trace", "debug", "info"].map(|name| LevelDecl {
             name: ident(name),
             annotations: Annotations::default(),
@@ -106,39 +81,43 @@ fn builder_creates_ranked_repeatable_events() {
         levels,
         [("trace".into(), 0), ("debug".into(), 1), ("info".into(), 2)]
     );
-    assert!(definition.target_enabled());
-    assert_eq!(definition.source(), SourceFields::all());
     for event in entity.events() {
         assert_eq!(event.cardinality(), Cardinality::Multi);
         assert_eq!(
             event.field(&ident("message")).unwrap().ty(),
             &DataType::String
         );
+        assert!(event.field(&ident("target")).is_some());
         assert!(event.field(&ident("thread_name")).is_some());
     }
 }
 
 #[test]
 fn one_level_and_additional_fields_are_valid() {
-    let mut fields = required_fields(false, SourceFields::default());
+    let mut fields = required_fields();
     fields.push(field("request_id", DataType::Uuid));
     let schema = schema(
         vec![event("info", Cardinality::Multi, fields)],
-        Some(raw_definition(&["info"], false, SourceFields::default())),
+        Some(raw_definition(&["info"])),
     );
     assert!(validate(&schema).is_empty());
 }
 
 #[test]
-fn all_standard_fields_are_valid() {
-    let source = SourceFields::all();
+fn logging_context_fields_are_ordinary_additional_fields() {
     let schema = schema(
         vec![event(
             "warning",
             Cardinality::Multi,
-            required_fields(true, source),
+            vec![
+                field("message", DataType::String),
+                field("target", DataType::U64),
+                field("file", DataType::Bool),
+                field("line", DataType::String),
+                field("module", DataType::DynamicRecord),
+            ],
         )],
-        Some(raw_definition(&["warning"], true, source)),
+        Some(raw_definition(&["warning"])),
     );
     assert!(validate(&schema).is_empty());
 }
@@ -152,33 +131,12 @@ fn malformed_level_definitions_are_rejected() {
             Some(r#"{"levels":["info"],"unknown":true}"#.to_string()),
             "unknown field",
         ),
-        (
-            Some(raw_definition(&[], false, SourceFields::default())),
-            "must not be empty",
-        ),
-        (
-            Some(raw_definition(
-                &["info", "info"],
-                false,
-                SourceFields::default(),
-            )),
-            "more than once",
-        ),
-        (
-            Some(raw_definition(
-                &["not-valid"],
-                false,
-                SourceFields::default(),
-            )),
-            "invalid name",
-        ),
+        (Some(raw_definition(&[])), "must not be empty"),
+        (Some(raw_definition(&["info", "info"])), "more than once"),
+        (Some(raw_definition(&["not-valid"])), "invalid name"),
     ] {
         let schema = schema(
-            vec![event(
-                "info",
-                Cardinality::Multi,
-                required_fields(false, SourceFields::default()),
-            )],
+            vec![event("info", Cardinality::Multi, required_fields())],
             data,
         );
         assert!(validate(&schema)[0].to_string().contains(expected));
@@ -190,11 +148,11 @@ fn level_limit_accepts_256_and_rejects_257() {
     let levels: Vec<_> = (0..MAX_LEVELS)
         .map(|rank| ident(&format!("level{rank}")))
         .collect();
-    assert!(LogDefinition::new(levels.clone(), false, SourceFields::default()).is_ok());
+    assert!(LogDefinition::new(levels.clone()).is_ok());
     let mut too_many = levels;
     too_many.push(ident("overflow"));
     assert!(matches!(
-        LogDefinition::new(too_many, false, SourceFields::default()),
+        LogDefinition::new(too_many),
         Err(LogDefinitionError::TooManyLevels { count: 257, .. })
     ));
 }
@@ -203,22 +161,10 @@ fn level_limit_accepts_256_and_rejects_257() {
 fn event_set_must_equal_level_set() {
     let schema = schema(
         vec![
-            event(
-                "info",
-                Cardinality::Multi,
-                required_fields(false, SourceFields::default()),
-            ),
-            event(
-                "extra",
-                Cardinality::Multi,
-                required_fields(false, SourceFields::default()),
-            ),
+            event("info", Cardinality::Multi, required_fields()),
+            event("extra", Cardinality::Multi, required_fields()),
         ],
-        Some(raw_definition(
-            &["info", "error"],
-            false,
-            SourceFields::default(),
-        )),
+        Some(raw_definition(&["info", "error"])),
     );
     let errors = validate(&schema);
     assert!(errors.iter().any(
@@ -234,12 +180,8 @@ fn event_set_must_equal_level_set() {
 #[test]
 fn level_events_must_be_repeatable() {
     let schema = schema(
-        vec![event(
-            "info",
-            Cardinality::Once,
-            required_fields(false, SourceFields::default()),
-        )],
-        Some(raw_definition(&["info"], false, SourceFields::default())),
+        vec![event("info", Cardinality::Once, required_fields())],
+        Some(raw_definition(&["info"])),
     );
     assert!(matches!(
         validate(&schema).as_slice(),
@@ -248,19 +190,17 @@ fn level_events_must_be_repeatable() {
 }
 
 #[test]
-fn required_standard_fields_must_exist_with_exact_types() {
-    let source = SourceFields::all();
+fn message_field_must_exist_with_exact_type() {
     let schema = schema(
-        vec![event(
-            "info",
-            Cardinality::Multi,
-            vec![
-                field("target", DataType::String),
-                field("file", DataType::Option(Box::new(DataType::String))),
-                field("line", DataType::Option(Box::new(DataType::U64))),
-            ],
-        )],
-        Some(raw_definition(&["info"], true, source)),
+        vec![
+            event("info", Cardinality::Multi, Vec::new()),
+            event(
+                "error",
+                Cardinality::Multi,
+                vec![field("message", DataType::U32)],
+            ),
+        ],
+        Some(raw_definition(&["info", "error"])),
     );
     let errors = validate(&schema);
     assert!(
@@ -269,16 +209,8 @@ fn required_standard_fields_must_exist_with_exact_types() {
         )
     );
     assert!(errors.iter().any(
-        |error| matches!(error, LogError::IncorrectFieldType { field, .. } if field == "target")
+        |error| matches!(error, LogError::IncorrectFieldType { field, .. } if field == "message")
     ));
-    assert!(errors.iter().any(
-        |error| matches!(error, LogError::IncorrectFieldType { field, .. } if field == "line")
-    ));
-    assert!(
-        errors.iter().any(
-            |error| matches!(error, LogError::MissingField { field, .. } if field == "module")
-        )
-    );
 }
 
 #[test]
@@ -313,11 +245,7 @@ fn builder_rejects_implicit_and_common_attribute_collisions() {
 fn misplaced_constraint_is_rejected() {
     let event = EventBuilder::new(ident("info"), Cardinality::Multi)
         .with_field(field("message", DataType::String))
-        .with_annotations(annotations(Some(raw_definition(
-            &["info"],
-            false,
-            SourceFields::default(),
-        ))))
+        .with_annotations(annotations(Some(raw_definition(&["info"]))))
         .build()
         .unwrap();
     let entity = EntityBuilder::new(path("AppLog"))
