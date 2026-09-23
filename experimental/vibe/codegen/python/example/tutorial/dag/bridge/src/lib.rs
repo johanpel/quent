@@ -5,3 +5,5 @@
 mod instrumentation {
     include!(concat!(env!("OUT_DIR"), "/instrumentation.rs"));
 }
+
+include!(concat!(env!("OUT_DIR"), "/pyo3_bridge.rs"));
