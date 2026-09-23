@@ -41,8 +41,18 @@
     saveThemePreference,
     type ThemePreference,
   } from './theme';
+  import badgerUrl from '../../../../../ui/public/logo.svg';
 
   type ModelSelectionId = ExampleModelId | 'loaded';
+
+  const buildDate = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(new Date(__QUENT_BUILD_INFO__.builtAt));
 
   const initialModel =
     yamlExampleModels.find(
@@ -345,6 +355,7 @@
 >
   {#if !graphExpanded}
     <header class="flex min-w-0 flex-wrap items-center gap-3">
+      <img class="h-8 w-8 shrink-0 opacity-70" src={badgerUrl} alt="Quent badger" />
       <h1 class="truncate text-xl font-semibold">
         Quent Schema Explorer
       </h1>
@@ -387,18 +398,34 @@
           Save
         </button>
       </div>
-      <label class="ml-auto flex shrink-0 items-center gap-2">
-        <span class="text-xs font-medium">Theme</span>
-        <select
-          class="select select-bordered select-sm w-28"
-          bind:value={themePreference}
-          aria-label="Color theme"
-        >
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-      </label>
+      <div class="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-3">
+        <div class="badge h-auto max-w-full flex-col items-start border-transparent bg-base-content/5 px-2 py-1 text-base-content/40">
+          {#if __QUENT_BUILD_INFO__.commit}
+            <span class="max-w-full break-all font-mono text-xs leading-none whitespace-normal">
+              Quent {__QUENT_BUILD_INFO__.commit}
+            </span>
+          {/if}
+          <time
+            class="text-xs leading-none"
+            datetime={__QUENT_BUILD_INFO__.builtAt}
+            title="Build time in your local timezone"
+          >
+            build timestamp: {buildDate}
+          </time>
+        </div>
+        <label class="flex shrink-0 items-center gap-2">
+          <span class="text-xs font-medium">Theme</span>
+          <select
+            class="select select-bordered select-sm w-28"
+            bind:value={themePreference}
+            aria-label="Color theme"
+          >
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+      </div>
     </header>
   {/if}
 

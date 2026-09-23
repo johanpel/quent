@@ -4,10 +4,31 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+
+const repositoryRoot = fileURLToPath(new URL('../../../..', import.meta.url));
+
+function quentCommit(): string | null {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
 
 export default defineConfig(({ command }) => ({
   base: process.env.SCHEMA_EXPLORER_BASE ?? '/',
+  define: {
+    __QUENT_BUILD_INFO__: JSON.stringify({
+      commit: quentCommit(),
+      builtAt: new Date().toISOString(),
+    }),
+  },
   cacheDir: fileURLToPath(
     new URL('../node_modules/.vite/schema-explorer', import.meta.url),
   ),

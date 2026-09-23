@@ -4,13 +4,11 @@
 
 set -eu
 
-rustc="$(rustup which --toolchain 1.97.0 rustc)"
-cargo="$(rustup which --toolchain 1.97.0 cargo)"
-
-RUSTC="$rustc" "$cargo" build \
+cargo build \
   --manifest-path ../yaml-wasm/Cargo.toml \
   --target wasm32-unknown-unknown \
-  --release
+  --release \
+  --locked
 wasm-bindgen \
   ../yaml-wasm/target/wasm32-unknown-unknown/release/quent_schema_explorer_yaml.wasm \
   --target web \

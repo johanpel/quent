@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "check": "svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
+    "dev": "pnpm wasm:build && vite",
+    "build": "pnpm wasm:build && vite build",
+    "check": "pnpm wasm:build && svelte-check --workspace ./src --tsconfig ../tsconfig.json --config ../vite.config.ts && tsc --noEmit",
     "lint": "eslint --config ../eslint.config.js \"src/**/*.ts\" vite.config.ts",
     "wasm:build": "sh scripts/build-yaml-wasm.sh",
-    "wasm:test": "node scripts/verify-yaml-wasm.mjs"
+    "wasm:test": "pnpm wasm:build && node scripts/verify-yaml-wasm.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",

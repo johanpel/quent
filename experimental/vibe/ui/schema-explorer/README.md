@@ -31,14 +31,16 @@ the page.
 ## YAML WebAssembly
 
 The editor parses YAML through a browser build of `quent-yaml`. Regenerate the
-checked-in bindings after changing that crate:
+local bindings after changing that crate:
 
 ```sh
-rustup target add wasm32-unknown-unknown --toolchain 1.97.0
-cargo install wasm-bindgen-cli --version 0.2.126 --locked
 pixi run --frozen pnpm --dir experimental/vibe/ui wasm:build
 pixi run --frozen pnpm --dir experimental/vibe/ui --filter @quent-experimental/schema-explorer wasm:test
 ```
+
+The generated bindings are ignored by Git. The explorer's dev, check, test,
+and build commands regenerate them from the current checkout using Pixi's
+Rust and `wasm-bindgen` tools.
 
 The browser export is implemented by the sibling `yaml-wasm` crate, which
 depends on `quent-yaml` without changing that crate.
