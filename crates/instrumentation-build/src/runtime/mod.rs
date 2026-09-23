@@ -165,30 +165,6 @@ mod tests {
     use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
     use quent_schema::test_utils::{entity, event, field, ident};
 
-    #[test]
-    fn rejects_event_named_like_handle_id() {
-        let schema = SchemaBuilder::try_new("Demo")
-            .unwrap()
-            .with_entity(entity("Task", [event("id", [])]))
-            .build()
-            .unwrap();
-
-        assert!(matches!(
-            crate::generate_str(&schema, &Options::default()),
-            Err(GenerateError::HandleIdCollision { .. })
-        ));
-        assert!(
-            crate::generate_str(
-                &schema,
-                &Options {
-                    instrumentation: false,
-                    ..Options::default()
-                }
-            )
-            .is_ok()
-        );
-    }
-
     fn fsm_state(name: &str, to: &[&str], initial: bool) -> StateDecl {
         StateDecl {
             name: ident(name),

@@ -255,12 +255,10 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 ///
 /// # Errors
 ///
-/// Returns [`GenerateError`] if schema validation fails, a generated observer
-/// type conflicts with a schema type, a field type exceeds the supported
-/// nesting depth, an entity exceeds an instrumentation event or state limit,
-/// an FSM state conflicts with a generated handle method, an ordinary handle
-/// event is named `id`, a derive entry is not a parseable Rust path, or the
-/// generated code is not valid Rust.
+/// Returns [`GenerateError`] if schema validation fails, generated names
+/// conflict, a field type exceeds the supported nesting depth, an entity
+/// exceeds an instrumentation event or state limit, a derive entry is not a
+/// parseable Rust path, or the generated code is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
     validate_schema(schema)?;
     generate_str_unvalidated(schema, opts)
@@ -539,7 +537,7 @@ mod path_tests {
     }
 
     #[test]
-    fn rejects_observer_type_collisions() {
+    fn rejects_generated_name_collisions() {
         let conflicting_path = path("Foo::FooObservers");
         let schema = SchemaBuilder::try_new("Demo")
             .unwrap()
@@ -555,6 +553,26 @@ mod path_tests {
                 schema_path,
             }) if generated == "FooObservers" && schema_path == conflicting_path
         ));
+
+        let schema = SchemaBuilder::try_new("Demo")
+            .unwrap()
+            .with_entity(entity("Task", [event("id", [])]))
+            .build()
+            .unwrap();
+        assert!(matches!(
+            generate_str(&schema, &Options::default()),
+            Err(GenerateError::HandleIdCollision { .. })
+        ));
+        assert!(
+            generate_str(
+                &schema,
+                &Options {
+                    instrumentation: false,
+                    ..Options::default()
+                }
+            )
+            .is_ok()
+        );
     }
 
     #[test]
