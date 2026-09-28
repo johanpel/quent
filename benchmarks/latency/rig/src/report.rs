@@ -4,12 +4,12 @@
 use std::path::PathBuf;
 
 use chrono::Local;
-use comfy_table::{Cell, CellAlignment, Table, presets::UTF8_FULL};
-use quent_latency_types::CaseResult as SharedCaseResult;
+use comfy_table::{Attribute, Cell, CellAlignment, Color, Table, presets::UTF8_FULL};
+use quent_latency_types::{CaseResult as SharedCaseResult, Implementation};
 use serde::Serialize;
 
 use crate::system::SystemProperties;
-use crate::{BenchResult, EventShape, Implementation, implementation_name};
+use crate::{BenchResult, EventShape};
 
 pub(crate) type CaseResult = SharedCaseResult<Implementation, String, EventShape>;
 
@@ -71,26 +71,27 @@ fn print_cases(cases: &[ReportedCase]) {
     if let Some(first) = cases.first() {
         let result = &first.result;
         let mut settings = Table::new();
+        settings.use_stderr();
         settings.load_style(UTF8_FULL);
-        settings.set_header(["Setting", "Value"]);
+        settings.set_header([header("Setting"), header("Value")]);
         settings.add_row(vec![
-            Cell::new("Measured batches"),
+            Cell::new("Measured batches").fg(Color::Cyan),
             Cell::new(result.num_batches),
         ]);
         settings.add_row(vec![
-            Cell::new("Batch size"),
+            Cell::new("Batch size").fg(Color::Cyan),
             Cell::new(format!("{} iterations/thread", result.batch_size)),
         ]);
         settings.add_row(vec![
-            Cell::new("Warmup batches"),
+            Cell::new("Warmup batches").fg(Color::Cyan),
             Cell::new(result.num_warmup_batches),
         ]);
         settings.add_row(vec![
-            Cell::new("Requested spin pause"),
+            Cell::new("Requested spin pause").fg(Color::Cyan),
             Cell::new(format!("{} µs", result.batch_pause_interval_us)),
         ]);
         settings.add_row(vec![
-            Cell::new("Preflight call"),
+            Cell::new("Preflight call").fg(Color::Cyan),
             Cell::new(if result.preflight_call {
                 "enabled"
             } else {
@@ -101,36 +102,64 @@ fn print_cases(cases: &[ReportedCase]) {
         eprintln!("{settings}");
     }
     let mut table = Table::new();
+    table.use_stderr();
     table.load_style(UTF8_FULL);
-    table.set_header([
-        "Implementation",
-        "Exporter",
-        "Event",
-        "Threads",
-        "Mean",
-        "SD",
-        "p50",
-        "p95",
-        "p99",
-    ]);
+    table.set_header(
+        [
+            "Implementation",
+            "Exporter",
+            "Event",
+            "Threads",
+            "Mean",
+            "SD",
+            "p50",
+            "p95",
+            "p99",
+        ]
+        .map(header),
+    );
     for case in cases {
         let result = &case.result;
         let stats = &case.batch_statistics;
-        table.add_row(vec![
-            Cell::new(implementation_name(result.implementation)),
+        let row = vec![
+            Cell::new(result.implementation.as_ref()),
             Cell::new(result.exporter.as_deref().unwrap_or("—")),
-            Cell::new(result.event_shape.map(EventShape::as_str).unwrap_or("—")),
+            Cell::new(
+                result
+                    .event_shape
+                    .as_ref()
+                    .map(|shape| shape.as_ref())
+                    .unwrap_or("—"),
+            ),
             Cell::new(result.threads).set_alignment(CellAlignment::Right),
             number(result.average_ns_per_iteration),
             number(stats.standard_deviation_ns_per_iteration),
             number(stats.p50_ns_per_iteration),
             number(stats.p95_ns_per_iteration),
             number(stats.p99_ns_per_iteration),
-        ]);
+        ];
+        table.add_row(
+            row.into_iter()
+                .map(|cell| cell.fg(implementation_color(result.implementation)))
+                .collect::<Vec<_>>(),
+        );
     }
     eprintln!();
     eprintln!("Batch averages (ns / single instrumentation call; empty loop: ns / iteration):");
     eprintln!("{table}");
+}
+
+fn header(label: &str) -> Cell {
+    Cell::new(label)
+        .fg(Color::Cyan)
+        .add_attribute(Attribute::Bold)
+}
+
+fn implementation_color(implementation: Implementation) -> Color {
+    match implementation {
+        Implementation::EmptyLoopRs => Color::Yellow,
+        Implementation::Quent => Color::Green,
+    }
 }
 
 fn number(value: f64) -> Cell {

@@ -6,7 +6,7 @@ use std::hint::black_box;
 
 use clap::Parser;
 use quent_latency_common::{BenchResult, WorkloadArgs, make_case_result, measure_threads};
-use quent_latency_types::CaseResult;
+use quent_latency_types::{CaseResult, Implementation};
 
 #[derive(Parser)]
 struct Args {
@@ -25,8 +25,13 @@ fn main() -> BenchResult<()> {
             Ok::<(), Infallible>(())
         },
     )?;
-    let result: CaseResult<&str, &str, &str> =
-        make_case_result("empty-loop-rs", None, None, args.workload, durations);
+    let result: CaseResult<Implementation, &str, &str> = make_case_result(
+        Implementation::EmptyLoopRs,
+        None,
+        None,
+        args.workload,
+        durations,
+    );
     println!("{}", serde_json::to_string(&result)?);
     Ok(())
 }

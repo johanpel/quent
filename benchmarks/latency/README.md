@@ -66,7 +66,7 @@ Payload values are prepared before the timed section.
 ## Layout
 
 - `rig/`: launches isolated processes and reports results.
-- `types/`: shared event shapes and JSON case fields.
+- `types/`: shared implementation IDs, event shapes, and JSON case fields.
 - `models/`: six shared YAML schemas for the `instr_call` event.
 - `implementations/rust/common/`: shared Rust implementation arguments, measurement loop, and result construction.
 - `implementations/rust/quent/`: generated Quent API calls.

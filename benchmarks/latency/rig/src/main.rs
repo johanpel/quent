@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
-use quent_latency_types::EventShape;
+use quent_latency_types::{EventShape, Implementation};
 use serde::{Deserialize, Serialize};
 
 use report::CaseResult;
@@ -33,13 +33,6 @@ impl Framework {
             Self::Quent => Language::Rust,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "kebab-case")]
-enum Implementation {
-    EmptyLoopRs,
-    Quent,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -171,14 +164,14 @@ fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResu
                 let mut command = Command::new(&executable);
                 command
                     .args(["--exporter", exporter.as_str()])
-                    .args(["--event-shape", event_shape.as_str()]);
+                    .args(["--event-shape", event_shape.as_ref()]);
                 shared.apply_workload(&mut command, *threads);
                 let output = command.output()?;
                 if !output.status.success() {
                     return Err(format!(
                         "quent / {} / {} / {} threads failed: {}",
                         exporter.as_str(),
-                        event_shape.as_str(),
+                        event_shape.as_ref(),
                         threads,
                         String::from_utf8_lossy(&output.stderr)
                     )
@@ -228,13 +221,6 @@ fn run_rust_empty_loop(shared: &SharedArgs) -> BenchResult<Vec<CaseResult>> {
         cases.push(result);
     }
     Ok(cases)
-}
-
-fn implementation_name(value: Implementation) -> &'static str {
-    match value {
-        Implementation::EmptyLoopRs => "empty-loop-rs",
-        Implementation::Quent => "quent",
-    }
 }
 
 fn validate_result(

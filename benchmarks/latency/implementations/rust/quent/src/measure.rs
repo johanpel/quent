@@ -8,7 +8,7 @@ use quent_instrumentation::{
     InstrumentedModel, Model, Noop, ObserverBuilder, ObserverProvider, build_info::ModelSource,
 };
 use quent_latency_common::{WorkloadArgs, make_case_result, measure_threads};
-use quent_latency_types::EventShape;
+use quent_latency_types::{EventShape, Implementation};
 
 use crate::models;
 use crate::verify;
@@ -79,7 +79,7 @@ pub fn run_case(
         )?,
     };
     Ok(make_case_result(
-        "quent",
+        Implementation::Quent,
         Some(exporter),
         Some(shape),
         workload,

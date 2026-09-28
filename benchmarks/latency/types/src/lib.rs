@@ -4,12 +4,22 @@
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
+/// Identifies the implementation that produced a benchmark result.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, strum::AsRefStr)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum Implementation {
+    EmptyLoopRs,
+    Quent,
+}
+
 /// Selects the explicit attributes of each benchmark event.
 ///
 /// Payload index `i` advances from zero across batches, including warmup batches;
 /// the optional preflight call uses `i = 0`.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum, strum::AsRefStr)]
 #[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
 pub enum EventShape {
     /// Adds no explicit attributes.
     Empty,
@@ -23,19 +33,6 @@ pub enum EventShape {
     LongString,
     /// Adds `small`, `large`, `short`, and `long` with the values of the four shapes above.
     All,
-}
-
-impl EventShape {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Empty => "empty",
-            Self::U8 => "u8",
-            Self::U64 => "u64",
-            Self::ShortString => "short-string",
-            Self::LongString => "long-string",
-            Self::All => "all",
-        }
-    }
 }
 
 /// Records the settings and measured batch durations of one child-process case.
