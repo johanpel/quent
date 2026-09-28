@@ -43,7 +43,7 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
         }
 
         impl #events_runtime::EntityMarker for #marker {
-            type Event = #event;
+            type Payload = #event;
         }
     }
 }
