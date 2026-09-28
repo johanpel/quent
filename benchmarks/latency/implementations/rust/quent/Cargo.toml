@@ -1,0 +1,19 @@
+[package]
+name = "quent-latency-rust-quent"
+version.workspace = true
+edition.workspace = true
+publish = false
+build = "build.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+quent-latency-common = { path = "../common" }
+quent-latency-types = { path = "../../../types" }
+quent-instrumentation = { path = "../../../../../crates/instrumentation", features = ["io-ndjson", "io-postcard"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile = "3"
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../../../../../crates/instrumentation-build" }
+quent-yaml = { path = "../../../../../crates/yaml" }
