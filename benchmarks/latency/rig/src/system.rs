@@ -15,35 +15,35 @@ use crate::BenchResult;
 #[derive(Serialize)]
 pub(crate) struct SystemProperties {
     /// Time of collection, in seconds since the Unix epoch.
-    captured_at_unix_seconds: u64,
+    pub(crate) captured_at_unix_seconds: u64,
     /// Operating system for which the rig was compiled.
-    os: &'static str,
+    pub(crate) os: &'static str,
     /// Operating system version reported by the host.
-    os_version: Option<String>,
+    pub(crate) os_version: Option<String>,
     /// Kernel version reported by the host.
-    kernel_version: Option<String>,
+    pub(crate) kernel_version: Option<String>,
     /// Architecture for which the rig was compiled.
-    architecture: &'static str,
+    pub(crate) architecture: &'static str,
     /// Brand of the first CPU reported by the host.
-    cpu_model: Option<String>,
+    pub(crate) cpu_model: Option<String>,
     /// Number of logical CPUs reported by the host.
-    logical_cpu_count: Option<usize>,
+    pub(crate) logical_cpu_count: Option<usize>,
     /// Number of physical CPU cores reported by the host.
-    physical_core_count: Option<usize>,
+    pub(crate) physical_core_count: Option<usize>,
     /// Parallelism available to this process, which may reflect resource limits.
-    available_cpu_count: Option<usize>,
+    pub(crate) available_cpu_count: Option<usize>,
     /// Total RAM reported by the host, in bytes.
-    total_memory_bytes: Option<u64>,
+    pub(crate) total_memory_bytes: Option<u64>,
     /// Output of `rustc --version` at collection time.
-    rustc_version: Option<String>,
+    pub(crate) rustc_version: Option<String>,
     /// Host triple reported by `rustc -vV` at collection time.
-    target_triple: Option<String>,
+    pub(crate) target_triple: Option<String>,
     /// Build profile used for Rust implementation binaries.
-    build_profile: Option<&'static str>,
+    pub(crate) build_profile: Option<&'static str>,
     /// Git commit at `HEAD` in the repository containing the rig.
-    git_commit: Option<String>,
+    pub(crate) git_commit: Option<String>,
     /// Whether Git reports tracked or untracked changes in that repository.
-    git_dirty: Option<bool>,
+    pub(crate) git_dirty: Option<bool>,
 }
 
 pub(crate) fn properties() -> BenchResult<SystemProperties> {

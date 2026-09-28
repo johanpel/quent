@@ -13,6 +13,42 @@ use crate::{BenchResult, EventShape};
 
 pub(crate) type CaseResult = SharedCaseResult<Implementation, String, EventShape>;
 
+pub(crate) fn print_system(system: &SystemProperties) {
+    let mut table = Table::new();
+    table.use_stderr();
+    table.load_style(UTF8_FULL);
+    table.set_header([header("Property"), header("Value")]);
+    for (property, value) in [
+        (
+            "Captured (Unix seconds)",
+            system.captured_at_unix_seconds.to_string(),
+        ),
+        ("OS", system.os.to_owned()),
+        ("OS version", available(system.os_version.as_deref())),
+        ("Kernel", available(system.kernel_version.as_deref())),
+        ("Architecture", system.architecture.to_owned()),
+        ("CPU model", available(system.cpu_model.as_deref())),
+        ("Logical CPUs", available(system.logical_cpu_count)),
+        ("Physical cores", available(system.physical_core_count)),
+        ("Available CPUs", available(system.available_cpu_count)),
+        ("RAM (bytes)", available(system.total_memory_bytes)),
+        ("Rust compiler", available(system.rustc_version.as_deref())),
+        ("Rust host", available(system.target_triple.as_deref())),
+        ("Build profile", available(system.build_profile)),
+        ("Git commit", available(system.git_commit.as_deref())),
+        ("Git dirty", available(system.git_dirty)),
+    ] {
+        table.add_row([Cell::new(property).fg(Color::Cyan), Cell::new(value)]);
+    }
+    eprintln!("System properties:");
+    eprintln!("{table}");
+    eprintln!();
+}
+
+fn available(value: Option<impl std::fmt::Display>) -> String {
+    value.map_or_else(|| "—".to_owned(), |value| value.to_string())
+}
+
 #[derive(Serialize)]
 struct Report {
     schema_version: u32,

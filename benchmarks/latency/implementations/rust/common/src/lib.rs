@@ -117,23 +117,34 @@ where
             if preflight_result.is_err() {
                 failed.store(true, Ordering::SeqCst);
             }
+            let batches = if preflight_result.is_ok() {
+                (0..total_batches)
+                    .map(|batch| {
+                        let offset = (batch as u64).wrapping_mul(config.batch_size);
+                        (0..config.batch_size)
+                            .map(|index| prepare(offset.wrapping_add(index)))
+                            .collect::<Vec<P>>()
+                    })
+                    .collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
             barrier.wait();
             preflight_result?;
             if failed.load(Ordering::SeqCst) {
                 return Ok(Vec::new());
             }
             let mut durations = Vec::with_capacity(config.num_batches);
-            for batch in 0..total_batches {
-                let offset = (batch as u64).wrapping_mul(config.batch_size);
-                let payloads: Vec<P> = (0..config.batch_size)
-                    .map(|index| prepare(offset.wrapping_add(index)))
-                    .collect();
+            for (batch, payloads) in batches.into_iter().enumerate() {
                 barrier.wait();
                 let start = (batch >= config.num_warmup_batches).then(Instant::now);
-                let batch_result = payloads
-                    .into_iter()
+                // Keep the batch buffer alive through the end timestamp.
+                let mut calls = payloads.into_iter();
+                let batch_result = calls
+                    .by_ref()
                     .try_for_each(|payload| emit(&handle, payload));
                 let elapsed = start.map(|start| start.elapsed().as_nanos());
+                drop(calls);
                 if batch_result.is_err() {
                     failed.store(true, Ordering::SeqCst);
                 }

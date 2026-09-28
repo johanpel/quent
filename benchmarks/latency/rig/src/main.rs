@@ -128,6 +128,8 @@ fn main() -> BenchResult<()> {
             "--num-batches, --batch-size, and every --threads value must be positive".into(),
         );
     }
+    let system = system::properties()?;
+    report::print_system(&system);
     let mut cases = Vec::new();
     if shared.empty_loop {
         let languages = shared
@@ -147,7 +149,7 @@ fn main() -> BenchResult<()> {
         }
     }
 
-    report::write(cases, system::properties()?, args.shared.output)
+    report::write(cases, system, args.shared.output)
 }
 
 fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResult>> {

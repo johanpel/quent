@@ -12,26 +12,30 @@ The rig builds implementations when needed and runs each case in a separate
 process. Cases run sequentially so their global resources do not overlap. It
 prints a summary table and writes a JSON report.
 
-| Argument               | Default                                                      | Meaning                                                                                                     |
-| ---------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `--frameworks`         | `quent`                                                      | Select emitting frameworks; accepts a comma-separated list.                                                |
-| `--empty-loop`         | Off                                                          | Add an empty-loop control for each language among the selected frameworks.                                  |
-| `--event-shape`        | `empty,u8,u64,short-string,long-string,all`                  | Select event payloads; accepts a comma-separated list. Controls do not emit events.                         |
-| `--threads`            | `1`                                                          | Concurrent instrumentation threads per case; accepts comma-separated positive counts.                       |
-| `--num-batches`        | `100`                                                        | Measured batches per thread.                                                                                |
-| `--batch-size`         | `20`                                                         | Calls or control iterations per thread in each batch, including warmup batches.                             |
-| `--num-warmup-batches` | `10`                                                         | Batches run before measurement.                                                                             |
-| `--batch-pause-us`     | `10`                                                         | Minimum per-thread busy wait between batches, in microseconds.                                              |
-| `--no-preflight-call`  | Off                                                          | Skip the one untimed call or control iteration per thread before batching.                                  |
-| `--output PATH`        | `target/quent-latency/results-YYYY-MM-DD-HH-MM-SS-pidN.json` | JSON report path; default timestamp uses local time.                                                        |
+| Argument               | Default          | Meaning                                                                                 |
+| ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
+| `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list.                                       |
+| `--empty-loop`         | Off              | Add a control for each selected language.                                               |
+| `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
+| `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
+| `--num-batches`        | `100`            | Measured batches per thread.                                                            |
+| `--batch-size`         | `20`             | Calls or control iterations per thread in each batch.                                   |
+| `--num-warmup-batches` | `10`             | Untimed batches before measurement.                                                     |
+| `--batch-pause-us`     | `10`             | Minimum per-thread busy wait between batches, in microseconds. Set to `0` for no pause. |
+| `--no-preflight-call`  | Off              | Skip one untimed call or control iteration per thread.                                  |
+| `--output PATH`        | Generated file   | JSON report path.                                                                       |
+
+The default report path is
+`target/quent-latency/results-YYYY-MM-DD-HH-MM-SS-pidN.json`, using
+local time.
 
 ### Framework-specific options
 
 #### Quent
 
-| Argument           | Default                        | Meaning                                            |
-| ------------------ | ------------------------------ | -------------------------------------------------- |
-| `--quent-exporter` | `noop,ndjson,msgpack,postcard` | Select exporters; accepts a comma-separated list.  |
+| Argument           | Default                        | Meaning                                       |
+| ------------------ | ------------------------------ | --------------------------------------------- |
+| `--quent-exporter` | `noop,ndjson,msgpack,postcard` | Select exporters from a comma-separated list. |
 
 Available `--quent-exporter` values:
 
@@ -43,67 +47,61 @@ Available `--quent-exporter` values:
 | `postcard` | Writes length-prefixed Postcard records to temporary files.    |
 
 Quent creates one context and observer pipeline per case, with one entity
-handle per thread. File exporters serialize and write during measurement;
-draining and event-count verification happen afterward. Counts include warmup
+handle per thread. File exporters serialize and write during measurement.
+Draining and event-count verification happen afterward. Counts include warmup
 and preflight calls. The no-op path may drop prepared strings during timing.
 
 ### Event shapes
 
-Each instrumentation iteration emits one event. The shapes specify its explicit
-attributes; an implementation may also supply implicit metadata. Quent emits
-`instr_call` and adds a timestamp and the entity handle's UUID, including for
-`empty`.
+Each call emits one event with the selected explicit attributes. Quent's
+`instr_call` also contains a timestamp and entity UUID, including for `empty`.
+Payloads are prepared outside timing.
 
-Let `i = (batch number * batch size + position in batch) mod 2^64`, starting at
-zero. Warmup batches advance `i`; each thread uses the same sequence. The
-preflight call uses `i = 0`. Payload values are prepared outside timing.
-
-| Shape          | Explicit attributes                                        | Values                                                                              |
-| -------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `empty`        | None                                                       | No explicit payload.                                                                |
-| `u8`           | `value: u8`                                                | `i mod 256`.                                                                        |
-| `u64`          | `value: u64`                                               | `i`.                                                                                |
-| `short-string` | `value: string`                                            | `"s"` repeated `8 + (i mod 9)` times (8-16 bytes).                                  |
-| `long-string`  | `value: string`                                            | `"l"` repeated `128 + (i mod 129)` times (128-256 bytes).                           |
-| `all`          | `small: u8`, `large: u64`, `short: string`, `long: string` | `small = i mod 256`; `large = i`; `short` and `long` use the string formulas above. |
+| Shape          | Explicit attributes                                                       |
+| -------------- | ------------------------------------------------------------------------- |
+| `empty`        | None                                                                      |
+| `u8`           | `value: u8`                                                               |
+| `u64`          | `value: u64`                                                              |
+| `short-string` | `value: string` (8-16 bytes)                                              |
+| `long-string`  | `value: string` (128-256 bytes)                                           |
+| `all`          | `small: u8`, `large: u64`, `short: string`, `long: string` (same lengths) |
 
 ## Measurement
 
-Each thread makes one untimed preflight call by default. Threads meet at a
-barrier before each batch. Two clock reads bracket the calls in each measured
-batch; warmup batches, payload preparation, and pauses are outside timing.
-After a batch, each thread busy-waits for at least `--batch-pause-us` before
-preparing the next batch. Preparation and synchronization can lengthen the gap.
+The latency benchmark groups instrumentation calls into batches and reports an
+average per call for each batch. Instrumentation calls can cost about as much
+as, or less than, reading a monotonic clock. Timing each call separately would
+add clock overhead comparable to the call itself, so each pair of clock reads is
+spread across `--batch-size` calls.
 
-The reported mean is `sum(thread_batch_elapsed_ns) / (threads * num_batches *
-batch_size)`: nanoseconds per instrumentation call, or per control iteration.
-The table also shows sample standard deviation and nearest-rank p50/p95/p99 of
-batch averages across threads. JSON retains these statistics, per-thread batch
-durations, and system properties. Standard deviation is zero for one measured
-batch.
+The benchmark simulates time spent on other CPU work between instrumentation
+bursts by having each thread busy-wait for `--batch-pause-us`. A pause of `0`
+runs batches without a requested delay.
 
-### Interpreting the result
+The measurement proceeds as follows across all implementations / languages:
 
-A batch average is not an individual-call latency. Two clock reads are spread
-across each batch, but loop and payload-handling costs remain in the result.
-The empty-loop control uses the same iteration count and thread timing method,
-with `black_box(())` per iteration. Its code generation can differ from an
-emitter's loop, so its result is not subtracted. Batch variation does not
-identify the variation or cause of individual calls.
+1. Each thread makes one untimed preflight call by default so any potential lazy
+   first-call setup overhead stays outside measurements.
+2. Each thread prepares all batch payloads before the first batch barrier.
+   Threads meet at a barrier before every batch.
+3. Each thread runs `--num-warmup-batches` batches without recording time, to
+   exercise the call path before measurement.
+4. For each measured batch, every thread reads a monotonic clock, makes
+   `--batch-size` calls, then reads the clock again.
+5. Threads meet at another barrier, then busy-wait for at least
+   `--batch-pause-us` before the next batch when the pause is nonzero.
 
-## Layout
+The benchmark reports `sum(thread_batch_elapsed_ns) / (threads * num_batches *
+batch_size)` in nanoseconds per call, plus sample standard deviation and
+nearest-rank p50/p95/p99 of batch averages.
 
-- `rig/`: case selection, process isolation, and reporting.
-- `types/`: shared result fields and event shapes.
-- `models/`: schemas for the `instr_call` event.
-- `implementations/<language>/`: implementation executables and shared language
-  code.
-- `plots/`: report consumers.
+### Clock sources
 
-## Other frameworks of interest
-
-Rust: `tracing`, `log`, `slog`, and
-[`ticklog`](https://github.com/tensorbinge/ticklog).
+- **Rust:** `std::time::Instant::now()` starts each measured batch and
+  `Instant::elapsed()` ends it. On Linux, `Instant` currently uses
+  `clock_gettime(CLOCK_MONOTONIC)`. On macOS, it uses
+  `clock_gettime(CLOCK_UPTIME_RAW)`. See the
+  [Rust documentation](https://doc.rust-lang.org/std/time/struct.Instant.html).
 
 ## Why a custom rig?
 
