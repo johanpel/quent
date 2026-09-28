@@ -16,13 +16,13 @@ use crate::BenchResult;
 pub(crate) struct SystemProperties {
     /// Time of collection, in seconds since the Unix epoch.
     pub(crate) captured_at_unix_seconds: u64,
-    /// Operating system for which the rig was compiled.
+    /// Operating system for which `quent-bench` was compiled.
     pub(crate) os: &'static str,
     /// Operating system version reported by the host.
     pub(crate) os_version: Option<String>,
     /// Kernel version reported by the host.
     pub(crate) kernel_version: Option<String>,
-    /// Architecture for which the rig was compiled.
+    /// Architecture for which `quent-bench` was compiled.
     pub(crate) architecture: &'static str,
     /// Brand of the first CPU reported by the host.
     pub(crate) cpu_model: Option<String>,
@@ -40,7 +40,7 @@ pub(crate) struct SystemProperties {
     pub(crate) target_triple: Option<String>,
     /// Build profile used for Rust implementation binaries.
     pub(crate) build_profile: Option<&'static str>,
-    /// Git commit at `HEAD` in the repository containing the rig.
+    /// Git commit at `HEAD` in the repository containing `quent-bench`.
     pub(crate) git_commit: Option<String>,
     /// Whether Git reports tracked or untracked changes in that repository.
     pub(crate) git_dirty: Option<bool>,

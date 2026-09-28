@@ -1,4 +1,6 @@
-# Instrumentation latency benchmarks
+# `quent-bench`
+
+`quent-bench` measures instrumentation latency.
 
 ## Run
 
@@ -8,13 +10,13 @@ From the repository root:
 pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop --threads 1,2,4 --num-batches 100 --batch-size 20 --num-warmup-batches 10 --batch-pause-us 10
 ```
 
-The rig builds implementations when needed and runs each case in a separate
-process. Cases run sequentially so their global resources do not overlap. It
-prints a summary table and writes a JSON report.
+`quent-bench` builds implementations when needed and runs each case in a
+separate process. Cases run sequentially so their global resources do not
+overlap. It prints a summary table and writes a JSON report.
 
 | Argument               | Default          | Meaning                                                                                 |
 | ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
-| `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list.                                       |
+| `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list. Other frameworks are WIP.             |
 | `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                              |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
 | `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
@@ -95,10 +97,10 @@ The benchmark reports `sum(thread_batch_elapsed_ns) / (threads * num_batches *
 batch_size)` in nanoseconds per call, plus sample standard deviation and
 nearest-rank p50/p95/p99 of batch averages.
 
-With `--empty-loop`, the rig times empty-loop iterations using the same batch
-schedule. This gives a rough indication of loop and timing overhead. Compilers
-may optimize an instrumentation loop differently, so the empty-loop result is
-not subtracted from event measurements.
+With `--empty-loop`, `quent-bench` times empty-loop iterations using the same
+batch schedule. This gives a rough indication of loop and timing overhead.
+Compilers may optimize an instrumentation loop differently, so the empty-loop
+result is not subtracted from event measurements.
 
 ### Clock sources
 
@@ -108,8 +110,8 @@ not subtracted from event measurements.
   `clock_gettime(CLOCK_UPTIME_RAW)`. See the
   [Rust documentation](https://doc.rust-lang.org/std/time/struct.Instant.html).
 
-## Why a custom rig?
+## Why `quent-bench`?
 
-The rig applies the same measurement protocol across languages. Matching that
-protocol with separate frameworks such as Criterion, Google Benchmark, and
+`quent-bench` applies the same measurement protocol across languages. Matching
+that protocol with separate frameworks such as Criterion, Google Benchmark, and
 pyperf would be harder.
