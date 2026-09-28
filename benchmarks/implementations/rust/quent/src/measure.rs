@@ -3,12 +3,12 @@
 
 use std::path::Path;
 
+use quent_bench_rust_common::{WorkloadArgs, make_case_result, measure_threads};
+use quent_bench_types::{EventShape, Implementation};
 use quent_instrumentation::{
     Context, ExporterOptions, FileSystemExporterOptions, HandleError, InstrumentedEntity,
     InstrumentedModel, Model, Noop, ObserverBuilder, ObserverProvider, build_info::ModelSource,
 };
-use quent_latency_common::{WorkloadArgs, make_case_result, measure_threads};
-use quent_latency_types::{EventShape, Implementation};
 
 use crate::models;
 use crate::verify;

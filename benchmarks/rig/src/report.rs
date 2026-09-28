@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use chrono::Local;
 use comfy_table::{Attribute, Cell, CellAlignment, Color, Table, presets::UTF8_FULL};
-use quent_latency_types::{CaseResult as SharedCaseResult, Implementation};
+use quent_bench_types::{CaseResult as SharedCaseResult, Implementation};
 use serde::Serialize;
 
 use crate::system::SystemProperties;
@@ -241,7 +241,7 @@ fn default_output() -> PathBuf {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S");
     let root = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../target"));
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"));
     root.join("quent-latency").join(format!(
         "results-{timestamp}-pid{}.json",
         std::process::id()

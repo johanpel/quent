@@ -48,13 +48,13 @@ pub struct CaseResult<I, E, S> {
     pub threads: usize,
     /// Number of batches retained in the measurements.
     pub num_batches: usize,
-    /// Number of calls or control iterations per thread in each batch.
+    /// Number of calls or empty-loop iterations per thread in each batch.
     pub batch_size: u64,
     /// Number of initial batches excluded from the measurements.
     pub num_warmup_batches: usize,
     /// Minimum requested pause between batches, in microseconds.
     pub batch_pause_interval_us: u64,
-    /// Whether each thread made one untimed call or control iteration before batching.
+    /// Whether each thread made one untimed call or empty-loop iteration before batching.
     pub preflight_call: bool,
     /// Process ID of the child that measured this case.
     pub child_pid: u32,

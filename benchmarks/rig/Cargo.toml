@@ -8,7 +8,7 @@ publish = false
 chrono = "0.4.45"
 clap = { version = "4.5", features = ["derive"] }
 comfy-table = "8.0.1"
-quent-latency-types = { path = "../types" }
+quent-bench-types = { path = "../types" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }

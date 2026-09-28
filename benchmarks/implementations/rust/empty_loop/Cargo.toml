@@ -1,11 +1,11 @@
 [package]
-name = "quent-latency-rust-empty-loop"
+name = "quent-bench-rust-empty-loop"
 version.workspace = true
 edition.workspace = true
 publish = false
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-quent-latency-common = { path = "../common" }
-quent-latency-types = { path = "../../../types" }
+quent-bench-rust-common = { path = "../common" }
+quent-bench-types = { path = "../../../types" }
 serde_json.workspace = true

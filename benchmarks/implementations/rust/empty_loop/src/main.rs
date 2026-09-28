@@ -5,8 +5,8 @@ use std::convert::Infallible;
 use std::hint::black_box;
 
 use clap::Parser;
-use quent_latency_common::{BenchResult, WorkloadArgs, make_case_result, measure_threads};
-use quent_latency_types::{CaseResult, Implementation};
+use quent_bench_rust_common::{BenchResult, WorkloadArgs, make_case_result, measure_threads};
+use quent_bench_types::{CaseResult, Implementation};
 
 #[derive(Parser)]
 struct Args {

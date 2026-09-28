@@ -6,9 +6,9 @@ mod models;
 mod verify;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
+use quent_bench_rust_common::{BenchResult, WorkloadArgs};
+use quent_bench_types::{CaseResult as SharedCaseResult, EventShape, Implementation};
 use quent_instrumentation::FileSystemFormat;
-use quent_latency_common::{BenchResult, WorkloadArgs};
-use quent_latency_types::{CaseResult as SharedCaseResult, EventShape, Implementation};
 use serde::Serialize;
 
 type CaseResult = SharedCaseResult<Implementation, Exporter, EventShape>;

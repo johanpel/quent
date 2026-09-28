@@ -15,14 +15,14 @@ prints a summary table and writes a JSON report.
 | Argument               | Default          | Meaning                                                                                 |
 | ---------------------- | ---------------- | --------------------------------------------------------------------------------------- |
 | `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list.                                       |
-| `--empty-loop`         | Off              | Add a control for each selected language.                                               |
+| `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                              |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
 | `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
 | `--num-batches`        | `100`            | Measured batches per thread.                                                            |
-| `--batch-size`         | `20`             | Calls or control iterations per thread in each batch.                                   |
+| `--batch-size`         | `20`             | Calls or empty-loop iterations per thread in each batch.                               |
 | `--num-warmup-batches` | `10`             | Untimed batches before measurement.                                                     |
 | `--batch-pause-us`     | `10`             | Minimum per-thread busy wait between batches, in microseconds. Set to `0` for no pause. |
-| `--no-preflight-call`  | Off              | Skip one untimed call or control iteration per thread.                                  |
+| `--no-preflight-call`  | Off              | Skip one untimed call or empty-loop iteration per thread.                              |
 | `--output PATH`        | Generated file   | JSON report path.                                                                       |
 
 The default report path is
@@ -94,6 +94,11 @@ The measurement proceeds as follows across all implementations / languages:
 The benchmark reports `sum(thread_batch_elapsed_ns) / (threads * num_batches *
 batch_size)` in nanoseconds per call, plus sample standard deviation and
 nearest-rank p50/p95/p99 of batch averages.
+
+With `--empty-loop`, the rig times empty-loop iterations using the same batch
+schedule. This gives a rough indication of loop and timing overhead. Compilers
+may optimize an instrumentation loop differently, so the empty-loop result is
+not subtracted from event measurements.
 
 ### Clock sources
 

@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
-use quent_latency_types::{EventShape, Implementation};
+use quent_bench_types::{EventShape, Implementation};
 use serde::{Deserialize, Serialize};
 
 use report::CaseResult;
@@ -153,7 +153,7 @@ fn main() -> BenchResult<()> {
 }
 
 fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-latency-rust-quent")?;
+    let executable = rust_binary("quent-bench-rust-quent")?;
     let mut cases = Vec::new();
     for exporter in &quent.exporter {
         for event_shape in &shared.event_shape {
@@ -192,7 +192,7 @@ fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResu
 }
 
 fn run_rust_empty_loop(shared: &SharedArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-latency-rust-empty-loop")?;
+    let executable = rust_binary("quent-bench-rust-empty-loop")?;
     let mut cases = Vec::with_capacity(shared.threads.len());
     for threads in &shared.threads {
         let mut command = Command::new(&executable);

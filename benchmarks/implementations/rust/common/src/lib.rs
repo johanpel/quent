@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Args;
-use quent_latency_types::CaseResult;
+use quent_bench_types::CaseResult;
 use std::error::Error;
 use std::num::{NonZeroU64, NonZeroUsize};
 use std::sync::{

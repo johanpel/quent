@@ -2762,10 +2762,52 @@ dependencies = [
  "chrono",
  "clap",
  "comfy-table",
- "quent-latency-types",
+ "quent-bench-types",
  "serde",
  "serde_json",
  "sysinfo",
+]
+
+[[package]]
+name = "quent-bench-rust-common"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-bench-types",
+]
+
+[[package]]
+name = "quent-bench-rust-empty-loop"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-bench-rust-common",
+ "quent-bench-types",
+ "serde_json",
+]
+
+[[package]]
+name = "quent-bench-rust-quent"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "quent-bench-rust-common",
+ "quent-bench-types",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-yaml",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "quent-bench-types"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "serde",
+ "strum",
 ]
 
 [[package]]
@@ -3010,48 +3052,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "quent-latency-common"
-version = "0.1.0"
-dependencies = [
- "clap",
- "quent-latency-types",
-]
-
-[[package]]
-name = "quent-latency-rust-empty-loop"
-version = "0.1.0"
-dependencies = [
- "clap",
- "quent-latency-common",
- "quent-latency-types",
- "serde_json",
-]
-
-[[package]]
-name = "quent-latency-rust-quent"
-version = "0.1.0"
-dependencies = [
- "clap",
- "quent-instrumentation",
- "quent-instrumentation-build",
- "quent-latency-common",
- "quent-latency-types",
- "quent-yaml",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
-name = "quent-latency-types"
-version = "0.1.0"
-dependencies = [
- "clap",
- "serde",
- "strum",
 ]
 
 [[package]]

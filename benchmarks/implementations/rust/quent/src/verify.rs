@@ -7,7 +7,7 @@ use std::path::Path;
 
 use quent_instrumentation::Uuid;
 
-use quent_latency_common::BatchConfig;
+use quent_bench_rust_common::BatchConfig;
 
 use crate::{BenchResult, Exporter};
 
