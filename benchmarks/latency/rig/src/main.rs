@@ -5,7 +5,7 @@ mod report;
 mod system;
 
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
@@ -39,6 +39,7 @@ impl Framework {
 enum QuentExporter {
     Noop,
     Ndjson,
+    Msgpack,
     Postcard,
 }
 
@@ -47,6 +48,7 @@ impl QuentExporter {
         match self {
             Self::Noop => "noop",
             Self::Ndjson => "ndjson",
+            Self::Msgpack => "msgpack",
             Self::Postcard => "postcard",
         }
     }
@@ -113,11 +115,9 @@ struct QuentArgs {
         long = "quent-exporter",
         value_enum,
         value_delimiter = ',',
-        default_value = "noop,ndjson,postcard"
+        default_value = "noop,ndjson,msgpack,postcard"
     )]
     exporter: Vec<QuentExporter>,
-    #[arg(long = "quent-binary")]
-    binary: Option<PathBuf>,
 }
 
 fn main() -> BenchResult<()> {
@@ -129,7 +129,6 @@ fn main() -> BenchResult<()> {
         );
     }
     let mut cases = Vec::new();
-    let automatic_build = args.quent.binary.is_none() || shared.empty_loop;
     if shared.empty_loop {
         let languages = shared
             .frameworks
@@ -148,15 +147,11 @@ fn main() -> BenchResult<()> {
         }
     }
 
-    report::write(
-        cases,
-        system::properties(automatic_build)?,
-        args.shared.output,
-    )
+    report::write(cases, system::properties()?, args.shared.output)
 }
 
 fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-latency-rust-quent", quent.binary.as_deref())?;
+    let executable = rust_binary("quent-latency-rust-quent")?;
     let mut cases = Vec::new();
     for exporter in &quent.exporter {
         for event_shape in &shared.event_shape {
@@ -195,7 +190,7 @@ fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResu
 }
 
 fn run_rust_empty_loop(shared: &SharedArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-latency-rust-empty-loop", None)?;
+    let executable = rust_binary("quent-latency-rust-empty-loop")?;
     let mut cases = Vec::with_capacity(shared.threads.len());
     for threads in &shared.threads {
         let mut command = Command::new(&executable);
@@ -253,10 +248,7 @@ fn validate_result(
     Ok(())
 }
 
-fn rust_binary(package: &str, override_path: Option<&Path>) -> BenchResult<PathBuf> {
-    if let Some(path) = override_path {
-        return Ok(path.canonicalize()?);
-    }
+fn rust_binary(package: &str) -> BenchResult<PathBuf> {
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args([
             "build",

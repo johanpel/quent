@@ -22,7 +22,8 @@ pub fn exported_events(
     let (extension, count_file): (&str, fn(File) -> BenchResult<u64>) = match exporter {
         Exporter::Noop => return Ok(()),
         Exporter::Ndjson => ("ndjson", count_ndjson_records),
-        Exporter::Postcard => ("postcard", count_postcard_records),
+        Exporter::Msgpack => ("msgpack", count_framed_records),
+        Exporter::Postcard => ("postcard", count_framed_records),
     };
     let expected_per_thread = u64::try_from(config.num_warmup_batches + config.num_batches)?
         .checked_mul(config.batch_size)
@@ -69,7 +70,7 @@ fn count_ndjson_records(file: File) -> BenchResult<u64> {
     Ok(count)
 }
 
-fn count_postcard_records(file: File) -> BenchResult<u64> {
+fn count_framed_records(file: File) -> BenchResult<u64> {
     let mut reader = BufReader::new(file);
     let mut count = 0;
     loop {
@@ -80,7 +81,7 @@ fn count_postcard_records(file: File) -> BenchResult<u64> {
         reader.read_exact(&mut length[1..])?;
         let length = u32::from_be_bytes(length) as u64;
         if std::io::copy(&mut reader.by_ref().take(length), &mut std::io::sink())? != length {
-            return Err("truncated Postcard record".into());
+            return Err("truncated framed record".into());
         }
         count += 1;
     }

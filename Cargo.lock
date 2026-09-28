@@ -2756,6 +2756,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "quent-bench"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "comfy-table",
+ "quent-latency-types",
+ "serde",
+ "serde_json",
+ "sysinfo",
+]
+
+[[package]]
 name = "quent-build-info"
 version = "0.1.0"
 dependencies = [
@@ -3005,19 +3018,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "quent-latency-types",
-]
-
-[[package]]
-name = "quent-latency-rig"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "clap",
- "comfy-table",
- "quent-latency-types",
- "serde",
- "serde_json",
- "sysinfo",
 ]
 
 [[package]]

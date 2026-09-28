@@ -18,6 +18,7 @@ type CaseResult = SharedCaseResult<Implementation, Exporter, EventShape>;
 enum Exporter {
     Noop,
     Ndjson,
+    Msgpack,
     Postcard,
 }
 
@@ -26,6 +27,7 @@ impl Exporter {
         match self {
             Self::Noop => None,
             Self::Ndjson => Some(FileSystemFormat::Ndjson),
+            Self::Msgpack => Some(FileSystemFormat::Msgpack),
             Self::Postcard => Some(FileSystemFormat::Postcard),
         }
     }

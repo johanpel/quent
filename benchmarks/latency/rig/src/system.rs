@@ -38,7 +38,7 @@ pub(crate) struct SystemProperties {
     rustc_version: Option<String>,
     /// Host triple reported by `rustc -vV` at collection time.
     target_triple: Option<String>,
-    /// `release` when the rig automatically built the implementation binary.
+    /// Build profile used for Rust implementation binaries.
     build_profile: Option<&'static str>,
     /// Git commit at `HEAD` in the repository containing the rig.
     git_commit: Option<String>,
@@ -46,7 +46,7 @@ pub(crate) struct SystemProperties {
     git_dirty: Option<bool>,
 }
 
-pub(crate) fn properties(automatic_build: bool) -> BenchResult<SystemProperties> {
+pub(crate) fn properties() -> BenchResult<SystemProperties> {
     let root = env!("CARGO_MANIFEST_DIR");
     let git_commit = Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -90,7 +90,7 @@ pub(crate) fn properties(automatic_build: bool) -> BenchResult<SystemProperties>
                 .find_map(|line| line.strip_prefix("host: "))
                 .map(str::to_owned)
         }),
-        build_profile: automatic_build.then_some("release"),
+        build_profile: Some("release"),
         git_commit,
         git_dirty,
     })
