@@ -12,14 +12,19 @@ use serde::{Deserialize, Serialize};
 /// Shared batch settings for benchmark command-line interfaces.
 #[derive(clap::Args, Clone, Copy)]
 pub struct BatchArgs {
-    #[arg(long, default_value = "100")]
+    /// Number of measured batches per thread.
+    #[arg(long, default_value = "1000")]
     pub num_batches: NonZeroUsize,
+    /// Number of calls or empty-loop iterations per thread in each batch.
     #[arg(long, default_value = "20")]
     pub batch_size: NonZeroU64,
+    /// Number of untimed batches per thread before measurement.
     #[arg(long, default_value_t = 10)]
     pub num_warmup_batches: usize,
+    /// Minimum busy-wait between batches in microseconds (zero disables it).
     #[arg(long = "batch-pause-us", default_value_t = 10)]
     pub batch_pause_interval_us: u64,
+    /// Skip the untimed preflight call made by each thread before its batches.
     #[arg(long)]
     pub no_preflight_call: bool,
 }

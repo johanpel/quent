@@ -6,13 +6,15 @@ use std::{num::NonZeroUsize, path::PathBuf, process::Command};
 use crate::{
     BenchResult, SharedArgs,
     case::{CaseRunner, run_child},
+    progress::BuildProgress,
     report::CaseResult,
 };
 
 /// Builds a Rust implementation in release mode and returns its executable path.
 ///
 /// The Cargo subprocess inherits the caller's environment, including an active Pixi environment.
-pub(crate) fn binary(package: &str) -> BenchResult<PathBuf> {
+pub(crate) fn binary(package: &str, progress: &mut BuildProgress) -> BenchResult<PathBuf> {
+    progress.started(package);
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .args([
             "build",
@@ -40,12 +42,17 @@ pub(crate) fn binary(package: &str) -> BenchResult<PathBuf> {
             executable = Some(PathBuf::from(path));
         }
     }
-    executable.ok_or_else(|| "Cargo did not report the Rust implementation binary".into())
+    let executable = executable.ok_or("Cargo did not report the Rust implementation binary")?;
+    progress.completed(package);
+    Ok(executable)
 }
 
 /// Defines one Rust empty-loop case for each requested thread count.
-pub(crate) fn empty_loop_cases(shared: &SharedArgs) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
-    let executable = binary("quent-bench-rust-empty-loop")?;
+pub(crate) fn empty_loop_cases(
+    shared: &SharedArgs,
+    progress: &mut BuildProgress,
+) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
+    let executable = binary("quent-bench-rust-empty-loop", progress)?;
     let mut cases = Vec::with_capacity(shared.threads.len());
     for threads in &shared.threads {
         cases.push(Box::new(EmptyLoopCase {
@@ -62,6 +69,10 @@ struct EmptyLoopCase {
 }
 
 impl CaseRunner for EmptyLoopCase {
+    fn label(&self) -> String {
+        format!("empty-loop-rs, threads={}", self.threads)
+    }
+
     fn run(&self, shared: &SharedArgs) -> BenchResult<CaseResult> {
         let mut command = Command::new(&self.executable);
         shared.apply_workload(&mut command, self.threads);

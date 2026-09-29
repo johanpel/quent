@@ -4,6 +4,7 @@
 mod case;
 mod frameworks;
 mod langs;
+mod progress;
 mod report;
 mod system;
 
@@ -14,6 +15,7 @@ use quent_bench_types::{BatchArgs, EventShape, MeasurementArgs};
 use serde::{Deserialize, Serialize};
 
 use case::CaseRunner;
+use progress::{BuildProgress, ProgressLine};
 
 type BenchResult<T> = Result<T, Box<dyn std::error::Error>>;
 
@@ -89,25 +91,35 @@ impl SharedArgs {
 impl Args {
     fn case_runners(&self) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
         let mut runners = Vec::new();
+        let languages = self
+            .frameworks
+            .iter()
+            .map(|framework| framework.language())
+            .collect::<BTreeSet<_>>();
+        let mut builds = BuildProgress::new(
+            self.frameworks.len() + if self.empty_loop { languages.len() } else { 0 },
+        );
         if self.empty_loop {
-            let languages = self
-                .frameworks
-                .iter()
-                .map(|framework| framework.language())
-                .collect::<BTreeSet<_>>();
             for language in languages {
                 match language {
-                    Language::Rust => runners.extend(langs::rust::empty_loop_cases(&self.shared)?),
+                    Language::Rust => {
+                        runners.extend(langs::rust::empty_loop_cases(&self.shared, &mut builds)?);
+                    }
                 }
             }
         }
         for framework in self.frameworks.iter().copied() {
             match framework {
                 Framework::Quent => {
-                    runners.extend(frameworks::quent::cases(&self.shared, &self.quent)?);
+                    runners.extend(frameworks::quent::cases(
+                        &self.shared,
+                        &self.quent,
+                        &mut builds,
+                    )?);
                 }
             }
         }
+        builds.finish();
         Ok(runners)
     }
 }
@@ -115,13 +127,24 @@ impl Args {
 fn main() -> BenchResult<()> {
     let args = Args::parse();
     let shared = &args.shared;
+    let runners = args.case_runners()?;
+    let total = runners.len();
+    let mut cases = Vec::with_capacity(total);
+    let mut progress = ProgressLine::new();
+    for (index, runner) in runners.into_iter().enumerate() {
+        progress.update(&format!(
+            "Running case ({}/{total}): {}",
+            index + 1,
+            runner.label()
+        ));
+        cases.push(runner.run(shared)?);
+    }
+    progress.update(&format!(
+        "Running case ({total}/{total}): all runs completed"
+    ));
+    progress.finish();
+
     let system = system::properties()?;
     report::print_system(&system);
-    let cases = args
-        .case_runners()?
-        .into_iter()
-        .map(|runner| runner.run(shared))
-        .collect::<BenchResult<Vec<_>>>()?;
-
     report::write(cases, system, args.output)
 }

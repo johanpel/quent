@@ -7,6 +7,9 @@ use crate::{BenchResult, SharedArgs, report::CaseResult};
 
 /// Runs one isolated benchmark case.
 pub(crate) trait CaseRunner {
+    /// Describes the case shown while its child process runs.
+    fn label(&self) -> String;
+
     /// Runs the child process and returns its measurement.
     fn run(&self, shared: &SharedArgs) -> BenchResult<CaseResult>;
 }

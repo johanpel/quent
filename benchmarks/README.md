@@ -7,7 +7,7 @@
 From the repository root:
 
 ```sh
-pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop --threads 1,2,4 --num-batches 100 --batch-size 20 --num-warmup-batches 10 --batch-pause-us 10
+pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop --threads 1,2,4 --num-batches 1000 --batch-size 20 --num-warmup-batches 10 --batch-pause-us 10
 ```
 
 `quent-bench` builds implementations when needed and runs each case in a
@@ -20,7 +20,7 @@ overlap. It prints a summary table and writes a JSON report.
 | `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                              |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
 | `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
-| `--num-batches`        | `100`            | Measured batches per thread.                                                            |
+| `--num-batches`        | `1000`           | Measured batches per thread.                                                            |
 | `--batch-size`         | `20`             | Calls or empty-loop iterations per thread in each batch.                               |
 | `--num-warmup-batches` | `10`             | Untimed batches before measurement.                                                     |
 | `--batch-pause-us`     | `10`             | Minimum per-thread busy wait between batches, in microseconds. Set to `0` for no pause. |

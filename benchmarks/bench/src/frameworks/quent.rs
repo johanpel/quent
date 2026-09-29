@@ -9,6 +9,7 @@ use crate::{
     BenchResult, SharedArgs,
     case::{CaseRunner, run_child},
     langs::rust,
+    progress::BuildProgress,
     report::CaseResult,
 };
 
@@ -35,6 +36,7 @@ impl Exporter {
 
 /// Selects the Quent-specific parameters.
 #[derive(clap::Args)]
+#[group(skip)]
 pub(crate) struct Args {
     #[arg(
         long = "quent-exporter",
@@ -46,8 +48,12 @@ pub(crate) struct Args {
 }
 
 /// Defines one case for each requested exporter, event shape, and thread count.
-pub(crate) fn cases(shared: &SharedArgs, options: &Args) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
-    let executable = rust::binary("quent-bench-rust-quent")?;
+pub(crate) fn cases(
+    shared: &SharedArgs,
+    options: &Args,
+    progress: &mut BuildProgress,
+) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
+    let executable = rust::binary("quent-bench-rust-quent", progress)?;
     let mut cases = Vec::new();
     for exporter in &options.exporter {
         for event_shape in &shared.event_shape {
@@ -72,6 +78,15 @@ struct QuentCase {
 }
 
 impl CaseRunner for QuentCase {
+    fn label(&self) -> String {
+        format!(
+            "quent, {}, {}, threads={}",
+            self.exporter.as_str(),
+            self.event_shape.as_ref(),
+            self.threads
+        )
+    }
+
     fn run(&self, shared: &SharedArgs) -> BenchResult<CaseResult> {
         let mut command = Command::new(&self.executable);
         command
