@@ -3,11 +3,16 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{Demo, Query};
-use quent_store::event::filesystem::Store;
-use quent_store::event::{EntityEventStore, ModelEventStore};
+use std::convert::Infallible;
 
-#[allow(unused_imports)]
+use demo::{Connection, Demo};
+use quent_store::context::ContextSet;
+use quent_store::entity::memory;
+use quent_store::entity::{EntityHandle, EntityStore};
+use quent_store::event::EventStore;
+use quent_store::event::filesystem::{Result as StoreResult, Store};
+
+#[allow(unused_imports, dead_code)]
 mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
@@ -16,21 +21,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = tempfile::tempdir()?;
     let context_id = quent_instrumentation_build_example::run_with_ndjson(output.path())?;
 
-    let store = Store::<Demo>::new(output.path());
+    let store = Store::<Demo>::new(output.path(), ContextSet::one(context_id));
 
-    println!("--- Query events ---");
+    print_raw_connection_events(&store)?;
+    let events = store
+        .entity_events::<Connection>()?
+        .collect::<StoreResult<Vec<_>>>()?;
+    let entities = memory::Store::<Connection>::new(events);
+    print_connection_entities(&entities)?;
 
-    // Load events for one entity type.
-    for event in store.entity_events::<Query>(context_id)? {
-        println!("{:?}", event?);
+    Ok(())
+}
+
+// The event store is the lowest layer. It returns individual recorded events.
+fn print_raw_connection_events(store: &Store<Demo>) -> StoreResult<()> {
+    println!("Raw Connection events:");
+    for event in store.entity_events::<Connection>()? {
+        let event = event?;
+        println!("  {event:?}");
     }
+    Ok(())
+}
 
-    println!("\n--- All model events ---");
-
-    // Load all model events as `DemoEvent`.
-    for event in store.events(context_id)? {
-        println!("{:?}", event?);
+// The entity store groups the raw events and returns one handle per entity UUID.
+fn print_connection_entities(entities: &memory::Store<Connection>) -> Result<(), Infallible> {
+    println!("Connection entities:");
+    for connection in EntityStore::<Connection>::entities(entities)? {
+        println!("  Connection {}:", connection.id());
+        for event in EntityStore::<Connection>::events(entities, &connection)? {
+            println!("    {event:?}");
+        }
     }
-
     Ok(())
 }

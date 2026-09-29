@@ -59,7 +59,7 @@ use quent_dynamic_attributes::DynamicValue;
 use quent_simulator_store::Simulator;
 use quent_simulator_store::{self as schema, SimulatorEvent};
 #[cfg(not(target_arch = "wasm32"))]
-use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventStore, EventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
@@ -161,15 +161,16 @@ impl QuentViewer for Viewer {
 
     fn context_inventory(dir: &std::path::Path) -> quent_io::ImporterResult<ContextInventory> {
         let (context_id, root) = context_location(dir)?;
-        let store = Store::<Simulator>::new(root);
+        let store =
+            Store::<Simulator>::new(root, quent_store::context::ContextSet::one(context_id));
         let engine_ids = store
-            .entity_events::<schema::Engine>(context_id)
+            .entity_events::<schema::Engine>()
             .map_err(quent_io::ImporterError::other)?
             .map(|event| event.map(|event| event.id))
             .collect::<Result<HashSet<_>, _>>()
             .map_err(quent_io::ImporterError::other)?;
         let worker_analysis_target_ids = store
-            .entity_events::<schema::Worker>(context_id)
+            .entity_events::<schema::Worker>()
             .map_err(quent_io::ImporterError::other)?
             .filter_map(|event| match event {
                 Ok(Event {
@@ -197,11 +198,12 @@ impl QuentViewer for Viewer {
         dir: &std::path::Path,
     ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
         let (context_id, root) = context_location(dir)?;
-        let events = Store::<Simulator>::new(root)
-            .events(context_id)
-            .map_err(quent_io::ImporterError::other)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(quent_io::ImporterError::other)?;
+        let events =
+            Store::<Simulator>::new(root, quent_store::context::ContextSet::one(context_id))
+                .events()
+                .map_err(quent_io::ImporterError::other)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(quent_io::ImporterError::other)?;
         Ok(Box::new(events.into_iter()))
     }
 }

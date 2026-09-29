@@ -4,7 +4,6 @@
 //! Typed access to fully materialized model events.
 
 use quent_events::{CombinedEventModel, EntityMarker, Event};
-use uuid::Uuid;
 
 #[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub mod filesystem;
@@ -15,64 +14,60 @@ pub type EventIterator<T, E> = Box<dyn Iterator<Item = Result<Event<T>, E>>>;
 /// The result of creating an [`EventIterator`].
 pub type EventIteratorResult<T, E> = Result<EventIterator<T, E>, E>;
 
-/// Loads stored events as owned values with payloads typed for an entity in model `M`.
-pub trait EntityEventStore<M> {
+/// Loads owned entity event payloads selected by entity marker types in model `M`.
+pub trait EventStore<M> {
     /// Error returned when events cannot be loaded.
     type Error;
 
-    /// Loads events for entity type `E` without an ordering guarantee.
-    fn entity_events<E>(
-        &self,
-        context_id: Uuid,
-    ) -> EventIteratorResult<E::Payload, <Self as EntityEventStore<M>>::Error>
+    /// Loads `E::Payload` payloads for entity marker `E` from selected contexts without an ordering guarantee.
+    fn entity_events<E>(&self) -> EventIteratorResult<E::Payload, <Self as EventStore<M>>::Error>
     where
         E: StoredEntity<M>,
-        Self: EntityEventLoader<E, Error = <Self as EntityEventStore<M>>::Error>,
+        Self: EventLoader<E, Error = <Self as EventStore<M>>::Error>,
     {
-        self.load_entity_events(context_id)
+        self.load_entity_events()
     }
 }
 
-/// Loads model-wide stored events as owned values with combined-event payloads.
+/// Loads owned model-wide events with combined event payloads.
 ///
 /// Generated models support this trait only when
 /// `quent_store_build::Options::combined_event` is enabled.
-pub trait ModelEventStore<M: CombinedEventModel>: EntityEventStore<M> {
-    /// Loads every event stored for `context_id` without an ordering guarantee.
-    fn events(
-        &self,
-        context_id: Uuid,
-    ) -> EventIteratorResult<M::CombinedEvent, <Self as EntityEventStore<M>>::Error>
+pub trait CombinedEventStore<M: CombinedEventModel>: EventStore<M> {
+    /// Loads every `Event<M::CombinedEvent>` stored in selected contexts without an ordering guarantee.
+    fn events(&self) -> EventIteratorResult<M::CombinedEvent, <Self as EventStore<M>>::Error>
     where
-        Self: ModelEventLoader<M, Error = <Self as EntityEventStore<M>>::Error>,
+        Self: CombinedEventLoader<M, Error = <Self as EventStore<M>>::Error>,
     {
-        self.load_model_events(context_id)
+        self.load_model_events()
     }
 }
 
-/// Loads one concrete entity event type for an [`EntityEventStore`].
+/// Loads the event payload type associated with entity marker `E`.
 #[doc(hidden)]
-pub trait EntityEventLoader<E: EntityMarker> {
+pub trait EventLoader<E: EntityMarker> {
     /// Error returned when events cannot be loaded.
     type Error;
 
-    /// Loads events for `E` without an ordering guarantee.
-    fn load_entity_events(&self, context_id: Uuid) -> EventIteratorResult<E::Payload, Self::Error>;
+    /// Loads `E::Payload` payloads without an ordering guarantee.
+    fn load_entity_events(&self) -> EventIteratorResult<E::Payload, Self::Error>;
 }
 
-/// Loads combined events for a [`ModelEventStore`].
+/// Loads events carrying the model's combined event payload type.
 #[doc(hidden)]
-pub trait ModelEventLoader<M: CombinedEventModel> {
+pub trait CombinedEventLoader<M: CombinedEventModel> {
     /// Error returned when events cannot be loaded.
     type Error;
 
-    /// Loads model events without an ordering guarantee.
-    fn load_model_events(
-        &self,
-        context_id: Uuid,
-    ) -> EventIteratorResult<M::CombinedEvent, Self::Error>;
+    /// Loads `Event<M::CombinedEvent>` values without an ordering guarantee.
+    fn load_model_events(&self) -> EventIteratorResult<M::CombinedEvent, Self::Error>;
 }
 
-/// Marks an entity as belonging to analysis model `M`.
+/// Marks an entity marker as belonging to model `M`.
+///
+/// # Code generation
+///
+/// For entity marker `Task`, whose event payload type is `TaskEvent`,
+/// `quent-store-build` emits `impl StoredEntity<Demo> for Task {}`.
 #[doc(hidden)]
 pub trait StoredEntity<M>: EntityMarker {}
