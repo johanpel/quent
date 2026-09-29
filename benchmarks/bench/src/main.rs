@@ -127,6 +127,7 @@ impl Args {
 fn main() -> BenchResult<()> {
     let args = Args::parse();
     let shared = &args.shared;
+    let system = system::properties()?;
     let runners = args.case_runners()?;
     let total = runners.len();
     let mut cases = Vec::with_capacity(total);
@@ -144,7 +145,6 @@ fn main() -> BenchResult<()> {
     ));
     progress.finish();
 
-    let system = system::properties()?;
     report::print_system(&system);
     report::write(cases, system, args.output)
 }
