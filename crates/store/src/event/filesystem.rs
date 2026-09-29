@@ -539,8 +539,11 @@ mod tests {
         assert_eq!(handles[0].id(), first_entity);
         assert_eq!(handles[1].id(), second_entity);
         assert_eq!(
-            EntityStore::<Alpha>::events(&entities, &handles[0])
+            entities
+                .get(&handles[0])
                 .unwrap()
+                .events()
+                .iter()
                 .map(|event| event.data.0)
                 .collect::<Vec<_>>(),
             [2, 1]
