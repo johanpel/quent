@@ -36,11 +36,15 @@ pub enum EventShape {
 }
 
 /// Records the settings and measured batch durations of one child-process case.
+///
+/// - `I`: Implementation identifier type.
+/// - `E`: Event exporting mechanism identifier type.
+/// - `S`: Event shape identifier type.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CaseResult<I, E, S> {
     /// Names the benchmark implementation.
     pub implementation: I,
-    /// Selects the exporter, or `None` when the case has no exporter.
+    /// Identifies how events are handled, or `None` when no output mechanism applies.
     pub exporter: Option<E>,
     /// Selects the event shape, or `None` when the case emits no event.
     pub event_shape: Option<S>,

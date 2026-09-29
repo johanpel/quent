@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+mod case;
+mod frameworks;
+mod langs;
 mod report;
 mod system;
 
@@ -9,25 +12,28 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
-use quent_bench_types::{EventShape, Implementation};
+use quent_bench_types::EventShape;
 use serde::{Deserialize, Serialize};
 
-use report::CaseResult;
+use case::CaseRunner;
 
 type BenchResult<T> = Result<T, Box<dyn std::error::Error>>;
 
+/// Selects an instrumentation framework for benchmark cases.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
 enum Framework {
     Quent,
 }
 
+/// Groups implementations so each selected language gets one empty-loop measurement.
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 enum Language {
     Rust,
 }
 
 impl Framework {
+    /// Identifies the language used to deduplicate empty-loop cases across frameworks.
     fn language(self) -> Language {
         match self {
             Self::Quent => Language::Rust,
@@ -35,40 +41,30 @@ impl Framework {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum QuentExporter {
-    Noop,
-    Ndjson,
-    Msgpack,
-    Postcard,
-}
-
-impl QuentExporter {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Noop => "noop",
-            Self::Ndjson => "ndjson",
-            Self::Msgpack => "msgpack",
-            Self::Postcard => "postcard",
-        }
-    }
-}
-
+/// Combines benchmark selection, shared workload settings, and framework-specific options.
 #[derive(Parser)]
 #[command(about = "Measure generated instrumentation calls in isolated processes")]
 struct Args {
-    #[command(flatten)]
-    shared: SharedArgs,
-    #[command(flatten)]
-    quent: QuentArgs,
-}
-
-#[derive(ClapArgs)]
-struct SharedArgs {
+    /// Frameworks to benchmark.
     #[arg(long, value_enum, value_delimiter = ',', default_value = "quent")]
     frameworks: Vec<Framework>,
+    /// Whether to measure an empty loop for each selected language.
     #[arg(long)]
     empty_loop: bool,
+    /// Path for the JSON report.
+    #[arg(long)]
+    output: Option<PathBuf>,
+    /// Workload settings for the run.
+    #[command(flatten)]
+    shared: SharedArgs,
+    /// Exporter settings applied only to Quent cases.
+    #[command(flatten)]
+    quent: frameworks::quent::Args,
+}
+
+/// Stores cross-framework workload settings.
+#[derive(ClapArgs)]
+struct SharedArgs {
     #[arg(
         long,
         value_enum,
@@ -88,8 +84,6 @@ struct SharedArgs {
     batch_pause_interval_us: u64,
     #[arg(long)]
     no_preflight_call: bool,
-    #[arg(long)]
-    output: Option<PathBuf>,
 }
 
 impl SharedArgs {
@@ -109,15 +103,30 @@ impl SharedArgs {
     }
 }
 
-#[derive(ClapArgs)]
-struct QuentArgs {
-    #[arg(
-        long = "quent-exporter",
-        value_enum,
-        value_delimiter = ',',
-        default_value = "noop,ndjson,msgpack,postcard"
-    )]
-    exporter: Vec<QuentExporter>,
+impl Args {
+    fn case_runners(&self) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
+        let mut runners = Vec::new();
+        if self.empty_loop {
+            let languages = self
+                .frameworks
+                .iter()
+                .map(|framework| framework.language())
+                .collect::<BTreeSet<_>>();
+            for language in languages {
+                match language {
+                    Language::Rust => runners.extend(langs::rust::empty_loop_cases(&self.shared)?),
+                }
+            }
+        }
+        for framework in self.frameworks.iter().copied() {
+            match framework {
+                Framework::Quent => {
+                    runners.extend(frameworks::quent::cases(&self.shared, &self.quent)?);
+                }
+            }
+        }
+        Ok(runners)
+    }
 }
 
 fn main() -> BenchResult<()> {
@@ -130,153 +139,11 @@ fn main() -> BenchResult<()> {
     }
     let system = system::properties()?;
     report::print_system(&system);
-    let mut cases = Vec::new();
-    if shared.empty_loop {
-        let languages = shared
-            .frameworks
-            .iter()
-            .map(|framework| framework.language())
-            .collect::<BTreeSet<_>>();
-        for language in languages {
-            match language {
-                Language::Rust => cases.extend(run_rust_empty_loop(shared)?),
-            }
-        }
-    }
-    for framework in shared.frameworks.iter().copied() {
-        match framework {
-            Framework::Quent => cases.extend(run_quent(shared, &args.quent)?),
-        }
-    }
+    let cases = args
+        .case_runners()?
+        .into_iter()
+        .map(|runner| runner.run(shared))
+        .collect::<BenchResult<Vec<_>>>()?;
 
-    report::write(cases, system, args.shared.output)
-}
-
-fn run_quent(shared: &SharedArgs, quent: &QuentArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-bench-rust-quent")?;
-    let mut cases = Vec::new();
-    for exporter in &quent.exporter {
-        for event_shape in &shared.event_shape {
-            for threads in &shared.threads {
-                let mut command = Command::new(&executable);
-                command
-                    .args(["--exporter", exporter.as_str()])
-                    .args(["--event-shape", event_shape.as_ref()]);
-                shared.apply_workload(&mut command, *threads);
-                let output = command.output()?;
-                if !output.status.success() {
-                    return Err(format!(
-                        "quent / {} / {} / {} threads failed: {}",
-                        exporter.as_str(),
-                        event_shape.as_ref(),
-                        threads,
-                        String::from_utf8_lossy(&output.stderr)
-                    )
-                    .into());
-                }
-                let result: CaseResult = serde_json::from_slice(&output.stdout)?;
-                validate_result(
-                    &result,
-                    Implementation::Quent,
-                    Some(exporter.as_str()),
-                    Some(*event_shape),
-                    *threads,
-                    shared,
-                    !shared.no_preflight_call,
-                )?;
-                cases.push(result);
-            }
-        }
-    }
-    Ok(cases)
-}
-
-fn run_rust_empty_loop(shared: &SharedArgs) -> BenchResult<Vec<CaseResult>> {
-    let executable = rust_binary("quent-bench-rust-empty-loop")?;
-    let mut cases = Vec::with_capacity(shared.threads.len());
-    for threads in &shared.threads {
-        let mut command = Command::new(&executable);
-        shared.apply_workload(&mut command, *threads);
-        let output = command.output()?;
-        if !output.status.success() {
-            return Err(format!(
-                "empty-loop-rs / {threads} threads failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-        let result: CaseResult = serde_json::from_slice(&output.stdout)?;
-        validate_result(
-            &result,
-            Implementation::EmptyLoopRs,
-            None,
-            None,
-            *threads,
-            shared,
-            !shared.no_preflight_call,
-        )?;
-        cases.push(result);
-    }
-    Ok(cases)
-}
-
-fn validate_result(
-    result: &CaseResult,
-    implementation: Implementation,
-    exporter: Option<&str>,
-    event_shape: Option<EventShape>,
-    threads: usize,
-    args: &SharedArgs,
-    preflight_call: bool,
-) -> BenchResult<()> {
-    if result.implementation != implementation
-        || result.exporter.as_deref() != exporter
-        || result.event_shape != event_shape
-        || result.threads != threads
-        || result.num_batches != args.num_batches
-        || result.batch_size != args.batch_size
-        || result.num_warmup_batches != args.num_warmup_batches
-        || result.batch_pause_interval_us != args.batch_pause_interval_us
-        || result.preflight_call != preflight_call
-        || result.thread_batch_elapsed_ns.len() != threads
-        || result
-            .thread_batch_elapsed_ns
-            .iter()
-            .any(|batches| batches.len() != args.num_batches)
-        || !result.average_ns_per_iteration.is_finite()
-    {
-        return Err("implementation returned a result for a different case".into());
-    }
-    Ok(())
-}
-
-fn rust_binary(package: &str) -> BenchResult<PathBuf> {
-    let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
-        .args([
-            "build",
-            "--release",
-            "-p",
-            package,
-            "--message-format=json-render-diagnostics",
-        ])
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .output()?;
-    if !output.status.success() {
-        return Err(format!(
-            "failed to build Rust implementation: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-    let mut executable = None;
-    for line in output.stdout.split(|byte| *byte == b'\n') {
-        if let Ok(message) = serde_json::from_slice::<serde_json::Value>(line)
-            && message["reason"] == "compiler-artifact"
-            && message["target"]["name"] == package
-            && let Some(path) = message["executable"].as_str()
-        {
-            executable = Some(PathBuf::from(path));
-        }
-    }
-    executable.ok_or_else(|| "Cargo did not report the Rust implementation binary".into())
+    report::write(cases, system, args.output)
 }

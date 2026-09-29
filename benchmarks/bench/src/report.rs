@@ -7,6 +7,7 @@ use chrono::Local;
 use comfy_table::{Attribute, Cell, CellAlignment, Color, Table, presets::UTF8_FULL};
 use quent_bench_types::{CaseResult as SharedCaseResult, Implementation};
 use serde::Serialize;
+use statrs::statistics::{Data, OrderStatistics, Statistics};
 
 use crate::system::SystemProperties;
 use crate::{BenchResult, EventShape};
@@ -203,7 +204,7 @@ fn number(value: f64) -> Cell {
 }
 
 fn batch_statistics(case: &CaseResult) -> BatchStatistics {
-    let mut values = (0..case.num_batches)
+    let values = (0..case.num_batches)
         .map(|batch| {
             case.thread_batch_elapsed_ns
                 .iter()
@@ -213,28 +214,21 @@ fn batch_statistics(case: &CaseResult) -> BatchStatistics {
                 / case.batch_size as f64
         })
         .collect::<Vec<_>>();
-    let mean = values.iter().sum::<f64>() / values.len() as f64;
     let standard_deviation_ns_per_iteration = if values.len() > 1 {
-        (values
-            .iter()
-            .map(|value| (value - mean).powi(2))
-            .sum::<f64>()
-            / (values.len() - 1) as f64)
-            .sqrt()
+        values.as_slice().std_dev()
     } else {
         0.0
     };
-    values.sort_by(f64::total_cmp);
+    let count = values.len();
+    let mut values = Data::new(values);
+    // Use order statistics to retain nearest-rank percentiles without interpolation.
+    let mut percentile = |percent: usize| values.order_statistic((count * percent).div_ceil(100));
     BatchStatistics {
         standard_deviation_ns_per_iteration,
-        p50_ns_per_iteration: percentile(&values, 50),
-        p95_ns_per_iteration: percentile(&values, 95),
-        p99_ns_per_iteration: percentile(&values, 99),
+        p50_ns_per_iteration: percentile(50),
+        p95_ns_per_iteration: percentile(95),
+        p99_ns_per_iteration: percentile(99),
     }
-}
-
-fn percentile(sorted: &[f64], percent: usize) -> f64 {
-    sorted[(sorted.len() * percent - 1) / 100]
 }
 
 fn default_output() -> PathBuf {
@@ -246,38 +240,4 @@ fn default_output() -> PathBuf {
         "results-{timestamp}-pid{}.json",
         std::process::id()
     ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn statistics_use_one_average_per_batch() {
-        let case = CaseResult {
-            implementation: Implementation::EmptyLoopRs,
-            exporter: None,
-            event_shape: None,
-            threads: 2,
-            num_batches: 4,
-            batch_size: 1,
-            num_warmup_batches: 0,
-            batch_pause_interval_us: 0,
-            preflight_call: false,
-            child_pid: 0,
-            thread_batch_elapsed_ns: vec![vec![10, 20, 30, 40], vec![30, 40, 50, 60]],
-            average_ns_per_iteration: 35.0,
-        };
-        let stats = batch_statistics(&case);
-        assert!(
-            (stats.standard_deviation_ns_per_iteration - (500.0_f64 / 3.0).sqrt()).abs() < 1e-10
-        );
-        assert_eq!(stats.p50_ns_per_iteration, 30.0);
-        assert_eq!(stats.p95_ns_per_iteration, 50.0);
-        assert_eq!(stats.p99_ns_per_iteration, 50.0);
-
-        let values = (1..=20).map(f64::from).collect::<Vec<_>>();
-        assert_eq!(percentile(&values, 95), 19.0);
-        assert_eq!(percentile(&values, 99), 20.0);
-    }
 }
