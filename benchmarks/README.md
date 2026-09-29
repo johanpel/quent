@@ -28,7 +28,7 @@ overlap. It prints a summary table and writes a JSON report.
 | `--output PATH`        | Generated file   | JSON report path.                                                                       |
 
 The default report path is
-`target/quent-latency/results-YYYY-MM-DD-HH-MM-SS-pidN.json`, using
+`benchmarks/results/results-YYYY-MM-DD-HH-MM-SS-pidN.json`, using
 local time.
 
 ### Framework-specific options

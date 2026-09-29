@@ -51,7 +51,6 @@ fn available(value: Option<impl std::fmt::Display>) -> String {
 
 #[derive(Serialize)]
 struct Report {
-    schema_version: u32,
     system: SystemProperties,
     cases: Vec<ReportedCase>,
 }
@@ -77,7 +76,6 @@ pub(crate) fn write(
     output: Option<PathBuf>,
 ) -> BenchResult<()> {
     let report = Report {
-        schema_version: 5,
         system,
         cases: cases
             .into_iter()
@@ -232,10 +230,8 @@ fn batch_statistics(case: &CaseResult) -> BatchStatistics {
 
 fn default_output() -> PathBuf {
     let timestamp = Local::now().format("%Y-%m-%d-%H-%M-%S");
-    let root = std::env::var_os("CARGO_TARGET_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"));
-    root.join("quent-latency").join(format!(
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).with_file_name("results");
+    root.join(format!(
         "results-{timestamp}-pid{}.json",
         std::process::id()
     ))
