@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::num::{NonZeroU64, NonZeroUsize};
-use std::process::Command;
+use std::{
+    num::{NonZeroU64, NonZeroUsize},
+    process::Command,
+};
 
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};

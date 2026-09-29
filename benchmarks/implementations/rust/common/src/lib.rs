@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_bench_types::{CaseResult, MeasurementArgs};
-use std::error::Error;
-use std::sync::{
-    Arc, Barrier,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    error::Error,
+    sync::{
+        Arc, Barrier,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
 };
-use std::time::{Duration, Instant};
+
+use quent_bench_types::{CaseResult, MeasurementArgs};
 
 pub type BenchResult<T> = Result<T, Box<dyn Error>>;
 

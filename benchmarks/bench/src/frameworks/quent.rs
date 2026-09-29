@@ -1,16 +1,16 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{num::NonZeroUsize, path::PathBuf, process::Command};
 
 use clap::{Args as ClapArgs, ValueEnum};
 
-use crate::case::{CaseRunner, run_child};
-use crate::langs::rust;
-use crate::report::CaseResult;
-use crate::{BenchResult, SharedArgs};
+use crate::{
+    BenchResult, SharedArgs,
+    case::{CaseRunner, run_child},
+    langs::rust,
+    report::CaseResult,
+};
 
 /// Selects the exporter used by Quent benchmark cases.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

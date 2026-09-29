@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{num::NonZeroUsize, path::PathBuf, process::Command};
 
-use crate::case::{CaseRunner, run_child};
-use crate::report::CaseResult;
-use crate::{BenchResult, SharedArgs};
+use crate::{
+    BenchResult, SharedArgs,
+    case::{CaseRunner, run_child},
+    report::CaseResult,
+};
 
 /// Builds a Rust implementation in release mode and returns its executable path.
 ///

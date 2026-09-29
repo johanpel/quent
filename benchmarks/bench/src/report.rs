@@ -9,8 +9,7 @@ use quent_bench_types::{CaseResult as SharedCaseResult, Implementation};
 use serde::Serialize;
 use statrs::statistics::{Data, OrderStatistics, Statistics};
 
-use crate::system::SystemProperties;
-use crate::{BenchResult, EventShape};
+use crate::{BenchResult, EventShape, system::SystemProperties};
 
 pub(crate) type CaseResult = SharedCaseResult<Implementation, String, EventShape>;
 

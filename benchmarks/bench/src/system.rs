@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    process::Command,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use serde::Serialize;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};

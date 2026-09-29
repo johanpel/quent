@@ -11,9 +11,7 @@ use quent_instrumentation::{
     build_info::ModelSource,
 };
 
-use crate::models;
-use crate::verify;
-use crate::{BenchResult, CaseResult, Exporter};
+use crate::{BenchResult, CaseResult, Exporter, models, verify};
 
 pub fn run_case(
     exporter: Exporter,
@@ -146,8 +144,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io::{BufRead, BufReader};
-    use std::num::{NonZeroU64, NonZeroUsize};
+    use std::{
+        io::{BufRead, BufReader},
+        num::{NonZeroU64, NonZeroUsize},
+    };
 
     use quent_bench_types::BatchArgs;
 

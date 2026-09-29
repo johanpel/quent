@@ -7,10 +7,7 @@ mod langs;
 mod report;
 mod system;
 
-use std::collections::BTreeSet;
-use std::num::NonZeroUsize;
-use std::path::PathBuf;
-use std::process::Command;
+use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, process::Command};
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
 use quent_bench_types::{BatchArgs, EventShape, MeasurementArgs};

@@ -3,8 +3,7 @@
 
 use std::process::Command;
 
-use crate::report::CaseResult;
-use crate::{BenchResult, SharedArgs};
+use crate::{BenchResult, SharedArgs, report::CaseResult};
 
 /// Runs one isolated benchmark case.
 pub(crate) trait CaseRunner {

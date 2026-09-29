@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::convert::Infallible;
-use std::hint::black_box;
+use std::{convert::Infallible, hint::black_box};
 
 use clap::Parser;
 use quent_bench_rust_common::{BenchResult, make_case_result, measure_threads};

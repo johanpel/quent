@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Read},
+    path::Path,
+};
 
 use quent_instrumentation::Uuid;
 
