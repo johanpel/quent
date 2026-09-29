@@ -45,6 +45,19 @@ pub fn make_case_result<I, E, S>(
     }
 }
 
+/// Measures concurrent calls in timed batches.
+///
+/// Creates one handle and thread per caller, then returns each thread's measured
+/// batch durations in nanoseconds. Payload preparation, preflight calls, warmup
+/// batches, and pauses are outside the timed intervals.
+///
+/// Infallible emitters can return `Ok::<(), std::convert::Infallible>(())`.
+/// Monomorphization lets release builds remove the impossible error path from
+/// their timed loop.
+///
+/// # Errors
+///
+/// Returns an emission error or an error if a duration does not fit in `u64`.
 pub fn measure_threads<H, P, PrepareFn, EmitFn, E>(
     workload: MeasurementArgs,
     mut make_handle: impl FnMut() -> H,
@@ -58,6 +71,7 @@ where
     EmitFn: Fn(&H, P) -> Result<(), E> + Copy + Send + 'static,
     E: Error + Send + 'static,
 {
+    // Stage numbers follow the [measurement steps](../../../../README.md#measurement).
     let config = workload.batch;
     let threads = workload.threads.get();
     let preflight_call = !workload.batch.no_preflight_call;
@@ -70,6 +84,7 @@ where
         let barrier = Arc::clone(&barrier);
         let failed = Arc::clone(&failed);
         joins.push(std::thread::spawn(move || {
+            // Stage 1: Keep lazy first-call setup outside the measurements.
             let preflight_result = if preflight_call {
                 emit(&handle, prepare(0))
             } else {
@@ -78,6 +93,8 @@ where
             if preflight_result.is_err() {
                 failed.store(true, Ordering::SeqCst);
             }
+
+            // Stage 2: Prepare all payloads before the first batch barrier.
             let batches = if preflight_result.is_ok() {
                 (0..total_batches)
                     .map(|batch| {
@@ -96,31 +113,58 @@ where
                 return Ok(Vec::new());
             }
             let mut durations = Vec::with_capacity(config.num_batches.get());
-            for (batch, payloads) in batches.into_iter().enumerate() {
+            let mut batches = batches.into_iter();
+
+            // Stage 3: Warmup, exercise the call path without recording timings.
+            for payloads in batches.by_ref().take(config.num_warmup_batches) {
                 barrier.wait();
-                let start = (batch >= config.num_warmup_batches).then(Instant::now);
-                // Keep the batch buffer alive through the end timestamp.
-                let mut calls = payloads.into_iter();
-                let batch_result = calls
-                    .by_ref()
+
+                let batch_result = payloads
+                    .into_iter()
                     .try_for_each(|payload| emit(&handle, payload));
-                let elapsed = start.map(|start| start.elapsed().as_nanos());
-                drop(calls);
                 if batch_result.is_err() {
                     failed.store(true, Ordering::SeqCst);
                 }
                 barrier.wait();
+
                 batch_result?;
-                if let Some(elapsed) = elapsed {
-                    durations.push(elapsed);
+                if failed.load(Ordering::SeqCst) {
+                    return Ok(durations);
                 }
+                if config.batch_pause_interval_us > 0 {
+                    pause_between_batches(config.batch_pause_interval_us);
+                }
+            }
+
+            // Stage 4: measured batches
+            for (batch, payloads) in batches.enumerate() {
+                barrier.wait();
+
+                // Keep the batch buffer alive through the end timestamp so we
+                // don't measure deallocation.
+                let mut calls = payloads.into_iter();
+
+                // Time the call loop with one clock read at each end.
+                let start = Instant::now();
+                let batch_result = calls
+                    .by_ref()
+                    .try_for_each(|payload| emit(&handle, payload));
+                let elapsed = start.elapsed().as_nanos();
+
+                drop(calls);
+                if batch_result.is_err() {
+                    failed.store(true, Ordering::SeqCst);
+                }
+
+                // Stage 5: Synchronize completion and errors before the optional pause.
+                barrier.wait();
+                batch_result?;
+                durations.push(elapsed);
                 if failed.load(Ordering::SeqCst) {
                     break;
                 }
-                if batch + 1 < total_batches && config.batch_pause_interval_us > 0 {
-                    let pause_started = Instant::now();
-                    let pause = Duration::from_micros(config.batch_pause_interval_us);
-                    while pause_started.elapsed() < pause {}
+                if batch + 1 < config.num_batches.get() && config.batch_pause_interval_us > 0 {
+                    pause_between_batches(config.batch_pause_interval_us);
                 }
             }
             Ok::<Vec<u128>, E>(durations)
@@ -146,4 +190,10 @@ where
                 .collect()
         })
         .collect()
+}
+
+fn pause_between_batches(interval_us: u64) {
+    let pause_started = Instant::now();
+    let pause = Duration::from_micros(interval_us);
+    while pause_started.elapsed() < pause {}
 }
