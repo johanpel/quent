@@ -132,7 +132,7 @@ where
                     return Ok(durations);
                 }
                 if config.batch_pause_interval_us > 0 {
-                    pause_between_batches(config.batch_pause_interval_us);
+                    busy_wait_pause(config.batch_pause_interval_us);
                 }
             }
 
@@ -146,9 +146,12 @@ where
 
                 // Time the call loop with one clock read at each end.
                 let start = Instant::now();
+                // The actual measurement:
+                // ----------------------------------------------------------------------
                 let batch_result = calls
                     .by_ref()
                     .try_for_each(|payload| emit(&handle, payload));
+                // ----------------------------------------------------------------------
                 let elapsed = start.elapsed().as_nanos();
 
                 drop(calls);
@@ -164,7 +167,7 @@ where
                     break;
                 }
                 if batch + 1 < config.num_batches.get() && config.batch_pause_interval_us > 0 {
-                    pause_between_batches(config.batch_pause_interval_us);
+                    busy_wait_pause(config.batch_pause_interval_us);
                 }
             }
             Ok::<Vec<u128>, E>(durations)
@@ -192,7 +195,8 @@ where
         .collect()
 }
 
-fn pause_between_batches(interval_us: u64) {
+// Busy-wait instead of sleeping so threads stay active between instrumentation bursts.
+fn busy_wait_pause(interval_us: u64) {
     let pause_started = Instant::now();
     let pause = Duration::from_micros(interval_us);
     while pause_started.elapsed() < pause {}
