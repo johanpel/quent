@@ -6,8 +6,9 @@ use std::path::Path;
 use quent_bench_rust_common::{WorkloadArgs, make_case_result, measure_threads};
 use quent_bench_types::{EventShape, Implementation};
 use quent_instrumentation::{
-    Context, ExporterOptions, FileSystemExporterOptions, HandleError, InstrumentedEntity,
-    InstrumentedModel, Model, Noop, ObserverBuilder, ObserverProvider, build_info::ModelSource,
+    Context, EventModel, ExporterOptions, FileSystemExporterOptions, HandleError,
+    InstrumentedEntity, InstrumentedModel, Noop, ObserverBuilder, ObserverProvider,
+    build_info::ModelSource,
 };
 
 use crate::models;
@@ -103,7 +104,7 @@ fn run_typed<M, E, P, PrepareFn, EmitFn>(
     emit: EmitFn,
 ) -> BenchResult<Vec<Vec<u64>>>
 where
-    M: Model
+    M: EventModel
         + InstrumentedModel
         + ModelSource
         + ObserverBuilder<Noop>

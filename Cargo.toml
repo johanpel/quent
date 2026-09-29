@@ -17,7 +17,7 @@ members = [
     "crates/io/postcard",
     "crates/io/types",
     "crates/instrumentation",
-    "benchmarks/quent-bench",
+    "benchmarks/bench",
     "benchmarks/types",
     "benchmarks/implementations/rust/common",
     "benchmarks/implementations/rust/quent",
