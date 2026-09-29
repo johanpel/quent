@@ -3,7 +3,7 @@
 
 use std::{num::NonZeroUsize, path::PathBuf, process::Command};
 
-use clap::{Args as ClapArgs, ValueEnum};
+use clap::ValueEnum;
 
 use crate::{
     BenchResult, SharedArgs,
@@ -34,7 +34,7 @@ impl Exporter {
 }
 
 /// Selects the Quent-specific parameters.
-#[derive(ClapArgs)]
+#[derive(clap::Args)]
 pub(crate) struct Args {
     #[arg(
         long = "quent-exporter",

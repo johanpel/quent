@@ -9,7 +9,7 @@ mod system;
 
 use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, process::Command};
 
-use clap::{Args as ClapArgs, Parser, ValueEnum};
+use clap::{Parser, ValueEnum};
 use quent_bench_types::{BatchArgs, EventShape, MeasurementArgs};
 use serde::{Deserialize, Serialize};
 
@@ -61,7 +61,7 @@ struct Args {
 }
 
 /// Stores cross-framework workload settings.
-#[derive(ClapArgs)]
+#[derive(clap::Args)]
 struct SharedArgs {
     #[arg(
         long,

@@ -5,7 +5,7 @@ mod measure;
 mod models;
 mod verify;
 
-use clap::{Args as ClapArgs, Parser, ValueEnum};
+use clap::{Parser, ValueEnum};
 use quent_bench_rust_common::BenchResult;
 use quent_bench_types::{
     CaseResult as SharedCaseResult, EventShape, Implementation, MeasurementArgs,
@@ -45,7 +45,7 @@ struct Args {
     quent: QuentArgs,
 }
 
-#[derive(ClapArgs)]
+#[derive(clap::Args)]
 struct QuentArgs {
     #[arg(long, value_enum)]
     exporter: Exporter,
