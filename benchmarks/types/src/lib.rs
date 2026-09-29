@@ -1,8 +1,60 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::{NonZeroU64, NonZeroUsize};
+use std::process::Command;
+
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+
+/// Shared batch settings for benchmark command-line interfaces.
+#[derive(clap::Args, Clone, Copy)]
+pub struct BatchArgs {
+    #[arg(long, default_value = "100")]
+    pub num_batches: NonZeroUsize,
+    #[arg(long, default_value = "20")]
+    pub batch_size: NonZeroU64,
+    #[arg(long, default_value_t = 10)]
+    pub num_warmup_batches: usize,
+    #[arg(long = "batch-pause-us", default_value_t = 10)]
+    pub batch_pause_interval_us: u64,
+    #[arg(long)]
+    pub no_preflight_call: bool,
+}
+
+impl BatchArgs {
+    /// Appends the batch settings to a benchmark implementation command.
+    pub fn append_to_command(&self, command: &mut Command) {
+        command
+            .args(["--num-batches", &self.num_batches.to_string()])
+            .args(["--batch-size", &self.batch_size.to_string()])
+            .args(["--num-warmup-batches", &self.num_warmup_batches.to_string()])
+            .args([
+                "--batch-pause-us",
+                &self.batch_pause_interval_us.to_string(),
+            ]);
+        if self.no_preflight_call {
+            command.arg("--no-preflight-call");
+        }
+    }
+}
+
+/// Measurement settings for one benchmark process and its concurrent caller threads.
+#[derive(clap::Args, Clone, Copy)]
+pub struct MeasurementArgs {
+    #[arg(long)]
+    pub threads: NonZeroUsize,
+    #[command(flatten)]
+    pub batch: BatchArgs,
+}
+
+impl MeasurementArgs {
+    /// Appends this process's measurement settings to a benchmark implementation command.
+    pub fn append_to_command(&self, command: &mut Command) {
+        command.args(["--threads", &self.threads.to_string()]);
+        self.batch.append_to_command(command);
+    }
+}
 
 /// Identifies the implementation that produced a benchmark result.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, strum::AsRefStr)]

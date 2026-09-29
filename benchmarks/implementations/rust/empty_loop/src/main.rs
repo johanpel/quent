@@ -5,13 +5,13 @@ use std::convert::Infallible;
 use std::hint::black_box;
 
 use clap::Parser;
-use quent_bench_rust_common::{BenchResult, WorkloadArgs, make_case_result, measure_threads};
-use quent_bench_types::{CaseResult, Implementation};
+use quent_bench_rust_common::{BenchResult, make_case_result, measure_threads};
+use quent_bench_types::{CaseResult, Implementation, MeasurementArgs};
 
 #[derive(Parser)]
 struct Args {
     #[command(flatten)]
-    workload: WorkloadArgs,
+    workload: MeasurementArgs,
 }
 
 fn main() -> BenchResult<()> {

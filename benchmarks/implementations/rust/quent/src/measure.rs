@@ -3,8 +3,8 @@
 
 use std::path::Path;
 
-use quent_bench_rust_common::{WorkloadArgs, make_case_result, measure_threads};
-use quent_bench_types::{EventShape, Implementation};
+use quent_bench_rust_common::{make_case_result, measure_threads};
+use quent_bench_types::{EventShape, Implementation, MeasurementArgs};
 use quent_instrumentation::{
     Context, EventModel, ExporterOptions, FileSystemExporterOptions, HandleError,
     InstrumentedEntity, InstrumentedModel, Noop, ObserverBuilder, ObserverProvider,
@@ -18,7 +18,7 @@ use crate::{BenchResult, CaseResult, Exporter};
 pub fn run_case(
     exporter: Exporter,
     shape: EventShape,
-    workload: WorkloadArgs,
+    workload: MeasurementArgs,
 ) -> BenchResult<CaseResult> {
     let directory = exporter
         .file_format()
@@ -99,7 +99,7 @@ fn long_string(index: u64) -> String {
 fn run_typed<M, E, P, PrepareFn, EmitFn>(
     exporter: Exporter,
     export_root: Option<&Path>,
-    workload: WorkloadArgs,
+    workload: MeasurementArgs,
     prepare: PrepareFn,
     emit: EmitFn,
 ) -> BenchResult<Vec<Vec<u64>>>
@@ -138,8 +138,8 @@ where
         export_root,
         context_id,
         workload.threads.get(),
-        workload.batch_config(),
-        workload.preflight_call(),
+        workload.batch,
+        !workload.batch.no_preflight_call,
     )?;
     Ok(durations)
 }
@@ -149,6 +149,8 @@ mod tests {
     use std::io::{BufRead, BufReader};
     use std::num::{NonZeroU64, NonZeroUsize};
 
+    use quent_bench_types::BatchArgs;
+
     use super::*;
 
     #[test]
@@ -157,13 +159,15 @@ mod tests {
         let durations = run_typed::<models::all::LatencyAll, models::all::Entity, _, _, _>(
             Exporter::Ndjson,
             Some(directory.path()),
-            WorkloadArgs {
+            MeasurementArgs {
                 threads: NonZeroUsize::MIN,
-                num_batches: NonZeroUsize::new(2).unwrap(),
-                batch_size: NonZeroU64::new(129).unwrap(),
-                num_warmup_batches: 1,
-                batch_pause_interval_us: 0,
-                no_preflight_call: true,
+                batch: BatchArgs {
+                    num_batches: NonZeroUsize::new(2).unwrap(),
+                    batch_size: NonZeroU64::new(129).unwrap(),
+                    num_warmup_batches: 1,
+                    batch_pause_interval_us: 0,
+                    no_preflight_call: true,
+                },
             },
             |index| (index as u8, index, short_string(index), long_string(index)),
             |handle, (small, large, short, long)| handle.instr_call(small, large, short, long),

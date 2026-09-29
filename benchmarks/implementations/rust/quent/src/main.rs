@@ -6,8 +6,10 @@ mod models;
 mod verify;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
-use quent_bench_rust_common::{BenchResult, WorkloadArgs};
-use quent_bench_types::{CaseResult as SharedCaseResult, EventShape, Implementation};
+use quent_bench_rust_common::BenchResult;
+use quent_bench_types::{
+    CaseResult as SharedCaseResult, EventShape, Implementation, MeasurementArgs,
+};
 use quent_instrumentation::FileSystemFormat;
 use serde::Serialize;
 
@@ -38,7 +40,7 @@ struct Args {
     #[arg(long, value_enum)]
     event_shape: EventShape,
     #[command(flatten)]
-    workload: WorkloadArgs,
+    workload: MeasurementArgs,
     #[command(flatten)]
     quent: QuentArgs,
 }

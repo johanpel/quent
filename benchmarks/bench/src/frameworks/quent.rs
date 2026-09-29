@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -67,7 +68,7 @@ struct QuentCase {
     executable: PathBuf,
     exporter: Exporter,
     event_shape: quent_bench_types::EventShape,
-    threads: usize,
+    threads: NonZeroUsize,
 }
 
 impl CaseRunner for QuentCase {

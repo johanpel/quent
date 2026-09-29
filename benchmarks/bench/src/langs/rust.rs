@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -57,7 +58,7 @@ pub(crate) fn empty_loop_cases(shared: &SharedArgs) -> BenchResult<Vec<Box<dyn C
 
 struct EmptyLoopCase {
     executable: PathBuf,
-    threads: usize,
+    threads: NonZeroUsize,
 }
 
 impl CaseRunner for EmptyLoopCase {

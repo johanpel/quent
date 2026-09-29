@@ -8,11 +8,12 @@ mod report;
 mod system;
 
 use std::collections::BTreeSet;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::process::Command;
 
 use clap::{Args as ClapArgs, Parser, ValueEnum};
-use quent_bench_types::EventShape;
+use quent_bench_types::{BatchArgs, EventShape, MeasurementArgs};
 use serde::{Deserialize, Serialize};
 
 use case::CaseRunner;
@@ -73,33 +74,18 @@ struct SharedArgs {
     )]
     event_shape: Vec<EventShape>,
     #[arg(long, value_delimiter = ',', default_value = "1")]
-    threads: Vec<usize>,
-    #[arg(long, default_value_t = 100)]
-    num_batches: usize,
-    #[arg(long, default_value_t = 20)]
-    batch_size: u64,
-    #[arg(long, default_value_t = 10)]
-    num_warmup_batches: usize,
-    #[arg(long = "batch-pause-us", default_value_t = 10)]
-    batch_pause_interval_us: u64,
-    #[arg(long)]
-    no_preflight_call: bool,
+    threads: Vec<NonZeroUsize>,
+    #[command(flatten)]
+    batch: BatchArgs,
 }
 
 impl SharedArgs {
-    fn apply_workload(&self, command: &mut Command, threads: usize) {
-        command
-            .args(["--threads", &threads.to_string()])
-            .args(["--num-batches", &self.num_batches.to_string()])
-            .args(["--batch-size", &self.batch_size.to_string()])
-            .args(["--num-warmup-batches", &self.num_warmup_batches.to_string()])
-            .args([
-                "--batch-pause-us",
-                &self.batch_pause_interval_us.to_string(),
-            ]);
-        if self.no_preflight_call {
-            command.arg("--no-preflight-call");
+    fn apply_workload(&self, command: &mut Command, threads: NonZeroUsize) {
+        MeasurementArgs {
+            threads,
+            batch: self.batch,
         }
+        .append_to_command(command);
     }
 }
 
@@ -132,11 +118,6 @@ impl Args {
 fn main() -> BenchResult<()> {
     let args = Args::parse();
     let shared = &args.shared;
-    if shared.num_batches == 0 || shared.batch_size == 0 || shared.threads.contains(&0) {
-        return Err(
-            "--num-batches, --batch-size, and every --threads value must be positive".into(),
-        );
-    }
     let system = system::properties()?;
     report::print_system(&system);
     let cases = args

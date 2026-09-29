@@ -7,7 +7,7 @@ use std::path::Path;
 
 use quent_instrumentation::Uuid;
 
-use quent_bench_rust_common::BatchConfig;
+use quent_bench_types::BatchArgs;
 
 use crate::{BenchResult, Exporter};
 
@@ -16,7 +16,7 @@ pub fn exported_events(
     export_root: Option<&Path>,
     context_id: Uuid,
     threads: usize,
-    config: BatchConfig,
+    config: BatchArgs,
     preflight_call: bool,
 ) -> BenchResult<()> {
     let (extension, count_file): (&str, fn(File) -> BenchResult<u64>) = match exporter {
@@ -25,8 +25,8 @@ pub fn exported_events(
         Exporter::Msgpack => ("msgpack", count_framed_records),
         Exporter::Postcard => ("postcard", count_framed_records),
     };
-    let expected_per_thread = u64::try_from(config.num_warmup_batches + config.num_batches)?
-        .checked_mul(config.batch_size)
+    let expected_per_thread = u64::try_from(config.num_warmup_batches + config.num_batches.get())?
+        .checked_mul(config.batch_size.get())
         .ok_or("expected exported event count overflows u64")?
         .checked_add(u64::from(preflight_call))
         .ok_or("expected exported event count overflows u64")?;
