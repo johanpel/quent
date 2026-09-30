@@ -61,6 +61,29 @@ impl MeasurementArgs {
         command.args(["--threads", &self.threads.to_string()]);
         self.batch.append_to_command(command);
     }
+
+    /// Returns all attempted calls or empty-loop iterations, including warmup and optional preflight work.
+    pub fn total_call_count(&self) -> Option<u64> {
+        let batches = u64::try_from(self.batch.num_batches.get())
+            .ok()?
+            .checked_add(u64::try_from(self.batch.num_warmup_batches).ok()?)?;
+        let calls_per_thread = batches
+            .checked_mul(self.batch.batch_size.get())?
+            .checked_add(u64::from(!self.batch.no_preflight_call))?;
+        u64::try_from(self.threads.get())
+            .ok()?
+            .checked_mul(calls_per_thread)
+    }
+}
+
+/// Identifies the implementation language of a benchmark case.
+#[derive(
+    Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize, strum::AsRefStr,
+)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum Language {
+    Rust,
 }
 
 /// Identifies the implementation that produced a benchmark result.
@@ -103,6 +126,8 @@ pub enum EventShape {
 pub struct CaseResult<I, E, S> {
     /// Names the benchmark implementation.
     pub implementation: I,
+    /// Language of the implementation executable.
+    pub language: Language,
     /// Identifies how events are handled, or `None` when no output mechanism applies.
     pub exporter: Option<E>,
     /// Selects the event shape, or `None` when the case emits no event.
@@ -121,8 +146,61 @@ pub struct CaseResult<I, E, S> {
     pub preflight_call: bool,
     /// Process ID of the child that measured this case.
     pub child_pid: u32,
+    /// Attempted calls or empty-loop iterations across all threads, including warmup and preflight.
+    pub total_call_count: u64,
+    /// Calls whose events were not retained; `None` for empty loops or unknown counts.
+    pub discarded_call_count: Option<u64>,
     /// Elapsed nanoseconds for each measured batch, grouped by thread in spawn order.
     pub thread_batch_elapsed_ns: Vec<Vec<u64>>,
     /// Sum of measured batch durations divided by `threads * num_batches * batch_size`.
     pub average_ns_per_iteration: f64,
+}
+
+impl<I, E, S> CaseResult<I, E, S> {
+    /// Builds a case result from the workload and measured batch durations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the total call count overflows `u64` or the discarded count exceeds it.
+    pub fn try_new(
+        implementation: I,
+        language: Language,
+        exporter: Option<E>,
+        event_shape: Option<S>,
+        workload: MeasurementArgs,
+        thread_batch_elapsed_ns: Vec<Vec<u64>>,
+        discarded_call_count: Option<u64>,
+    ) -> Result<Self, &'static str> {
+        let total_call_count = workload
+            .total_call_count()
+            .ok_or("total call count overflows u64")?;
+        if discarded_call_count.is_some_and(|count| count > total_call_count) {
+            return Err("discarded call count exceeds total call count");
+        }
+        let average_ns_per_iteration = thread_batch_elapsed_ns
+            .iter()
+            .flatten()
+            .map(|duration| *duration as f64)
+            .sum::<f64>()
+            / workload.threads.get() as f64
+            / workload.batch.num_batches.get() as f64
+            / workload.batch.batch_size.get() as f64;
+        Ok(Self {
+            implementation,
+            language,
+            exporter,
+            event_shape,
+            threads: workload.threads.get(),
+            num_batches: workload.batch.num_batches.get(),
+            batch_size: workload.batch.batch_size.get(),
+            num_warmup_batches: workload.batch.num_warmup_batches,
+            batch_pause_interval_us: workload.batch.batch_pause_interval_us,
+            preflight_call: !workload.batch.no_preflight_call,
+            child_pid: std::process::id(),
+            total_call_count,
+            discarded_call_count,
+            thread_batch_elapsed_ns,
+            average_ns_per_iteration,
+        })
+    }
 }

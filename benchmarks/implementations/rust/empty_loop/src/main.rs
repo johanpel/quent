@@ -4,8 +4,8 @@
 use std::{convert::Infallible, hint::black_box};
 
 use clap::Parser;
-use quent_bench_rust_common::{BenchResult, make_case_result, measure_threads};
-use quent_bench_types::{CaseResult, Implementation, MeasurementArgs};
+use quent_bench_rust_common::{BenchResult, measure_threads};
+use quent_bench_types::{CaseResult, Implementation, Language, MeasurementArgs};
 
 #[derive(Parser)]
 struct Args {
@@ -24,13 +24,15 @@ fn main() -> BenchResult<()> {
             Ok::<(), Infallible>(())
         },
     )?;
-    let result: CaseResult<Implementation, &str, &str> = make_case_result(
+    let result: CaseResult<Implementation, &str, &str> = CaseResult::try_new(
         Implementation::EmptyLoopRs,
+        Language::Rust,
         None,
         None,
         args.workload,
         durations,
-    );
+        None,
+    )?;
     println!("{}", serde_json::to_string(&result)?);
     Ok(())
 }

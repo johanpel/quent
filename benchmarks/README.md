@@ -50,8 +50,8 @@ Available `--quent-exporter` values:
 
 Quent creates one context and observer pipeline per case, with one entity
 handle per thread. File exporters serialize and write during measurement.
-Draining and event-count verification happen afterward. Counts include warmup
-and preflight calls. The no-op path may drop prepared strings during timing.
+After draining, the benchmark counts exported records. The no-op path may drop
+prepared strings during timing.
 
 ### Event shapes
 
@@ -96,6 +96,10 @@ The measurement proceeds as follows across all implementations / languages:
 The benchmark reports `sum(thread_batch_elapsed_ns) / (threads * num_batches *
 batch_size)` in nanoseconds per call, plus sample standard deviation and
 nearest-rank p50/p95/p99 of batch averages.
+
+The report also gives total calls and calls without a retained event. These
+counts include warmup and optional preflight calls. No-op exporters discard all
+calls by design. The empty loop has no event, so its discarded count is unset.
 
 With `--empty-loop`, `quent-bench` times empty-loop iterations using the same
 batch schedule. This gives a rough indication of loop and timing overhead.

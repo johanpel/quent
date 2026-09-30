@@ -10,40 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use quent_bench_types::{CaseResult, MeasurementArgs};
+use quent_bench_types::MeasurementArgs;
 
 pub type BenchResult<T> = Result<T, Box<dyn Error>>;
-
-pub fn make_case_result<I, E, S>(
-    implementation: I,
-    exporter: Option<E>,
-    event_shape: Option<S>,
-    workload: MeasurementArgs,
-    thread_batch_elapsed_ns: Vec<Vec<u64>>,
-) -> CaseResult<I, E, S> {
-    let average_ns_per_iteration = thread_batch_elapsed_ns
-        .iter()
-        .flatten()
-        .map(|duration| *duration as f64)
-        .sum::<f64>()
-        / workload.threads.get() as f64
-        / workload.batch.num_batches.get() as f64
-        / workload.batch.batch_size.get() as f64;
-    CaseResult {
-        implementation,
-        exporter,
-        event_shape,
-        threads: workload.threads.get(),
-        num_batches: workload.batch.num_batches.get(),
-        batch_size: workload.batch.batch_size.get(),
-        num_warmup_batches: workload.batch.num_warmup_batches,
-        batch_pause_interval_us: workload.batch.batch_pause_interval_us,
-        preflight_call: !workload.batch.no_preflight_call,
-        child_pid: std::process::id(),
-        thread_batch_elapsed_ns,
-        average_ns_per_iteration,
-    }
-}
 
 /// Measures concurrent calls in timed batches.
 ///

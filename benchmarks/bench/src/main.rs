@@ -11,7 +11,7 @@ mod system;
 use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, process::Command};
 
 use clap::{Parser, ValueEnum};
-use quent_bench_types::{BatchArgs, EventShape, MeasurementArgs};
+use quent_bench_types::{BatchArgs, EventShape, Language, MeasurementArgs};
 use serde::{Deserialize, Serialize};
 
 use case::CaseRunner;
@@ -24,12 +24,6 @@ type BenchResult<T> = Result<T, Box<dyn std::error::Error>>;
 #[serde(rename_all = "kebab-case")]
 enum Framework {
     Quent,
-}
-
-/// Groups implementations so each selected language gets one empty-loop measurement.
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-enum Language {
-    Rust,
 }
 
 impl Framework {

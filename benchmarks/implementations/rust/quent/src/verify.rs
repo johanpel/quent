@@ -9,38 +9,30 @@ use std::{
 
 use quent_instrumentation::Uuid;
 
-use quent_bench_types::BatchArgs;
+use quent_bench_types::MeasurementArgs;
 
 use crate::{BenchResult, Exporter};
 
-pub fn exported_events(
+pub fn discarded_events(
     exporter: Exporter,
     export_root: Option<&Path>,
     context_id: Uuid,
-    threads: usize,
-    config: BatchArgs,
-    preflight_call: bool,
-) -> BenchResult<()> {
+    workload: MeasurementArgs,
+) -> BenchResult<u64> {
+    let total = workload
+        .total_call_count()
+        .ok_or("total call count overflows u64")?;
     let (extension, count_file): (&str, fn(File) -> BenchResult<u64>) = match exporter {
-        Exporter::Noop => return Ok(()),
+        Exporter::Noop => return Ok(total),
         Exporter::Ndjson => ("ndjson", count_ndjson_records),
         Exporter::Msgpack => ("msgpack", count_framed_records),
         Exporter::Postcard => ("postcard", count_framed_records),
     };
-    let expected_per_thread = u64::try_from(config.num_warmup_batches + config.num_batches.get())?
-        .checked_mul(config.batch_size.get())
-        .ok_or("expected exported event count overflows u64")?
-        .checked_add(u64::from(preflight_call))
-        .ok_or("expected exported event count overflows u64")?;
-    let expected = u64::try_from(threads)?
-        .checked_mul(expected_per_thread)
-        .ok_or("expected exported event count overflows u64")?;
     let root = export_root.ok_or("filesystem export root is missing")?;
-    let actual = count_records(&root.join(context_id.to_string()), extension, count_file)?;
-    if actual != expected {
-        return Err(format!("{extension} event count: expected {expected}, found {actual}").into());
-    }
-    Ok(())
+    let retained = count_records(&root.join(context_id.to_string()), extension, count_file)?;
+    total
+        .checked_sub(retained)
+        .ok_or_else(|| format!("{extension} event count exceeds attempted call count").into())
 }
 
 fn count_records(

@@ -141,9 +141,12 @@ fn print_cases(cases: &[ReportedCase]) {
     table.set_header(
         [
             "Implementation",
+            "Language",
             "Exporter",
             "Event",
             "Threads",
+            "Calls",
+            "Discarded",
             "Mean",
             "SD",
             "p50",
@@ -157,6 +160,7 @@ fn print_cases(cases: &[ReportedCase]) {
         let stats = &case.batch_statistics;
         let row = vec![
             Cell::new(result.implementation.as_ref()),
+            Cell::new(result.language.as_ref()),
             Cell::new(result.exporter.as_deref().unwrap_or("—")),
             Cell::new(
                 result
@@ -166,6 +170,8 @@ fn print_cases(cases: &[ReportedCase]) {
                     .unwrap_or("—"),
             ),
             Cell::new(result.threads).set_alignment(CellAlignment::Right),
+            Cell::new(result.total_call_count).set_alignment(CellAlignment::Right),
+            Cell::new(available(result.discarded_call_count)).set_alignment(CellAlignment::Right),
             number(result.average_ns_per_iteration),
             number(stats.standard_deviation_ns_per_iteration),
             number(stats.p50_ns_per_iteration),
