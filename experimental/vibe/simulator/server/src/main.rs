@@ -15,7 +15,7 @@ use quent_query_engine_server::{
 use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::Simulator;
-use quent_store::event::{CombinedEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 use tokio::net::TcpListener;
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -131,11 +131,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
     let importer = move |context_id| {
-        let events = Store::<Simulator>::new(
+        let events = Loader::<Simulator>::new(
             &importer_output_dir,
             quent_store::context::ContextSet::one(context_id),
         )
-        .events()
+        .combined_events()
         .map_err(quent_io::ImporterError::other)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(quent_io::ImporterError::other)?;

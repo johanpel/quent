@@ -177,7 +177,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let entities = schema.entities().map(|entity| {
         let marker = quent_instrumentation_build::generated_entity_path(entity);
         quote! {
-            impl ::quent_store::event::StoredEntity<#model> for #marker {}
+            impl ::quent_store::event::EntityMarkerInModel<#model> for #marker {}
         }
     });
 
@@ -211,8 +211,8 @@ mod tests {
 
         let default_source = generate_str(&schema, &Options::default()).unwrap();
 
-        assert!(default_source.contains("event::StoredEntity<Demo> for foo::Query"));
-        assert!(default_source.contains("event::StoredEntity<Demo> for foo::nested::Task"));
+        assert!(default_source.contains("event::EntityMarkerInModel<Demo> for foo::Query"));
+        assert!(default_source.contains("event::EntityMarkerInModel<Demo> for foo::nested::Task"));
         assert!(default_source.contains("pub enum DemoEvent"));
         assert!(default_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
         assert_eq!(default_source.matches("import_event_files::<").count(), 2);

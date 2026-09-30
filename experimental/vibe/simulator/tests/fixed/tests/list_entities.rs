@@ -20,7 +20,7 @@ use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_fixed as fixed;
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::{Simulator, SimulatorEvent};
-use quent_store::event::{CombinedEventStore, filesystem::Store};
+use quent_store::event::{CombinedEventLoader, filesystem::Loader};
 use quent_ui::entities::request::{
     EntityListEntry, EntityListFilter, EntityListRequest, EntityScope, EntitySortKey, Sort,
     SortDir, TimeWindow,
@@ -74,11 +74,11 @@ fn fixed_analyzer() -> SimulatorUiAnalyzer {
     let context_id = ctx.id();
     fixed::emit(&ctx);
     drop(ctx);
-    let events = Store::<Simulator>::new(
+    let events = Loader::<Simulator>::new(
         output.path(),
         quent_store::context::ContextSet::one(context_id),
     )
-    .events()
+    .combined_events()
     .unwrap()
     .collect::<Result<Vec<Event<SimulatorEvent>>, _>>()
     .unwrap();

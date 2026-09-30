@@ -3,17 +3,21 @@
 
 //! In-memory entity storage.
 
-use std::collections::BTreeMap;
-use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use quent_events::{EntityMarker, Event, EventPayload};
-use quent_time::TimeUnixNanoSec;
+use quent_time::{OrderedCollector, TimeUnixNanoSec};
+use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use super::sequence::EventSequence;
 use super::{BorrowedEventSequenceStore, EntityHandle, EntityStore, OwnedEventSequenceStore};
+
+/// Error returned when a handle's UUID is absent from an in-memory store.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[error("entity {0} is not in this store")]
+pub struct MissingEntity(pub Uuid);
 
 /// An owned handle for one entity marker.
 pub struct Handle<E> {
@@ -35,36 +39,47 @@ impl<E: EntityMarker> EntityHandle for Handle<E> {
 
 /// Stores one entity marker's events in memory, grouped by UUID.
 pub struct Store<E: EntityMarker> {
-    entities: BTreeMap<Uuid, EventSequence<E>>,
+    entities: HashMap<Uuid, EventSequence<E>>,
 }
 
 impl<E: EntityMarker> Store<E> {
     /// Groups events by UUID and orders each sequence by timestamp.
     ///
-    /// Equal timestamps retain input order. Timestamp order is not causal order.
+    /// # Performance notes
+    ///
+    /// For n input events, construction is O(n) when each entity's events
+    /// arrive in timestamp order. Inserting m out-of-order events for one
+    /// entity can take O(m^2).
+    ///
+    /// Practically speaking, when leveraging Quent's current builtin exporters
+    /// / importers, out-of-order events will only occur when entities emit
+    /// events from multiple contexts.
     pub fn new(events: impl IntoIterator<Item = Event<E::Payload>>) -> Self {
-        let mut entities: BTreeMap<Uuid, Vec<Event<E::Payload>>> = BTreeMap::new();
+        // OrderedCollector appends the common in-order case and inserts late arrivals in order.
+        let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
         for event in events {
             entities.entry(event.id).or_default().push(event);
         }
         let entities = entities
             .into_iter()
-            .map(|(id, mut events)| {
-                events.sort_by_key(|event| event.timestamp);
-                (id, EventSequence::from_ordered_events(id, events))
+            .map(|(id, events)| {
+                (
+                    id,
+                    EventSequence::from_ordered_events(id, events.into_inner()),
+                )
             })
             .collect();
         Self { entities }
     }
 
-    /// Consumes the store and yields sequences in UUID order.
+    /// Consumes the store and yields sequences in unspecified order.
     pub fn into_sequences(self) -> impl Iterator<Item = EventSequence<E>> {
         self.entities.into_values()
     }
 }
 
 impl<E: EntityMarker> EntityStore<E> for Store<E> {
-    type Error = Infallible;
+    type Error = MissingEntity;
     type Handle = Handle<E>;
 
     fn entities(&self) -> Result<impl Iterator<Item = Self::Handle>, Self::Error> {
@@ -81,37 +96,33 @@ impl<E: EntityMarker> EntityStore<E> for Store<E> {
         }))
     }
 
-    fn earliest_timestamp(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<TimeUnixNanoSec>, Self::Error> {
-        Ok(self
-            .entities
+    fn earliest_timestamp(&self, handle: &Self::Handle) -> Result<TimeUnixNanoSec, Self::Error> {
+        self.entities
             .get(&handle.id)
-            .map(EventSequence::earliest_timestamp))
+            .map(EventSequence::earliest_timestamp)
+            .ok_or(MissingEntity(handle.id))
     }
 
-    fn latest_timestamp(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<TimeUnixNanoSec>, Self::Error> {
-        Ok(self
-            .entities
+    fn latest_timestamp(&self, handle: &Self::Handle) -> Result<TimeUnixNanoSec, Self::Error> {
+        self.entities
             .get(&handle.id)
-            .map(EventSequence::latest_timestamp))
+            .map(EventSequence::latest_timestamp)
+            .ok_or(MissingEntity(handle.id))
     }
 
-    fn num_events(&self, handle: &Self::Handle) -> Result<Option<NonZeroUsize>, Self::Error> {
-        Ok(self
-            .entities
+    fn num_events(&self, handle: &Self::Handle) -> Result<NonZeroUsize, Self::Error> {
+        self.entities
             .get(&handle.id)
-            .map(EventSequence::event_count))
+            .map(EventSequence::event_count)
+            .ok_or(MissingEntity(handle.id))
     }
 }
 
 impl<E: EntityMarker> BorrowedEventSequenceStore<E> for Store<E> {
-    fn sequence(&self, handle: &Self::Handle) -> Result<Option<&EventSequence<E>>, Self::Error> {
-        Ok(self.entities.get(&handle.id))
+    fn event_sequence(&self, handle: &Self::Handle) -> Result<&EventSequence<E>, Self::Error> {
+        self.entities
+            .get(&handle.id)
+            .ok_or(MissingEntity(handle.id))
     }
 }
 
@@ -119,11 +130,11 @@ impl<E: EntityMarker> OwnedEventSequenceStore<E> for Store<E>
 where
     E::Payload: Clone,
 {
-    fn owned_sequence(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<EventSequence<E>>, Self::Error> {
-        Ok(self.entities.get(&handle.id).cloned())
+    fn event_sequence_owned(&self, handle: &Self::Handle) -> Result<EventSequence<E>, Self::Error> {
+        self.entities
+            .get(&handle.id)
+            .cloned()
+            .ok_or(MissingEntity(handle.id))
     }
 }
 
@@ -157,21 +168,23 @@ mod tests {
             Event::new(first, 1, TaskEvent("equal")),
         ]);
 
-        assert_eq!(
-            store
-                .entities()
-                .unwrap()
-                .map(|handle| handle.id())
-                .collect::<Vec<_>>(),
-            [first, second]
-        );
+        let mut ids = store
+            .entities()
+            .unwrap()
+            .map(|handle| handle.id())
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        assert_eq!(ids, [first, second]);
         let handle = store.entity(first).unwrap().unwrap();
         assert_eq!(handle.type_name(), "Task");
-        assert_eq!(store.earliest_timestamp(&handle).unwrap(), Some(1));
-        assert_eq!(store.latest_timestamp(&handle).unwrap(), Some(2));
-        assert_eq!(store.num_events(&handle).unwrap(), NonZeroUsize::new(3));
-        let sequence = store.sequence(&handle).unwrap().unwrap();
-        let owned = store.owned_sequence(&handle).unwrap().unwrap();
+        assert_eq!(store.earliest_timestamp(&handle).unwrap(), 1);
+        assert_eq!(store.latest_timestamp(&handle).unwrap(), 2);
+        assert_eq!(
+            store.num_events(&handle).unwrap(),
+            NonZeroUsize::new(3).unwrap()
+        );
+        let sequence = store.event_sequence(&handle).unwrap();
+        let owned = store.event_sequence_owned(&handle).unwrap();
         assert_eq!(owned.id(), first);
         assert_eq!(owned.event_count(), sequence.event_count());
         assert_ne!(owned.events().as_ptr(), sequence.events().as_ptr());
@@ -195,17 +208,35 @@ mod tests {
         let other_store =
             Store::<Task>::new([Event::new(Uuid::from_u128(3), 4, TaskEvent("foreign"))]);
         let foreign_handle = other_store.entity(Uuid::from_u128(3)).unwrap().unwrap();
-        assert_eq!(store.earliest_timestamp(&foreign_handle).unwrap(), None);
-        assert_eq!(store.latest_timestamp(&foreign_handle).unwrap(), None);
-        assert_eq!(store.num_events(&foreign_handle).unwrap(), None);
-        assert!(store.sequence(&foreign_handle).unwrap().is_none());
-        assert!(store.owned_sequence(&foreign_handle).unwrap().is_none());
         assert_eq!(
-            store
-                .into_sequences()
-                .map(|sequence| sequence.into_events().len())
-                .collect::<Vec<_>>(),
-            [3, 1]
+            store.earliest_timestamp(&foreign_handle),
+            Err(MissingEntity(foreign_handle.id()))
         );
+        assert_eq!(
+            store.latest_timestamp(&foreign_handle),
+            Err(MissingEntity(foreign_handle.id()))
+        );
+        assert_eq!(
+            store.num_events(&foreign_handle),
+            Err(MissingEntity(foreign_handle.id()))
+        );
+        assert!(
+            matches!(store.event_sequence(&foreign_handle), Err(MissingEntity(id)) if id == foreign_handle.id())
+        );
+        assert!(
+            matches!(store.event_sequence_owned(&foreign_handle), Err(MissingEntity(id)) if id == foreign_handle.id())
+        );
+        let shared_handle = Store::<Task>::new([Event::new(first, 9, TaskEvent("shared"))])
+            .entity(first)
+            .unwrap()
+            .unwrap();
+        assert_eq!(store.earliest_timestamp(&shared_handle).unwrap(), 1);
+        assert_eq!(store.num_events(&shared_handle).unwrap().get(), 3);
+        let mut lengths = store
+            .into_sequences()
+            .map(|sequence| sequence.into_events().len())
+            .collect::<Vec<_>>();
+        lengths.sort_unstable();
+        assert_eq!(lengths, [1, 3]);
     }
 }

@@ -3106,6 +3106,7 @@ dependencies = [
  "quent-instrumentation",
  "quent-io",
  "quent-time",
+ "rustc-hash",
  "serde",
  "smallvec",
  "tempfile",

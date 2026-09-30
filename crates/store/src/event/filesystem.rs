@@ -15,9 +15,7 @@ use uuid::Uuid;
 
 use crate::context::ContextSet;
 
-use super::{
-    CombinedEventLoader, CombinedEventStore, EventIterator, EventLoader, EventStore, StoredEntity,
-};
+use super::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader};
 
 /// Result returned by filesystem event stores.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -108,14 +106,14 @@ where
 }
 
 /// Loads model events from filesystem exporter output.
-pub struct Store<M> {
+pub struct Loader<M> {
     root: PathBuf,
     contexts: ContextSet,
     model: PhantomData<fn() -> M>,
 }
 
-impl<M> Store<M> {
-    /// Creates a store for the selected contexts under an exporter output directory.
+impl<M> Loader<M> {
+    /// Creates a loader for the selected contexts under an exporter output directory.
     pub fn new(root: impl Into<PathBuf>, contexts: ContextSet) -> Self {
         Self {
             root: root.into(),
@@ -135,19 +133,15 @@ impl<M> Store<M> {
     }
 }
 
-impl<M> EventStore<M> for Store<M> {
-    type Error = Error;
-}
-
-impl<M, E> EventLoader<E> for Store<M>
+impl<M, E> EventLoader<E> for Loader<M>
 where
     M: EventModel,
-    E: StoredEntity<M>,
+    E: EntityMarkerInModel<M>,
     E::Payload: DeserializeOwned + 'static,
 {
     type Error = Error;
 
-    fn load_entity_events(&self) -> Result<EventIterator<E::Payload, Error>> {
+    fn events(&self) -> Result<EventIterator<E::Payload, Error>> {
         let mut files = Vec::new();
         for &context_id in self.contexts.as_slice() {
             let context = self.context(context_id)?;
@@ -157,15 +151,13 @@ where
     }
 }
 
-impl<M: Model> CombinedEventStore<M> for Store<M> {}
-
-impl<M> CombinedEventLoader<M> for Store<M>
+impl<M> CombinedEventLoader<M> for Loader<M>
 where
     M: EventModel + Model + 'static,
 {
     type Error = Error;
 
-    fn load_model_events(&self) -> Result<EventIterator<M::CombinedEvent, Error>> {
+    fn combined_events(&self) -> Result<EventIterator<M::CombinedEvent, Error>> {
         let mut streams = Vec::new();
         for &context_id in self.contexts.as_slice() {
             let context = self.context(context_id)?;
@@ -178,7 +170,7 @@ where
     }
 }
 
-impl<M> Store<M>
+impl<M> Loader<M>
 where
     M: EventModel,
 {
@@ -355,7 +347,7 @@ mod tests {
         type Payload = AlphaEvent;
     }
 
-    impl StoredEntity<TestModel> for Alpha {}
+    impl EntityMarkerInModel<TestModel> for Alpha {}
 
     #[derive(Debug, Deserialize, PartialEq, Serialize)]
     struct BetaEvent(u8);
@@ -463,9 +455,9 @@ mod tests {
         let id = Uuid::from_u128(2);
         export_events(root.path(), id);
 
-        let store = Store::<TestModel>::new(root.path(), ContextSet::one(id));
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(id));
         let events = store
-            .events()
+            .combined_events()
             .unwrap()
             .map(|event| event.map(|event| event.data))
             .collect::<Result<Vec<_>>>()
@@ -482,9 +474,8 @@ mod tests {
         let id = Uuid::from_u128(2);
         export_events(root.path(), id);
 
-        let store = Store::<TestModel>::new(root.path(), ContextSet::one(id));
-        let events = store
-            .entity_events::<Alpha>()
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(id));
+        let events = EventLoader::<Alpha>::events(&store)
             .unwrap()
             .collect::<Result<Vec<_>>>()
             .unwrap();
@@ -523,9 +514,8 @@ mod tests {
             [],
         );
         let contexts = ContextSet::try_new([second_context, first_context]).unwrap();
-        let store = Store::<TestModel>::new(root.path(), contexts);
-        let events = store
-            .entity_events::<Alpha>()
+        let store = Loader::<TestModel>::new(root.path(), contexts);
+        let events = EventLoader::<Alpha>::events(&store)
             .unwrap()
             .collect::<Result<Vec<_>>>()
             .unwrap();
@@ -536,12 +526,14 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(handles.len(), 2);
-        assert_eq!(handles[0].id(), first_entity);
-        assert_eq!(handles[1].id(), second_entity);
+        assert!(handles.iter().any(|handle| handle.id() == first_entity));
+        assert!(handles.iter().any(|handle| handle.id() == second_entity));
+        let first_handle = EntityStore::<Alpha>::entity(&entities, first_entity)
+            .unwrap()
+            .unwrap();
         assert_eq!(
             entities
-                .sequence(&handles[0])
-                .unwrap()
+                .event_sequence(&first_handle)
                 .unwrap()
                 .events()
                 .iter()
@@ -561,7 +553,7 @@ mod tests {
     #[test]
     fn validates_context_and_model() {
         let root = tempfile::tempdir().unwrap();
-        let store = Store::<TestModel>::new(root.path(), ContextSet::one(Uuid::from_u128(1)));
+        let store = Loader::<TestModel>::new(root.path(), ContextSet::one(Uuid::from_u128(1)));
 
         let missing = Uuid::from_u128(1);
         assert!(matches!(

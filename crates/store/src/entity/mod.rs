@@ -5,7 +5,7 @@
 
 use std::num::NonZeroUsize;
 
-use quent_events::EntityMarker;
+use quent_events::{EntityMarker, EventPayload};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -14,7 +14,12 @@ use self::sequence::EventSequence;
 pub mod memory;
 pub mod sequence;
 
-/// Identifies an entity without owning its events.
+/// Identifies an entity in a store.
+///
+/// # Note
+///
+/// This is a trait rather than a concrete type wrapping only a UUID to allow
+/// (typically immutable) stores to add additional indexing information.
 pub trait EntityHandle {
     /// Entity marker addressed by this handle.
     type Entity: EntityMarker;
@@ -23,49 +28,63 @@ pub trait EntityHandle {
     fn id(&self) -> Uuid;
 
     /// Returns the entity type name.
-    fn type_name(&self) -> &str;
+    fn type_name(&self) -> &str {
+        <<Self::Entity as EntityMarker>::Payload as EventPayload>::NAME
+    }
 }
 
-/// Provides typed access to stored entities of marker type `E`.
+/// Provides access to (entity-type agnostic properties of) stored entities with
+/// marker type `E`.
 pub trait EntityStore<E: EntityMarker> {
     /// Error returned when entity access fails.
     type Error;
-    /// Owned handle returned by this store.
+    /// Handle type returned by this store.
     type Handle: EntityHandle<Entity = E>;
 
-    /// Iterates over entity handles in UUID order.
+    /// Iterates over entity handles.
     fn entities(&self) -> Result<impl Iterator<Item = Self::Handle>, Self::Error>;
 
-    /// Finds an entity handle by UUID.
+    /// Look up an entity by its UUID and return a handle.
     fn entity(&self, entity_id: Uuid) -> Result<Option<Self::Handle>, Self::Error>;
 
-    /// Returns the earliest recorded timestamp, or `None` if the handle has no entity in this store.
-    fn earliest_timestamp(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<TimeUnixNanoSec>, Self::Error>;
+    /// Returns the earliest recorded timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle does not identify an entity in this store.
+    fn earliest_timestamp(&self, handle: &Self::Handle) -> Result<TimeUnixNanoSec, Self::Error>;
 
-    /// Returns the latest recorded timestamp, or `None` if the handle has no entity in this store.
-    fn latest_timestamp(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<TimeUnixNanoSec>, Self::Error>;
+    /// Returns the latest recorded timestamp.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle does not identify an entity in this store.
+    fn latest_timestamp(&self, handle: &Self::Handle) -> Result<TimeUnixNanoSec, Self::Error>;
 
-    /// Returns the event count, or `None` if the handle has no entity in this store.
-    fn num_events(&self, handle: &Self::Handle) -> Result<Option<NonZeroUsize>, Self::Error>;
+    /// Returns the event count.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle does not identify an entity in this store.
+    fn num_events(&self, handle: &Self::Handle) -> Result<NonZeroUsize, Self::Error>;
 }
 
 /// Provides borrowed, timestamp-ordered raw event sequences for an entity marker.
 pub trait BorrowedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
-    /// Borrows the selected sequence, or returns `None` if it is absent.
-    fn sequence(&self, handle: &Self::Handle) -> Result<Option<&EventSequence<E>>, Self::Error>;
+    /// Borrows the selected sequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle does not identify an entity in this store.
+    fn event_sequence(&self, handle: &Self::Handle) -> Result<&EventSequence<E>, Self::Error>;
 }
 
 /// Provides owned, timestamp-ordered raw event sequences for an entity marker.
 pub trait OwnedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
-    /// Returns an owned sequence without changing the store, or `None` if it is absent.
-    fn owned_sequence(
-        &self,
-        handle: &Self::Handle,
-    ) -> Result<Option<EventSequence<E>>, Self::Error>;
+    /// Returns an owned sequence without changing the store.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the handle does not identify an entity in this store.
+    fn event_sequence_owned(&self, handle: &Self::Handle) -> Result<EventSequence<E>, Self::Error>;
 }
