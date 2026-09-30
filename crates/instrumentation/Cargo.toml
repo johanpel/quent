@@ -6,6 +6,8 @@ publish.workspace = true
 
 [features]
 default = []
+clock-quanta = ["quent-time/clock-quanta"]
+clock-std = ["quent-time/clock-std"]
 serde = [
     "dep:serde",
     "quent-events/serde",
@@ -27,6 +29,7 @@ quent-collector-client = { workspace = true, optional = true }
 quent-events = { path = "../events" }
 quent-io = { path = "../io", default-features = false }
 quent-io-callback = { path = "../io/callback", optional = true }
+quent-time = { path = "../time" }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "macros"]}
