@@ -29,6 +29,22 @@ fn generates_collector_server_factory_when_enabled() {
 }
 
 #[test]
+fn rejects_collector_server_without_filesystem_exporter() {
+    let schema = parse_from_str(DEMO, None).unwrap().schema;
+    let options = Options {
+        collector_server: true,
+        ..Options::default()
+    };
+    assert!(matches!(
+        emit(&schema, &options),
+        Err(GenerateError::InvalidOption {
+            option: "collector_server",
+            ..
+        })
+    ));
+}
+
+#[test]
 fn generates_schema_driven_bridge_and_stubs() {
     let schema = parse_from_str(DEMO, None).unwrap().schema;
     let options = Options {

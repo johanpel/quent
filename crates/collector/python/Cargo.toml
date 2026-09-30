@@ -7,8 +7,8 @@ version.workspace = true
 [dependencies]
 http.workspace = true
 pyo3.workspace = true
-quent-collector = { path = "../server" }
-quent-collector-proto = { path = "../proto" }
+quent-collector.workspace = true
+quent-collector-proto.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
 tokio-stream = { workspace = true, features = ["net"] }
 tonic.workspace = true
