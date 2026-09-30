@@ -10,6 +10,8 @@ use quent_events::{EntityMarker, Event};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
+// TODO(johanpel): Deduplicate entity ID and timestamp metadata with
+// quent_analyzer::entity::native::AnalyzedEntity as part of rapidsai/quent#516.
 /// A non-empty, timestamp-ordered event sequence for one entity marker.
 /// Equal timestamps retain input order; timestamp order is not causal order across contexts.
 pub struct EventSequence<E: EntityMarker> {

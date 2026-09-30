@@ -333,7 +333,7 @@ fn format_feature(extension: &str) -> Option<&'static str> {
 mod tests {
     use std::fs;
 
-    use crate::entity::memory;
+    use crate::entity::native;
     use crate::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
     use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
     use quent_events::{CombinedEventModel, EntityMarker, Event, EventModel, EventPayload};
@@ -535,7 +535,7 @@ mod tests {
             .unwrap()
             .collect::<Result<Vec<_>>>()
             .unwrap();
-        let entities = memory::Store::<Alpha>::new(events);
+        let entities = native::Store::<Alpha>::new(events);
 
         let handles = EntityStore::<Alpha>::entities(&entities)
             .unwrap()

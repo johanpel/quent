@@ -3,12 +3,15 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{Connection, Demo, Uuid};
-use quent_store::context::ContextSet;
-use quent_store::entity::memory;
-use quent_store::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
-use quent_store::event::EventLoader;
-use quent_store::event::filesystem::{Loader, Result as LoaderResult};
+use demo::{Connection, ConnectionEvent, Demo, Server};
+use quent_store::{
+    context::ContextSet,
+    entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native},
+    event::{
+        EventLoader,
+        filesystem::{Loader, Result as LoaderResult},
+    },
+};
 
 #[allow(unused_imports, dead_code)]
 mod demo {
@@ -22,13 +25,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = Loader::<Demo>::new(output.path(), ContextSet::one(context_id));
 
     print_raw_connection_events(&store)?;
-    let events = EventLoader::<Connection>::events(&store)?.collect::<LoaderResult<Vec<_>>>()?;
-    let connection_id = events
-        .first()
-        .expect("instrumentation emitted a Connection event")
-        .id;
-    let entities = memory::Store::<Connection>::new(events);
-    print_connection_events(&entities, connection_id)?;
+    let connection_events =
+        EventLoader::<Connection>::events(&store)?.collect::<LoaderResult<Vec<_>>>()?;
+    let connections = native::Store::<Connection>::new(connection_events);
+    let server_events = EventLoader::<Server>::events(&store)?.collect::<LoaderResult<Vec<_>>>()?;
+    let servers = native::Store::<Server>::new(server_events);
+    print_connection_events(&connections, &servers)?;
 
     Ok(())
 }
@@ -44,15 +46,29 @@ fn print_raw_connection_events(store: &Loader<Demo>) -> LoaderResult<()> {
     Ok(())
 }
 
-// The entity store looks up one entity and supplies its ordered events.
+// Entity stores supply ordered events and allow references to be followed by UUID.
 fn print_connection_events(
-    entities: &memory::Store<Connection>,
-    id: Uuid,
-) -> Result<(), memory::MissingEntity> {
-    let connection = entities.entity(id)?.ok_or(memory::MissingEntity(id))?;
-    println!("\n{} {} events:", connection.type_name(), connection.id());
-    for event in entities.event_sequence(&connection)?.events() {
-        println!("  {event:?}");
+    connections: &native::Store<Connection>,
+    servers: &native::Store<Server>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(connection) = connections.entities()?.next() {
+        println!("\n{} {} events:", connection.type_name(), connection.id());
+        let events = connections.event_sequence(&connection)?;
+        for event in events.events() {
+            println!("  {event:?}");
+        }
+        let host_id = events.events().iter().find_map(|event| match &event.data {
+            ConnectionEvent::Opened { host, .. } => Some(host.target),
+            _ => None,
+        });
+        if let Some(host_id) = host_id
+            && let Some(server) = servers.entity(host_id)?
+        {
+            println!("\n{} {} events:", server.type_name(), server.id());
+            for event in servers.event_sequence(&server)?.events() {
+                println!("  {event:?}");
+            }
+        }
     }
     Ok(())
 }

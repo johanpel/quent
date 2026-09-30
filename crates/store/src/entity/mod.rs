@@ -11,9 +11,11 @@ use uuid::Uuid;
 
 use self::sequence::EventSequence;
 
-pub mod memory;
+pub mod native;
 pub mod sequence;
 
+// TODO(johanpel): Deduplicate entity identity and timestamp access with quent-analyzer
+// as part of rapidsai/quent#516.
 /// Identifies an entity in a store.
 ///
 /// # Note
