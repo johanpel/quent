@@ -100,6 +100,7 @@ impl Collector {
         }
         listener.set_nonblocking(true).map_err(PyOSError::new_err)?;
 
+        // The listener and gRPC request deadlines require I/O and time drivers.
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
