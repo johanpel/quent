@@ -50,17 +50,20 @@ pub enum Error {
     },
 }
 
-/// Associates a generated model with its filesystem entity event payload streams.
+/// Associates a generated model with its filesystem event importers.
 ///
 /// # Code generation
 ///
-/// `quent-store-build` implements this trait for each filesystem-backed model.
-/// For example, `impl Model for Demo` returns an [`EventStream`] for entity marker
-/// `Task` using its event payload type in `import_event_files::<Demo, TaskEvent>`.
+/// `quent-store-build` implements this trait only when
+/// `quent_store_build::Options::filesystem` and
+/// `quent_store_build::Options::combined_event` are enabled.
+///
+/// For example, `impl Model for Demo` includes
+/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
 #[doc(hidden)]
 pub trait Model: CombinedEventModel {
-    /// Returns the event payload streams generated from the model schema.
-    fn event_streams() -> &'static [EventStream<Self>]
+    /// Returns the event importers generated from the model schema.
+    fn event_importers() -> &'static [EventImporter<Self>]
     where
         Self: Sized;
 }
@@ -68,33 +71,41 @@ pub trait Model: CombinedEventModel {
 type ImportFn<M> =
     fn(Vec<EventFile>) -> Result<EventIterator<<M as CombinedEventModel>::CombinedEvent, Error>>;
 
-/// Describes one entity event payload stream in a generated model.
+/// Imports one entity event payload type into a model's combined event type.
+///
+/// # Code generation
+///
+/// `quent-store-build` emits one importer per entity marker, such as
+/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
 #[doc(hidden)]
-pub struct EventStream<M: CombinedEventModel> {
+pub struct EventImporter<M: CombinedEventModel> {
     entity: &'static str,
     import: ImportFn<M>,
 }
 
-impl<M: CombinedEventModel> EventStream<M> {
-    /// Creates a descriptor for one entity event payload stream.
+impl<M: CombinedEventModel> EventImporter<M> {
+    /// Creates an importer for one entity marker in `M`.
     #[doc(hidden)]
-    pub const fn new(entity: &'static str, import: ImportFn<M>) -> Self {
-        Self { entity, import }
+    pub const fn import_for_entity<E>() -> Self
+    where
+        E: EntityMarkerInModel<M>,
+        E::Payload: DeserializeOwned + Into<M::CombinedEvent> + 'static,
+        M::CombinedEvent: 'static,
+    {
+        Self {
+            entity: E::Payload::NAME,
+            import: import_event_files::<M, E::Payload>,
+        }
     }
 }
 
-/// Identifies an event file and the importer required to decode it.
-#[doc(hidden)]
-pub struct EventFile {
+/// Identifies an event file and its encoding format.
+struct EventFile {
     format: Format,
     path: PathBuf,
 }
 
-/// Imports events carrying payload type `E` and converts the payloads to the model combined type.
-#[doc(hidden)]
-pub fn import_event_files<M, E>(
-    files: Vec<EventFile>,
-) -> Result<EventIterator<M::CombinedEvent, Error>>
+fn import_event_files<M, E>(files: Vec<EventFile>) -> Result<EventIterator<M::CombinedEvent, Error>>
 where
     M: CombinedEventModel,
     E: DeserializeOwned + Into<M::CombinedEvent> + 'static,
@@ -161,7 +172,7 @@ where
         let mut streams = Vec::new();
         for &context_id in self.contexts.as_slice() {
             let context = self.context(context_id)?;
-            for descriptor in M::event_streams() {
+            for descriptor in M::event_importers() {
                 let files = event_files(&context, descriptor.entity)?;
                 streams.push((descriptor.import)(files)?);
             }
@@ -356,6 +367,14 @@ mod tests {
         const NAME: &'static str = "Beta";
     }
 
+    struct Beta;
+
+    impl EntityMarker for Beta {
+        type Payload = BetaEvent;
+    }
+
+    impl EntityMarkerInModel<TestModel> for Beta {}
+
     #[derive(Debug, PartialEq)]
     enum TestEvent {
         Alpha(AlphaEvent),
@@ -393,15 +412,12 @@ mod tests {
     }
 
     impl Model for TestModel {
-        fn event_streams() -> &'static [EventStream<Self>] {
-            static STREAMS: &[EventStream<TestModel>] = &[
-                EventStream::new(
-                    AlphaEvent::NAME,
-                    import_event_files::<TestModel, AlphaEvent>,
-                ),
-                EventStream::new(BetaEvent::NAME, import_event_files::<TestModel, BetaEvent>),
+        fn event_importers() -> &'static [EventImporter<Self>] {
+            static IMPORTERS: &[EventImporter<TestModel>] = &[
+                EventImporter::import_for_entity::<Alpha>(),
+                EventImporter::import_for_entity::<Beta>(),
             ];
-            STREAMS
+            IMPORTERS
         }
     }
 

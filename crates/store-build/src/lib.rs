@@ -149,25 +149,22 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
 
     let model = quent_instrumentation_build::generated_model_path(schema);
     let stored_model = if opts.filesystem {
-        let streams = schema.entities().map(|entity| {
-            let event = quent_instrumentation_build::generated_entity_event_path(entity);
+        let importers = schema.entities().map(|entity| {
+            let marker = quent_instrumentation_build::generated_entity_path(entity);
             quote! {
-                ::quent_store::event::filesystem::EventStream::new(
-                    <#event as ::quent_events::EventPayload>::NAME,
-                    ::quent_store::event::filesystem::import_event_files::<#model, #event>,
-                )
+                ::quent_store::event::filesystem::EventImporter::<#model>::import_for_entity::<#marker>()
             }
         });
         quote! {
             impl ::quent_store::event::filesystem::Model for #model {
-                fn event_streams(
-                ) -> &'static [::quent_store::event::filesystem::EventStream<Self>] {
-                    static STREAMS: &[
-                        ::quent_store::event::filesystem::EventStream<#model>
+                fn event_importers(
+                ) -> &'static [::quent_store::event::filesystem::EventImporter<Self>] {
+                    static IMPORTERS: &[
+                        ::quent_store::event::filesystem::EventImporter<#model>
                     ] = &[
-                        #(#streams,)*
+                        #(#importers,)*
                     ];
-                    STREAMS
+                    IMPORTERS
                 }
             }
         }
@@ -215,7 +212,8 @@ mod tests {
         assert!(default_source.contains("event::EntityMarkerInModel<Demo> for foo::nested::Task"));
         assert!(default_source.contains("pub enum DemoEvent"));
         assert!(default_source.contains("impl ::quent_store::event::filesystem::Model for Demo"));
-        assert_eq!(default_source.matches("import_event_files::<").count(), 2);
+        assert!(default_source.contains("import_for_entity::<foo::Query>()"));
+        assert!(default_source.contains("import_for_entity::<foo::nested::Task>()"));
 
         let entity_events_source = generate_str(
             &schema,
