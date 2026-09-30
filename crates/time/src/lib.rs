@@ -5,10 +5,10 @@
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[cfg(any(not(feature = "clock-quanta"), feature = "clock-std"))]
+#[cfg(not(feature = "clock-quanta"))]
 use std::time::Instant;
 
-#[cfg(all(feature = "clock-quanta", not(feature = "clock-std")))]
+#[cfg(feature = "clock-quanta")]
 use quanta::Clock;
 
 use thiserror::Error;
@@ -55,9 +55,9 @@ pub enum TimeError {
 /// Result type
 pub type Result<T> = std::result::Result<T, TimeError>;
 
-#[cfg(all(feature = "clock-quanta", not(feature = "clock-std")))]
+#[cfg(feature = "clock-quanta")]
 static EPOCH: OnceLock<(Clock, quanta::Instant, u64)> = OnceLock::new();
-#[cfg(any(not(feature = "clock-quanta"), feature = "clock-std"))]
+#[cfg(not(feature = "clock-quanta"))]
 static EPOCH: OnceLock<(Instant, u64)> = OnceLock::new();
 
 fn epoch_unix_ns() -> u64 {
@@ -67,7 +67,7 @@ fn epoch_unix_ns() -> u64 {
         .as_nanos() as u64
 }
 
-#[cfg(all(feature = "clock-quanta", not(feature = "clock-std")))]
+#[cfg(feature = "clock-quanta")]
 fn epoch() -> &'static (Clock, quanta::Instant, u64) {
     EPOCH.get_or_init(|| {
         let clock = Clock::new();
@@ -76,7 +76,7 @@ fn epoch() -> &'static (Clock, quanta::Instant, u64) {
     })
 }
 
-#[cfg(any(not(feature = "clock-quanta"), feature = "clock-std"))]
+#[cfg(not(feature = "clock-quanta"))]
 fn epoch() -> &'static (Instant, u64) {
     EPOCH.get_or_init(|| (Instant::now(), epoch_unix_ns()))
 }
@@ -96,43 +96,23 @@ pub fn initialize_clock() {
 ///
 /// # Clock implementation notes
 ///
-/// The available clock sources are monotonic in normal operation. For most
-/// practical purposes, calls made one after another never return decreasing values.
+/// Select the clock implementation with Cargo features. Timekeeping has subtle
+/// hardware and operating system limitations. If strict timing guarantees
+/// matter to your use case, review the selected clock's documentation carefully:
 ///
-/// Discussing obscure potential exceptions is out of scope for this
-/// documentation, but they can exist. For further reading, see e.g. [Linux
-/// kernel's TSC synchronization
-/// notes](https://docs.kernel.org/virt/kvm/x86/timekeeping.html#tsc-synchronization).
+/// - **Standard clock (default):** [`std::time::Instant`].
+/// - **`clock-quanta`:** [Quanta's `Clock`](https://docs.rs/quanta/0.12.6/quanta/struct.Clock.html).
 ///
 /// On first use, this function records the current Unix time and then adds
 /// elapsed time to it. If the system clock is later corrected, for example by
 /// NTP, returned timestamps continue from the original time and may differ
 /// from the current Unix time.
 ///
-/// ## `clock-quanta` (default)
+/// ## Test override (enabled with the `__test-clock-override` feature)
 ///
-/// On x86_64, Quanta 0.12.6
-/// [requires invariant TSC and RDTSCP](https://docs.rs/crate/quanta/0.12.6/source/src/detection.rs),
-/// so its [constant-only TSC drift caveat](https://docs.rs/crate/quanta/0.12.6/source/src/lib.rs)
-/// does not apply. Supported AArch64 targets use the
-/// [ARM system counter](https://docs.rs/crate/quanta/0.12.6/source/src/clocks/counter.rs),
-/// which [continues at a fixed rate across CPU power states](https://documentation-service.arm.com/static/65fac6957bcc0c1c661b36c0).
-/// Other targets use a monotonic OS clock. When either counter is used, Quanta
-/// calibrates it once against the OS clock, so readings may drift relative to
-/// that clock over time.
-///
-/// Clock initialization may block briefly for calibration; call
-/// [`initialize_clock()`] to do that before emitting events.
-///
-/// ## Standard clock (`clock-std`)
-///
-/// Uses [`std::time::Instant`]. This path is selected when `clock-quanta` is
-/// disabled or `clock-std` is enabled, including when both features are enabled.
-///
-/// ## Test override (`__test-clock-override`)
-///
-/// An armed [`set_timestamp()`] value is returned directly and need not be
-/// monotonic.
+/// When enabling this feature, it is possible to make the next call into
+/// [`timestamp()`] return a value set before that with [`set_timestamp()`].
+/// This feature is intended for testing purposes only.
 ///
 /// # Panics
 ///
@@ -145,12 +125,12 @@ pub fn timestamp() -> TimeUnixNanoSec {
     }
     // Conversion to u64 limits this to Unix timestamp in seconds to
     // 18446744073709551617, which is in the 26th century.
-    #[cfg(all(feature = "clock-quanta", not(feature = "clock-std")))]
+    #[cfg(feature = "clock-quanta")]
     {
         let (clock, instant, epoch_unix_ns) = epoch();
         epoch_unix_ns.saturating_add(clock.now().duration_since(*instant).as_nanos() as u64)
     }
-    #[cfg(any(not(feature = "clock-quanta"), feature = "clock-std"))]
+    #[cfg(not(feature = "clock-quanta"))]
     {
         let (instant, epoch_unix_ns) = epoch();
         epoch_unix_ns.saturating_add(instant.elapsed().as_nanos() as u64)

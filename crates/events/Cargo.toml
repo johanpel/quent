@@ -5,7 +5,7 @@ edition.workspace =  true
 publish.workspace = true
 
 [features]
-default = ["clock-quanta"]
+default = []
 clock-quanta = ["quent-time/clock-quanta"]
 serde = ["dep:serde", "quent-dynamic-attributes/serde", "uuid/serde"]
 

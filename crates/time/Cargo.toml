@@ -5,9 +5,8 @@ edition.workspace =  true
 publish.workspace = true
 
 [features]
-default = ["clock-quanta"]
+default = []
 clock-quanta = ["dep:quanta"]
-clock-std = []
 ts = ["ts-rs", "serde"]
 # Internal: timestamp() override for the deterministic event emitter.
 __test-clock-override = []
