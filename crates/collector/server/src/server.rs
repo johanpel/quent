@@ -50,7 +50,9 @@ struct PendingFlush(Arc<FlushState>);
 impl Drop for PendingFlush {
     fn drop(&mut self) {
         let mut pending = self.0.pending.lock().unwrap();
-        *pending -= 1;
+        *pending = (*pending)
+            .checked_sub(1)
+            .expect("pending context shutdown count is zero");
         if *pending == 0 {
             self.0.completed.notify_all();
         }
