@@ -12,8 +12,8 @@ use quent_events::{EntityMarker, Event, EventPayload};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
-use super::history::EntityHistory;
-use super::{EntityHandle, EntityStore};
+use super::sequence::EventSequence;
+use super::{BorrowedEventSequenceStore, EntityHandle, EntityStore, OwnedEventSequenceStore};
 
 /// An owned handle for one entity marker.
 pub struct Handle<E> {
@@ -35,11 +35,11 @@ impl<E: EntityMarker> EntityHandle for Handle<E> {
 
 /// Stores one entity marker's events in memory, grouped by UUID.
 pub struct Store<E: EntityMarker> {
-    entities: BTreeMap<Uuid, EntityHistory<E>>,
+    entities: BTreeMap<Uuid, EventSequence<E>>,
 }
 
 impl<E: EntityMarker> Store<E> {
-    /// Groups events by UUID and orders each history by timestamp.
+    /// Groups events by UUID and orders each sequence by timestamp.
     ///
     /// Equal timestamps retain input order. Timestamp order is not causal order.
     pub fn new(events: impl IntoIterator<Item = Event<E::Payload>>) -> Self {
@@ -51,20 +51,15 @@ impl<E: EntityMarker> Store<E> {
             .into_iter()
             .map(|(id, mut events)| {
                 events.sort_by_key(|event| event.timestamp);
-                (id, EntityHistory::from_ordered_events(id, events))
+                (id, EventSequence::from_ordered_events(id, events))
             })
             .collect();
         Self { entities }
     }
 
-    /// Consumes the store and yields histories in UUID order.
-    pub fn into_histories(self) -> impl Iterator<Item = EntityHistory<E>> {
+    /// Consumes the store and yields sequences in UUID order.
+    pub fn into_sequences(self) -> impl Iterator<Item = EventSequence<E>> {
         self.entities.into_values()
-    }
-
-    /// Borrows the history selected by `handle`, if it is present.
-    pub fn get(&self, handle: &Handle<E>) -> Option<&EntityHistory<E>> {
-        self.entities.get(&handle.id)
     }
 }
 
@@ -90,18 +85,45 @@ impl<E: EntityMarker> EntityStore<E> for Store<E> {
         &self,
         handle: &Self::Handle,
     ) -> Result<Option<TimeUnixNanoSec>, Self::Error> {
-        Ok(self.get(handle).map(EntityHistory::earliest_timestamp))
+        Ok(self
+            .entities
+            .get(&handle.id)
+            .map(EventSequence::earliest_timestamp))
     }
 
     fn latest_timestamp(
         &self,
         handle: &Self::Handle,
     ) -> Result<Option<TimeUnixNanoSec>, Self::Error> {
-        Ok(self.get(handle).map(EntityHistory::latest_timestamp))
+        Ok(self
+            .entities
+            .get(&handle.id)
+            .map(EventSequence::latest_timestamp))
     }
 
     fn num_events(&self, handle: &Self::Handle) -> Result<Option<NonZeroUsize>, Self::Error> {
-        Ok(self.get(handle).map(EntityHistory::event_count))
+        Ok(self
+            .entities
+            .get(&handle.id)
+            .map(EventSequence::event_count))
+    }
+}
+
+impl<E: EntityMarker> BorrowedEventSequenceStore<E> for Store<E> {
+    fn sequence(&self, handle: &Self::Handle) -> Result<Option<&EventSequence<E>>, Self::Error> {
+        Ok(self.entities.get(&handle.id))
+    }
+}
+
+impl<E: EntityMarker> OwnedEventSequenceStore<E> for Store<E>
+where
+    E::Payload: Clone,
+{
+    fn owned_sequence(
+        &self,
+        handle: &Self::Handle,
+    ) -> Result<Option<EventSequence<E>>, Self::Error> {
+        Ok(self.entities.get(&handle.id).cloned())
     }
 }
 
@@ -117,7 +139,7 @@ mod tests {
         type Payload = TaskEvent;
     }
 
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Clone, Debug, PartialEq, Eq)]
     struct TaskEvent(&'static str);
 
     impl EventPayload for TaskEvent {
@@ -145,16 +167,24 @@ mod tests {
         );
         let handle = store.entity(first).unwrap().unwrap();
         assert_eq!(handle.type_name(), "Task");
-        assert_eq!(handle.earliest_timestamp(&store).unwrap(), Some(1));
-        assert_eq!(handle.latest_timestamp(&store).unwrap(), Some(2));
-        assert_eq!(handle.num_events(&store).unwrap(), NonZeroUsize::new(3));
-        let history = store.get(&handle).unwrap();
-        assert_eq!(history.id(), first);
-        assert_eq!(history.event_count(), NonZeroUsize::new(3).unwrap());
-        assert_eq!(history.earliest_timestamp(), 1);
-        assert_eq!(history.latest_timestamp(), 2);
+        assert_eq!(store.earliest_timestamp(&handle).unwrap(), Some(1));
+        assert_eq!(store.latest_timestamp(&handle).unwrap(), Some(2));
+        assert_eq!(store.num_events(&handle).unwrap(), NonZeroUsize::new(3));
+        let sequence = store.sequence(&handle).unwrap().unwrap();
+        let owned = store.owned_sequence(&handle).unwrap().unwrap();
+        assert_eq!(owned.id(), first);
+        assert_eq!(owned.event_count(), sequence.event_count());
+        assert_ne!(owned.events().as_ptr(), sequence.events().as_ptr());
+        let mut owned_events = owned.into_events();
+        assert_eq!(owned_events[0].data, TaskEvent("early"));
+        owned_events[0].data = TaskEvent("changed");
+        assert_eq!(sequence.events()[0].data, TaskEvent("early"));
+        assert_eq!(sequence.id(), first);
+        assert_eq!(sequence.event_count(), NonZeroUsize::new(3).unwrap());
+        assert_eq!(sequence.earliest_timestamp(), 1);
+        assert_eq!(sequence.latest_timestamp(), 2);
         assert_eq!(
-            history
+            sequence
                 .events()
                 .iter()
                 .map(|event| &event.data)
@@ -165,13 +195,15 @@ mod tests {
         let other_store =
             Store::<Task>::new([Event::new(Uuid::from_u128(3), 4, TaskEvent("foreign"))]);
         let foreign_handle = other_store.entity(Uuid::from_u128(3)).unwrap().unwrap();
-        assert_eq!(foreign_handle.earliest_timestamp(&store).unwrap(), None);
-        assert_eq!(foreign_handle.latest_timestamp(&store).unwrap(), None);
-        assert_eq!(foreign_handle.num_events(&store).unwrap(), None);
+        assert_eq!(store.earliest_timestamp(&foreign_handle).unwrap(), None);
+        assert_eq!(store.latest_timestamp(&foreign_handle).unwrap(), None);
+        assert_eq!(store.num_events(&foreign_handle).unwrap(), None);
+        assert!(store.sequence(&foreign_handle).unwrap().is_none());
+        assert!(store.owned_sequence(&foreign_handle).unwrap().is_none());
         assert_eq!(
             store
-                .into_histories()
-                .map(|history| history.into_events().len())
+                .into_sequences()
+                .map(|sequence| sequence.into_events().len())
                 .collect::<Vec<_>>(),
             [3, 1]
         );

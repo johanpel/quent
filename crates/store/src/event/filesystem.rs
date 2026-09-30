@@ -331,7 +331,7 @@ mod tests {
     use std::fs;
 
     use crate::entity::memory;
-    use crate::entity::{EntityHandle, EntityStore};
+    use crate::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
     use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
     use quent_events::{CombinedEventModel, EntityMarker, Event, EventModel, EventPayload};
     use quent_instrumentation::{ContextExporter, ContextInner};
@@ -540,7 +540,8 @@ mod tests {
         assert_eq!(handles[1].id(), second_entity);
         assert_eq!(
             entities
-                .get(&handles[0])
+                .sequence(&handles[0])
+                .unwrap()
                 .unwrap()
                 .events()
                 .iter()

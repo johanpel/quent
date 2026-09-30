@@ -9,8 +9,10 @@ use quent_events::EntityMarker;
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
-pub mod history;
+use self::sequence::EventSequence;
+
 pub mod memory;
+pub mod sequence;
 
 /// Identifies an entity without owning its events.
 pub trait EntityHandle {
@@ -22,33 +24,6 @@ pub trait EntityHandle {
 
     /// Returns the entity type name.
     fn type_name(&self) -> &str;
-
-    /// Returns the earliest recorded timestamp, or `None` if this handle has no entity in `store`.
-    fn earliest_timestamp<S>(&self, store: &S) -> Result<Option<TimeUnixNanoSec>, S::Error>
-    where
-        Self: Sized,
-        S: EntityStore<Self::Entity, Handle = Self>,
-    {
-        store.earliest_timestamp(self)
-    }
-
-    /// Returns the latest recorded timestamp, or `None` if this handle has no entity in `store`.
-    fn latest_timestamp<S>(&self, store: &S) -> Result<Option<TimeUnixNanoSec>, S::Error>
-    where
-        Self: Sized,
-        S: EntityStore<Self::Entity, Handle = Self>,
-    {
-        store.latest_timestamp(self)
-    }
-
-    /// Returns the event count, or `None` if this handle has no entity in `store`.
-    fn num_events<S>(&self, store: &S) -> Result<Option<NonZeroUsize>, S::Error>
-    where
-        Self: Sized,
-        S: EntityStore<Self::Entity, Handle = Self>,
-    {
-        store.num_events(self)
-    }
 }
 
 /// Provides typed access to stored entities of marker type `E`.
@@ -78,4 +53,19 @@ pub trait EntityStore<E: EntityMarker> {
 
     /// Returns the event count, or `None` if the handle has no entity in this store.
     fn num_events(&self, handle: &Self::Handle) -> Result<Option<NonZeroUsize>, Self::Error>;
+}
+
+/// Provides borrowed, timestamp-ordered raw event sequences for an entity marker.
+pub trait BorrowedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
+    /// Borrows the selected sequence, or returns `None` if it is absent.
+    fn sequence(&self, handle: &Self::Handle) -> Result<Option<&EventSequence<E>>, Self::Error>;
+}
+
+/// Provides owned, timestamp-ordered raw event sequences for an entity marker.
+pub trait OwnedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
+    /// Returns an owned sequence without changing the store, or `None` if it is absent.
+    fn owned_sequence(
+        &self,
+        handle: &Self::Handle,
+    ) -> Result<Option<EventSequence<E>>, Self::Error>;
 }

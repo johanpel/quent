@@ -7,9 +7,9 @@ use std::convert::Infallible;
 
 use demo::{Connection, ConnectionEvent, Demo, Uuid};
 use quent_store::context::ContextSet;
-use quent_store::entity::history::EntityHistory;
 use quent_store::entity::memory;
-use quent_store::entity::{EntityHandle, EntityStore};
+use quent_store::entity::sequence::EventSequence;
+use quent_store::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
 use quent_store::event::EventStore;
 use quent_store::event::filesystem::{Result as StoreResult, Store};
 
@@ -29,8 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .entity_events::<Connection>()?
         .collect::<StoreResult<Vec<_>>>()?;
     let entities = memory::Store::<Connection>::new(events);
-    print_connection_histories(&entities)?;
-    print_connection_summaries(entities);
+    print_connection_summaries(&entities)?;
 
     Ok(())
 }
@@ -38,36 +37,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 // The event store is the lowest layer. It returns individual recorded events.
 fn print_raw_connection_events(store: &Store<Demo>) -> StoreResult<()> {
     println!("Raw Connection events:");
-    for event in store.entity_events::<Connection>()? {
+    for event in store.entity_events::<Connection>()?.take(2) {
         let event = event?;
         println!("  {event:?}");
     }
-    Ok(())
-}
-
-// The entity store groups events by UUID and computes common history properties.
-fn print_connection_histories(entities: &memory::Store<Connection>) -> Result<(), Infallible> {
-    println!("Connection histories:");
-    for connection in EntityStore::<Connection>::entities(entities)? {
-        let history = entities.get(&connection).expect("handle belongs to store");
-        println!(
-            "  {} {}: {} events, timestamps {}..{}",
-            connection.type_name(),
-            connection.id(),
-            connection
-                .num_events(entities)?
-                .expect("handle belongs to store"),
-            connection
-                .earliest_timestamp(entities)?
-                .expect("handle belongs to store"),
-            connection
-                .latest_timestamp(entities)?
-                .expect("handle belongs to store")
-        );
-        for event in history.events() {
-            println!("    {event:?}");
-        }
-    }
+    println!("  ...");
     Ok(())
 }
 
@@ -77,14 +51,14 @@ struct ConnectionSummary {
     closed: bool,
 }
 
-// Application-specific analysis consumes a history without cloning its events.
-fn summarize_connection(history: EntityHistory<Connection>) -> ConnectionSummary {
-    let id = history.id();
+// Application-specific analysis reads a sequence without cloning its events.
+fn summarize_connection(sequence: &EventSequence<Connection>) -> ConnectionSummary {
+    let id = sequence.id();
     let mut data_bytes = 0;
     let mut closed = false;
-    for event in history.into_events() {
-        match event.data {
-            ConnectionEvent::Data { bytes, .. } => data_bytes += bytes,
+    for event in sequence.events() {
+        match &event.data {
+            ConnectionEvent::Data { bytes, .. } => data_bytes += *bytes,
             ConnectionEvent::Closed => closed = true,
             _ => {}
         }
@@ -96,13 +70,30 @@ fn summarize_connection(history: EntityHistory<Connection>) -> ConnectionSummary
     }
 }
 
-fn print_connection_summaries(entities: memory::Store<Connection>) {
-    println!("Connection summaries:");
-    for history in entities.into_histories() {
-        let summary = summarize_connection(history);
+// The entity store supplies common properties and an ordered sequence for each entity.
+fn print_connection_summaries(entities: &memory::Store<Connection>) -> Result<(), Infallible> {
+    println!("\nConnection summaries:");
+    for connection in entities.entities()? {
+        let sequence = entities
+            .sequence(&connection)?
+            .expect("handle belongs to store");
+        let summary = summarize_connection(sequence);
         println!(
-            "  Connection {}: {} data bytes, closed: {}",
-            summary.id, summary.data_bytes, summary.closed
+            "  {} {}: {} events, timestamps {}..{}, {} data bytes, closed: {}",
+            connection.type_name(),
+            summary.id,
+            entities
+                .num_events(&connection)?
+                .expect("handle belongs to store"),
+            entities
+                .earliest_timestamp(&connection)?
+                .expect("handle belongs to store"),
+            entities
+                .latest_timestamp(&connection)?
+                .expect("handle belongs to store"),
+            summary.data_bytes,
+            summary.closed
         );
     }
+    Ok(())
 }
