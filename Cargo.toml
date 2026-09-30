@@ -6,6 +6,7 @@ members = [
     "crates/dynamic-attributes",
     "crates/build-info",
     "crates/collector/server",
+    "crates/collector/python",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
