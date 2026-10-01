@@ -220,20 +220,31 @@ impl Collector {
         self.handle.is_none()
     }
 
-    /// Stops accepting streams and waits for exporter shutdown attempts to finish.
+    /// Stops accepting streams and waits for local exporter shutdown attempts
+    /// to finish.
     ///
     /// Close client contexts and release all their observers and handles first so
     /// sender-side buffers can flush and client streams can end.
     ///
-    /// With `timeout=None`, waits indefinitely for streams and exporters to finish.
-    /// A finite, nonnegative `timeout` bounds shutdown in seconds; invalid values raise
-    /// `ValueError`.
+    /// With `timeout=None`, this waits indefinitely for connections and local
+    /// exporters to finish. This should only be used if it can be guaranteed
+    /// that all connections will close and that all local exporters will
+    /// finish.
     ///
-    /// On expiry, stops remaining connections and raises `TimeoutError`;
-    /// pending events may be lost and unfinished cleanup may continue in the background.
+    /// With `timeout=` this function will wait until either:
+    /// 1. all connections are closed and all local exporter shutdown attempts
+    ///    have finished, or
+    /// 2. some finite, nonnegative number of seconds defined by `timeout`.
     ///
-    /// Repeated calls have no effect, including after a timeout. A server failure raises
-    /// `RuntimeError`.
+    /// If the timeout expires, remaining connections are forcefully closed and
+    /// `TimeoutError` is raised. Unfinished exporter cleanup may continue in the
+    /// background. Pending event data may be lost, including data buffered in
+    /// local exporters.
+    ///
+    /// Repeated calls have no effect, including after a timeout.
+    ///
+    /// Invalid timeouts raise a `ValueError`.
+    /// A server failure raises `RuntimeError`.
     #[pyo3(signature = (timeout=None))]
     fn close(&mut self, py: Python<'_>, timeout: Option<f64>) -> PyResult<()> {
         let timeout = timeout
