@@ -3,6 +3,7 @@
 
 // Utilities
 export { cn } from './cn';
+export { clamp } from './math';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
 export { getFsmTypeName, getResourceTypeName } from './timeline';
 export { workerDisplayName } from './worker';
@@ -108,6 +109,8 @@ export {
 
 export { AGG_MODES } from './aggMode';
 export type { AggMode } from './aggMode';
+export { aggregateNumericValues, getAggregateValue } from './statAggregation';
+export type { NumericAggregates } from './statAggregation';
 
 // Operator timeline row ID utilities
 export const OPERATOR_TIMELINE_ROW_TYPE = 'operator-timeline';
