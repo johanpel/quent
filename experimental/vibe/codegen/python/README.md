@@ -76,11 +76,11 @@ with quent.start_collector(
 
 The server uses Quent's existing gRPC collector protocol. `close()` stops
 accepting connections and waits for active client streams to end and for their
-exporter shutdown attempts to finish. Close client contexts and release all their
-observers and handles before closing the server so sender-side buffers can flush
-and client streams can end. `Context.close()` alone does not release retained
-observers or handles. Exporter write failures are logged; `close()` does not
-guarantee that data has been synced to disk.
+exporter shutdown attempts to finish. Close client contexts and release all
+their observers and handles before closing the server so sender-side buffers can
+flush and client streams can end. `Context.close()` alone does not release
+retained observers or handles. Exporter write failures are logged; `close()`
+does not guarantee that data has been synced to disk.
 
 `close()` can block indefinitely if a client leaves a stream open or an exporter
 does not finish. `close(timeout=seconds)` bounds shutdown in seconds,
