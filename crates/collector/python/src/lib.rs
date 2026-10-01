@@ -7,9 +7,10 @@ use std::future::Future;
 use std::net::{Ipv6Addr, SocketAddr, TcpListener};
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use pyo3::{
-    exceptions::{PyOSError, PyRuntimeError, PyValueError},
+    exceptions::{PyOSError, PyRuntimeError, PyTimeoutError, PyValueError},
     prelude::*,
     types::PyAny,
 };
@@ -72,6 +73,32 @@ impl ServerHandle {
         let result = runtime.block_on(task).map_err(|error| error.to_string());
         flush.wait();
         result?
+    }
+
+    fn close_with_timeout(self, timeout: Duration) -> PyResult<()> {
+        let started = Instant::now();
+        let Self {
+            shutdown,
+            runtime,
+            task,
+            flush,
+        } = self;
+        let _ = shutdown.send(());
+        let result = runtime.block_on(async {
+            tokio::time::timeout(timeout.saturating_sub(started.elapsed()), task).await
+        });
+        let flushed =
+            result.is_ok() && flush.wait_timeout(timeout.saturating_sub(started.elapsed()));
+        runtime.shutdown_timeout(timeout.saturating_sub(started.elapsed()));
+        if !flushed || started.elapsed() >= timeout {
+            return Err(PyTimeoutError::new_err(
+                "collector shutdown timed out; pending events may be lost",
+            ));
+        }
+        result
+            .unwrap()
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?
+            .map_err(PyRuntimeError::new_err)
     }
 }
 
@@ -188,19 +215,38 @@ impl Collector {
     }
 
     #[getter]
-    /// Reports whether `close()` has been called.
+    /// Reports whether shutdown has been requested.
     fn closed(&self) -> bool {
         self.handle.is_none()
     }
 
     /// Stops accepting streams and waits for exporter shutdown attempts to finish.
     ///
-    /// Repeated calls have no effect. A server failure raises a Python exception.
-    fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+    /// Close client contexts and release all their observers and handles first so
+    /// sender-side buffers can flush and client streams can end.
+    ///
+    /// With `timeout=None`, waits indefinitely for streams and exporters to finish.
+    /// A finite, nonnegative `timeout` bounds shutdown in seconds; invalid values raise
+    /// `ValueError`.
+    ///
+    /// On expiry, stops remaining connections and raises `TimeoutError`;
+    /// pending events may be lost and unfinished cleanup may continue in the background.
+    ///
+    /// Repeated calls have no effect, including after a timeout. A server failure raises
+    /// `RuntimeError`.
+    #[pyo3(signature = (timeout=None))]
+    fn close(&mut self, py: Python<'_>, timeout: Option<f64>) -> PyResult<()> {
+        let timeout = timeout
+            .map(Duration::try_from_secs_f64)
+            .transpose()
+            .map_err(|_| {
+                PyValueError::new_err("timeout must be finite, nonnegative, and representable")
+            })?;
         match self.handle.take() {
-            Some(handle) => py
-                .detach(|| handle.close())
-                .map_err(PyRuntimeError::new_err),
+            Some(handle) => py.detach(|| match timeout {
+                Some(timeout) => handle.close_with_timeout(timeout),
+                None => handle.close().map_err(PyRuntimeError::new_err),
+            }),
             None => Ok(()),
         }
     }
@@ -218,7 +264,7 @@ impl Collector {
         _exc_value: &Bound<'_, PyAny>,
         _traceback: &Bound<'_, PyAny>,
     ) -> PyResult<()> {
-        self.close(py)
+        self.close(py, None)
     }
 }
 
@@ -236,7 +282,6 @@ impl Drop for Collector {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     use quent_collector_proto::{CollectEventRequest, collector_client::CollectorClient};
     use tokio::sync::mpsc;
