@@ -23,13 +23,14 @@ use tokio_stream::{Stream, wrappers::TcpListenerStream};
 use tonic::transport::Server;
 use uuid::Uuid;
 
-/// Closes the listener before Tonic drains existing connections.
+/// Closes the listener before signaling Tonic to drain existing connections.
 ///
 /// Tonic retains its incoming stream during draining, so the listener must close
 /// explicitly to prevent clients reconnecting to a socket that is no longer polled.
 struct ShutdownIncoming {
     listener: Option<TcpListenerStream>,
     shutdown: oneshot::Receiver<()>,
+    draining: Option<oneshot::Sender<()>>,
 }
 
 impl Stream for ShutdownIncoming {
@@ -41,6 +42,9 @@ impl Stream for ShutdownIncoming {
         }
         if Pin::new(&mut self.shutdown).poll(cx).is_ready() {
             self.listener.take();
+            if let Some(draining) = self.draining.take() {
+                let _ = draining.send(());
+            }
             return Poll::Ready(None);
         }
         Pin::new(self.listener.as_mut().unwrap()).poll_next(cx)
@@ -148,15 +152,18 @@ impl Collector {
         let collector = CollectorService::new(make);
         let flush = collector.flush_handle();
         let (shutdown, shutdown_rx) = oneshot::channel();
+        let (draining, draining_rx) = oneshot::channel();
         let incoming = ShutdownIncoming {
             listener: Some(TcpListenerStream::new(listener)),
             shutdown: shutdown_rx,
+            draining: Some(draining),
         };
         let task = runtime.spawn(async move {
-            // A shutdown future enables graceful draining when the incoming stream ends.
             Server::builder()
                 .add_service(CollectorServer::new(collector))
-                .serve_with_incoming_shutdown(incoming, std::future::pending::<()>())
+                .serve_with_incoming_shutdown(incoming, async move {
+                    let _ = draining_rx.await;
+                })
                 .await
                 .map_err(|error| error.to_string())
         });
