@@ -54,13 +54,13 @@ Quent?" without asking yourself these questions first:
 2. **How long does it take you to obtain the attribute values of those events in
    your critical path?** Add this latency too.
 3. **How many events are you going to create per second (throughput)?** This one
-   is tricky to do back-of-the-envelope math for to arrive at some estimation. The
-   overhead depends on many factors related to how exporters work. Nevertheless, it
-   is important to understand that if you produce an excessive amount of events,
-   then the background threads dealing with exporting will start eating up a lot of
-   your system's resources. So even if the latency of instrumentation calls remains
-   low, it might slow down the entire CPU as the background threads will eat up a
-   lot of resources.
+   is tricky to do back-of-the-envelope math for to arrive at some estimation.
+   The overhead depends on many factors related to how exporters work.
+   Nevertheless, it is important to understand that if you produce an excessive
+   amount of events, then the background threads dealing with exporting will
+   start eating up a lot of your system's resources. So even if the latency of
+   instrumentation calls remains low, it might slow down the entire CPU as the
+   background threads will eat up a lot of resources.
 
 Once you have a clear answer to these questions, and you have carefully
 considered what you are doing to instrument your program, you may still not be
@@ -140,10 +140,15 @@ events arrive on the receiving side of the event channel.
 With `channel-spsc`, events from one thread stay in order. Events from two
 threads may reach the exporter in a different order from when they were created.
 
-Since every event has a timestamp (and for finite-state-machines also a sequence number), this usually doesn't matter, as in analysis
-you'll order them by timestamp anyway.
-But if you have two emitting events from a duplicate entity handle, it is best to coordinate those threads if the order truly matters, because even the most "correct" timestamping mechanism that Quent could possibly use today has caveats (also see the `quent-time` crate, this is a whole
-rabbithole on its own). You can only make this potentially worse through different / faster clock configurations. If you want to be sure, do not use `clock-quanta`.
+Since every event has a timestamp (and for finite-state-machines also a sequence
+number), this usually doesn't matter, as in analysis you'll order them by
+timestamp anyway. But if you have two emitting events from a duplicate entity
+handle, it is best to coordinate those threads if the order truly matters,
+because even the most "correct" timestamping mechanism that Quent could possibly
+use today has caveats (also see the `quent-time` crate, this is a whole
+rabbithole on its own). You can only make this potentially worse through
+different / faster clock configurations. If you want to be sure, do not use
+`clock-quanta`.
 
 The background exporter checks these queues every 1 ms when it has no events to
 process. This saves the work of waking it for every event, but an event may wait
