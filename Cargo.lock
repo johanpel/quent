@@ -1800,8 +1800,15 @@ name = "nvtx-bridge"
 version = "0.1.0"
 dependencies = [
  "nvtx-events",
+ "nvtx-injection",
+ "nvtx-sys",
+ "quent-channel",
  "quent-events",
+ "quent-instrumentation",
+ "quent-time",
  "serde",
+ "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -1821,6 +1828,7 @@ dependencies = [
  "nvtx-events",
  "nvtx-injection",
  "quent-instrumentation",
+ "quent-time",
  "uuid",
 ]
 
@@ -1830,7 +1838,6 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "libc",
- "nvtx-events",
  "nvtx-sys",
  "thiserror",
 ]
