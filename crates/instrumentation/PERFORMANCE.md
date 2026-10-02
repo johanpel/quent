@@ -36,7 +36,8 @@ The default MPSC channel used keeps the latency of instrumentation calls low, so
 on their own, they do not slow down the instrumented program much. Depending on
 the system, the event pattern and especially on how many threads are emitting
 events simultaneously, the latency is typically in the order of tens to hundreds
-of nanoseconds.
+of nanoseconds per call. You can measure this with `quent-bench` for your
+system.
 
 However, Quent is instrumentation-based, which means you decide where you call
 instrumentation events in your code, and how many attributes you put in your
@@ -58,11 +59,12 @@ Quent?" without asking yourself these questions first:
    is important to understand that if you produce an excessive amount of events,
    then the background threads dealing with exporting will start eating up a lot of
    your system's resources. So even if the latency of instrumentation calls remains
-   low, it might slow down the entire CPU as the background threads will eat up a lot of resources.
+   low, it might slow down the entire CPU as the background threads will eat up a
+   lot of resources.
 
 Once you have a clear answer to these questions, and you have carefully
-considered what you are doing to your program, you may still not be satisfied
-with the overhead that Quent adds. In this case, read on.
+considered what you are doing to instrument your program, you may still not be
+satisfied with the overhead that Quent adds. In this case, read on.
 
 ## Can I reduce the latency of instrumentation calls?
 
