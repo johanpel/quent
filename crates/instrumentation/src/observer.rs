@@ -156,16 +156,6 @@ impl<T> ObserverInner<T> {
     pub fn emit(&self, id: Uuid, event: impl Into<T>) {
         self.events_sender.emit(id, event);
     }
-
-    /// A cloned [`EventSender`] feeding this pipeline.
-    ///
-    /// Lets a `'static` producer emit into the pipeline while the caller keeps
-    /// ownership (and still flushes on drop). The sender does not keep the
-    /// pipeline alive; sends after it is dropped are discarded. The SPSC
-    /// transport may detect disconnection only at a segment switch.
-    pub fn sender(&self) -> EventSender<T> {
-        self.events_sender.clone()
-    }
 }
 
 impl<T> Drop for ObserverInner<T> {
@@ -450,16 +440,17 @@ mod tests {
         let recorded = Arc::new(Mutex::new(Vec::new()));
         let provider = RecordingProvider(Arc::clone(&recorded));
         let context = crate::ContextInner::try_new(Uuid::now_v7()).unwrap();
-        let observer = context
-            .block_on(async { context.observer::<SequenceEvent>(&provider).await })
-            .unwrap();
-        let sender = observer.sender();
+        let observer = Arc::new(
+            context
+                .block_on(async { context.observer::<SequenceEvent>(&provider).await })
+                .unwrap(),
+        );
         let mut workers = Vec::new();
         for thread in 0..THREADS {
-            let sender = sender.clone();
+            let observer = Arc::clone(&observer);
             workers.push(std::thread::spawn(move || {
                 for index in 0..PER_THREAD {
-                    sender.send(Event::new_now(
+                    observer.send(Event::new_now(
                         Uuid::nil(),
                         SequenceEvent(thread * PER_THREAD + index),
                     ));
@@ -474,7 +465,5 @@ mod tests {
         let mut values = recorded.lock().unwrap().clone();
         values.sort_unstable();
         assert_eq!(values, (0..THREADS * PER_THREAD).collect::<Vec<_>>());
-        sender.send(Event::new_now(Uuid::nil(), SequenceEvent(usize::MAX)));
-        assert_eq!(recorded.lock().unwrap().len(), THREADS * PER_THREAD);
     }
 }
