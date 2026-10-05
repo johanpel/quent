@@ -11,22 +11,12 @@ use std::{
     thread,
 };
 
-use quent_channel::{Config, Receiver, Sender, unbounded_channel};
+use quent_channel::{Config, Sender, unbounded_channel};
 
 fn config(capacity: usize, spares: usize) -> Config {
     Config {
         segment_capacity: NonZeroUsize::new(capacity).unwrap(),
         spare_segments: spares,
-    }
-}
-
-fn drain_n<T: Send + 'static>(receiver: &mut Receiver<T>, output: &mut Vec<T>, count: usize) {
-    let target = output.len() + count;
-    while output.len() < target {
-        assert_ne!(
-            receiver.drain_into(output, target - output.len()).drained,
-            0
-        );
     }
 }
 
@@ -40,38 +30,6 @@ fn carries_owning_values_in_fifo_order_across_segments() {
     let mut values = Vec::new();
     while receiver.drain_into(&mut values, 3).pending {}
     assert_eq!(values, (0..100).map(|i| i.to_string()).collect::<Vec<_>>());
-    assert_eq!(receiver.metrics().in_flight, 1);
-}
-
-#[test]
-fn recycles_preallocated_segments_and_trims_excess() {
-    let (sender, mut receiver) = unbounded_channel(config(2, 2));
-    sender.send(usize::MAX).unwrap();
-    let mut output = Vec::new();
-    receiver.drain_into(&mut output, 1);
-    output.clear();
-    assert_eq!(receiver.preallocate_spares(), 2);
-    assert_eq!(receiver.metrics().allocated, 3);
-    for value in 0..6 {
-        sender.send(value).unwrap();
-    }
-    drain_n(&mut receiver, &mut output, 6);
-    assert_eq!(receiver.metrics().spares, 2);
-    assert_eq!(receiver.metrics().allocated, 3);
-    for value in 6..10 {
-        sender.send(value).unwrap();
-    }
-    assert_eq!(receiver.metrics().allocated, 3);
-    drain_n(&mut receiver, &mut output, 4);
-    assert_eq!(output, (0..10).collect::<Vec<_>>());
-
-    for value in 10..30 {
-        sender.send(value).unwrap();
-    }
-    assert!(receiver.metrics().allocated > 3);
-    drain_n(&mut receiver, &mut output, 20);
-    assert_eq!(receiver.metrics().allocated, 3);
-    assert_eq!(receiver.metrics().spares, 2);
 }
 
 #[derive(Debug)]

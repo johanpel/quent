@@ -77,4 +77,4 @@ mod registry;
 mod spsc;
 
 pub use registry::{Receiver, Sender, unbounded_channel};
-pub use spsc::{Config, DrainReport, Metrics};
+pub use spsc::{Config, DrainReport};

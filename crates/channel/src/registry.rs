@@ -13,7 +13,9 @@ use std::{
     },
 };
 
-use crate::spsc::{Config, Consumer, DrainReport, Metrics, Producer, spsc};
+#[cfg(test)]
+use crate::spsc::Metrics;
+use crate::spsc::{Config, Consumer, DrainReport, Producer, spsc};
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -234,7 +236,8 @@ impl<T: Send + 'static> Receiver<T> {
     }
 
     /// Return approximate segment totals for currently registered channels.
-    pub fn metrics(&mut self) -> Metrics {
+    #[cfg(test)]
+    fn metrics(&mut self) -> Metrics {
         self.collect_registrations();
         self.channels.iter().fold(
             Metrics {
@@ -308,5 +311,60 @@ impl<T> Drop for Receiver<T> {
         drop(registry);
         drop(pending);
         drop(fallback);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::num::NonZeroUsize;
+
+    fn config(capacity: usize, spares: usize) -> Config {
+        Config {
+            segment_capacity: NonZeroUsize::new(capacity).unwrap(),
+            spare_segments: spares,
+        }
+    }
+
+    fn drain_n<T: Send + 'static>(receiver: &mut Receiver<T>, output: &mut Vec<T>, count: usize) {
+        let target = output.len() + count;
+        while output.len() < target {
+            assert_ne!(
+                receiver.drain_into(output, target - output.len()).drained,
+                0
+            );
+        }
+    }
+
+    #[test]
+    fn recycles_preallocated_segments_and_trims_excess() {
+        let (sender, mut receiver) = unbounded_channel(config(2, 2));
+        sender.send(usize::MAX).unwrap();
+        let mut output = Vec::new();
+        receiver.drain_into(&mut output, 1);
+        output.clear();
+        assert_eq!(receiver.preallocate_spares(), 2);
+        assert_eq!(receiver.metrics().allocated, 3);
+        for value in 0..6 {
+            sender.send(value).unwrap();
+        }
+        drain_n(&mut receiver, &mut output, 6);
+        assert_eq!(receiver.metrics().in_flight, 1);
+        assert_eq!(receiver.metrics().spares, 2);
+        assert_eq!(receiver.metrics().allocated, 3);
+        for value in 6..10 {
+            sender.send(value).unwrap();
+        }
+        assert_eq!(receiver.metrics().allocated, 3);
+        drain_n(&mut receiver, &mut output, 4);
+        assert_eq!(output, (0..10).collect::<Vec<_>>());
+
+        for value in 10..30 {
+            sender.send(value).unwrap();
+        }
+        assert!(receiver.metrics().allocated > 3);
+        drain_n(&mut receiver, &mut output, 20);
+        assert_eq!(receiver.metrics().allocated, 3);
+        assert_eq!(receiver.metrics().spares, 2);
     }
 }

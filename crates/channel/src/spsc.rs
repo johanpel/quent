@@ -32,8 +32,9 @@ impl Default for Config {
 }
 
 /// A non-atomic snapshot of segment counts.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Metrics {
+pub(crate) struct Metrics {
     /// Active segments, including the current segment.
     pub in_flight: usize,
     /// Allocated segments, including empty spares.
@@ -59,6 +60,7 @@ struct State {
     spares: AtomicUsize,
 }
 
+#[cfg(test)]
 impl State {
     fn metrics(&self) -> Metrics {
         Metrics {
@@ -277,6 +279,7 @@ impl<T: Send + 'static> Consumer<T> {
     }
 
     /// Return a sampled count of segments held by this channel.
+    #[cfg(test)]
     pub fn metrics(&self) -> Metrics {
         self.state.metrics()
     }
