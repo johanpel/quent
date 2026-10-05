@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use quent_channel::{Config, unbounded_channel};
+use quent_channel::{Config, unbounded_channel_with_config};
 
 struct CountingAllocator;
 
@@ -33,16 +33,19 @@ fn warmed_pushes_and_recycled_switches_do_not_allocate() {
         segment_capacity: NonZeroUsize::new(2).unwrap(),
         spare_segments: 2,
     };
-    let (sender, mut receiver) = unbounded_channel(config);
+    let (sender, mut receiver) = unbounded_channel_with_config(config);
     sender.send(usize::MAX).unwrap();
     let mut output = Vec::with_capacity(2_001);
     receiver.drain_into(&mut output, 1);
     output.clear();
     assert_eq!(receiver.preallocate_spares(), 2);
     let before = ALLOCATIONS.load(Ordering::Relaxed);
-    for value in 0..2_000 {
-        sender.send(value).unwrap();
-        receiver.drain_into(&mut output, 2);
+    for batch in 0..500 {
+        for offset in 0..4 {
+            sender.send(batch * 4 + offset).unwrap();
+        }
+        assert_eq!(receiver.drain_into(&mut output, 2), 2);
+        assert_eq!(receiver.drain_into(&mut output, 2), 2);
     }
     let after = ALLOCATIONS.load(Ordering::Relaxed);
     assert_eq!(after, before);

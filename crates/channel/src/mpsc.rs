@@ -102,8 +102,15 @@ pub struct Receiver<T> {
     fallback_first: bool,
 }
 
-/// Create an unbounded channel for a fixed value type.
-pub fn unbounded_channel<T: Send + 'static>(config: Config) -> (Sender<T>, Receiver<T>) {
+/// Creates an unbounded channel with default per-thread SPSC configuration.
+pub fn unbounded_channel<T: Send + 'static>() -> (Sender<T>, Receiver<T>) {
+    unbounded_channel_with_config(Config::default())
+}
+
+/// Creates an unbounded channel with the supplied configuration for each per-thread SPSC channel.
+pub fn unbounded_channel_with_config<T: Send + 'static>(
+    config: Config,
+) -> (Sender<T>, Receiver<T>) {
     let id = NEXT_ID
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
         .expect("channel identity space exhausted");

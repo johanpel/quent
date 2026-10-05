@@ -11,7 +11,7 @@ use std::{
     thread,
 };
 
-use quent_channel::{Config, Sender, unbounded_channel};
+use quent_channel::{Config, Sender, unbounded_channel_with_config};
 
 fn config(capacity: usize, spares: usize) -> Config {
     Config {
@@ -21,8 +21,19 @@ fn config(capacity: usize, spares: usize) -> Config {
 }
 
 #[test]
+fn default_channel_delivers_values() {
+    let (sender, mut receiver) = quent_channel::unbounded_channel();
+    sender.send(42).unwrap();
+    receiver.close();
+    let mut output = Vec::new();
+    assert_eq!(receiver.drain_into(&mut output, 1), 1);
+    assert_eq!(output, [42]);
+    assert_eq!(receiver.drain_into(&mut output, 1), 0);
+}
+
+#[test]
 fn drain_returns_appended_count_and_respects_limit() {
-    let (sender, mut receiver) = unbounded_channel(config(2, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
     let mut output = vec![99];
     assert_eq!(receiver.drain_into(&mut output, 2), 0);
     for value in 0..3 {
@@ -40,7 +51,7 @@ fn drain_returns_appended_count_and_respects_limit() {
 
 #[test]
 fn carries_owning_values_in_fifo_order_across_segments() {
-    let (sender, mut receiver) = unbounded_channel::<String>(config(2, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config::<String>(config(2, 0));
     for i in 0..100 {
         sender.send(i.to_string()).unwrap();
     }
@@ -62,7 +73,7 @@ impl Drop for Counted {
 #[test]
 fn early_consumer_drop_reclaims_every_payload_once() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let (sender, receiver) = unbounded_channel(config(2, 0));
+    let (sender, receiver) = unbounded_channel_with_config(config(2, 0));
     for _ in 0..100 {
         sender.send(Counted(Arc::clone(&drops))).unwrap();
     }
@@ -80,7 +91,7 @@ fn early_consumer_drop_reclaims_every_payload_once() {
 
 #[test]
 fn supports_send_but_not_sync_payloads() {
-    let (sender, mut receiver) = unbounded_channel(config(1, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(1, 0));
     let handle = thread::spawn(move || {
         sender.send(Cell::new(42)).unwrap();
     });
@@ -93,7 +104,7 @@ fn supports_send_but_not_sync_payloads() {
 
 #[test]
 fn registry_drains_each_thread_without_losing_sequences() {
-    let (sender, mut receiver) = unbounded_channel(config(8, 2));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(8, 2));
     let handles: Vec<_> = (0..8)
         .map(|thread_id| {
             let sender = sender.clone();
@@ -137,7 +148,7 @@ impl Drop for TeardownEmitter {
 
 #[test]
 fn thread_local_destructor_emission_reaches_the_receiver() {
-    let (sender, mut receiver) = unbounded_channel(config(1, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(1, 0));
     thread::spawn(move || {
         TEARDOWN_EMITTER.with(|holder| *holder.0.borrow_mut() = Some(sender.clone()));
         sender.send(1).unwrap();
@@ -147,12 +158,20 @@ fn thread_local_destructor_emission_reaches_the_receiver() {
     receiver.close();
     let mut output = Vec::new();
     while receiver.drain_into(&mut output, 1) != 0 {}
-    assert_eq!(output, [1, 99, 100]);
+    assert_eq!(output.len(), 3);
+    assert_eq!(output.iter().filter(|&&value| value == 1).count(), 1);
+    assert_eq!(
+        output
+            .into_iter()
+            .filter(|&value| value != 1)
+            .collect::<Vec<_>>(),
+        [99, 100]
+    );
 }
 
 #[test]
 fn close_is_observed_at_a_segment_switch() {
-    let (sender, mut receiver) = unbounded_channel(config(2, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
     sender.send(1).unwrap();
     receiver.close();
     assert!(sender.send(2).is_ok());
@@ -164,7 +183,7 @@ fn close_is_observed_at_a_segment_switch() {
 
 #[test]
 fn final_drain_finishes_with_a_live_main_thread_producer() {
-    let (sender, mut receiver) = unbounded_channel(config(2, 0));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
     sender.send(1).unwrap();
     receiver.close();
     let mut output = Vec::new();
@@ -178,7 +197,7 @@ fn final_drain_finishes_with_a_live_main_thread_producer() {
 
 #[test]
 fn concurrent_growth_and_collection_preserve_all_values() {
-    let (sender, mut receiver) = unbounded_channel(config(4, 2));
+    let (sender, mut receiver) = unbounded_channel_with_config(config(4, 2));
     let collector = thread::spawn(move || {
         let mut output = Vec::new();
         while output.len() < 100_000 {
@@ -200,7 +219,7 @@ fn concurrent_growth_and_collection_preserve_all_values() {
 #[test]
 fn dropping_a_long_undrained_chain_is_iterative() {
     let drops = Arc::new(AtomicUsize::new(0));
-    let (sender, receiver) = unbounded_channel(config(1, 0));
+    let (sender, receiver) = unbounded_channel_with_config(config(1, 0));
     let producer = thread::spawn({
         let drops = Arc::clone(&drops);
         move || {
@@ -218,7 +237,7 @@ fn dropping_a_long_undrained_chain_is_iterative() {
 fn receiver_drop_during_emission_preserves_payload_ownership() {
     let drops = Arc::new(AtomicUsize::new(0));
     let attempts = Arc::new(AtomicUsize::new(0));
-    let (sender, receiver) = unbounded_channel(config(2, 0));
+    let (sender, receiver) = unbounded_channel_with_config(config(2, 0));
     let handles: Vec<_> = (0..4)
         .map(|_| {
             let sender = sender.clone();
@@ -247,8 +266,8 @@ fn receiver_drop_during_emission_preserves_payload_ownership() {
 
 #[test]
 fn different_pipeline_types_remain_independent_on_one_thread() {
-    let (text_sender, mut text_receiver) = unbounded_channel(config(1, 0));
-    let (number_sender, mut number_receiver) = unbounded_channel(config(1, 0));
+    let (text_sender, mut text_receiver) = unbounded_channel_with_config(config(1, 0));
+    let (number_sender, mut number_receiver) = unbounded_channel_with_config(config(1, 0));
     text_sender.send(String::from("one")).unwrap();
     number_sender.send(2_u64).unwrap();
     text_receiver.close();

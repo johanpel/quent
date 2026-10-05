@@ -200,8 +200,7 @@ where
     #[cfg(not(feature = "channel-spsc"))]
     let (events_sender, mut events_receiver) = unbounded_channel();
     #[cfg(feature = "channel-spsc")]
-    let (events_sender, mut events_receiver) =
-        quent_channel::unbounded_channel(quent_channel::Config::default());
+    let (events_sender, mut events_receiver) = quent_channel::unbounded_channel();
     #[cfg(feature = "channel-spsc")]
     let events_sender = TransportSender {
         tx: events_sender,

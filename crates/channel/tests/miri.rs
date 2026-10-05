@@ -10,7 +10,7 @@ use std::{
     thread,
 };
 
-use quent_channel::{Config, unbounded_channel};
+use quent_channel::{Config, unbounded_channel_with_config};
 
 fn config() -> Config {
     Config {
@@ -24,11 +24,17 @@ struct Aligned(String);
 
 #[test]
 fn aligned_owning_values_survive_wraparound_and_partial_drains() {
-    let (sender, mut receiver) = unbounded_channel(config());
+    let (sender, mut receiver) = unbounded_channel_with_config(config());
     let mut output = Vec::new();
-    for value in 0..20 {
-        sender.send(Aligned(value.to_string())).ok().unwrap();
-        receiver.drain_into(&mut output, 1);
+    for batch in 0..10 {
+        for offset in 0..2 {
+            sender
+                .send(Aligned((batch * 2 + offset).to_string()))
+                .ok()
+                .unwrap();
+        }
+        assert_eq!(receiver.drain_into(&mut output, 1), 1);
+        assert_eq!(receiver.drain_into(&mut output, 1), 1);
     }
     receiver.close();
     while receiver.drain_into(&mut output, 3) != 0 {}
@@ -40,7 +46,7 @@ fn aligned_owning_values_survive_wraparound_and_partial_drains() {
 
 #[test]
 fn zero_sized_values_cross_many_segments() {
-    let (sender, mut receiver) = unbounded_channel(config());
+    let (sender, mut receiver) = unbounded_channel_with_config(config());
     for _ in 0..10 {
         sender.send(()).unwrap();
     }
@@ -62,7 +68,7 @@ impl Drop for Counted {
 fn both_handle_drop_orders_destroy_unread_values_once() {
     for consumer_first in [false, true] {
         let count = Arc::new(AtomicUsize::new(0));
-        let (sender, receiver) = unbounded_channel(config());
+        let (sender, receiver) = unbounded_channel_with_config(config());
         let sent = Arc::new(Barrier::new(2));
         let exit = Arc::new(Barrier::new(2));
         let producer = thread::spawn({

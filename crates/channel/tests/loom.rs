@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Models the ring's release/acquire publication and the segment handoff.
+//! Simplified models of publication, segment links, and mutex-protected admission.
+//!
+//! These tests do not execute the channel implementation or model its concurrent
+//! segment transition, second empty check, or segment reuse.
 
 use loom::{
     cell::UnsafeCell,
@@ -46,7 +49,6 @@ struct Handoff {
 }
 
 struct Node {
-    ready: AtomicBool,
     handoff: Mutex<Option<Handoff>>,
     closed: AtomicBool,
 }
@@ -54,7 +56,6 @@ struct Node {
 impl Node {
     fn new() -> Arc<Self> {
         Arc::new(Self {
-            ready: AtomicBool::new(false),
             handoff: Mutex::new(None),
             closed: AtomicBool::new(false),
         })
@@ -62,7 +63,7 @@ impl Node {
 }
 
 #[test]
-fn handoff_cannot_skip_an_event_or_take_ownership_early() {
+fn model_segment_link_preserves_values_after_producer_join() {
     loom::model(|| {
         let first_ring = MockRing::new();
         let first_node = Node::new();
@@ -76,7 +77,6 @@ fn handoff_cannot_skip_an_event_or_take_ownership_early() {
                 next_ring: Arc::clone(&next_ring),
                 next_node: Arc::clone(&next_node),
             });
-            producer_node.ready.store(true, Ordering::Release);
             drop(producer_node);
             next_ring.push(2);
             next_node.closed.store(true, Ordering::Release);
@@ -88,11 +88,6 @@ fn handoff_cannot_skip_an_event_or_take_ownership_early() {
         let mut values = Vec::new();
         if let Some(value) = ring.take() {
             values.push(value);
-        }
-        if node.ready.load(Ordering::Acquire) {
-            // A published link cannot be moved while the producer still owns
-            // its node. The later exclusive take also observes final writes.
-            let _ = Arc::get_mut(&mut node);
         }
         producer.join().unwrap();
         if let Some(value) = ring.take() {
@@ -113,7 +108,7 @@ fn handoff_cannot_skip_an_event_or_take_ownership_early() {
 }
 
 #[test]
-fn closure_follows_the_last_publication() {
+fn model_observed_closure_makes_the_last_value_visible() {
     loom::model(|| {
         let ring = MockRing::new();
         let mut node = Node::new();
@@ -126,7 +121,9 @@ fn closure_follows_the_last_publication() {
         });
 
         let first = if node.closed.load(Ordering::Acquire) {
-            ring.take()
+            let value = ring.take();
+            assert_eq!(value, Some(7));
+            value
         } else {
             None
         };
@@ -141,7 +138,7 @@ fn closure_follows_the_last_publication() {
 }
 
 #[test]
-fn registration_and_fallback_have_one_shutdown_cutoff() {
+fn model_mutex_serializes_admission_and_closure() {
     loom::model(|| {
         let registry = Arc::new(Mutex::new((false, 0usize)));
         let sender_registry = Arc::clone(&registry);
