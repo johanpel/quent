@@ -10,7 +10,7 @@ use std::{
     thread,
 };
 
-use quent_channel::{Config, unbounded_channel_with_config};
+use quent_channel::{mpsc::unbounded_channel_with_config, spsc::Config};
 
 fn config() -> Config {
     Config {

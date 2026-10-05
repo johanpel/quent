@@ -3,8 +3,5 @@
 
 //! Custom Quent channel implementations.
 
-mod mpsc;
-mod spsc;
-
-pub use mpsc::{Receiver, Sender, unbounded_channel, unbounded_channel_with_config};
-pub use spsc::Config;
+pub mod mpsc;
+pub mod spsc;

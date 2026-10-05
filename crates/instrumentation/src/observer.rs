@@ -39,11 +39,11 @@ type TransportSender<T> = UnboundedSender<Event<T>>;
 #[cfg(feature = "channel-spsc")]
 // The function pointer keeps the public sender methods callable for generic
 // `T`; construction proves `T: Send` once without adding a bound to callers.
-type SpscSend<T> = fn(&quent_channel::Sender<Event<T>>, Event<T>) -> Result<(), Event<T>>;
+type SpscSend<T> = fn(&quent_channel::mpsc::Sender<Event<T>>, Event<T>) -> Result<(), Event<T>>;
 
 #[cfg(feature = "channel-spsc")]
 struct TransportSender<T> {
-    tx: quent_channel::Sender<Event<T>>,
+    tx: quent_channel::mpsc::Sender<Event<T>>,
     send: SpscSend<T>,
 }
 
@@ -66,7 +66,7 @@ impl<T> TransportSender<T> {
 
 #[cfg(feature = "channel-spsc")]
 fn send_spsc<T: Send + 'static>(
-    tx: &quent_channel::Sender<Event<T>>,
+    tx: &quent_channel::mpsc::Sender<Event<T>>,
     event: Event<T>,
 ) -> Result<(), Event<T>> {
     tx.send(event)
@@ -200,7 +200,7 @@ where
     #[cfg(not(feature = "channel-spsc"))]
     let (events_sender, mut events_receiver) = unbounded_channel();
     #[cfg(feature = "channel-spsc")]
-    let (events_sender, mut events_receiver) = quent_channel::unbounded_channel();
+    let (events_sender, mut events_receiver) = quent_channel::mpsc::unbounded_channel();
     #[cfg(feature = "channel-spsc")]
     let events_sender = TransportSender {
         tx: events_sender,
@@ -278,7 +278,7 @@ async fn forward_tokio<T: Send + 'static>(
 
 #[cfg(feature = "channel-spsc")]
 async fn forward_spsc<T: Send + 'static>(
-    receiver: &mut quent_channel::Receiver<Event<T>>,
+    receiver: &mut quent_channel::mpsc::Receiver<Event<T>>,
     exporter: &mut Box<dyn Exporter<T>>,
     cancellation: &CancellationToken,
 ) {

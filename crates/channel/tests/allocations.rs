@@ -7,7 +7,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use quent_channel::{Config, unbounded_channel_with_config};
+use quent_channel::{mpsc::unbounded_channel_with_config, spsc::Config};
 
 struct CountingAllocator;
 

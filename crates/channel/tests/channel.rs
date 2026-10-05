@@ -11,7 +11,10 @@ use std::{
     thread,
 };
 
-use quent_channel::{Config, Sender, unbounded_channel_with_config};
+use quent_channel::{
+    mpsc::{Sender, unbounded_channel_with_config},
+    spsc::Config,
+};
 
 fn config(capacity: usize, spares: usize) -> Config {
     Config {
@@ -22,7 +25,7 @@ fn config(capacity: usize, spares: usize) -> Config {
 
 #[test]
 fn default_channel_delivers_values() {
-    let (sender, mut receiver) = quent_channel::unbounded_channel();
+    let (sender, mut receiver) = quent_channel::mpsc::unbounded_channel();
     sender.send(42).unwrap();
     receiver.close();
     let mut output = Vec::new();
