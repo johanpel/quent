@@ -1,18 +1,17 @@
-### TL;DR
-
-#### What is the Quent configuration with the lowest possible latecy?
-
-Enable the `channel-spsc` and `clock-quanta` features on `quent-instrumentation`
-at your own risk (explained below).
-
-#### What else can I do to reduce overhead?
-
-Consider how long your program takes to calculate attribute values. This might
-add overhead to the program that wasn't there before you instrumented it, since
-you might not have been doing those calculations before. Also, don't spam too
-many events from your critical path.
-
 # Performance
+
+> **TL;DR:**
+>
+> **What is the Quent configuration with the lowest possible latecy?** Enable
+> the `channel-spsc` and `clock-quanta` features on `quent-instrumentation` at
+> your own risk (explained below).
+>
+> **What else can I do to reduce overhead?**
+>
+> Consider how long your program takes to calculate attribute values. This might
+> add overhead to the program that wasn't there before you instrumented it,
+> since you might not have been doing those calculations before. Also, don't
+> spam too many events from your critical path.
 
 Quent is very fast by default, but it can be made even faster by leveraging
 certain approaches enabled by Cargo features. The trade-offs are explained here.
