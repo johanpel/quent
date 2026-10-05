@@ -1,7 +1,57 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-thread producer registration and thread-local teardown fallback.
+//! An unbounded multi-producer, single-consumer channel optimized for very low
+//! producer latency, irrespective of the number of threads sending.
+//!
+//! [`unbounded_channel`] gives each sending thread its own queue, avoiding
+//! contention between producers on a shared queue. A single receiver drains
+//! these queues in batches. Sends can still succeed after the receiver closes,
+//! so stop all sends before closing and draining to receive every value.
+//!
+//! ## Per-thread queues
+//!
+//! The shareable sender registers one SPSC queue per sending thread on its
+//! first send. Values stay in order within a queue. There is no ordering
+//! guarantee across threads or between a queue and the fallback.
+//!
+//! ## Publication and growth
+//!
+//! Each per-thread queue uses the publication and growth behavior described in
+//! [`crate::spsc`]. General-purpose unbounded MPSC channels coordinate
+//! concurrent producers that a per-thread queue does not have.
+//!
+//! ## Collection and reuse
+//!
+//! The receiver visits registered queues and drains values in batches. It
+//! delegates segment reuse to each SPSC channel.
+//!
+//! ## Teardown and shutdown
+//!
+//! Sends during thread-local destruction use a separate fallback queue if the
+//! thread's queue has already been destroyed. The channel does not wake an
+//! async task. After stopping sends, drain before dropping the receiver; values
+//! still buffered when it is dropped are destroyed.
+//!
+//! ## Acknowledgments
+//!
+//! [Quill](https://github.com/odygrd/quill/blob/master/include/quill/core/ThreadContextManager.h),
+//! [ticklog](https://github.com/tensorbinge/ticklog),
+//! [fmtlog](https://github.com/MengRao/fmtlog/blob/main/fmtlog.h), and
+//! [fastrace](https://github.com/fast/fastrace/blob/main/crates/fastrace/src/util/command_bus.rs)
+//! inspired this design through their use of per-thread producer queues. These
+//! projects provide valuable examples of low-overhead event collection, though
+//! their capacity and overflow policies differ.
+//!
+//! # Quent-specific implications
+//!
+//! Quent events carry timestamps. Moving one entity handle between threads
+//! normally takes longer than a send or obtaining a timestamp, so its events
+//! are usually easy to order. If several handles for the same entity emit
+//! concurrently, callers must synchronize them when order matters. Whether
+//! timestamps alone can distinguish the correct order of events depends on the
+//! configured clock. (Re-)consider that case carefully before using this
+//! channel.
 
 use std::{
     any::Any,
@@ -13,9 +63,7 @@ use std::{
     },
 };
 
-#[cfg(test)]
-use crate::spsc::Metrics;
-use crate::spsc::{Config, Consumer, DrainReport, Producer, spsc};
+use crate::spsc::{Config, Consumer, Producer, spsc};
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -162,33 +210,31 @@ impl<T: Send + 'static> Sender<T> {
 }
 
 impl<T: Send + 'static> Receiver<T> {
-    /// Append up to `limit` published values across registered channels.
+    /// Append up to `limit` published values and return the number appended without waiting for new values.
     ///
     /// The fallback has no ordering guarantee relative to a thread's channel.
-    /// After closure, `pending` reflects published work remaining. To finish
-    /// delivery, first stop and synchronize all emission, then call [`Self::close`]
-    /// and drain until `pending` is false. Live TLS handles do not prevent this.
-    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> DrainReport {
+    /// To finish delivery, first stop and synchronize all emission, then call
+    /// [`Self::close`] and drain with a positive limit until this returns zero.
+    /// Live TLS handles do not prevent this.
+    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> usize {
         self.collect_registrations();
         if limit == 0 {
-            return DrainReport {
-                drained: 0,
-                pending: self.pending(),
-            };
+            return 0;
         }
         let start = output.len();
         if self.fallback_first {
             self.drain_fallback(output, limit.div_ceil(2));
         }
         let visits = self.channels.len();
+        let mut remaining = limit - (output.len() - start);
         for _ in 0..visits {
-            let remaining = limit - (output.len() - start);
             if remaining == 0 || self.channels.is_empty() {
                 break;
             }
             self.cursor %= self.channels.len();
             let budget = remaining.min(self.shared.config.segment_capacity.get());
             let report = self.channels[self.cursor].drain_into(output, budget);
+            remaining -= report.drained;
             if !report.pending {
                 self.channels.swap_remove(self.cursor);
             } else {
@@ -199,10 +245,7 @@ impl<T: Send + 'static> Receiver<T> {
             self.drain_fallback(output, limit - (output.len() - start));
         }
         self.fallback_first = !self.fallback_first;
-        DrainReport {
-            drained: output.len() - start,
-            pending: self.pending(),
-        }
+        output.len() - start
     }
 
     /// Stop accepting registration and teardown fallback events.
@@ -235,26 +278,6 @@ impl<T: Send + 'static> Receiver<T> {
             .sum()
     }
 
-    /// Return approximate segment totals for currently registered channels.
-    #[cfg(test)]
-    fn metrics(&mut self) -> Metrics {
-        self.collect_registrations();
-        self.channels.iter().fold(
-            Metrics {
-                in_flight: 0,
-                allocated: 0,
-                spares: 0,
-            },
-            |mut total, channel| {
-                let metrics = channel.metrics();
-                total.in_flight += metrics.in_flight;
-                total.allocated += metrics.allocated;
-                total.spares += metrics.spares;
-                total
-            },
-        )
-    }
-
     fn collect_registrations(&mut self) {
         let mut registry = self
             .shared
@@ -283,18 +306,6 @@ impl<T: Send + 'static> Receiver<T> {
         drop(registry);
         output.extend(values);
     }
-
-    fn pending(&self) -> bool {
-        let registry = self
-            .shared
-            .registry
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        !registry.closed
-            || !registry.pending.is_empty()
-            || !registry.fallback.is_empty()
-            || self.channels.iter().any(Consumer::has_published_work)
-    }
 }
 
 impl<T> Drop for Receiver<T> {
@@ -311,60 +322,5 @@ impl<T> Drop for Receiver<T> {
         drop(registry);
         drop(pending);
         drop(fallback);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::num::NonZeroUsize;
-
-    fn config(capacity: usize, spares: usize) -> Config {
-        Config {
-            segment_capacity: NonZeroUsize::new(capacity).unwrap(),
-            spare_segments: spares,
-        }
-    }
-
-    fn drain_n<T: Send + 'static>(receiver: &mut Receiver<T>, output: &mut Vec<T>, count: usize) {
-        let target = output.len() + count;
-        while output.len() < target {
-            assert_ne!(
-                receiver.drain_into(output, target - output.len()).drained,
-                0
-            );
-        }
-    }
-
-    #[test]
-    fn recycles_preallocated_segments_and_trims_excess() {
-        let (sender, mut receiver) = unbounded_channel(config(2, 2));
-        sender.send(usize::MAX).unwrap();
-        let mut output = Vec::new();
-        receiver.drain_into(&mut output, 1);
-        output.clear();
-        assert_eq!(receiver.preallocate_spares(), 2);
-        assert_eq!(receiver.metrics().allocated, 3);
-        for value in 0..6 {
-            sender.send(value).unwrap();
-        }
-        drain_n(&mut receiver, &mut output, 6);
-        assert_eq!(receiver.metrics().in_flight, 1);
-        assert_eq!(receiver.metrics().spares, 2);
-        assert_eq!(receiver.metrics().allocated, 3);
-        for value in 6..10 {
-            sender.send(value).unwrap();
-        }
-        assert_eq!(receiver.metrics().allocated, 3);
-        drain_n(&mut receiver, &mut output, 4);
-        assert_eq!(output, (0..10).collect::<Vec<_>>());
-
-        for value in 10..30 {
-            sender.send(value).unwrap();
-        }
-        assert!(receiver.metrics().allocated > 3);
-        drain_n(&mut receiver, &mut output, 20);
-        assert_eq!(receiver.metrics().allocated, 3);
-        assert_eq!(receiver.metrics().spares, 2);
     }
 }

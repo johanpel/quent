@@ -31,7 +31,7 @@ fn aligned_owning_values_survive_wraparound_and_partial_drains() {
         receiver.drain_into(&mut output, 1);
     }
     receiver.close();
-    while receiver.drain_into(&mut output, 3).pending {}
+    while receiver.drain_into(&mut output, 3) != 0 {}
     assert_eq!(
         output.into_iter().map(|value| value.0).collect::<Vec<_>>(),
         (0..20).map(|value| value.to_string()).collect::<Vec<_>>()
@@ -46,7 +46,7 @@ fn zero_sized_values_cross_many_segments() {
     }
     receiver.close();
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 3).pending {}
+    while receiver.drain_into(&mut output, 3) != 0 {}
     assert_eq!(output.len(), 10);
 }
 

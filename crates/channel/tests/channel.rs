@@ -21,6 +21,24 @@ fn config(capacity: usize, spares: usize) -> Config {
 }
 
 #[test]
+fn drain_returns_appended_count_and_respects_limit() {
+    let (sender, mut receiver) = unbounded_channel(config(2, 0));
+    let mut output = vec![99];
+    assert_eq!(receiver.drain_into(&mut output, 2), 0);
+    for value in 0..3 {
+        sender.send(value).unwrap();
+    }
+    assert_eq!(receiver.drain_into(&mut output, 0), 0);
+    assert_eq!(output, [99]);
+    receiver.close();
+    assert_eq!(receiver.drain_into(&mut output, 2), 2);
+    assert_eq!(output, [99, 0, 1]);
+    assert_eq!(receiver.drain_into(&mut output, 2), 1);
+    assert_eq!(output, [99, 0, 1, 2]);
+    assert_eq!(receiver.drain_into(&mut output, 2), 0);
+}
+
+#[test]
 fn carries_owning_values_in_fifo_order_across_segments() {
     let (sender, mut receiver) = unbounded_channel::<String>(config(2, 0));
     for i in 0..100 {
@@ -28,7 +46,7 @@ fn carries_owning_values_in_fifo_order_across_segments() {
     }
     receiver.close();
     let mut values = Vec::new();
-    while receiver.drain_into(&mut values, 3).pending {}
+    while receiver.drain_into(&mut values, 3) != 0 {}
     assert_eq!(values, (0..100).map(|i| i.to_string()).collect::<Vec<_>>());
 }
 
@@ -69,7 +87,7 @@ fn supports_send_but_not_sync_payloads() {
     handle.join().unwrap();
     receiver.close();
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 1).pending {}
+    while receiver.drain_into(&mut output, 1) != 0 {}
     assert_eq!(output[0].get(), 42);
 }
 
@@ -91,7 +109,7 @@ fn registry_drains_each_thread_without_losing_sequences() {
     }
     receiver.close();
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 37).pending {}
+    while receiver.drain_into(&mut output, 37) != 0 {}
     assert_eq!(output.len(), 8_000);
     let mut per_thread = vec![Vec::new(); 8];
     for (thread_id, sequence) in output {
@@ -128,7 +146,7 @@ fn thread_local_destructor_emission_reaches_the_receiver() {
     .unwrap();
     receiver.close();
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 1).pending {}
+    while receiver.drain_into(&mut output, 1) != 0 {}
     assert_eq!(output, [1, 99, 100]);
 }
 
@@ -140,7 +158,7 @@ fn close_is_observed_at_a_segment_switch() {
     assert!(sender.send(2).is_ok());
     assert_eq!(sender.send(3), Err(3));
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 4).pending {}
+    while receiver.drain_into(&mut output, 4) != 0 {}
     assert_eq!(output, [1, 2]);
 }
 
@@ -150,7 +168,7 @@ fn final_drain_finishes_with_a_live_main_thread_producer() {
     sender.send(1).unwrap();
     receiver.close();
     let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 1).pending {}
+    while receiver.drain_into(&mut output, 1) != 0 {}
     assert_eq!(output, [1]);
     drop(receiver);
     assert_eq!(sender.send(2), Ok(()));
@@ -237,8 +255,10 @@ fn different_pipeline_types_remain_independent_on_one_thread() {
     number_receiver.close();
     let mut text = Vec::new();
     let mut numbers = Vec::new();
-    assert!(!text_receiver.drain_into(&mut text, 1).pending);
-    assert!(!number_receiver.drain_into(&mut numbers, 1).pending);
+    assert_eq!(text_receiver.drain_into(&mut text, 1), 1);
+    assert_eq!(text_receiver.drain_into(&mut text, 1), 0);
+    assert_eq!(number_receiver.drain_into(&mut numbers, 1), 1);
+    assert_eq!(number_receiver.drain_into(&mut numbers, 1), 0);
     assert_eq!(text, ["one"]);
     assert_eq!(numbers, [2]);
 }

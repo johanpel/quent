@@ -293,7 +293,7 @@ async fn forward_spsc<T: Send + 'static>(
         }
         let limit = exporter.batch_size_hint().get();
         buffer.reserve(limit);
-        if receiver.drain_into(&mut buffer, limit).drained != 0 {
+        if receiver.drain_into(&mut buffer, limit) != 0 {
             export_buffer(exporter, &mut buffer).await;
             continue;
         }
@@ -309,7 +309,7 @@ async fn forward_spsc<T: Send + 'static>(
     loop {
         let limit = exporter.batch_size_hint().get();
         buffer.reserve(limit);
-        if receiver.drain_into(&mut buffer, limit).drained == 0 {
+        if receiver.drain_into(&mut buffer, limit) == 0 {
             break;
         }
         export_buffer(exporter, &mut buffer).await;

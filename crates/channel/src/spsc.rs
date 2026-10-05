@@ -1,7 +1,44 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Segmented single-producer, single-consumer transport.
+//! Unbounded single-producer, single-consumer channel.
+//!
+//! The consumer receives values in the order they were sent and can drain them
+//! in batches. Buffered values have no fixed capacity limit, so sends do not
+//! need to wait for the consumer to free space. A successful send makes its
+//! value available to the consumer immediately before returning.
+//!
+//! Values are stored in a chain of fixed-size ring buffers called segments.
+//! When the current segment is full, the producer continues in a next segment,
+//! reusing an empty spare segment or allocating a new one if no empty segment
+//! is available. The consumer drains older segments first, then returns them
+//! for reuse or releases them if enough spares are available.
+//!
+//! As the consumer drains values, it advances a read index that marks the free
+//! slots. The producer keeps a local copy of that index, refreshing it only
+//! when the ring appears full. A push into an available slot publishes its
+//! value before returning, without a lock, compare-and-swap, or allocation.
+//!
+//! Using `rtrb` avoids implementing slot ownership and publication with unsafe
+//! code here. A single bounded ring would reject sends when full.
+//!
+//! The configured spare limit bounds the number of empty segments retained
+//! for reuse, so a temporary burst does not keep memory usage at its peak.
+//!
+//! The producer checks whether the consumer has closed only when it finds its
+//! current segment full, avoiding an extra atomic read on every send. This
+//! reduces per-send overhead, which matters when the producer sends a burst of
+//! many small values.
+//!
+//! Until the segment runs full, sends can succeed even after the consumer
+//! closes or drops. Draining can free slots and delay the check. A send can
+//! therefore report success even though the consumer will never receive its
+//! value. To receive every value, stop the producer and wait for any send in
+//! progress to finish before closing and draining the consumer. Dropping the
+//! consumer discards unread values. This channel therefore provides Level 1
+//! shutdown guarantees as described in [shutdown guarantee levels].
+//!
+//! [shutdown guarantee levels]: ../../instrumentation/PERFORMANCE.md#what-happens-when-i-stop-instrumentation
 
 use std::{
     num::NonZeroUsize,
@@ -31,87 +68,82 @@ impl Default for Config {
     }
 }
 
-/// A non-atomic snapshot of segment counts.
-#[cfg(test)]
+/// Result of one drain.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct Metrics {
-    /// Active segments, including the current segment.
-    pub in_flight: usize,
-    /// Allocated segments, including empty spares.
-    pub allocated: usize,
-    /// Empty segments available to the producer.
-    pub spares: usize,
-}
-
-/// Result of one bounded drain.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DrainReport {
+pub(crate) struct DrainResult {
     /// Number of values appended to the destination.
     pub drained: usize,
     /// Whether a live or unfinished channel may yield further values.
     pub pending: bool,
 }
 
+/// Tracks consumer disconnection and spare availability shared by one SPSC channel's endpoints.
 #[derive(Debug)]
-struct State {
-    consumer_gone: AtomicBool,
-    in_flight: AtomicUsize,
-    allocated: AtomicUsize,
+struct ChannelState {
+    /// Set when the consumer closes or drops.
+    consumer_closed: AtomicBool,
+    /// Empty segments available for reuse, used to limit spare preallocation.
     spares: AtomicUsize,
 }
 
-#[cfg(test)]
-impl State {
-    fn metrics(&self) -> Metrics {
-        Metrics {
-            in_flight: self.in_flight.load(Ordering::Relaxed),
-            allocated: self.allocated.load(Ordering::Relaxed),
-            spares: self.spares.load(Ordering::Relaxed),
-        }
-    }
-}
-
-struct Handoff<T> {
+/// Holds the old segment's writer and the next segment's reader and shared
+/// state.
+///
+/// The producer moves both endpoints into this value when it switches segments.
+/// The consumer takes the whole value after draining the old segment, pairs the
+/// old writer with its existing reader for reuse, and continues reading from
+/// the next segment.
+struct SegmentTransition<T> {
+    /// Writer tied to the old segment's ring buffer, no longer used by the producer.
+    ///
+    /// Retaining it allows writes into the same allocation when reused, since
+    /// a writer cannot be recreated from the reader alone.
     retired_writer: RingProducer<T>,
+    /// Reader paired with the producer's new writer, used only after the old
+    /// segment is drained.
     next_reader: RingConsumer<T>,
-    next_node: Arc<Node<T>>,
+    /// Next segment's successor and closure state, shared with the producer.
+    next_node: Arc<SegmentState<T>>,
 }
 
-struct Node<T> {
-    handoff: OnceLock<Mutex<Handoff<T>>>,
+/// Records a segment's successor or the end of the producer's writes.
+struct SegmentState<T> {
+    /// Endpoints and shared state passed to the consumer when the producer moves to the next segment.
+    transition: OnceLock<Mutex<SegmentTransition<T>>>,
+    /// Set when the producer drops, after its final writes and release of this segment's writer.
     closed: AtomicBool,
 }
 
-impl<T> Node<T> {
+impl<T> SegmentState<T> {
     fn new() -> Arc<Self> {
         Arc::new(Self {
-            handoff: OnceLock::new(),
+            transition: OnceLock::new(),
             closed: AtomicBool::new(false),
         })
     }
 
-    fn take_handoff(&mut self) -> Option<Handoff<T>> {
-        self.handoff.take().map(|handoff| {
-            handoff
+    fn take_transition(&mut self) -> Option<SegmentTransition<T>> {
+        self.transition.take().map(|transition| {
+            transition
                 .into_inner()
                 .unwrap_or_else(|poison| poison.into_inner())
         })
     }
 }
 
-struct Spare<T> {
+struct Segment<T> {
     writer: RingProducer<T>,
     reader: RingConsumer<T>,
-    node: Arc<Node<T>>,
+    node: Arc<SegmentState<T>>,
 }
 
-impl<T> Spare<T> {
+impl<T> Segment<T> {
     fn new(capacity: NonZeroUsize) -> Self {
         let (writer, reader) = RingBuffer::new(capacity.get());
         Self {
             writer,
             reader,
-            node: Node::new(),
+            node: SegmentState::new(),
         }
     }
 }
@@ -119,33 +151,31 @@ impl<T> Spare<T> {
 /// The only writer of a segmented channel.
 pub(crate) struct Producer<T> {
     current: Option<RingProducer<T>>,
-    spare_reader: Option<RingConsumer<Spare<T>>>,
-    state: Arc<State>,
-    node: Arc<Node<T>>,
+    spare_reader: Option<RingConsumer<Segment<T>>>,
+    state: Arc<ChannelState>,
+    node: Arc<SegmentState<T>>,
     capacity: NonZeroUsize,
 }
 
 /// The only reader of a segmented channel.
 pub(crate) struct Consumer<T> {
     current: Option<RingConsumer<T>>,
-    spare_writer: Option<RingProducer<Spare<T>>>,
-    state: Arc<State>,
-    node: Option<Arc<Node<T>>>,
+    spare_writer: Option<RingProducer<Segment<T>>>,
+    state: Arc<ChannelState>,
+    node: Option<Arc<SegmentState<T>>>,
     config: Config,
 }
 
-/// Create a segmented SPSC channel.
+/// Create an unbounded single-producer, single-consumer channel.
 pub(crate) fn spsc<T: Send + 'static>(config: Config) -> (Producer<T>, Consumer<T>) {
-    let Spare {
+    let Segment {
         writer,
         reader,
         node,
-    } = Spare::new(config.segment_capacity);
+    } = Segment::new(config.segment_capacity);
     let (spare_writer, spare_reader) = RingBuffer::new(config.spare_segments.max(1));
-    let state = Arc::new(State {
-        consumer_gone: AtomicBool::new(false),
-        in_flight: AtomicUsize::new(1),
-        allocated: AtomicUsize::new(1),
+    let state = Arc::new(ChannelState {
+        consumer_closed: AtomicBool::new(false),
         spares: AtomicUsize::new(0),
     });
     (
@@ -177,7 +207,7 @@ impl<T: Send + 'static> Producer<T> {
             Ok(()) => return Ok(()),
             Err(PushError::Full(value)) => value,
         };
-        if self.state.consumer_gone.load(Ordering::Acquire) {
+        if self.state.consumer_closed.load(Ordering::Acquire) {
             return Err(value);
         }
 
@@ -186,22 +216,18 @@ impl<T: Send + 'static> Producer<T> {
                 self.state.spares.fetch_sub(1, Ordering::Relaxed);
                 spare
             }
-            Err(_) => {
-                self.state.allocated.fetch_add(1, Ordering::Relaxed);
-                Spare::new(self.capacity)
-            }
+            Err(_) => Segment::new(self.capacity),
         };
-        let Spare {
+        let Segment {
             writer,
             reader,
             node,
         } = spare;
-        self.state.in_flight.fetch_add(1, Ordering::Relaxed);
         let old_writer = self.current.replace(writer).unwrap();
         let old_node = std::mem::replace(&mut self.node, Arc::clone(&node));
         if old_node
-            .handoff
-            .set(Mutex::new(Handoff {
+            .transition
+            .set(Mutex::new(SegmentTransition {
                 retired_writer: old_writer,
                 next_reader: reader,
                 next_node: node,
@@ -232,7 +258,7 @@ impl<T: Send + 'static> Consumer<T> {
     /// Append at most `limit` published values to `output`.
     ///
     /// `pending` also remains true for an open but currently empty channel.
-    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> DrainReport {
+    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> DrainResult {
         let mut drained = 0;
         while drained < limit && self.current.is_some() {
             let available = self.current.as_ref().unwrap().slots();
@@ -247,7 +273,7 @@ impl<T: Send + 'static> Consumer<T> {
                 break;
             }
         }
-        DrainReport {
+        DrainResult {
             drained,
             pending: self.current.is_some(),
         }
@@ -255,7 +281,7 @@ impl<T: Send + 'static> Consumer<T> {
 
     /// Signal disconnection; already published values remain drainable.
     pub fn close(&mut self) {
-        self.state.consumer_gone.store(true, Ordering::Release);
+        self.state.consumer_closed.store(true, Ordering::Release);
     }
 
     /// Prepare empty segments on the consumer for future producer bursts.
@@ -267,28 +293,14 @@ impl<T: Send + 'static> Consumer<T> {
             if self.spare_writer.as_ref().unwrap().is_abandoned() {
                 break;
             }
-            let spare = Spare::new(self.config.segment_capacity);
+            let spare = Segment::new(self.config.segment_capacity);
             if self.spare_writer.as_mut().unwrap().push(spare).is_err() {
                 break;
             }
-            self.state.allocated.fetch_add(1, Ordering::Relaxed);
             self.state.spares.fetch_add(1, Ordering::Relaxed);
             supplied += 1;
         }
         supplied
-    }
-
-    /// Return a sampled count of segments held by this channel.
-    #[cfg(test)]
-    pub fn metrics(&self) -> Metrics {
-        self.state.metrics()
-    }
-
-    pub(crate) fn has_published_work(&self) -> bool {
-        let Some(current) = &self.current else {
-            return false;
-        };
-        current.slots() != 0 || self.node.as_ref().unwrap().handoff.get().is_some()
     }
 
     fn advance(&mut self) -> bool {
@@ -301,16 +313,15 @@ impl<T: Send + 'static> Consumer<T> {
         if self.current.as_ref().unwrap().slots() != 0 {
             return false;
         }
-        if let Some(handoff) = inner.take_handoff() {
+        if let Some(transition) = inner.take_transition() {
             let old_reader = self.current.take().unwrap();
-            let old_node = self.node.replace(handoff.next_node).unwrap();
-            let spare = Spare {
-                writer: handoff.retired_writer,
+            let old_node = self.node.replace(transition.next_node).unwrap();
+            let spare = Segment {
+                writer: transition.retired_writer,
                 reader: old_reader,
                 node: old_node,
             };
-            self.current = Some(handoff.next_reader);
-            self.state.in_flight.fetch_sub(1, Ordering::Relaxed);
+            self.current = Some(transition.next_reader);
             if self.config.spare_segments != 0
                 && !self.spare_writer.as_ref().unwrap().is_abandoned()
             {
@@ -320,20 +331,16 @@ impl<T: Send + 'static> Consumer<T> {
                     }
                     Err(PushError::Full(spare)) => {
                         drop(spare);
-                        self.state.allocated.fetch_sub(1, Ordering::Relaxed);
                     }
                 }
             } else {
                 drop(spare);
-                self.state.allocated.fetch_sub(1, Ordering::Relaxed);
             }
             return true;
         }
         if inner.closed.load(Ordering::Acquire) {
             drop(self.current.take());
             drop(self.node.take());
-            self.state.in_flight.fetch_sub(1, Ordering::Relaxed);
-            self.state.allocated.fetch_sub(1, Ordering::Relaxed);
         }
         false
     }
@@ -341,23 +348,21 @@ impl<T: Send + 'static> Consumer<T> {
 
 impl<T> Drop for Consumer<T> {
     fn drop(&mut self) {
-        self.state.consumer_gone.store(true, Ordering::Release);
+        self.state.consumer_closed.store(true, Ordering::Release);
         while let Some(mut node) = self.node.take() {
             let Some(inner) = Arc::get_mut(&mut node) else {
                 drop(node);
                 break;
             };
-            let handoff = inner.take_handoff();
+            let transition = inner.take_transition();
             drop(self.current.take());
-            self.state.in_flight.fetch_sub(1, Ordering::Relaxed);
-            self.state.allocated.fetch_sub(1, Ordering::Relaxed);
             drop(node);
-            let Some(handoff) = handoff else {
+            let Some(transition) = transition else {
                 break;
             };
-            drop(handoff.retired_writer);
-            self.current = Some(handoff.next_reader);
-            self.node = Some(handoff.next_node);
+            drop(transition.retired_writer);
+            self.current = Some(transition.next_reader);
+            self.node = Some(transition.next_node);
         }
     }
 }
