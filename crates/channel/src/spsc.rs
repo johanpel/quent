@@ -131,9 +131,13 @@ impl<T> SegmentState<T> {
     }
 }
 
+/// Groups a ring buffer's paired endpoints and state for allocation or reuse.
 struct Segment<T> {
+    /// Write endpoint paired with this segment's reader.
     writer: RingProducer<T>,
+    /// Read endpoint for values written through this segment's writer.
     reader: RingConsumer<T>,
+    /// Tracks this segment's successor or the end of the producer's writes.
     node: Arc<SegmentState<T>>,
 }
 
