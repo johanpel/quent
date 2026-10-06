@@ -6,7 +6,7 @@ use std::{
     num::NonZeroUsize,
     sync::{
         Arc, Barrier,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     thread,
 };
@@ -247,12 +247,16 @@ fn final_drain_finishes_with_a_live_main_thread_producer() {
 #[test]
 fn concurrent_growth_and_collection_preserve_all_values() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(4, 2));
+    let finished = Arc::new(AtomicBool::new(false));
+    let producer_finished = Arc::clone(&finished);
     let collector = thread::spawn(move || {
         let mut output = Vec::new();
-        while output.len() < 100_000 {
+        while !producer_finished.load(Ordering::Acquire) {
             receiver.drain_into(&mut output, NonZeroUsize::new(31).unwrap());
             thread::yield_now();
         }
+        receiver.close();
+        while receiver.drain_into(&mut output, NonZeroUsize::new(31).unwrap()) != 0 {}
         output
     });
     for value in 0..100_000 {
@@ -262,6 +266,7 @@ fn concurrent_growth_and_collection_preserve_all_values() {
         }
     }
     drop(sender);
+    finished.store(true, Ordering::Release);
     assert_eq!(collector.join().unwrap(), (0..100_000).collect::<Vec<_>>());
 }
 
