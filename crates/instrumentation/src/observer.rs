@@ -292,6 +292,8 @@ async fn forward_spsc<T: Send + 'static>(
 ) {
     let mut buffer = Vec::new();
     // Idle polling leaves the producer's ordinary push path free of wake-ups.
+    // TODO(johanpel): Consider adaptive polling to reduce idle wakeups, trading
+    // off event delivery delay.
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         if cancellation.is_cancelled() {

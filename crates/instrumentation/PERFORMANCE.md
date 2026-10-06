@@ -2,7 +2,7 @@
 
 > **TL;DR:**
 >
-> **What is the Quent configuration with the lowest possible latecy?**
+> **What is the Quent configuration with the lowest possible latency?**
 >
 > Enable the `channel-per-thread` and `clock-quanta` features on
 > `quent-instrumentation` at your own risk (explained below).
@@ -138,7 +138,7 @@ by Quent when no application runtime is present already enables timers.
 Using a separate runtime instead of the application's runtime is tracked in
 [issue #246](https://github.com/rapidsai/quent/issues/246).
 
-## In what order will my events be exporter?
+## In what order will my events be exported?
 
 This totally depends on the exporter. The simple "filesystem" exporters
 `ndjson`, `postcard`, and `messagepack` simply export in the order at which

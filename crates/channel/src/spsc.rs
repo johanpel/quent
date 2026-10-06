@@ -35,10 +35,7 @@
 //! therefore report success even though the consumer will never receive its
 //! value. To receive every value, stop the producer and wait for any send in
 //! progress to finish before closing and draining the consumer. Dropping the
-//! consumer discards unread values. This channel therefore provides Level 1
-//! shutdown guarantees as described in [shutdown guarantee levels].
-//!
-//! [shutdown guarantee levels]: ../../instrumentation/PERFORMANCE.md#what-happens-when-i-stop-instrumentation
+//! consumer discards unread values.
 
 use std::{
     num::NonZeroUsize,
