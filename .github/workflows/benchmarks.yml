@@ -51,11 +51,11 @@ jobs:
           path: benchmarks/results
       - name: Install benchmark plot dependencies
         run: pixi run --frozen pnpm --dir experimental/vibe/bench-plot install --frozen-lockfile
-      - name: Build benchmark plot
-        run: pixi run --frozen pnpm --dir experimental/vibe/bench-plot build --results benchmarks/results --output pages/benchmarks
+      - name: Build standalone benchmark report
+        run: pixi run --frozen pnpm --dir experimental/vibe/bench-plot build:single --results benchmarks/results --output pages/benchmarks/index.html
       - name: Upload benchmark plot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: benchmark-plot
-          path: pages/benchmarks
+          path: pages/benchmarks/index.html
           if-no-files-found: error
