@@ -27,6 +27,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 }
 
+/// Checks that warmed sends, drains, and recycled segment switches do not allocate.
 #[test]
 fn warmed_pushes_and_recycled_switches_do_not_allocate() {
     let config = Config {

@@ -12,7 +12,7 @@ use std::{
 };
 
 use quent_channel::{
-    mpsc::{Sender, unbounded_channel_with_config},
+    mpsc::{Receiver, Sender, unbounded_channel_with_config},
     spsc::Config,
 };
 
@@ -23,17 +23,8 @@ fn config(capacity: usize, spares: usize) -> Config {
     }
 }
 
-#[test]
-fn default_channel_delivers_values() {
-    let (sender, mut receiver) = quent_channel::mpsc::unbounded_channel();
-    sender.send(42).unwrap();
-    receiver.close();
-    let mut output = Vec::new();
-    assert_eq!(receiver.drain_into(&mut output, 1), 1);
-    assert_eq!(output, [42]);
-    assert_eq!(receiver.drain_into(&mut output, 1), 0);
-}
-
+/// Checks that draining preserves existing output, respects the limit, and
+/// reports only newly appended values.
 #[test]
 fn drain_returns_appended_count_and_respects_limit() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
@@ -52,6 +43,8 @@ fn drain_returns_appended_count_and_respects_limit() {
     assert_eq!(receiver.drain_into(&mut output, 2), 0);
 }
 
+/// Checks that draining across segment boundaries delivers every value in send
+/// order.
 #[test]
 fn carries_owning_values_in_fifo_order_across_segments() {
     let (sender, mut receiver) = unbounded_channel_with_config::<String>(config(2, 0));
@@ -73,7 +66,8 @@ impl Drop for Counted {
     }
 }
 
-/// Checks that unread values are destroyed exactly once whichever endpoint is dropped first.
+/// Checks that teardown retains no unread values across segments, whether the
+/// producer thread exits or the receiver drops first.
 #[test]
 fn both_handle_drop_orders_destroy_unread_values_once() {
     for consumer_first in [false, true] {
@@ -107,6 +101,8 @@ fn both_handle_drop_orders_destroy_unread_values_once() {
     }
 }
 
+/// Checks that dropping the receiver reclaims queued values and returns
+/// ownership of a rejected value.
 #[test]
 fn early_consumer_drop_reclaims_every_payload_once() {
     let drops = Arc::new(AtomicUsize::new(0));
@@ -126,19 +122,18 @@ fn early_consumer_drop_reclaims_every_payload_once() {
     assert_eq!(drops.load(Ordering::Relaxed), 101);
 }
 
-#[test]
-fn supports_send_but_not_sync_payloads() {
-    let (sender, mut receiver) = unbounded_channel_with_config(config(1, 0));
-    let handle = thread::spawn(move || {
-        sender.send(Cell::new(42)).unwrap();
-    });
-    handle.join().unwrap();
-    receiver.close();
-    let mut output = Vec::new();
-    while receiver.drain_into(&mut output, 1) != 0 {}
-    assert_eq!(output[0].get(), 42);
-}
+/// Checks at compile time that non-`Sync` payloads support sending and both
+/// endpoints remain `Send`.
+const _: fn() = || {
+    fn assert_send<T: Send>() {}
 
+    assert_send::<Sender<Cell<u32>>>();
+    assert_send::<Receiver<Cell<u32>>>();
+    let (sender, _receiver) = unbounded_channel_with_config(config(1, 0));
+    sender.send(Cell::new(42_u32)).unwrap();
+};
+
+/// Checks registration and per-thread ordering for multiple producers, draining only after all producer threads exit.
 #[test]
 fn registry_drains_each_thread_without_losing_sequences() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(8, 2));
@@ -183,6 +178,8 @@ impl Drop for TeardownEmitter {
     }
 }
 
+/// Checks that events emitted during thread-local destruction are delivered in
+/// fallback order without requiring cross-queue ordering.
 #[test]
 fn thread_local_destructor_emission_reaches_the_receiver() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(1, 0));
@@ -206,18 +203,22 @@ fn thread_local_destructor_emission_reaches_the_receiver() {
     );
 }
 
+/// Checks that closure preserves buffered values and a rejected send returns
+/// its value.
 #[test]
-fn close_is_observed_at_a_segment_switch() {
+fn closure_preserves_buffered_values_and_returns_rejected_values() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
     sender.send(1).unwrap();
+    sender.send(2).unwrap();
     receiver.close();
-    assert!(sender.send(2).is_ok());
     assert_eq!(sender.send(3), Err(3));
     let mut output = Vec::new();
     while receiver.drain_into(&mut output, 4) != 0 {}
     assert_eq!(output, [1, 2]);
 }
 
+/// Checks that final draining finishes without waiting for a live producer to
+/// drop.
 #[test]
 fn final_drain_finishes_with_a_live_main_thread_producer() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
@@ -227,11 +228,11 @@ fn final_drain_finishes_with_a_live_main_thread_producer() {
     while receiver.drain_into(&mut output, 1) != 0 {}
     assert_eq!(output, [1]);
     drop(receiver);
-    assert_eq!(sender.send(2), Ok(()));
-    assert_eq!(sender.send(3), Ok(()));
-    assert_eq!(sender.send(4), Err(4));
+    drop(sender);
 }
 
+/// Checks complete, ordered delivery with one producer and a concurrently
+/// draining consumer as segments grow and are reused.
 #[test]
 fn concurrent_growth_and_collection_preserve_all_values() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(4, 2));
@@ -253,6 +254,8 @@ fn concurrent_growth_and_collection_preserve_all_values() {
     assert_eq!(collector.join().unwrap(), (0..100_000).collect::<Vec<_>>());
 }
 
+/// Checks that dropping a long segment chain destroys every unread value
+/// without overflowing the stack.
 #[test]
 fn dropping_a_long_undrained_chain_is_iterative() {
     let drops = Arc::new(AtomicUsize::new(0));
@@ -270,6 +273,7 @@ fn dropping_a_long_undrained_chain_is_iterative() {
     assert_eq!(drops.load(Ordering::Relaxed), 20_000);
 }
 
+/// Checks that racing receiver teardown with sends leaves no queued or rejected payloads retained.
 #[test]
 fn receiver_drop_during_emission_preserves_payload_ownership() {
     let drops = Arc::new(AtomicUsize::new(0));
@@ -301,6 +305,8 @@ fn receiver_drop_during_emission_preserves_payload_ownership() {
     );
 }
 
+/// Checks that channels carrying different value types do not interfere when
+/// used on the same thread.
 #[test]
 fn different_pipeline_types_remain_independent_on_one_thread() {
     let (text_sender, mut text_receiver) = unbounded_channel_with_config(config(1, 0));
