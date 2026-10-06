@@ -1753,6 +1753,8 @@ name = "nvtx-bridge"
 version = "0.1.0"
 dependencies = [
  "nvtx-events",
+ "nvtx-injection",
+ "nvtx-sys",
  "quent-events",
  "serde",
 ]
@@ -1783,7 +1785,6 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "libc",
- "nvtx-events",
  "nvtx-sys",
  "thiserror",
 ]

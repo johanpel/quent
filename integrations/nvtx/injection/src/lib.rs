@@ -4,11 +4,10 @@
 //! Application-agnostic NVTX injection library.
 //!
 //! On attach, NVTX calls the exported [`InitializeInjectionNvtx2`] entry, which
-//! installs the CORE/CORE2 callback tables one-shot. Push/pop calls are
-//! converted to verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s and handed to a
-//! sink-agnostic `Fn(NvtxEvent)` hook installed via [`install_hook`]. This
-//! crate depends on nothing
-//! product-specific except `nvtx-events`, so it stays separable/upstreamable.
+//! installs the CORE/CORE2 callback tables. Each callback copies caller-owned
+//! data into a [`RawEvent`] and passes it to the hook installed via
+//! [`install_hook`] or [`install_hook_with_options`]. Text and payload decoding
+//! belong to the hook's consumer.
 //!
 //! # Attach modes
 //!
@@ -62,10 +61,12 @@ const _: () = {
     assert!(offset_of!(ffi::NvtxExportTableCallbacks, GetModuleFunctionTable) == 8);
 };
 mod callbacks;
-mod convert;
 mod init;
+pub mod record;
+
+pub use record::RawEvent;
 
 pub use init::{
-    CaptureGuard, InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
-    install_hook,
+    HookOptions, InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
+    install_hook, install_hook_with_options,
 };

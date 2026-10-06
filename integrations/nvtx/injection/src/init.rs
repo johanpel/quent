@@ -7,12 +7,11 @@
 use std::mem::transmute;
 use std::os::raw::{c_int, c_uint};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use nvtx_events::NvtxEvent;
 use thiserror::Error;
 
-use crate::callbacks;
+use crate::{RawEvent, callbacks};
 use nvtx_sys::ffi::{
     NvtxCallbackIdCore, NvtxCallbackIdCore2, NvtxCallbackModule, NvtxExportTableCallbacks,
     NvtxExportTableID, NvtxFunctionPointer, NvtxFunctionTable, NvtxGetExportTableFunc_t,
@@ -28,15 +27,69 @@ use nvtx_sys::ffi::{
     nvtxRangeStartA_impl_fntype, nvtxRangeStartEx_impl_fntype, nvtxRangeStartW_impl_fntype,
 };
 
-/// The stored capture hook. Sink-agnostic: it depends only on [`NvtxEvent`].
-type Hook = Box<dyn Fn(NvtxEvent) + Send + Sync + 'static>;
+/// The process-lifetime hook for owned NVTX records.
+type Hook = Box<dyn Fn(RawEvent) + Send + Sync + 'static>;
 
-static HOOK: OnceLock<Hook> = OnceLock::new();
+struct InstalledHook {
+    callback: Hook,
+    options: HookOptions,
+}
 
-// Ordinary static storage outlives both the capture owner and Rust TLS, so
-// `dispatch` can consult it from late process-cleanup callbacks.
-// `HOOK`'s OnceLock publishes the hook; this flag only controls capture admission.
-static CAPTURE_ACTIVE: AtomicBool = AtomicBool::new(false);
+static HOOK: OnceLock<InstalledHook> = OnceLock::new();
+
+/// Select which owned NVTX events reach the installed hook.
+///
+/// Related calls share an option, and the default selects no events. Unselected
+/// C callbacks still provide NVTX return values.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct HookOptions {
+    pub marks: bool,
+    pub push_pop: bool,
+    pub start_end: bool,
+    pub domains: bool,
+    pub registered_strings: bool,
+    pub category_names: bool,
+    pub thread_names: bool,
+    pub resources: bool,
+}
+
+impl HookOptions {
+    /// Select every event type supported by the injection library.
+    pub const ALL: Self = Self {
+        marks: true,
+        push_pop: true,
+        start_end: true,
+        domains: true,
+        registered_strings: true,
+        category_names: true,
+        thread_names: true,
+        resources: true,
+    };
+
+    const fn includes(self, group: HookGroup) -> bool {
+        match group {
+            HookGroup::Marks => self.marks,
+            HookGroup::PushPop => self.push_pop,
+            HookGroup::StartEnd => self.start_end,
+            HookGroup::Domains => self.domains,
+            HookGroup::RegisteredStrings => self.registered_strings,
+            HookGroup::CategoryNames => self.category_names,
+            HookGroup::ThreadNames => self.thread_names,
+            HookGroup::Resources => self.resources,
+        }
+    }
+}
+
+pub(crate) enum HookGroup {
+    Marks,
+    PushPop,
+    StartEnd,
+    Domains,
+    RegisteredStrings,
+    CategoryNames,
+    ThreadNames,
+    Resources,
+}
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
 const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
@@ -55,18 +108,20 @@ pub(crate) fn next_handle() -> u64 {
 }
 
 /// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
-/// (captured as [`NvtxEvent::NameThread`]) uses, so per-thread Push/Pop ranges
+/// (captured as [`RawEvent::NameThread`]) uses, so per-thread Push/Pop ranges
 /// resolve against a named thread. Read on the app thread from inside a callback.
 ///
 /// The value is computed once per thread and cached in a thread-local so the
 /// syscall is not repeated on every push/pop. Works on all Linux architectures
 /// (x86-64, aarch64, …) — this crate is Linux-64-only per the `compile_error!`
-/// in `lib.rs`.
+/// in `lib.rs`. After TLS destruction, it reads the OS thread id directly.
 pub(crate) fn current_thread_id() -> u32 {
     thread_local! {
         static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
     }
-    CACHED_TID.with(|cell| *cell.get_or_init(compute_thread_id))
+    CACHED_TID
+        .try_with(|cell| *cell.get_or_init(compute_thread_id))
+        .unwrap_or_else(|_| compute_thread_id())
 }
 
 fn compute_thread_id() -> u32 {
@@ -138,102 +193,49 @@ pub enum InstallHookError {
     AlreadyInstalled,
 }
 
-/// Install the process-global, sink-agnostic capture hook.
+/// Install a process-lifetime hook for owned [`RawEvent`] values.
 ///
-/// The hook receives every converted [`NvtxEvent`]. It is stored in a
-/// [`OnceLock`], so it can be installed exactly once per process — matching the
-/// one-shot nature of NVTX injection.
-///
-/// Capture is active until the returned [`CaptureGuard`] is dropped. Create the
-/// hook's sink first and bind the guard after it, so the guard drops first:
-///
-/// ```ignore
-/// let pipeline = /* the sink the hook forwards into */;
-/// let sender = pipeline.sender();
-/// let _capture = nvtx_injection::install_hook(move |event| sender.emit(event))?;
-/// // ... annotated work ...
-/// // `_capture` drops first (capture off), then `pipeline`.
-/// ```
+/// The hook runs synchronously on the emitting thread and may be called
+/// concurrently. It must not emit NVTX events synchronously, since doing so
+/// would recursively invoke the hook. Installation is one-shot.
 ///
 /// # Errors
-/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set. A
-/// failed caller receives no guard, so it cannot end another owner's capture.
-pub fn install_hook<F>(hook: F) -> Result<CaptureGuard, InstallHookError>
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
+pub fn install_hook<F>(hook: F) -> Result<(), InstallHookError>
 where
-    F: Fn(NvtxEvent) + Send + Sync + 'static,
+    F: Fn(RawEvent) + Send + Sync + 'static,
 {
-    HOOK.set(Box::new(hook))
-        .map_err(|_| InstallHookError::AlreadyInstalled)?;
-    CAPTURE_ACTIVE.store(true, Ordering::Relaxed);
-    Ok(CaptureGuard { _private: () })
+    install_hook_with_options(hook, HookOptions::ALL)
 }
 
-/// Ownership of the active NVTX capture, returned by a successful
-/// [`install_hook`].
+/// Install a process-lifetime hook for the selected owned NVTX events.
 ///
-/// Dropping the guard disables capture without waiting for callbacks that have
-/// already passed the dispatch check. Those callbacks may still invoke the hook
-/// after the guard is dropped. Stop and join NVTX-producing threads before
-/// ending capture if every event must reach the sink.
+/// Installation may occur after NVTX has initialized. The selection is fixed
+/// once installed, and unselected calls still receive NVTX return values.
+/// The hook may run concurrently on emitting threads and must not emit NVTX
+/// synchronously.
 ///
-/// Callback pointers and the one-shot hook remain installed: callbacks keep
-/// synthesizing handles, ids, and nesting levels for the app. Capture cannot be
-/// restarted.
-///
-/// If the guard is never dropped (`std::mem::forget`, `std::process::exit`),
-/// capture stays active until the process ends.
-#[must_use = "capture stops as soon as the guard is dropped; bind it to a named variable"]
-#[derive(Debug)]
-pub struct CaptureGuard {
-    _private: (),
+/// # Errors
+/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
+pub fn install_hook_with_options<F>(hook: F, options: HookOptions) -> Result<(), InstallHookError>
+where
+    F: Fn(RawEvent) + Send + Sync + 'static,
+{
+    HOOK.set(InstalledHook {
+        callback: Box::new(hook),
+        options,
+    })
+    .map_err(|_| InstallHookError::AlreadyInstalled)
 }
 
-impl Drop for CaptureGuard {
-    fn drop(&mut self) {
-        CAPTURE_ACTIVE.store(false, Ordering::Relaxed);
-    }
-}
-
-thread_local! {
-    /// Whether this thread is inside [`dispatch`]. Const-initialized and
-    /// drop-free, so it stays accessible during late process cleanup.
-    static IN_DISPATCH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
-
-/// Whether callbacks should build an event for capture.
-///
-/// [`dispatch`] rechecks this flag because capture can end during conversion.
-#[inline]
-pub(crate) fn capture_active() -> bool {
-    CAPTURE_ACTIVE.load(Ordering::Relaxed)
-}
-
-/// Dispatch a converted event to the installed hook while capture is active.
-/// A call that passes the capture check may still invoke the hook after the
-/// [`CaptureGuard`] is dropped.
-pub(crate) fn dispatch(event: NvtxEvent) {
-    // Recheck after conversion and before accessing TLS or the hook.
-    if !capture_active() {
-        return;
-    }
-    // Guard against hook-induced re-entry: if the hook (or code it calls) emits
-    // NVTX, it would recurse into this synchronous dispatch path and overflow
-    // the stack, bypassing the callbacks' panic barriers. Drop nested events.
-    if IN_DISPATCH.with(|g| g.replace(true)) {
-        return;
-    }
-    // RAII exit so the reentry flag is cleared even if the hook unwinds.
-    struct Exit;
-    impl Drop for Exit {
-        fn drop(&mut self) {
-            IN_DISPATCH.with(|g| g.set(false));
-        }
-    }
-    let _exit = Exit;
-
-    if let Some(hook) = HOOK.get() {
-        hook(event);
-    }
+/// Return the installed hook if it selects this event group.
+#[inline(always)]
+pub(crate) fn hook(group: HookGroup) -> Option<&'static Hook> {
+    let installed = HOOK.get()?;
+    installed
+        .options
+        .includes(group)
+        .then_some(&installed.callback)
 }
 
 /// NVTX injection entry point.
@@ -317,7 +319,7 @@ macro_rules! subscribe {
 /// (`nvtxMarkA`/`nvtxMarkEx`, `nvtxRangePushA`/`nvtxRangePushEx`, `nvtxRangePop`,
 /// `nvtxRangeStartA`/`nvtxRangeStartEx`/`nvtxRangeEnd`, `nvtxNameCategoryA`,
 /// `nvtxNameOsThreadA`), captured on the default domain (`0`). The corresponding
-/// default-domain wide-char (`*W`) calls are converted to UTF-8 and captured as
+/// default-domain wide-char (`*W`) calls are copied as owned code units and captured as
 /// well. Domain-scoped wide-name calls (`DomainCreateW`, `DomainRegisterStringW`,
 /// and `DomainNameCategoryW`) are not yet subscribed.
 ///
@@ -488,7 +490,7 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
 /// The classic NVTX API (`nvtxMarkA`, `nvtxRangePushA`, `nvtxRangePop`, …)
 /// dispatches through this table, not the CORE2 domain surface, so we capture it
 /// on the default domain (`0`). Both ASCII and wide-char (`*W`) strings are
-/// copied into owned UTF-8 strings. Best-effort: if the CORE table is
+/// copied into owned buffers. Best-effort: if the CORE table is
 /// unavailable, the default-domain surface simply isn't hooked (the domain
 /// surface is what gates init success).
 ///
@@ -580,7 +582,7 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
         nvtxNameOsThreadA_impl_fntype
     );
 
-    // Wide-char (Unicode) surface: copied into owned UTF-8 strings while
+    // Wide-char (Unicode) surface: copied into owned code units while
     // preserving range nesting and synthesized ids.
     subscribe!(
         table,

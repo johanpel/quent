@@ -31,10 +31,13 @@ extern "C" fn late_nvtx() {
         let mut attr: ffi::nvtxEventAttributes_t = std::mem::zeroed();
         attr.version = ffi::NVTX_VERSION as u16;
         attr.size = std::mem::size_of_val(&attr) as u16;
-        ffi::nvtxRangePushA(c"late default range".as_ptr());
-        ffi::nvtxRangePop();
-        ffi::nvtxDomainRangePushEx(std::ptr::null_mut(), &attr);
-        ffi::nvtxDomainRangePop(std::ptr::null_mut());
+        let push = ffi::nvtxRangePushA(c"late default range".as_ptr());
+        let pop = ffi::nvtxRangePop();
+        let domain_push = ffi::nvtxDomainRangePushEx(std::ptr::null_mut(), &attr);
+        let domain_pop = ffi::nvtxDomainRangePop(std::ptr::null_mut());
+        if [push, pop, domain_push, domain_pop] != [-2; 4] {
+            libc::_exit(1);
+        }
         // Avoid Rust buffered output during teardown.
         libc::write(
             libc::STDOUT_FILENO,

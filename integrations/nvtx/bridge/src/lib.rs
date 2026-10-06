@@ -15,6 +15,8 @@ use nvtx_events::NvtxEvent;
 use quent_events::EventPayload;
 use serde::{Deserialize, Serialize};
 
+mod convert;
+
 /// A `#[serde(transparent)]` newtype over [`NvtxEvent`] implementing
 /// [`EventPayload`], naming the `"NvtxEvent"` entity stream. Transparent, so its
 /// serialized form is identical to a bare [`NvtxEvent`].

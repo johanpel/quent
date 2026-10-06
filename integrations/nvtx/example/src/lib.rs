@@ -45,17 +45,20 @@ pub fn run_capture_n_threads(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let context = ContextInner::try_new(session)?;
     let pipeline =
-        context.block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })?;
+        Arc::new(context.block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })?);
 
-    // Forward each captured event into the pipeline, before the first NVTX call.
-    // Bound after `pipeline`, so it drops first — also when annotated work panics.
-    let sender = pipeline.sender();
-    let capture = nvtx_injection::install_hook(move |event| sender.emit(session, event))?;
+    // The permanent hook holds only a weak reference, so dropping the pipeline
+    // still releases and flushes the exporter.
+    let observer = Arc::downgrade(&pipeline);
+    nvtx_injection::install_hook(move |event| {
+        if let Some(observer) = observer.upgrade() {
+            observer.emit(session, NvtxEventEntity::from(event));
+        }
+    })?;
 
     annotated_work_n_threads(n);
 
-    // All annotated work has finished; disable capture, then flush the exporter.
-    drop(capture);
+    // All annotated work has finished; release the observer and flush.
     drop(pipeline);
     Ok(())
 }
