@@ -289,18 +289,24 @@ fn dropping_a_long_undrained_chain_is_iterative() {
     assert_eq!(drops.load(Ordering::Relaxed), 20_000);
 }
 
-/// Checks that racing receiver teardown with sends leaves no queued or rejected payloads retained.
+/// Checks that receiver teardown racing with further sends from registered producers retains no payloads.
 #[test]
 fn receiver_drop_during_emission_preserves_payload_ownership() {
     let drops = Arc::new(AtomicUsize::new(0));
     let attempts = Arc::new(AtomicUsize::new(0));
+    // Wait for all four producers to queue a value before receiver teardown can race with further sends.
+    let ready = Arc::new(Barrier::new(5));
     let (sender, receiver) = unbounded_channel_with_config(config(2, 0));
     let handles: Vec<_> = (0..4)
         .map(|_| {
             let sender = sender.clone();
             let drops = Arc::clone(&drops);
             let attempts = Arc::clone(&attempts);
+            let ready = Arc::clone(&ready);
             thread::spawn(move || {
+                attempts.fetch_add(1, Ordering::Relaxed);
+                sender.send(Counted(Arc::clone(&drops))).unwrap();
+                ready.wait();
                 for _ in 0..1_000 {
                     attempts.fetch_add(1, Ordering::Relaxed);
                     if let Err(value) = sender.send(Counted(Arc::clone(&drops))) {
@@ -311,6 +317,7 @@ fn receiver_drop_during_emission_preserves_payload_ownership() {
             })
         })
         .collect();
+    ready.wait();
     drop(receiver);
     for handle in handles {
         handle.join().unwrap();
