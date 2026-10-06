@@ -9,7 +9,7 @@
 //! value available to the consumer immediately before returning.
 //!
 //! Values are stored in a chain of fixed-size ring buffers called segments.
-//! When the current segment is full, the producer continues in a next segment,
+//! When the current segment is full, the producer continues in the next segment,
 //! reusing an empty spare segment or allocating a new one if no empty segment
 //! is available. The consumer drains older segments first, then returns them
 //! for reuse or releases them if enough spares are available.
@@ -30,7 +30,7 @@
 //! reduces per-send overhead, which matters when the producer sends a burst of
 //! many small values.
 //!
-//! Until the segment runs full, sends can succeed even after the consumer
+//! Until the segment fills up, sends can succeed even after the consumer
 //! closes or drops. Draining can free slots and delay the check. A send can
 //! therefore report success even though the consumer will never receive its
 //! value. To receive every value, stop the producer and wait for any send in
