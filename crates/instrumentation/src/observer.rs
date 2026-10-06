@@ -195,6 +195,13 @@ pub(crate) fn spawn_forwarder<T>(
 where
     T: Send + EventPayload + 'static,
 {
+    #[cfg(feature = "channel-per-thread")]
+    let ticker = {
+        let _guard = runtime.handle().enter();
+        std::panic::catch_unwind(|| interval(Duration::from_millis(1))).expect(
+            "quent-instrumentation channel-per-thread requires a Tokio runtime with timer support enabled via enable_time() or enable_all()",
+        )
+    };
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
     #[cfg(not(feature = "channel-per-thread"))]
@@ -211,7 +218,7 @@ where
         #[cfg(not(feature = "channel-per-thread"))]
         forward_tokio(&mut events_receiver, &mut exporter, &cloned_token).await;
         #[cfg(feature = "channel-per-thread")]
-        forward_spsc(&mut events_receiver, &mut exporter, &cloned_token).await;
+        forward_spsc(&mut events_receiver, &mut exporter, &cloned_token, ticker).await;
         // Tear down once, however the loop exited.
         if let Err(e) = exporter.shutdown().await {
             warn!("failed to shut down exporter: {e}");
@@ -281,10 +288,10 @@ async fn forward_spsc<T: Send + 'static>(
     receiver: &mut quent_channel::mpsc::Receiver<Event<T>>,
     exporter: &mut Box<dyn Exporter<T>>,
     cancellation: &CancellationToken,
+    mut ticker: tokio::time::Interval,
 ) {
     let mut buffer = Vec::new();
     // Idle polling leaves the producer's ordinary push path free of wake-ups.
-    let mut ticker = interval(Duration::from_millis(1));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
         if cancellation.is_cancelled() {
@@ -294,6 +301,7 @@ async fn forward_spsc<T: Send + 'static>(
         buffer.reserve(limit.get());
         if receiver.drain_into(&mut buffer, limit) != 0 {
             export_buffer(exporter, &mut buffer).await;
+            tokio::task::yield_now().await;
             continue;
         }
         tokio::select! {
@@ -312,6 +320,7 @@ async fn forward_spsc<T: Send + 'static>(
             break;
         }
         export_buffer(exporter, &mut buffer).await;
+        tokio::task::yield_now().await;
     }
 }
 
@@ -365,6 +374,68 @@ mod tests {
         async fn shutdown(self: Box<Self>) -> ExporterResult<()> {
             Ok(())
         }
+    }
+
+    /// Checks that immediately completing exports let another task run before normal or shutdown draining finishes.
+    #[cfg(feature = "channel-per-thread")]
+    #[test]
+    fn per_thread_forwarder_yields_between_batches() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
+        for shutting_down in [false, true] {
+            runtime.block_on(async {
+                const EVENTS: usize = 1_024;
+                let (sender, mut receiver) = quent_channel::mpsc::unbounded_channel();
+                for sequence in 0..EVENTS {
+                    assert!(
+                        sender
+                            .send(Event::new_now(Uuid::nil(), SequenceEvent(sequence)))
+                            .is_ok()
+                    );
+                }
+                let recorded = Arc::new(Mutex::new(Vec::new()));
+                let mut exporter: Box<dyn Exporter<SequenceEvent>> =
+                    Box::new(RecordingExporter(Arc::clone(&recorded)));
+                let cancellation = CancellationToken::new();
+                if shutting_down {
+                    cancellation.cancel();
+                }
+                let competing_task = tokio::spawn({
+                    let recorded = Arc::clone(&recorded);
+                    let cancellation = cancellation.clone();
+                    async move {
+                        let exported = recorded.lock().unwrap().len();
+                        cancellation.cancel();
+                        exported
+                    }
+                });
+                forward_spsc(
+                    &mut receiver,
+                    &mut exporter,
+                    &cancellation,
+                    interval(Duration::from_millis(1)),
+                )
+                .await;
+                let observed = competing_task.await.unwrap();
+                assert!(
+                    observed > 0 && observed < EVENTS,
+                    "other task ran after {observed} events"
+                );
+                assert_eq!(*recorded.lock().unwrap(), (0..EVENTS).collect::<Vec<_>>());
+            });
+        }
+    }
+
+    #[cfg(feature = "channel-per-thread")]
+    #[test]
+    #[should_panic(expected = "channel-per-thread requires a Tokio runtime with timer support")]
+    fn timer_disabled_runtime_panics_before_spawning_forwarder() {
+        let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
+        let borrowed = Runtime::Borrowed(runtime.handle().clone());
+        let exporter = Box::new(RecordingExporter(Arc::new(Mutex::new(Vec::new()))));
+        let _observer = spawn_forwarder(&borrowed, exporter);
     }
 
     #[test]

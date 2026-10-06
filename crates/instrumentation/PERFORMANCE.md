@@ -131,6 +131,13 @@ To use `channel-per-thread`, add it to the feature list of your existing
 any dependency enables this feature, all uses of `quent-instrumentation` use the
 new channel. You cannot choose a different channel for each `Context`.
 
+With `channel-per-thread`, an application-provided Tokio runtime must enable
+timers through `enable_time()` or `enable_all()`. Creating an active observer
+panics with an explanatory message if timers are disabled. The runtime created
+by Quent when no application runtime is present already enables timers.
+Using a separate runtime instead of the application's runtime is tracked in
+[issue #246](https://github.com/rapidsai/quent/issues/246).
+
 ## In what order will my events be exporter?
 
 This totally depends on the exporter. The simple "filesystem" exporters
