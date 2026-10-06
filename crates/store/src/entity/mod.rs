@@ -30,7 +30,7 @@ pub trait EntityHandle {
     fn id(&self) -> Uuid;
 
     /// Returns the entity type name.
-    fn type_name(&self) -> &str {
+    fn type_name() -> &'static str {
         <<Self::Entity as EntityMarker>::Payload as EventPayload>::NAME
     }
 }

@@ -6,7 +6,7 @@
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-use quent_events::{EntityMarker, Event, EventPayload};
+use quent_events::{EntityMarker, Event};
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
@@ -31,10 +31,6 @@ impl<E: EntityMarker> EntityHandle for Handle<E> {
     fn id(&self) -> Uuid {
         self.id
     }
-
-    fn type_name(&self) -> &str {
-        E::Payload::NAME
-    }
 }
 
 /// Stores one entity marker's events in memory, grouped by UUID.
@@ -51,9 +47,9 @@ impl<E: EntityMarker> Store<E> {
     /// arrive in timestamp order. Inserting m out-of-order events for one
     /// entity can take O(m^2).
     ///
-    /// Practically speaking, when leveraging Quent's current builtin exporters
-    /// / importers, out-of-order events will only occur when entities emit
-    /// events from multiple contexts.
+    /// Practically speaking, when leveraging Quent's default channels and
+    /// exporters in instrumentation and importers, out-of-order events will
+    /// only occur when entities emit events from multiple contexts.
     pub fn new(events: impl IntoIterator<Item = Event<E::Payload>>) -> Self {
         // OrderedCollector appends the common in-order case and inserts late arrivals in order.
         let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
@@ -176,7 +172,7 @@ mod tests {
         ids.sort_unstable();
         assert_eq!(ids, [first, second]);
         let handle = store.entity(first).unwrap().unwrap();
-        assert_eq!(handle.type_name(), "Task");
+        assert_eq!(Handle::<Task>::type_name(), "Task");
         assert_eq!(store.earliest_timestamp(&handle).unwrap(), 1);
         assert_eq!(store.latest_timestamp(&handle).unwrap(), 2);
         assert_eq!(

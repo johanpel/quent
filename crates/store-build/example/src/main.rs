@@ -3,7 +3,8 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{Connection, ConnectionEvent, Demo, Server};
+use demo::{Connection, ConnectionEvent, Demo, Server, ServerEvent};
+use quent_events::EventPayload;
 use quent_store::{
     context::ContextSet,
     entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native},
@@ -52,7 +53,7 @@ fn print_connection_events(
     servers: &native::Store<Server>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(connection) = connections.entities()?.next() {
-        println!("\n{} {} events:", connection.type_name(), connection.id());
+        println!("\n{} {} events:", ConnectionEvent::NAME, connection.id());
         let events = connections.event_sequence(&connection)?;
         for event in events.events() {
             println!("  {event:?}");
@@ -64,7 +65,7 @@ fn print_connection_events(
         if let Some(host_id) = host_id
             && let Some(server) = servers.entity(host_id)?
         {
-            println!("\n{} {} events:", server.type_name(), server.id());
+            println!("\n{} {} events:", ServerEvent::NAME, server.id());
             for event in servers.event_sequence(&server)?.events() {
                 println!("  {event:?}");
             }
