@@ -26,7 +26,7 @@ performance without changing anything else.
 
 ## What happens when I emit an event through the instrumentation API?
 
-By default, Quent uses concurrent multi-producer, single-consumer channel from
+By default, Quent uses a concurrent multi-producer, single-consumer channel from
 [Tokio](https://tokio.rs/) to move events created by instrumentation calls into
 a task running on a background thread that deals with exporting events.
 
@@ -121,7 +121,7 @@ Keep the default Tokio channel if sends attempted after instrumentation shutdown
 must be rejected rather than queued without an active exporter.
 
 If you stop and join all threads that can still create events before dropping
-the last owner of the instrumentation, which is good practise in general, Level
+the last owner of the instrumentation, which is good practice in general, Level
 1 guarantees that every event from those completed calls reaches the exporter
 before shutdown returns. Both channels log exporter failures instead of
 reporting them to the caller.
@@ -149,8 +149,8 @@ threads may reach the exporter in a different order from when they were created.
 
 Since every event has a timestamp (and for finite-state-machines also a sequence
 number), this usually doesn't matter, as in analysis you'll order them by
-timestamp anyway. But if you have two emitting events from a duplicate entity
-handle, it is best to coordinate those threads if the order truly matters,
+timestamp anyway. But if two threads emit events through separate handles for
+the same entity, coordinate those threads if event order matters,
 because even the most "correct" timestamping mechanism that Quent could possibly
 use today has caveats (also see the `quent-time` crate, this is a whole
 rabbithole on its own). You can only make this potentially worse through
