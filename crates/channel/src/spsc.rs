@@ -44,7 +44,7 @@ use std::{
     num::NonZeroUsize,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, Ordering},
     },
 };
 
@@ -62,6 +62,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            // safety: The fixed capacity is nonzero.
             segment_capacity: NonZeroUsize::new(256).unwrap(),
             spare_segments: 2,
         }
@@ -77,13 +78,11 @@ pub(crate) struct DrainResult {
     pub pending: bool,
 }
 
-/// Tracks consumer disconnection and spare availability shared by one SPSC channel's endpoints.
+/// Tracks consumer closure for one SPSC channel's endpoints.
 #[derive(Debug)]
 struct ChannelState {
     /// Set when the consumer closes or drops.
     consumer_closed: AtomicBool,
-    /// Empty segments available for reuse, used to limit spare preallocation.
-    spares: AtomicUsize,
 }
 
 /// Holds the old segment's writer and the next segment's reader and shared
@@ -154,19 +153,29 @@ impl<T> Segment<T> {
 
 /// The only writer of a segmented channel.
 pub(crate) struct Producer<T> {
+    /// Write endpoint for the active segment, taken during producer teardown.
     current: Option<RingProducer<T>>,
+    /// Receives empty segments supplied by the consumer for reuse.
     spare_reader: Option<RingConsumer<Segment<T>>>,
+    /// Consumer closure state shared with the consumer.
     state: Arc<ChannelState>,
+    /// Active segment's state, retained until the producer switches segments or drops.
     node: Arc<SegmentState<T>>,
+    /// Number of value slots allocated in each new segment.
     capacity: NonZeroUsize,
 }
 
 /// The only reader of a segmented channel.
 pub(crate) struct Consumer<T> {
+    /// Read endpoint for the oldest unfinished segment, absent once the channel is fully drained and disconnected.
     current: Option<RingConsumer<T>>,
+    /// Returns empty segments to the producer for reuse.
     spare_writer: Option<RingProducer<Segment<T>>>,
+    /// Consumer closure state shared with the producer.
     state: Arc<ChannelState>,
+    /// Current segment's state, absent once no segments remain to drain.
     node: Option<Arc<SegmentState<T>>>,
+    /// Settings controlling retention of empty segments for reuse.
     config: Config,
 }
 
@@ -180,7 +189,6 @@ pub(crate) fn spsc<T: Send + 'static>(config: Config) -> (Producer<T>, Consumer<
     let (spare_writer, spare_reader) = RingBuffer::new(config.spare_segments.max(1));
     let state = Arc::new(ChannelState {
         consumer_closed: AtomicBool::new(false),
-        spares: AtomicUsize::new(0),
     });
     (
         Producer {
@@ -207,6 +215,7 @@ impl<T: Send + 'static> Producer<T> {
     /// consumer is gone. Growth may allocate and inherit allocator latency.
     /// On a full segment, disconnection returns `value`.
     pub fn push(&mut self, value: T) -> Result<(), T> {
+        // safety: The current writer is only removed during producer teardown.
         let value = match self.current.as_mut().unwrap().push(value) {
             Ok(()) => return Ok(()),
             Err(PushError::Full(value)) => value,
@@ -215,11 +224,9 @@ impl<T: Send + 'static> Producer<T> {
             return Err(value);
         }
 
+        // safety: The spare reader is only removed during producer teardown.
         let spare = match self.spare_reader.as_mut().unwrap().pop() {
-            Ok(spare) => {
-                self.state.spares.fetch_sub(1, Ordering::Relaxed);
-                spare
-            }
+            Ok(spare) => spare,
             Err(_) => Segment::new(self.capacity),
         };
         let Segment {
@@ -227,6 +234,7 @@ impl<T: Send + 'static> Producer<T> {
             reader,
             node,
         } = spare;
+        // safety: The producer still owns its current writer when switching segments.
         let old_writer = self.current.replace(writer).unwrap();
         let old_node = std::mem::replace(&mut self.node, Arc::clone(&node));
         if old_node
@@ -242,6 +250,7 @@ impl<T: Send + 'static> Producer<T> {
         }
         drop(old_node);
 
+        // safety: The replacement writer was installed above.
         match self.current.as_mut().unwrap().push(value) {
             Ok(()) => Ok(()),
             Err(PushError::Full(_)) => unreachable!("a new segment has free slots"),
@@ -262,12 +271,15 @@ impl<T: Send + 'static> Consumer<T> {
     /// Append at most `limit` published values to `output`.
     ///
     /// `pending` also remains true for an open but currently empty channel.
-    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> DrainResult {
+    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: NonZeroUsize) -> DrainResult {
+        let limit = limit.get();
         let mut drained = 0;
         while drained < limit && self.current.is_some() {
+            // safety: The loop condition established that a current reader exists.
             let available = self.current.as_ref().unwrap().slots();
             if available != 0 {
                 let count = available.min(limit - drained);
+                // safety: The reader is still present, and the sole consumer cannot lose available slots to another reader.
                 let chunk = self.current.as_mut().unwrap().read_chunk(count).unwrap();
                 output.extend(chunk);
                 drained += count;
@@ -288,37 +300,22 @@ impl<T: Send + 'static> Consumer<T> {
         self.state.consumer_closed.store(true, Ordering::Release);
     }
 
-    /// Prepare empty segments on the consumer for future producer bursts.
-    ///
-    /// Returns the number of new segments supplied.
-    pub fn preallocate_spares(&mut self) -> usize {
-        let mut supplied = 0;
-        while self.state.spares.load(Ordering::Relaxed) < self.config.spare_segments {
-            if self.spare_writer.as_ref().unwrap().is_abandoned() {
-                break;
-            }
-            let spare = Segment::new(self.config.segment_capacity);
-            if self.spare_writer.as_mut().unwrap().push(spare).is_err() {
-                break;
-            }
-            self.state.spares.fetch_add(1, Ordering::Relaxed);
-            supplied += 1;
-        }
-        supplied
-    }
-
     fn advance(&mut self) -> bool {
+        // safety: Only draining an existing reader calls advance, and that reader has a segment state.
         let node = self.node.as_mut().unwrap();
         let Some(inner) = Arc::get_mut(node) else {
             return false;
         };
         // The first empty check can race with the producer's final writes.
         // Once the producer has released this node, check again before recycling.
+        // safety: The caller's current reader has not been removed.
         if self.current.as_ref().unwrap().slots() != 0 {
             return false;
         }
         if let Some(transition) = inner.take_transition() {
+            // safety: The current reader remains present until this take.
             let old_reader = self.current.take().unwrap();
+            // safety: The segment state borrowed above remains installed until this replacement.
             let old_node = self.node.replace(transition.next_node).unwrap();
             let spare = Segment {
                 writer: transition.retired_writer,
@@ -326,16 +323,14 @@ impl<T: Send + 'static> Consumer<T> {
                 node: old_node,
             };
             self.current = Some(transition.next_reader);
+            // safety: The spare writer remains present throughout the consumer's lifetime.
             if self.config.spare_segments != 0
                 && !self.spare_writer.as_ref().unwrap().is_abandoned()
             {
-                match self.spare_writer.as_mut().unwrap().push(spare) {
-                    Ok(()) => {
-                        self.state.spares.fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(PushError::Full(spare)) => {
-                        drop(spare);
-                    }
+                // safety: Checking whether the spare writer is abandoned does not remove it.
+                if let Err(PushError::Full(spare)) = self.spare_writer.as_mut().unwrap().push(spare)
+                {
+                    drop(spare);
                 }
             } else {
                 drop(spare);

@@ -290,8 +290,8 @@ async fn forward_spsc<T: Send + 'static>(
         if cancellation.is_cancelled() {
             break;
         }
-        let limit = exporter.batch_size_hint().get();
-        buffer.reserve(limit);
+        let limit = exporter.batch_size_hint();
+        buffer.reserve(limit.get());
         if receiver.drain_into(&mut buffer, limit) != 0 {
             export_buffer(exporter, &mut buffer).await;
             continue;
@@ -306,8 +306,8 @@ async fn forward_spsc<T: Send + 'static>(
     // keep writing until their next segment switch.
     receiver.close();
     loop {
-        let limit = exporter.batch_size_hint().get();
-        buffer.reserve(limit);
+        let limit = exporter.batch_size_hint();
+        buffer.reserve(limit.get());
         if receiver.drain_into(&mut buffer, limit) == 0 {
             break;
         }

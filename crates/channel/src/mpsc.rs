@@ -56,49 +56,86 @@
 use std::{
     any::Any,
     cell::RefCell,
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
+    num::NonZeroUsize,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
+use rustc_hash::FxHashMap;
+
 use crate::spsc::{Config, Consumer, Producer, spsc};
 
-static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
+/// Supplies unique channel IDs used to distinguish producers in each thread's
+/// local storage.
+static NEXT_CHANNEL_ID: AtomicUsize = AtomicUsize::new(1);
 
+/// Holds one channel's producer and closure flag for the current thread,
+/// regardless of payload type.
 struct LocalEntry {
+    /// This thread's SPSC producer, type-erased so channels with different
+    /// payload types can share the TLS map.
     producer: Box<dyn Any>,
+    /// Set when the receiver closes or drops, allowing stale thread-local
+    /// entries to be removed.
     closed: Arc<AtomicBool>,
 }
 
+// TODO(johanpel): we could cache the last used channel entry separately to
+//                 avoid map lookups on repeated sends. This would need to be
+//                 measured on some real workloads.
 thread_local! {
-    static LOCAL: RefCell<HashMap<usize, LocalEntry>> = RefCell::new(HashMap::new());
+    /// Maps channel IDs to this thread's producers, with one entry per channel
+    /// used by the thread. Every send looks up its channel ID unless
+    /// thread-local storage has already been destroyed.
+    static LOCAL: RefCell<FxHashMap<usize, LocalEntry>> = RefCell::new(FxHashMap::default());
 }
 
+/// Holds newly registered consumers and teardown fallback events under a common
+/// admission cutoff.
 struct Registry<T> {
+    /// Newly registered SPSC consumers not yet collected by the receiver.
     pending: Vec<Consumer<T>>,
+    /// Holds values emitted by thread-local destructors after this channel's
+    /// thread-local producer map has been destroyed, while the receiver remains open.
     fallback: VecDeque<T>,
+    /// Rejects new registrations and fallback sends once the receiver closes or
+    /// drops.
     closed: bool,
 }
 
+/// Holds the channel identity, configuration, and registration state shared by
+/// all endpoints.
 struct Shared<T> {
+    /// Unique channel ID used to find its producer in each thread's local storage.
     id: usize,
+    /// Settings applied to every per-thread SPSC channel.
     config: Config,
+    /// Notifies thread-local entries of receiver closure so they can be removed.
     closed: Arc<AtomicBool>,
+    /// Serializes registration and fallback sends with receiver closure.
     registry: Mutex<Registry<T>>,
 }
 
 /// A cloneable, synchronous sender with one SPSC producer per calling thread.
 pub struct Sender<T> {
+    /// Channel identity and registration state retained by every sender clone.
     shared: Arc<Shared<T>>,
 }
 
 /// The single collector of a thread registry.
 pub struct Receiver<T> {
+    /// Registration and closure state shared with the senders.
     shared: Arc<Shared<T>>,
+    /// Collected per-thread consumers that may still yield values.
     channels: Vec<Consumer<T>>,
+    /// Next per-thread consumer to visit, wrapped to the current channel count
+    /// before use.
     cursor: usize,
+    /// Alternates which queue group drains first so neither fallback nor
+    /// per-thread queues always take priority.
     fallback_first: bool,
 }
 
@@ -111,7 +148,7 @@ pub fn unbounded_channel<T: Send + 'static>() -> (Sender<T>, Receiver<T>) {
 pub fn unbounded_channel_with_config<T: Send + 'static>(
     config: Config,
 ) -> (Sender<T>, Receiver<T>) {
-    let id = NEXT_ID
+    let id = NEXT_CHANNEL_ID
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| n.checked_add(1))
         .expect("channel identity space exhausted");
     let shared = Arc::new(Shared {
@@ -146,21 +183,33 @@ impl<T> Clone for Sender<T> {
 }
 
 impl<T: Send + 'static> Sender<T> {
-    /// Publish an event from the calling thread.
+    /// Queues a value for the receiver without waiting for it to be read.
     ///
-    /// The first send on a thread registers one channel. If thread-local
-    /// storage has already been destroyed, the event uses the registry fallback.
-    /// A detected closed receiver returns ownership of the event. Registration
-    /// and fallback may lock and allocate; ordinary sends do neither.
+    /// Success does not guarantee delivery because receiver closure may not be
+    /// detected immediately, so sends can succeed after the receiver closes or drops.
+    ///
+    /// The first send through this channel on each thread and sends during
+    /// thread-local destruction may acquire a lock and allocate memory.
+    /// Subsequent sends outside thread-local destruction do not acquire a lock,
+    /// but may allocate when buffered values require more storage.
+    ///
+    /// # Errors
+    ///
+    /// Returns the original value if the receiver is detected to be closed or dropped.
     pub fn send(&self, value: T) -> Result<(), T> {
         let mut value = Some(value);
         let mut removed = Vec::new();
         let result = LOCAL.try_with(|local| {
             let mut entries = local.borrow_mut();
             if let Some(entry) = entries.get_mut(&self.shared.id) {
+                // safety: A channel ID is never reused and always identifies
+                // the same payload type.
                 let producer = entry.producer.downcast_mut::<Producer<T>>().unwrap();
+                // safety: This is the first and only take on this send path.
                 let result = producer.push(value.take().unwrap());
                 if result.is_err() {
+                    // safety: The entry was just found under this exclusive map
+                    // borrow.
                     removed.push(entries.remove(&self.shared.id).unwrap());
                 }
                 return result;
@@ -182,10 +231,12 @@ impl<T: Send + 'static> Sender<T> {
                 drop(registry);
                 drop(producer);
                 drop(consumer);
+                // safety: Registration failed before the value was taken.
                 return Err(value.take().unwrap());
             }
             registry.pending.push(consumer);
             drop(registry);
+            // safety: Successful registration has not taken the value yet.
             let result = producer.push(value.take().unwrap());
             entries.insert(
                 self.shared.id,
@@ -206,8 +257,10 @@ impl<T: Send + 'static> Sender<T> {
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
                 if registry.closed {
+                    // safety: Failed TLS access never ran the closure that takes the value.
                     Err(value.take().unwrap())
                 } else {
+                    // safety: Failed TLS access never ran the closure that takes the value.
                     registry.fallback.push_back(value.take().unwrap());
                     Ok(())
                 }
@@ -217,17 +270,24 @@ impl<T: Send + 'static> Sender<T> {
 }
 
 impl<T: Send + 'static> Receiver<T> {
-    /// Append up to `limit` published values and return the number appended without waiting for new values.
+    /// Appends at most `limit` available values to `output` and returns the number appended.
     ///
-    /// The fallback has no ordering guarantee relative to a thread's channel.
-    /// To finish delivery, first stop and synchronize all emission, then call
-    /// [`Self::close`] and drain with a positive limit until this returns zero.
-    /// Live TLS handles do not prevent this.
-    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: usize) -> usize {
+    /// Preserves existing contents of `output` and does not wait for new values.
+    /// A zero return does not mean all senders have
+    /// disconnected or that no further values can arrive.
+    ///
+    /// Values sent by one thread retain their order, except that values sent
+    /// during thread-local destruction may arrive before that thread's earlier
+    /// values. Values from different threads have no relative ordering guarantee.
+    ///
+    /// To receive every accepted value, stop further sends and wait for sends in
+    /// progress to finish, then call [`Self::close`] and drain until this returns
+    /// zero. Senders need not be dropped first.
+    ///
+    /// This method may acquire locks and allocate memory.
+    pub fn drain_into(&mut self, output: &mut Vec<T>, limit: NonZeroUsize) -> usize {
         self.collect_registrations();
-        if limit == 0 {
-            return 0;
-        }
+        let limit = limit.get();
         let start = output.len();
         if self.fallback_first {
             self.drain_fallback(output, limit.div_ceil(2));
@@ -240,7 +300,10 @@ impl<T: Send + 'static> Receiver<T> {
             }
             self.cursor %= self.channels.len();
             let budget = remaining.min(self.shared.config.segment_capacity.get());
-            let report = self.channels[self.cursor].drain_into(output, budget);
+            // safety: The loop excludes zero remaining budget, and segment
+            // capacity is nonzero.
+            let report =
+                self.channels[self.cursor].drain_into(output, NonZeroUsize::new(budget).unwrap());
             remaining -= report.drained;
             if !report.pending {
                 self.channels.swap_remove(self.cursor);
@@ -257,8 +320,9 @@ impl<T: Send + 'static> Receiver<T> {
 
     /// Stop accepting registration and teardown fallback events.
     ///
-    /// Already registered channels remain drainable. Senders notice closure
-    /// when they need to switch segments.
+    /// Already registered channels remain drainable.
+    ///
+    /// Senders notice closure only when they need to switch segments.
     pub fn close(&mut self) {
         let mut registry = self
             .shared
@@ -274,15 +338,6 @@ impl<T: Send + 'static> Receiver<T> {
         for channel in &mut self.channels {
             channel.close();
         }
-    }
-
-    /// Supply spare segments to currently registered channels.
-    pub fn preallocate_spares(&mut self) -> usize {
-        self.collect_registrations();
-        self.channels
-            .iter_mut()
-            .map(Consumer::preallocate_spares)
-            .sum()
     }
 
     fn collect_registrations(&mut self) {

@@ -27,7 +27,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 }
 
-/// Checks that warmed sends, drains, and recycled segment switches do not allocate.
+/// Checks that bounded bursts and drains allocate nothing after recycling warmup with sufficient output capacity.
 #[test]
 fn warmed_pushes_and_recycled_switches_do_not_allocate() {
     let config = Config {
@@ -35,18 +35,25 @@ fn warmed_pushes_and_recycled_switches_do_not_allocate() {
         spare_segments: 2,
     };
     let (sender, mut receiver) = unbounded_channel_with_config(config);
-    sender.send(usize::MAX).unwrap();
+    for value in 0..6 {
+        sender.send(value).unwrap();
+    }
     let mut output = Vec::with_capacity(2_001);
-    receiver.drain_into(&mut output, 1);
+    while receiver.drain_into(&mut output, NonZeroUsize::new(2).unwrap()) != 0 {}
     output.clear();
-    assert_eq!(receiver.preallocate_spares(), 2);
     let before = ALLOCATIONS.load(Ordering::Relaxed);
     for batch in 0..500 {
         for offset in 0..4 {
             sender.send(batch * 4 + offset).unwrap();
         }
-        assert_eq!(receiver.drain_into(&mut output, 2), 2);
-        assert_eq!(receiver.drain_into(&mut output, 2), 2);
+        assert_eq!(
+            receiver.drain_into(&mut output, NonZeroUsize::new(2).unwrap()),
+            2
+        );
+        assert_eq!(
+            receiver.drain_into(&mut output, NonZeroUsize::new(2).unwrap()),
+            2
+        );
     }
     let after = ALLOCATIONS.load(Ordering::Relaxed);
     assert_eq!(after, before);

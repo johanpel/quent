@@ -2305,6 +2305,7 @@ name = "quent-channel"
 version = "0.1.0"
 dependencies = [
  "rtrb",
+ "rustc-hash",
 ]
 
 [[package]]
