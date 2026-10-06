@@ -19,6 +19,8 @@
   <a href="https://rapidsai.github.io/quent/schema/">Schema Explorer</a>
   &bull;
   <a href="https://rapidsai.github.io/quent/tutorial/">Tutorial</a>
+  &bull;
+  <a href="https://rapidsai.github.io/quent/benchmarks/">Benchmarks</a>
 </p>
 
 Quent helps build dedicated performance analysis tools tailored to your
