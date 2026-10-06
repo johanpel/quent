@@ -275,6 +275,11 @@ impl<T> Drop for Producer<T> {
 }
 
 impl<T: Send + 'static> Consumer<T> {
+    /// Returns whether all segments have been drained and released.
+    pub(crate) fn is_finished(&self) -> bool {
+        self.current.is_none()
+    }
+
     /// Append at most `limit` published values to `output`.
     ///
     /// `pending` also remains true for an open but currently empty channel.

@@ -284,9 +284,8 @@ impl<T: Send + 'static> Receiver<T> {
     /// number appended.
     ///
     /// Preserves existing contents of `output` and does not wait for new
-    /// values.
-    /// A zero return does not mean all senders have
-    /// disconnected or that no further values can arrive.
+    /// values. A zero return does not mean all senders have disconnected or
+    /// that no further values can arrive.
     ///
     /// Values sent by one thread retain their order, except that values sent
     /// during thread-local destruction may arrive before that thread's earlier
@@ -294,10 +293,8 @@ impl<T: Send + 'static> Receiver<T> {
     /// guarantee.
     ///
     /// To receive every accepted value, stop further sends and wait for sends
-    /// in
-    /// progress to finish, then call [`Self::close`] and drain until this
-    /// returns
-    /// zero. Senders need not be dropped first.
+    /// in progress to finish, then call [`Self::close`] and drain until this
+    /// returns zero. Senders need not be dropped first.
     ///
     /// This method may acquire locks and allocate memory.
     pub fn drain_into(&mut self, output: &mut Vec<T>, limit: NonZeroUsize) -> usize {
@@ -309,6 +306,7 @@ impl<T: Send + 'static> Receiver<T> {
         }
         let visits = self.channels.len();
         let mut remaining = limit - (output.len() - start);
+        let mut completed = false;
         for _ in 0..visits {
             if remaining == 0 || self.channels.is_empty() {
                 break;
@@ -320,13 +318,22 @@ impl<T: Send + 'static> Receiver<T> {
             let report =
                 self.channels[self.cursor].drain_into(output, NonZeroUsize::new(budget).unwrap());
             remaining -= report.drained;
-            if !report.pending {
-                // Preserve visit order so removal after wrapping cannot revisit
-                // a channel and skip another within this drain's visit budget.
-                self.channels.remove(self.cursor);
-            } else {
-                self.cursor += 1;
-            }
+            completed |= !report.pending;
+            self.cursor += 1;
+        }
+        if completed {
+            let mut index = 0;
+            let mut removed_before_cursor = 0;
+            // Compact once without changing visit order or the next channel.
+            self.channels.retain(|channel| {
+                let retain = !channel.is_finished();
+                if !retain && index < self.cursor {
+                    removed_before_cursor += 1;
+                }
+                index += 1;
+                retain
+            });
+            self.cursor -= removed_before_cursor;
         }
         if !self.fallback_first {
             self.drain_fallback(output, limit - (output.len() - start));
@@ -407,6 +414,47 @@ impl<T> Drop for Receiver<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Checks cursor preservation across partial drains with removals before
+    /// and after the cursor, wraparound, and no retained channels.
+    #[test]
+    fn compaction_preserves_round_robin_order() {
+        let cases = [
+            (0b0001, 2, vec![2, 3], vec![1, 2]),
+            (0b0010, 0, vec![0, 2], vec![3, 0]),
+            (0b0101, 3, vec![3, 1], vec![3, 1]),
+            (0b1111, 2, vec![], vec![]),
+        ];
+        for (completed_mask, cursor, first, second) in cases {
+            let config = Config {
+                segment_capacity: NonZeroUsize::new(1).unwrap(),
+                spare_segments: 0,
+            };
+            let (_sender, mut receiver) = unbounded_channel_with_config(config);
+            let mut producers = Vec::new();
+            for index in 0..4 {
+                let (mut producer, consumer) = spsc(config);
+                receiver.channels.push(consumer);
+                if completed_mask & (1 << index) == 0 {
+                    producer.push(index).unwrap();
+                    producer.push(index).unwrap();
+                    producers.push(producer);
+                }
+            }
+            receiver.cursor = cursor;
+            let limit = NonZeroUsize::new(2).unwrap();
+            for expected in [first, second] {
+                let mut output = Vec::new();
+                assert_eq!(receiver.drain_into(&mut output, limit), expected.len());
+                assert_eq!(output, expected, "mask={completed_mask}, cursor={cursor}");
+            }
+            drop(producers);
+            receiver.close();
+            let mut remaining = Vec::new();
+            while receiver.drain_into(&mut remaining, limit) != 0 {}
+            assert!(receiver.channels.is_empty());
+        }
+    }
 
     /// Checks that removing an empty channel after cursor wrap does not skip
     /// queued values.
