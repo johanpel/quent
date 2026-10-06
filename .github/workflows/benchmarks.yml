@@ -9,9 +9,7 @@ permissions:
 jobs:
   benchmark:
     name: Run instrumentation benchmarks
-    runs-on:
-      group: nv-cpu-general
-      labels: linux-amd64-cpu8
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       CARGO_INCREMENTAL: 0
