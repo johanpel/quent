@@ -6,6 +6,3 @@ publish.workspace = true
 
 [dependencies]
 rtrb.workspace = true
-
-[dev-dependencies]
-loom = "0.7"

@@ -5,7 +5,7 @@ use std::{
     cell::{Cell, RefCell},
     num::NonZeroUsize,
     sync::{
-        Arc,
+        Arc, Barrier,
         atomic::{AtomicUsize, Ordering},
     },
     thread,
@@ -70,6 +70,40 @@ struct Counted(Arc<AtomicUsize>);
 impl Drop for Counted {
     fn drop(&mut self) {
         self.0.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+/// Checks that unread values are destroyed exactly once whichever endpoint is dropped first.
+#[test]
+fn both_handle_drop_orders_destroy_unread_values_once() {
+    for consumer_first in [false, true] {
+        let count = Arc::new(AtomicUsize::new(0));
+        let (sender, receiver) = unbounded_channel_with_config(config(2, 1));
+        let sent = Arc::new(Barrier::new(2));
+        let exit = Arc::new(Barrier::new(2));
+        let producer = thread::spawn({
+            let count = Arc::clone(&count);
+            let sent = Arc::clone(&sent);
+            let exit = Arc::clone(&exit);
+            move || {
+                for _ in 0..5 {
+                    assert!(sender.send(Counted(Arc::clone(&count))).is_ok());
+                }
+                sent.wait();
+                exit.wait();
+            }
+        });
+        sent.wait();
+        if consumer_first {
+            drop(receiver);
+            exit.wait();
+            producer.join().unwrap();
+        } else {
+            exit.wait();
+            producer.join().unwrap();
+            drop(receiver);
+        }
+        assert_eq!(count.load(Ordering::Relaxed), 5);
     }
 }
 
