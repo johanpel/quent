@@ -144,8 +144,10 @@ This totally depends on the exporter. The simple "filesystem" exporters
 `ndjson`, `postcard`, and `messagepack` simply export in the order at which
 events arrive on the receiving side of the event channel.
 
-With `channel-per-thread`, events from one thread stay in order. Events from two
-threads may reach the exporter in a different order from when they were created.
+With `channel-per-thread`, events from one thread stay in order except during
+thread-local destruction, when events may reach the exporter before that
+thread's earlier events. Events from different threads may reach the exporter
+in a different order from when they were created.
 
 Since every event has a timestamp (and for finite-state-machines also a sequence
 number), this usually doesn't matter, as in analysis you'll order them by
