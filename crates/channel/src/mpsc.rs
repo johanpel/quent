@@ -30,8 +30,10 @@
 //!
 //! Sends during thread-local destruction use a separate fallback queue if the
 //! thread's queue has already been destroyed. The channel does not wake an
-//! async task. After stopping sends, drain before dropping the receiver; values
-//! still buffered when it is dropped are destroyed.
+//! async task. After stopping sends, drain before dropping the receiver to
+//! receive buffered values. Unread values may outlive both receiver and sender
+//! handles while a thread-local producer retains their ring buffer. They are
+//! destroyed when the remaining ring endpoints are released.
 //!
 //! ## Acknowledgments
 //!
