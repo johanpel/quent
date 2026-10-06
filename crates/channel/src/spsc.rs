@@ -47,12 +47,16 @@ use std::{
 
 use rtrb::{Consumer as RingConsumer, Producer as RingProducer, PushError, RingBuffer};
 
-/// Segment capacity and the number of empty segments kept for reuse.
+/// Segment capacity and spare retention for one SPSC channel.
+///
+/// In the MPSC channel, these settings apply separately to each sending thread.
+/// Defaults to 256 slots per segment and two retained spare segments.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Config {
     /// Number of event slots per segment.
     pub segment_capacity: NonZeroUsize,
-    /// Maximum number of empty segments retained per channel.
+    /// Maximum number of empty segments retained per channel, with zero
+    /// disabling retention.
     pub spare_segments: usize,
 }
 
