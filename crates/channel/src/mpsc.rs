@@ -321,7 +321,9 @@ impl<T: Send + 'static> Receiver<T> {
                 self.channels[self.cursor].drain_into(output, NonZeroUsize::new(budget).unwrap());
             remaining -= report.drained;
             if !report.pending {
-                self.channels.swap_remove(self.cursor);
+                // Preserve visit order so removal after wrapping cannot revisit
+                // a channel and skip another within this drain's visit budget.
+                self.channels.remove(self.cursor);
             } else {
                 self.cursor += 1;
             }
@@ -399,5 +401,38 @@ impl<T> Drop for Receiver<T> {
         drop(registry);
         drop(pending);
         drop(fallback);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Checks that removing an empty channel after cursor wrap does not skip
+    /// queued values.
+    #[test]
+    fn drain_visits_unread_channel_after_removal_and_wrap() {
+        let (_sender, mut receiver) = unbounded_channel::<usize>();
+        let mut producers = Vec::new();
+        for _ in 0..4 {
+            let (producer, consumer) = spsc(Config::default());
+            producers.push(producer);
+            receiver.channels.push(consumer);
+        }
+        producers[1].push(42).unwrap();
+        drop(producers.remove(0));
+        receiver.cursor = 2;
+        receiver.close();
+
+        let mut output = Vec::new();
+        assert_eq!(
+            receiver.drain_into(&mut output, NonZeroUsize::new(256).unwrap()),
+            1
+        );
+        assert_eq!(output, [42]);
+        assert_eq!(
+            receiver.drain_into(&mut output, NonZeroUsize::new(256).unwrap()),
+            0
+        );
     }
 }
