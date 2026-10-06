@@ -24,7 +24,7 @@ jobs:
       - name: Run instrumentation benchmarks
         run: |
           pixi run --frozen cargo run --release --locked -p quent-bench -- \
-            --empty-loop \
+            --empty-loop --threads 1,2,4 \
             --output benchmarks/results/current.json
       - name: Upload benchmark report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
