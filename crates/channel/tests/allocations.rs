@@ -27,7 +27,8 @@ unsafe impl GlobalAlloc for CountingAllocator {
     }
 }
 
-/// Checks that bounded bursts and drains allocate nothing after recycling warmup with sufficient output capacity.
+/// Checks that bounded bursts and drains allocate nothing after recycling
+/// warmup with sufficient output capacity.
 #[test]
 fn warmed_pushes_and_recycled_switches_do_not_allocate() {
     let config = Config {

@@ -260,7 +260,8 @@ async fn forward_tokio<T: Send + 'static>(
         let limit = exporter.batch_size_hint().get();
         buffer.reserve(limit);
         tokio::select! {
-            // Cancellation leaves `buffer` untouched; the shutdown branch drains it.
+            // Cancellation leaves `buffer` untouched; the shutdown branch
+            // drains it.
             n = receiver.recv_many(&mut buffer, limit) => {
                 if n == 0 {
                     break;
@@ -378,7 +379,8 @@ mod tests {
         }
     }
 
-    /// Checks that immediately completing exports let another task run before normal or shutdown draining finishes.
+    /// Checks that immediately completing exports let another task run before
+    /// normal or shutdown draining finishes.
     #[cfg(feature = "channel-per-thread")]
     #[test]
     fn per_thread_forwarder_yields_between_batches() {

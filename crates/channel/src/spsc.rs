@@ -90,7 +90,8 @@ struct ChannelState {
 /// old writer with its existing reader for reuse, and continues reading from
 /// the next segment.
 struct SegmentTransition<T> {
-    /// Writer tied to the old segment's ring buffer, no longer used by the producer.
+    /// Writer tied to the old segment's ring buffer, no longer used by the
+    /// producer.
     ///
     /// Retaining it allows writes into the same allocation when reused, since
     /// a writer cannot be recreated from the reader alone.
@@ -104,9 +105,11 @@ struct SegmentTransition<T> {
 
 /// Records a segment's successor or the end of the producer's writes.
 struct SegmentState<T> {
-    /// Endpoints and shared state passed to the consumer when the producer moves to the next segment.
+    /// Endpoints and shared state passed to the consumer when the producer
+    /// moves to the next segment.
     transition: OnceLock<Mutex<SegmentTransition<T>>>,
-    /// Set when the producer drops, after its final writes and release of this segment's writer.
+    /// Set when the producer drops, after its final writes and release of this
+    /// segment's writer.
     closed: AtomicBool,
 }
 
@@ -156,7 +159,8 @@ pub(crate) struct Producer<T> {
     spare_reader: Option<RingConsumer<Segment<T>>>,
     /// Consumer closure state shared with the consumer.
     state: Arc<ChannelState>,
-    /// Active segment's state, retained until the producer switches segments or drops.
+    /// Active segment's state, retained until the producer switches segments or
+    /// drops.
     node: Arc<SegmentState<T>>,
     /// Number of value slots allocated in each new segment.
     capacity: NonZeroUsize,
@@ -164,7 +168,8 @@ pub(crate) struct Producer<T> {
 
 /// The only reader of a segmented channel.
 pub(crate) struct Consumer<T> {
-    /// Read endpoint for the oldest unfinished segment, absent once the channel is fully drained and disconnected.
+    /// Read endpoint for the oldest unfinished segment, absent once the channel
+    /// is fully drained and disconnected.
     current: Option<RingConsumer<T>>,
     /// Returns empty segments to the producer for reuse.
     spare_writer: Option<RingProducer<Segment<T>>>,
@@ -231,7 +236,8 @@ impl<T: Send + 'static> Producer<T> {
             reader,
             node,
         } = spare;
-        // safety: The producer still owns its current writer when switching segments.
+        // safety: The producer still owns its current writer when switching
+        // segments.
         let old_writer = self.current.replace(writer).unwrap();
         let old_node = std::mem::replace(&mut self.node, Arc::clone(&node));
         if old_node
@@ -272,11 +278,13 @@ impl<T: Send + 'static> Consumer<T> {
         let limit = limit.get();
         let mut drained = 0;
         while drained < limit && self.current.is_some() {
-            // safety: The loop condition established that a current reader exists.
+            // safety: The loop condition established that a current reader
+            // exists.
             let available = self.current.as_ref().unwrap().slots();
             if available != 0 {
                 let count = available.min(limit - drained);
-                // safety: The reader is still present, and the sole consumer cannot lose available slots to another reader.
+                // safety: The reader is still present, and the sole consumer
+                // cannot lose available slots to another reader.
                 let chunk = self.current.as_mut().unwrap().read_chunk(count).unwrap();
                 output.extend(chunk);
                 drained += count;
@@ -298,13 +306,15 @@ impl<T: Send + 'static> Consumer<T> {
     }
 
     fn advance(&mut self) -> bool {
-        // safety: Only draining an existing reader calls advance, and that reader has a segment state.
+        // safety: Only draining an existing reader calls advance, and that
+        // reader has a segment state.
         let node = self.node.as_mut().unwrap();
         let Some(inner) = Arc::get_mut(node) else {
             return false;
         };
         // The first empty check can race with the producer's final writes.
-        // Once the producer has released this node, check again before recycling.
+        // Once the producer has released this node, check again before
+        // recycling.
         // safety: The caller's current reader has not been removed.
         if self.current.as_ref().unwrap().slots() != 0 {
             return false;
@@ -312,7 +322,8 @@ impl<T: Send + 'static> Consumer<T> {
         if let Some(transition) = inner.take_transition() {
             // safety: The current reader remains present until this take.
             let old_reader = self.current.take().unwrap();
-            // safety: The segment state borrowed above remains installed until this replacement.
+            // safety: The segment state borrowed above remains installed until
+            // this replacement.
             let old_node = self.node.replace(transition.next_node).unwrap();
             let spare = Segment {
                 writer: transition.retired_writer,
@@ -320,11 +331,13 @@ impl<T: Send + 'static> Consumer<T> {
                 node: old_node,
             };
             self.current = Some(transition.next_reader);
-            // safety: The spare writer remains present throughout the consumer's lifetime.
+            // safety: The spare writer remains present throughout the
+            // consumer's lifetime.
             if self.config.spare_segments != 0
                 && !self.spare_writer.as_ref().unwrap().is_abandoned()
             {
-                // safety: Checking whether the spare writer is abandoned does not remove it.
+                // safety: Checking whether the spare writer is abandoned does
+                // not remove it.
                 if let Err(PushError::Full(spare)) = self.spare_writer.as_mut().unwrap().push(spare)
                 {
                     drop(spare);

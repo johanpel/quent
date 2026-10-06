@@ -4,7 +4,8 @@
 //! Backing structures for generated instrumentation libraries.
 //!
 //! Applications use generated libraries for model-specific instrumentation and
-//! can use this crate directly for shared types, traits, and exporter configuration.
+//! can use this crate directly for shared types, traits, and exporter
+//! configuration.
 
 #![doc = include_str!("../PERFORMANCE.md")]
 

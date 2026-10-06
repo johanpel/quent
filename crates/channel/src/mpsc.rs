@@ -99,7 +99,8 @@ struct Registry<T> {
     /// Newly registered SPSC consumers not yet collected by the receiver.
     pending: Vec<Consumer<T>>,
     /// Holds values emitted by thread-local destructors after this channel's
-    /// thread-local producer map has been destroyed, while the receiver remains open.
+    /// thread-local producer map has been destroyed, while the receiver remains
+    /// open.
     fallback: VecDeque<T>,
     /// Rejects new registrations and fallback sends once the receiver closes or
     /// drops.
@@ -109,11 +110,13 @@ struct Registry<T> {
 /// Holds the channel identity, configuration, and registration state shared by
 /// all endpoints.
 struct Shared<T> {
-    /// Unique channel ID used to find its producer in each thread's local storage.
+    /// Unique channel ID used to find its producer in each thread's local
+    /// storage.
     id: usize,
     /// Settings applied to every per-thread SPSC channel.
     config: Config,
-    /// Notifies thread-local entries of receiver closure so they can be removed.
+    /// Notifies thread-local entries of receiver closure so they can be
+    /// removed.
     closed: Arc<AtomicBool>,
     /// Serializes registration and fallback sends with receiver closure.
     registry: Mutex<Registry<T>>,
@@ -144,7 +147,8 @@ pub fn unbounded_channel<T: Send + 'static>() -> (Sender<T>, Receiver<T>) {
     unbounded_channel_with_config(Config::default())
 }
 
-/// Creates an unbounded channel with the supplied configuration for each per-thread SPSC channel.
+/// Creates an unbounded channel with the supplied configuration for each
+/// per-thread SPSC channel.
 pub fn unbounded_channel_with_config<T: Send + 'static>(
     config: Config,
 ) -> (Sender<T>, Receiver<T>) {
@@ -186,7 +190,8 @@ impl<T: Send + 'static> Sender<T> {
     /// Queues a value for the receiver without waiting for it to be read.
     ///
     /// Success does not guarantee delivery because receiver closure may not be
-    /// detected immediately, so sends can succeed after the receiver closes or drops.
+    /// detected immediately, so sends can succeed after the receiver closes or
+    /// drops.
     ///
     /// The first send through this channel on each thread and sends during
     /// thread-local destruction may acquire a lock and allocate memory.
@@ -195,7 +200,8 @@ impl<T: Send + 'static> Sender<T> {
     ///
     /// # Errors
     ///
-    /// Returns the original value if the receiver is detected to be closed or dropped.
+    /// Returns the original value if the receiver is detected to be closed or
+    /// dropped.
     pub fn send(&self, value: T) -> Result<(), T> {
         let mut value = Some(value);
         let mut removed = Vec::new();
@@ -257,10 +263,12 @@ impl<T: Send + 'static> Sender<T> {
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
                 if registry.closed {
-                    // safety: Failed TLS access never ran the closure that takes the value.
+                    // safety: Failed TLS access never ran the closure that
+                    // takes the value.
                     Err(value.take().unwrap())
                 } else {
-                    // safety: Failed TLS access never ran the closure that takes the value.
+                    // safety: Failed TLS access never ran the closure that
+                    // takes the value.
                     registry.fallback.push_back(value.take().unwrap());
                     Ok(())
                 }
@@ -270,18 +278,23 @@ impl<T: Send + 'static> Sender<T> {
 }
 
 impl<T: Send + 'static> Receiver<T> {
-    /// Appends at most `limit` available values to `output` and returns the number appended.
+    /// Appends at most `limit` available values to `output` and returns the
+    /// number appended.
     ///
-    /// Preserves existing contents of `output` and does not wait for new values.
+    /// Preserves existing contents of `output` and does not wait for new
+    /// values.
     /// A zero return does not mean all senders have
     /// disconnected or that no further values can arrive.
     ///
     /// Values sent by one thread retain their order, except that values sent
     /// during thread-local destruction may arrive before that thread's earlier
-    /// values. Values from different threads have no relative ordering guarantee.
+    /// values. Values from different threads have no relative ordering
+    /// guarantee.
     ///
-    /// To receive every accepted value, stop further sends and wait for sends in
-    /// progress to finish, then call [`Self::close`] and drain until this returns
+    /// To receive every accepted value, stop further sends and wait for sends
+    /// in
+    /// progress to finish, then call [`Self::close`] and drain until this
+    /// returns
     /// zero. Senders need not be dropped first.
     ///
     /// This method may acquire locks and allocate memory.

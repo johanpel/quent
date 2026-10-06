@@ -144,7 +144,8 @@ const _: fn() = || {
     sender.send(Cell::new(42_u32)).unwrap();
 };
 
-/// Checks registration and per-thread ordering for multiple producers, draining only after all producer threads exit.
+/// Checks registration and per-thread ordering for multiple producers, draining
+/// only after all producer threads exit.
 #[test]
 fn registry_drains_each_thread_without_losing_sequences() {
     let (sender, mut receiver) = unbounded_channel_with_config(config(8, 2));
@@ -289,12 +290,14 @@ fn dropping_a_long_undrained_chain_is_iterative() {
     assert_eq!(drops.load(Ordering::Relaxed), 20_000);
 }
 
-/// Checks that receiver teardown racing with further sends from registered producers retains no payloads.
+/// Checks that receiver teardown racing with further sends from registered
+/// producers retains no payloads.
 #[test]
 fn receiver_drop_during_emission_preserves_payload_ownership() {
     let drops = Arc::new(AtomicUsize::new(0));
     let attempts = Arc::new(AtomicUsize::new(0));
-    // Wait for all four producers to queue a value before receiver teardown can race with further sends.
+    // Wait for all four producers to queue a value before receiver teardown can
+    // race with further sends.
     let ready = Arc::new(Barrier::new(5));
     let (sender, receiver) = unbounded_channel_with_config(config(2, 0));
     let handles: Vec<_> = (0..4)
