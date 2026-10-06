@@ -43,7 +43,7 @@
 
   function render(current: BoxSummary[], samples: number[][], labels: string[], mode: PlotMode,
     colors: ReadonlyMap<string, string>) {
-    const grid = { left: 70, right: 28, top: 32, bottom: 100 };
+    const grid = { left: 60, right: 14, top: 30, bottom: 84 };
     const bandWidth = Math.max(1, (element.clientWidth - grid.left - grid.right) / Math.max(1, labels.length));
     const noopBackgrounds = cases.flatMap((item, index) => isNoopCase(item) ? [{
       type: 'rect', silent: true, z: 0,
@@ -67,7 +67,7 @@
         graphic: noopBackgrounds,
         xAxis,
         yAxis: { type: 'value', min: 0, max: ({ max }: { max: number }) => max > 0 ? max * 1.15 : 1,
-          name: 'Average ns / call', nameLocation: 'middle', nameGap: 52,
+          name: 'Average ns / call', nameLocation: 'middle', nameGap: 44,
           axisLabel: { formatter: (value: number) => tickFormatter.format(value) } },
         tooltip: { trigger: 'item', formatter: (params: { dataIndex: number }) => {
           const source = cases[params.dataIndex];
@@ -155,7 +155,7 @@
       yAxis: { type: logarithmic ? 'log' : 'value', logBase: 10,
         min: logarithmic ? ({ min }: { min: number }) => min / 1.2 : 0,
         max: ({ max }: { max: number }) => max > 0 ? max * 1.2 : 1,
-        name: logarithmic ? 'ns / call (log scale)' : 'ns / call', nameLocation: 'middle', nameGap: 52,
+        name: logarithmic ? 'ns / call (log scale)' : 'ns / call', nameLocation: 'middle', nameGap: 44,
         axisLabel: { formatter: (value: number) => tickFormatter.format(value) } },
       tooltip: { trigger: 'item', formatter: (params: { dataIndex: number }) => {
         const summary = current[params.dataIndex];
@@ -176,15 +176,5 @@
   });
 </script>
 
-<div class="card card-border min-w-0 bg-base-100 shadow-sm">
-  <div class="card-body min-w-0 gap-0 p-4 sm:p-5">
-    <h3 class="card-title text-lg">{title}</h3>
-    <p class="mt-1 text-sm text-base-content/60">
-      {mode === 'advanced' ? 'Ordered by average latency · Numbers above boxes show average ns/call' : 'Ordered by average latency · Bars show average ns/call'}
-      {cases.some(isNoopCase) ? ' · Gray bands mark fully discarded cases' : ''}
-    </p>
-    <div class="mt-3 w-full min-w-0">
-      <div class="h-[350px] w-full" bind:this={element} role="img" aria-label={`${title}: ${mode === 'advanced' ? 'box plots' : 'bars of average latency'} by framework and exporter`}></div>
-    </div>
-  </div>
+<div class="h-[280px] w-full min-w-0" bind:this={element} role="img" aria-label={`${title}: ${mode === 'advanced' ? 'box plots' : 'bars of average latency'} by framework and exporter`}>
 </div>

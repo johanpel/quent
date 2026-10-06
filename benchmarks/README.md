@@ -133,11 +133,10 @@ pixi run pnpm --dir experimental/vibe/bench-plot dev
 Open the URL printed by Vite. The page uses the newest report in
 `benchmarks/results` and updates when a new report appears.
 
-To build and serve a static snapshot:
+To build a static snapshot in `benchmarks/results/site`:
 
 ```sh
 pixi run pnpm --dir experimental/vibe/bench-plot build
-cd benchmarks/results/site && python -m http.server 8000
 ```
 
 To create one self-contained HTML file that opens directly in a browser:
