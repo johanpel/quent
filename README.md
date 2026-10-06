@@ -32,7 +32,8 @@ Quent then turns the _schema_ into a dedicated low-latency _instrumentation
 library_. This instrumentation library has a type-safe API and a statically
 typed export path for maximum performance.
 
-Quent also turns the _schema_ into a statically typed _analysis library_ (WIP).
+Quent also turns the _schema_ into a statically typed _analysis library_
+([WIP](https://github.com/rapidsai/quent/issues/516)).
 It will support querying stored events while enriching those events with
 semantics provided by what we call _semantic modules_ (see below).
 
