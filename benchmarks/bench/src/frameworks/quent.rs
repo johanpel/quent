@@ -42,21 +42,21 @@ impl Exporter {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 enum Channel {
     Tokio,
-    Spsc,
+    PerThread,
 }
 
 impl Channel {
     fn label(self) -> &'static str {
         match self {
             Self::Tokio => "quent",
-            Self::Spsc => "quent-spsc",
+            Self::PerThread => "quent-per-thread",
         }
     }
 
     fn features(self) -> &'static [&'static str] {
         match self {
             Self::Tokio => &[],
-            Self::Spsc => &["channel-spsc"],
+            Self::PerThread => &["channel-per-thread"],
         }
     }
 }
@@ -69,7 +69,7 @@ pub(crate) struct Args {
         long = "quent-channel",
         value_enum,
         value_delimiter = ',',
-        default_value = "tokio,spsc"
+        default_value = "tokio,per-thread"
     )]
     channel: Vec<Channel>,
     #[arg(

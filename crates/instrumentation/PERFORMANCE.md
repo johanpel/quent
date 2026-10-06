@@ -2,9 +2,10 @@
 
 > **TL;DR:**
 >
-> **What is the Quent configuration with the lowest possible latecy?** Enable
-> the `channel-spsc` and `clock-quanta` features on `quent-instrumentation` at
-> your own risk (explained below).
+> **What is the Quent configuration with the lowest possible latecy?**
+>
+> Enable the `channel-per-thread` and `clock-quanta` features on
+> `quent-instrumentation` at your own risk (explained below).
 >
 > **What else can I do to reduce overhead?**
 >
@@ -31,35 +32,43 @@ a task running on a background thread that deals with exporting events.
 
 ## What is the overhead of Quent?
 
-The default MPSC channel used keeps the latency of instrumentation calls low, so
-on their own, they do not slow down the instrumented program much. Depending on
-the system, the event pattern and especially on how many threads are emitting
-events simultaneously, the latency is typically in the order of tens to hundreds
-of nanoseconds per call. You can measure this with `quent-bench` for your
-system.
+The default MPSC channel used keeps the latency of instrumentation calls low,
+since it moves most of the work involved in exporting to a background thread. In
+isolation, instrumentation calls do not slow down the instrumented program much.
+Depending on the system, the event pattern and especially on how many threads
+are emitting events simultaneously, the latency is typically in the order of
+tens to hundreds of nanoseconds per call. You can measure this with
+`quent-bench` for your system.
 
 However, Quent is instrumentation-based, which means you decide where you call
-instrumentation events in your code, and how many attributes you put in your
-events.
+instrumentation events in your code, how many attributes you put in your events,
+and how much work is involved in obtaining those attributes.
 
 Therefore, there is no way to answer the question "What is the overhead of
 Quent?" without asking yourself these questions first:
 
-1. **How many events are you going to produce in your critical path?** The
-   minimum amount of overhead added is this number multiplied by the latency of
-   bare instrumentation calls. But if many threads emit events at the same time,
-   there can be some contention on writing to the channel and the latency can
-   significantly increase.
+1. **How many events are you going to produce in your critical path?**
+
+The minimum amount of overhead added is this number multiplied by the latency of
+bare instrumentation calls. But if many threads emit events at the same time,
+there can be some contention on writing to the channel and the latency can
+significantly increase.
+
 2. **How long does it take you to obtain the attribute values of those events in
-   your critical path?** Add this latency too.
-3. **How many events are you going to create per second (throughput)?** This one
-   is tricky to do back-of-the-envelope math for to arrive at some estimation.
-   The overhead depends on many factors related to how exporters work.
-   Nevertheless, it is important to understand that if you produce an excessive
-   amount of events, then the background threads dealing with exporting will
-   start eating up a lot of your system's resources. So even if the latency of
-   instrumentation calls remains low, it might slow down the entire CPU as the
-   background threads will eat up a lot of resources.
+   your critical path?**
+
+Add this latency too.
+
+3. **How many events are you going to create per second (throughput)?**
+
+This is tricky to do back-of-the-envelope math for to arrive at some estimation.
+The overhead depends on many factors related to how exporters work.
+Nevertheless, it is important to understand that if you produce an excessive
+amount of events, then the background threads dealing with exporting will start
+eating up a lot of your system's resources. So even if the latency of
+instrumentation calls remains low, it might slow down the entire program as the
+background threads will eat up a lot of resources such as memory, CPU cycles,
+and I/O.
 
 Once you have a clear answer to these questions, and you have carefully
 considered what you are doing to instrument your program, you may still not be
@@ -68,7 +77,7 @@ satisfied with the overhead that Quent adds. In this case, read on.
 ## Can I reduce the latency of instrumentation calls?
 
 If many threads create events at the same time, they can slow each other down
-when they write to the default channel. You can enable the `channel-spsc`
+when they write to the default channel. You can enable the `channel-per-thread`
 feature to give each thread its own queue which consists of multiple segments of
 ring buffers. This can significantly reduce the time spent in an instrumentation
 call, especially when many threads are active, since they don't have to contend
@@ -94,38 +103,30 @@ an event reaches the exporter, Quent has handed it to the code that writes
 it. Also, instrumentation calls do not tell you whether their events were
 accepted, so a call can return normally even if its event is not exported.
 
-There are four levels of guarantee:
+Quent currently provides two levels of shutdown guarantee:
 
-1. **Level 0 — Best effort.** Quent may discard events that are still waiting
-   to be exported. An instrumentation call may still accept an event after
-   shutdown.
-2. **Level 1 — Completed calls.** Every event from an instrumentation call
-   that finished before shutdown began reaches the exporter. Calls made while
-   shutdown is happening may or may not be included. A later call can return
-   without its event being exported.
-3. **Level 2 — Defined cutoff.** Quent stops accepting events at one point
-   during shutdown. Events accepted before that point reach the exporter, and
-   events after it are rejected. Calls made while shutdown is happening can
-   fall on either side. Once shutdown returns, Quent accepts no more events.
-4. **Level 3 — Reported export errors.** This includes Level 2, and shutdown
-   also reports exporter failures to the caller. It still does not promise
-   that events survive a crash.
+| Level | Guaranteed to reach the exporter before shutdown returns | Worst-case behavior |
+| ----- | ------------------------------------------------------- | ------------------- |
+| 1 | Events from calls completed before shutdown begins. | Calls overlapping or following shutdown may enqueue events that never reach the exporter. |
+| 2 | Every event accepted by the channel. | Sends racing with channel closure may be rejected. Sends after closure are always rejected. |
 
 The available channels provide these levels:
 
 | Channel               | Level | What this means for you                                                                           |
 | --------------------- | ----- | ------------------------------------------------------------------------------------------------- |
-| Default Tokio channel | 2     | Quent stops accepting events at a defined point and forwards everything accepted before it.       |
-| `channel-spsc`        | 1     | A thread may still accept events after shutdown returns. Those events may not reach the exporter. |
+| Default Tokio channel | 2     | An event is either rejected by the channel or forwarded to the exporter before shutdown returns.  |
+| `channel-per-thread`  | 1     | A thread may still accept events after shutdown returns. Those events may not reach the exporter. |
 
-If you need to know that no events can be accepted after shutdown, keep the
-default. If you stop and join all threads that can still create events before
-dropping the last owner of the instrumentation, which is good practise in
-general, Level 1 still covers every call those threads completed. Both channels
-log exporter failures instead of reporting them to the caller, so neither offers
-Level 3.
+Keep the default Tokio channel if sends attempted after instrumentation shutdown
+must be rejected rather than queued without an active exporter.
 
-To use `channel-spsc`, add it to the feature list of your existing
+If you stop and join all threads that can still create events before dropping
+the last owner of the instrumentation, which is good practise in general, Level
+1 guarantees that every event from those completed calls reaches the exporter
+before shutdown returns. Both channels log exporter failures instead of
+reporting them to the caller.
+
+To use `channel-per-thread`, add it to the feature list of your existing
 `quent-instrumentation` dependency. Cargo features apply to the whole build. If
 any dependency enables this feature, all uses of `quent-instrumentation` use the
 new channel. You cannot choose a different channel for each `Context`.
@@ -136,7 +137,7 @@ This totally depends on the exporter. The simple "filesystem" exporters
 `ndjson`, `postcard`, and `messagepack` simply export in the order at which
 events arrive on the receiving side of the event channel.
 
-With `channel-spsc`, events from one thread stay in order. Events from two
+With `channel-per-thread`, events from one thread stay in order. Events from two
 threads may reach the exporter in a different order from when they were created.
 
 Since every event has a timestamp (and for finite-state-machines also a sequence

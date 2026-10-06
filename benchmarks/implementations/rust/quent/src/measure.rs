@@ -77,8 +77,8 @@ pub fn run_case(
             |handle, (small, large, short, long)| handle.instr_call(small, large, short, long),
         )?,
     };
-    let implementation = if cfg!(feature = "channel-spsc") {
-        Implementation::QuentSpsc
+    let implementation = if cfg!(feature = "channel-per-thread") {
+        Implementation::QuentPerThread
     } else {
         Implementation::Quent
     };

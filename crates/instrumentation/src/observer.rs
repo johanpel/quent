@@ -10,12 +10,12 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 use std::time::Duration;
-#[cfg(not(feature = "channel-spsc"))]
+#[cfg(not(feature = "channel-per-thread"))]
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 use tokio::time::{MissedTickBehavior, interval};
 use tokio_util::sync::CancellationToken;
 use tracing::warn;
@@ -33,21 +33,21 @@ pub struct EventSender<T> {
     disable_error_log: Arc<AtomicBool>,
 }
 
-#[cfg(not(feature = "channel-spsc"))]
+#[cfg(not(feature = "channel-per-thread"))]
 type TransportSender<T> = UnboundedSender<Event<T>>;
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 // The function pointer keeps the public sender methods callable for generic
 // `T`; construction proves `T: Send` once without adding a bound to callers.
 type SpscSend<T> = fn(&quent_channel::mpsc::Sender<Event<T>>, Event<T>) -> Result<(), Event<T>>;
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 struct TransportSender<T> {
     tx: quent_channel::mpsc::Sender<Event<T>>,
     send: SpscSend<T>,
 }
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 impl<T> Clone for TransportSender<T> {
     fn clone(&self) -> Self {
         Self {
@@ -57,14 +57,14 @@ impl<T> Clone for TransportSender<T> {
     }
 }
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 impl<T> TransportSender<T> {
     fn send(&self, event: Event<T>) -> Result<(), Event<T>> {
         (self.send)(&self.tx, event)
     }
 }
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 fn send_spsc<T: Send + 'static>(
     tx: &quent_channel::mpsc::Sender<Event<T>>,
     event: Event<T>,
@@ -197,20 +197,20 @@ where
 {
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
-    #[cfg(not(feature = "channel-spsc"))]
+    #[cfg(not(feature = "channel-per-thread"))]
     let (events_sender, mut events_receiver) = unbounded_channel();
-    #[cfg(feature = "channel-spsc")]
+    #[cfg(feature = "channel-per-thread")]
     let (events_sender, mut events_receiver) = quent_channel::mpsc::unbounded_channel();
-    #[cfg(feature = "channel-spsc")]
+    #[cfg(feature = "channel-per-thread")]
     let events_sender = TransportSender {
         tx: events_sender,
         send: send_spsc::<T>,
     };
 
     let forwarder_handle = runtime.handle().spawn(async move {
-        #[cfg(not(feature = "channel-spsc"))]
+        #[cfg(not(feature = "channel-per-thread"))]
         forward_tokio(&mut events_receiver, &mut exporter, &cloned_token).await;
-        #[cfg(feature = "channel-spsc")]
+        #[cfg(feature = "channel-per-thread")]
         forward_spsc(&mut events_receiver, &mut exporter, &cloned_token).await;
         // Tear down once, however the loop exited.
         if let Err(e) = exporter.shutdown().await {
@@ -242,7 +242,7 @@ async fn export_buffer<T: Send + 'static>(
     );
 }
 
-#[cfg(not(feature = "channel-spsc"))]
+#[cfg(not(feature = "channel-per-thread"))]
 async fn forward_tokio<T: Send + 'static>(
     receiver: &mut UnboundedReceiver<Event<T>>,
     exporter: &mut Box<dyn Exporter<T>>,
@@ -276,7 +276,7 @@ async fn forward_tokio<T: Send + 'static>(
     }
 }
 
-#[cfg(feature = "channel-spsc")]
+#[cfg(feature = "channel-per-thread")]
 async fn forward_spsc<T: Send + 'static>(
     receiver: &mut quent_channel::mpsc::Receiver<Event<T>>,
     exporter: &mut Box<dyn Exporter<T>>,

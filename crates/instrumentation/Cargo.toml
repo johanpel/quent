@@ -7,7 +7,7 @@ publish.workspace = true
 [features]
 default = []
 clock-quanta = ["quent-time/clock-quanta"]
-channel-spsc = ["dep:quent-channel", "tokio/time"]
+channel-per-thread = ["dep:quent-channel", "tokio/time"]
 serde = [
     "dep:serde",
     "quent-events/serde",
