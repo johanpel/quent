@@ -235,7 +235,7 @@ impl ResolutionTables {
     }
 
     /// Render a domain handle as a display name.
-    pub(crate) fn resolve_domain(&self, domain: u64) -> String {
+    fn resolve_domain(&self, domain: u64) -> String {
         if let Some(name) = self.domain_names.get(&domain) {
             return name.clone();
         }

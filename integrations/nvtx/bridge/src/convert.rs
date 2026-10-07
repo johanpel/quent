@@ -6,31 +6,51 @@
 use nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
-use nvtx_injection::record::{Event, RawAttributes, RawMessage, RawString};
+use nvtx_injection::record::{Attributes, Message, Record, String as RecordString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::NvtxEventEntity;
 
-impl From<Event> for NvtxEventEntity {
-    fn from(record: Event) -> Self {
+/// Convert an owned NVTX record on the emitting thread before forwarding it.
+///
+/// Push/pop records receive that thread's OS ID during conversion.
+impl From<Record> for NvtxEventEntity {
+    fn from(record: Record) -> Self {
         Self(convert(record))
     }
 }
 
-fn convert(record: Event) -> NvtxEvent {
+fn current_thread_id() -> u32 {
+    thread_local! {
+        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
+    }
+    CACHED_TID
+        .try_with(|cell| *cell.get_or_init(compute_thread_id))
+        .unwrap_or_else(|_| compute_thread_id())
+}
+
+fn compute_thread_id() -> u32 {
+    // The syscall works with older Linux libc versions that lack gettid().
+    // SAFETY: SYS_gettid takes no arguments and returns the calling thread's ID.
+    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
+}
+
+fn convert(record: Record) -> NvtxEvent {
     match record {
-        Event::RangePush {
+        Record::RangePush {
             domain,
-            thread_id,
             attributes: raw,
         } => NvtxEvent::RangePush {
             domain,
-            thread_id,
+            thread_id: current_thread_id(),
             attributes: attributes(raw),
         },
-        Event::RangePop { domain, thread_id } => NvtxEvent::RangePop { domain, thread_id },
-        Event::RangeStart {
+        Record::RangePop { domain } => NvtxEvent::RangePop {
+            domain,
+            thread_id: current_thread_id(),
+        },
+        Record::RangeStart {
             domain,
             range_id,
             attributes: raw,
@@ -39,20 +59,20 @@ fn convert(record: Event) -> NvtxEvent {
             range_id,
             attributes: attributes(raw),
         },
-        Event::RangeEnd { domain, range_id } => NvtxEvent::RangeEnd { domain, range_id },
-        Event::Mark {
+        Record::RangeEnd { domain, range_id } => NvtxEvent::RangeEnd { domain, range_id },
+        Record::Mark {
             domain,
             attributes: raw,
         } => NvtxEvent::Mark {
             domain,
             attributes: attributes(raw),
         },
-        Event::DomainCreate { domain, name } => NvtxEvent::DomainCreate {
+        Record::DomainCreate { domain, name } => NvtxEvent::DomainCreate {
             domain,
             name: string(name),
         },
-        Event::DomainDestroy { domain } => NvtxEvent::DomainDestroy { domain },
-        Event::RegisterString {
+        Record::DomainDestroy { domain } => NvtxEvent::DomainDestroy { domain },
+        Record::RegisterString {
             domain,
             handle,
             string: raw,
@@ -61,7 +81,7 @@ fn convert(record: Event) -> NvtxEvent {
             handle,
             string: string(raw),
         },
-        Event::NameCategory {
+        Record::NameCategory {
             domain,
             category,
             name,
@@ -70,11 +90,11 @@ fn convert(record: Event) -> NvtxEvent {
             category,
             name: string(name),
         },
-        Event::NameThread { thread_id, name } => NvtxEvent::NameThread {
+        Record::NameThread { thread_id, name } => NvtxEvent::NameThread {
             thread_id,
             name: string(name),
         },
-        Event::ResourceCreate {
+        Record::ResourceCreate {
             domain,
             handle,
             identifier_type,
@@ -87,11 +107,11 @@ fn convert(record: Event) -> NvtxEvent {
             identifier,
             message: raw.map(message),
         },
-        Event::ResourceDestroy { handle } => NvtxEvent::ResourceDestroy { handle },
+        Record::ResourceDestroy { handle } => NvtxEvent::ResourceDestroy { handle },
     }
 }
 
-fn attributes(raw: RawAttributes) -> NvtxEventAttributes {
+fn attributes(raw: Attributes) -> NvtxEventAttributes {
     NvtxEventAttributes {
         category: raw.category,
         color: raw.color.map(|raw| NvtxColor {
@@ -127,16 +147,16 @@ fn attributes(raw: RawAttributes) -> NvtxEventAttributes {
     }
 }
 
-fn message(raw: RawMessage) -> NvtxMessage {
+fn message(raw: Message) -> NvtxMessage {
     match raw {
-        RawMessage::String(raw) => NvtxMessage::String(string(raw)),
-        RawMessage::RegisteredHandle(handle) => NvtxMessage::RegisteredHandle(handle),
+        Message::String(raw) => NvtxMessage::String(string(raw)),
+        Message::RegisteredHandle(handle) => NvtxMessage::RegisteredHandle(handle),
     }
 }
 
-fn string(raw: RawString) -> String {
+fn string(raw: RecordString) -> String {
     match raw {
-        RawString::Bytes(bytes) => match String::from_utf8(bytes) {
+        RecordString::Bytes(bytes) => match String::from_utf8(bytes) {
             Ok(string) => string,
             Err(error) => {
                 static WARNED: AtomicBool = AtomicBool::new(false);
@@ -148,7 +168,7 @@ fn string(raw: RawString) -> String {
                 String::from_utf8_lossy(error.as_bytes()).into_owned()
             }
         },
-        RawString::Wide(units) => units
+        RecordString::Wide(units) => units
             .into_iter()
             .map(|unit| char::from_u32(unit).unwrap_or(char::REPLACEMENT_CHARACTER))
             .collect(),

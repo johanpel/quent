@@ -13,7 +13,6 @@ publish.workspace = true
 crate-type = ["rlib"]
 
 [dependencies]
-libc = "0.2"
 # `tools` exposes NVTX's callback-subscription and injection ABI.
 nvtx-sys = { workspace = true, features = ["tools"] }
 thiserror = { workspace = true }

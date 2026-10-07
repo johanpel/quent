@@ -54,7 +54,7 @@ fn range_push_converts_message_category_and_core_payload_verbatim() {
     };
 
     // SAFETY: `attr` is a valid, fully-sized attribute struct.
-    let event = unsafe { convert(record::range_push(0x1234, &attr, 4242)) };
+    let event = unsafe { convert(record::range_push(0x1234, &attr)) };
 
     let NvtxEvent::RangePush {
         domain,
@@ -66,8 +66,7 @@ fn range_push_converts_message_category_and_core_payload_verbatim() {
     };
     // Raw handle kept verbatim.
     assert_eq!(domain, 0x1234);
-    // The OS thread id is passed through verbatim from the callback.
-    assert_eq!(thread_id, 4242);
+    assert_eq!(thread_id, super::current_thread_id());
     assert_eq!(attributes.category, 7);
     // The message is copied into an OWNED String (no borrowed pointer).
     assert_eq!(
@@ -92,14 +91,12 @@ fn range_push_converts_message_category_and_core_payload_verbatim() {
 }
 
 #[test]
-fn range_pop_carries_domain_and_thread_id_verbatim() {
-    let NvtxEvent::RangePop { domain, thread_id } = convert(record::range_pop(0x55, 4242)) else {
+fn range_pop_gets_the_calling_thread_id() {
+    let NvtxEvent::RangePop { domain, thread_id } = convert(record::range_pop(0x55)) else {
         panic!("expected RangePop");
     };
-    // Both the raw domain and the passed-in OS thread id are kept verbatim,
-    // so a pop pairs with its push on the same thread in the analyzer.
     assert_eq!(domain, 0x55);
-    assert_eq!(thread_id, 4242);
+    assert_eq!(thread_id, super::current_thread_id());
 }
 
 #[test]
@@ -126,7 +123,7 @@ fn smaller_size_reads_only_declared_members_without_over_read() {
     // SAFETY: reads are bounded by `attr.size`; the backing allocation is a
     // full struct, so even an accidental over-read would be in-bounds — the
     // assertions prove we honor `size` regardless.
-    let event = unsafe { convert(record::range_push(1, &attr, 0)) };
+    let event = unsafe { convert(record::range_push(1, &attr)) };
 
     let NvtxEvent::RangePush { attributes, .. } = event else {
         panic!("expected RangePush");
@@ -157,7 +154,7 @@ fn registered_message_keeps_handle_without_dereferencing_a_string() {
     };
 
     // SAFETY: `attr` is a valid, fully-sized attribute struct.
-    let event = unsafe { convert(record::range_push(0, &attr, 0)) };
+    let event = unsafe { convert(record::range_push(0, &attr)) };
 
     let NvtxEvent::RangePush { attributes, .. } = event else {
         panic!("expected RangePush");
@@ -197,7 +194,7 @@ fn narrow_payloads_are_read_at_member_width_verbatim() {
         };
         // SAFETY: `attr` is a valid, fully-sized attribute struct.
         let NvtxEvent::RangePush { attributes, .. } =
-            (unsafe { convert(record::range_push(0, &attr, 0)) })
+            (unsafe { convert(record::range_push(0, &attr)) })
         else {
             panic!("expected RangePush");
         };
@@ -516,7 +513,7 @@ fn unknown_message_type_yields_no_message_at_full_size() {
     );
     // SAFETY: `attr` is a valid, fully-sized attribute struct.
     let NvtxEvent::RangePush { attributes, .. } =
-        (unsafe { convert(record::range_push(0, &attr, 0)) })
+        (unsafe { convert(record::range_push(0, &attr)) })
     else {
         panic!("expected RangePush");
     };
@@ -553,13 +550,13 @@ fn null_attr_range_push_is_captured_with_empty_attributes() {
         domain,
         thread_id,
         attributes,
-    } = (unsafe { convert(record::range_push(0x1234, std::ptr::null(), 99)) })
+    } = (unsafe { convert(record::range_push(0x1234, std::ptr::null())) })
     else {
         panic!("expected RangePush");
     };
     assert_eq!(domain, 0x1234);
     // The thread id is stamped even when the attribute pointer is null.
-    assert_eq!(thread_id, 99);
+    assert_eq!(thread_id, super::current_thread_id());
     assert_eq!(attributes, NvtxEventAttributes::default());
 }
 
@@ -656,12 +653,12 @@ fn range_push_w_captures_wide_label_with_thread_id() {
         domain,
         thread_id,
         attributes,
-    } = (unsafe { convert(record::range_push_w(wide.as_ptr(), 9999)) })
+    } = (unsafe { convert(record::range_push_w(wide.as_ptr())) })
     else {
         panic!("expected RangePush");
     };
     assert_eq!(domain, 0);
-    assert_eq!(thread_id, 9999);
+    assert_eq!(thread_id, super::current_thread_id());
     assert_eq!(
         attributes.message,
         Some(NvtxMessage::String("wide-push".to_owned()))
@@ -707,7 +704,7 @@ fn unicode_message_type_in_event_attributes_is_decoded() {
     // SAFETY: `attr` is a valid, fully-sized attribute struct; `wide` lives
     // for the duration of the call.
     let NvtxEvent::RangePush { attributes, .. } =
-        (unsafe { convert(record::range_push(0, &attr, 0)) })
+        (unsafe { convert(record::range_push(0, &attr)) })
     else {
         panic!("expected RangePush");
     };
@@ -722,12 +719,12 @@ fn records_own_bytes_and_wide_units_before_decoding() {
     let mut bytes = b"first\xff\0".to_vec();
     // SAFETY: the buffer is NUL-terminated and readable during capture.
     let raw = unsafe { record::mark_a(bytes.as_ptr().cast()) };
-    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Record::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(
         attributes.message,
-        Some(record::RawMessage::String(record::RawString::Bytes(
+        Some(record::Message::String(record::String::Bytes(
             b"first\xff".to_vec()
         )))
     );
@@ -744,12 +741,12 @@ fn records_own_bytes_and_wide_units_before_decoding() {
     let mut units = vec![0x1f600, 0xd800, 0];
     // SAFETY: the buffer is a readable NUL-terminated wchar_t array.
     let raw = unsafe { record::mark_w(units.as_ptr()) };
-    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Record::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(
         attributes.message,
-        Some(record::RawMessage::String(record::RawString::Wide(vec![
+        Some(record::Message::String(record::String::Wide(vec![
             0x1f600, 0xd800
         ])))
     );
@@ -777,7 +774,7 @@ fn records_own_attributes_and_narrow_payload_bits_before_decoding() {
     // SAFETY: only the selected union members are initialized, and the message
     // remains valid throughout capture.
     let raw = unsafe { record::mark(17, &attr) };
-    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Record::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(

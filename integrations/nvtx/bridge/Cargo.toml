@@ -8,6 +8,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+libc = "0.2"
 # The bridge is a single adapter type. It needs the NVTX event vocabulary, the
 # Quent `EventPayload` trait it implements, and serde for the transparent derive.
 nvtx-events = { path = "../events" }

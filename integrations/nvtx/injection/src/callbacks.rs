@@ -4,7 +4,7 @@
 //! The `extern "C"` NVTX callbacks installed into the CORE/CORE2 function tables.
 //!
 //! Each callback does the minimum on the app thread — copy caller-owned data
-//! into a [`Event`](crate::Event) and hand it to the installed hook.
+//! into a [`Record`](crate::Record) and hand it to the installed hook.
 //! The callbacks preserve two invariants:
 //!
 //! * Handles, ids, and nesting levels are synthesized whether or not a hook is
@@ -32,12 +32,9 @@ pub(crate) extern "C" fn on_domain_range_push_ex(
     let domain = domain as usize as u64;
     let level = init::range_push_level(domain);
     if let Some(hook) = init::hook() {
-        // The OS thread id is read on the app thread so the push pairs with its
-        // pop on the same thread.
-        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
-        let event = unsafe { record::range_push(domain, attr, thread_id) };
+        let event = unsafe { record::range_push(domain, attr) };
         hook(event);
     }
     level
@@ -51,8 +48,7 @@ pub(crate) extern "C" fn on_domain_range_pop(domain: nvtxDomainHandle_t) -> c_in
     let domain = domain as usize as u64;
     let level = init::range_pop_level(domain);
     if let Some(hook) = init::hook() {
-        let thread_id = init::current_thread_id();
-        hook(record::range_pop(domain, thread_id));
+        hook(record::range_pop(domain));
     }
     level
 }
@@ -238,10 +234,9 @@ pub(crate) extern "C" fn on_range_end(range_id: nvtxRangeId_t) {
 pub(crate) extern "C" fn on_range_push_ex(attr: *const nvtxEventAttributes_t) -> c_int {
     let level = init::range_push_level(0);
     if let Some(hook) = init::hook() {
-        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `attr` is null or valid for this call; a null
         // attr yields empty attributes (the event is still captured).
-        let event = unsafe { record::range_push(0, attr, thread_id) };
+        let event = unsafe { record::range_push(0, attr) };
         hook(event);
     }
     level
@@ -251,9 +246,8 @@ pub(crate) extern "C" fn on_range_push_ex(attr: *const nvtxEventAttributes_t) ->
 pub(crate) extern "C" fn on_range_push_a(message: *const c_char) -> c_int {
     let level = init::range_push_level(0);
     if let Some(hook) = init::hook() {
-        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` (if non-null) is valid for this call.
-        let event = unsafe { record::range_push_a(message, thread_id) };
+        let event = unsafe { record::range_push_a(message) };
         hook(event);
     }
     level
@@ -263,8 +257,7 @@ pub(crate) extern "C" fn on_range_push_a(message: *const c_char) -> c_int {
 pub(crate) extern "C" fn on_range_pop() -> c_int {
     let level = init::range_pop_level(0);
     if let Some(hook) = init::hook() {
-        let thread_id = init::current_thread_id();
-        hook(record::range_pop(0, thread_id));
+        hook(record::range_pop(0));
     }
     level
 }
@@ -311,10 +304,9 @@ pub(crate) extern "C" fn on_range_start_w(message: *const wchar_t) -> nvtxRangeI
 pub(crate) extern "C" fn on_range_push_w(message: *const wchar_t) -> c_int {
     let level = init::range_push_level(0);
     if let Some(hook) = init::hook() {
-        let thread_id = init::current_thread_id();
         // SAFETY: NVTX guarantees `message` is null or a valid NUL-terminated
         // wchar_t array for this call.
-        let event = unsafe { record::range_push_w(message, thread_id) };
+        let event = unsafe { record::range_push_w(message) };
         hook(event);
     }
     level
@@ -326,7 +318,7 @@ pub(crate) extern "C" fn on_name_category_w(category: u32, name: *const wchar_t)
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
         let name = unsafe { record::copy_wchar(name) };
-        hook(crate::Event::NameCategory {
+        hook(crate::Record::NameCategory {
             domain: 0,
             category,
             name,
@@ -340,7 +332,7 @@ pub(crate) extern "C" fn on_name_os_thread_w(thread_id: u32, name: *const wchar_
         // SAFETY: NVTX guarantees `name` is null or a valid NUL-terminated
         // wchar_t array for this call.
         let name = unsafe { record::copy_wchar(name) };
-        hook(crate::Event::NameThread { thread_id, name });
+        hook(crate::Record::NameThread { thread_id, name });
     }
 }
 
@@ -349,7 +341,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-    use crate::Event;
+    use crate::Record;
 
     use super::*;
 
@@ -417,7 +409,7 @@ mod tests {
             let last_mark_domain = Arc::clone(&last_mark_domain);
             move |event| {
                 calls.fetch_add(1, Ordering::Relaxed);
-                if let Event::Mark { domain, .. } = event {
+                if let Record::Mark { domain, .. } = event {
                     last_mark_domain.store(domain, Ordering::Relaxed);
                 }
             }

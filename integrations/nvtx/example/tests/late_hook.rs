@@ -6,7 +6,7 @@
 use std::sync::{Arc, Mutex};
 
 use nvtx::sys::ffi;
-use nvtx_injection::Event;
+use nvtx_injection::Record;
 
 #[test]
 fn late_hook_receives_subsequent_events() {
@@ -32,9 +32,9 @@ fn late_hook_receives_subsequent_events() {
 
     let events = events.lock().unwrap();
     assert_eq!(events.len(), 5);
-    assert!(matches!(events[0], Event::Mark { .. }));
-    assert!(matches!(events[1], Event::RangePush { .. }));
-    assert!(matches!(events[2], Event::RangePop { .. }));
-    assert!(matches!(events[3], Event::RangeStart { .. }));
-    assert!(matches!(events[4], Event::RangeEnd { .. }));
+    assert!(matches!(events[0], Record::Mark { .. }));
+    assert!(matches!(events[1], Record::RangePush { .. }));
+    assert!(matches!(events[2], Record::RangePop { .. }));
+    assert!(matches!(events[3], Record::RangeStart { .. }));
+    assert!(matches!(events[4], Record::RangeEnd { .. }));
 }

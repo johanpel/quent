@@ -1752,6 +1752,7 @@ dependencies = [
 name = "nvtx-bridge"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "nvtx-events",
  "nvtx-injection",
  "nvtx-sys",
@@ -1784,7 +1785,6 @@ name = "nvtx-injection"
 version = "0.1.0"
 dependencies = [
  "cc",
- "libc",
  "nvtx-sys",
  "thiserror",
 ]

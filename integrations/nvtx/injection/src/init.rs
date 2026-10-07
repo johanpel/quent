@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use thiserror::Error;
 
-use crate::{Event, callbacks};
+use crate::{Record, callbacks};
 use nvtx_sys::ffi::{
     NvtxCallbackIdCore, NvtxCallbackIdCore2, NvtxCallbackModule, NvtxExportTableCallbacks,
     NvtxExportTableID, NvtxFunctionPointer, NvtxFunctionTable, NvtxGetExportTableFunc_t,
@@ -29,19 +29,18 @@ use nvtx_sys::ffi::{
 
 // TODO(johanpel): Consider splitting this hook into typed functions for individual NVTX events.
 /// The process-lifetime hook for owned NVTX records.
-type Hook = Box<dyn Fn(Event) + Send + Sync + 'static>;
+type Hook = Box<dyn Fn(Record) + Send + Sync + 'static>;
 
+/// Keeps the installed hook available to callbacks for the process lifetime.
 static HOOK: OnceLock<Hook> = OnceLock::new();
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
 const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
 
-/// Monotonic source of the NVTX handles/ids the injection layer synthesizes and
-/// hands back to the application: domain, registered-string, and resource handles
-/// plus range ids. Starts at `1` so `0` stays reserved for the default/NULL
-/// domain. In injection mode these values are opaque to NVTX (never
-/// dereferenced), so a synthetic counter is a valid handle source; they are
-/// captured verbatim.
+/// Supplies range IDs and domain, string, and resource handles.
+///
+/// Callers use them as opaque values, and `0` is reserved for null handles and
+/// the default domain.
 static NEXT_HANDLE: AtomicU64 = AtomicU64::new(1);
 
 /// Return a fresh, process-unique, nonzero handle/id.
@@ -49,41 +48,11 @@ pub(crate) fn next_handle() -> u64 {
     NEXT_HANDLE.fetch_add(1, Ordering::Relaxed)
 }
 
-/// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
-/// (captured as [`Event::NameThread`]) uses, so per-thread Push/Pop ranges
-/// resolve against a named thread. Read on the app thread from inside a callback.
-///
-/// The value is computed once per thread and cached in a thread-local so the
-/// syscall is not repeated on every push/pop. Works on all Linux architectures
-/// (x86-64, aarch64, …) — this crate is Linux-64-only per the `compile_error!`
-/// in `lib.rs`. After TLS destruction, it reads the OS thread id directly.
-pub(crate) fn current_thread_id() -> u32 {
-    thread_local! {
-        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
-    }
-    CACHED_TID
-        .try_with(|cell| *cell.get_or_init(compute_thread_id))
-        .unwrap_or_else(|_| compute_thread_id())
-}
-
-fn compute_thread_id() -> u32 {
-    // Use the raw `SYS_gettid` syscall rather than the glibc `gettid()` wrapper:
-    // the wrapper symbol is only exported by glibc >= 2.30, whereas the syscall
-    // works against every Linux libc (including the older conda sysroot in CI).
-    // Available on all Linux architectures including aarch64.
-    // SAFETY: `gettid` takes no arguments and cannot fail; it returns the calling
-    // thread's kernel task id (the Linux `gettid` id space).
-    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
-}
-
 thread_local! {
-    /// Per-thread, per-domain count of currently-open push/pop ranges.
+    /// Tracks open push/pop ranges for each domain on this thread.
     ///
-    /// `nvtxDomainRangePushEx` returns the 0-based level of the range being
-    /// started and `nvtxDomainRangePop` the level of the range being ended;
-    /// the nesting stack is per-thread and per-domain. We mirror those return
-    /// values so an app that reads them observes faithful behavior instead of a
-    /// constant.
+    /// NVTX push/pop calls must return the correct nesting level before a hook
+    /// is installed, so the count is updated even when no event is delivered.
     static RANGE_DEPTH: std::cell::RefCell<std::collections::HashMap<u64, i32>> =
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
@@ -130,12 +99,11 @@ pub(crate) fn range_pop_level(domain: u64) -> c_int {
 /// Error returned by [`install_hook`].
 #[derive(Debug, Error)]
 pub enum InstallHookError {
-    /// A hook was already installed; installation is one-shot per process.
     #[error("an NVTX capture hook is already installed (install_hook is one-shot per process)")]
     AlreadyInstalled,
 }
 
-/// Install a process-lifetime hook for owned [`Event`] values.
+/// Install a process-lifetime hook for owned [`Record`] values.
 ///
 /// Installation is one-shot. The hook must:
 ///
@@ -149,7 +117,7 @@ pub enum InstallHookError {
 /// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
 pub fn install_hook<F>(hook: F) -> Result<(), InstallHookError>
 where
-    F: Fn(Event) + Send + Sync + 'static,
+    F: Fn(Record) + Send + Sync + 'static,
 {
     HOOK.set(Box::new(hook))
         .map_err(|_| InstallHookError::AlreadyInstalled)
@@ -575,20 +543,7 @@ unsafe fn set_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{current_thread_id, range_pop_level, range_push_level};
-
-    #[test]
-    fn current_thread_id_is_stable_and_nonzero() {
-        let first = current_thread_id();
-        let second = current_thread_id();
-        // A real OS thread id is never `0` (the value we use as "unstamped").
-        assert_ne!(first, 0, "current_thread_id must be nonzero");
-        // Two reads on the same thread must observe the same id.
-        assert_eq!(
-            first, second,
-            "current_thread_id must be stable within a thread"
-        );
-    }
+    use super::{range_pop_level, range_push_level};
 
     #[test]
     fn push_and_pop_report_zero_based_nesting_levels() {

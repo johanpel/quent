@@ -13,57 +13,55 @@ use std::os::raw::c_char;
 
 /// Caller-owned text copied without UTF decoding or a trailing NUL.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RawString {
+pub enum String {
     Bytes(Vec<u8>),
     Wide(Vec<u32>),
 }
 
 /// An owned immediate message or a registered-string handle.
 #[derive(Debug, Clone, PartialEq)]
-pub enum RawMessage {
-    String(RawString),
+pub enum Message {
+    String(String),
     RegisteredHandle(u64),
 }
 
 /// A raw color tag and value.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RawColor {
+pub struct Color {
     pub color_type: i32,
     pub value: u32,
 }
 
 /// Payload bits copied at the width declared by `payload_type`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RawPayload {
+pub struct Payload {
     pub payload_type: i32,
     pub bits: u64,
 }
 
 /// Owned fields present within the caller's declared attribute size.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct RawAttributes {
+pub struct Attributes {
     pub category: u32,
-    pub color: Option<RawColor>,
-    pub message: Option<RawMessage>,
-    pub payload: Option<RawPayload>,
+    pub color: Option<Color>,
+    pub message: Option<Message>,
+    pub payload: Option<Payload>,
 }
 
 /// An owned NVTX call that can be decoded after the caller's buffers are released.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Event {
+pub enum Record {
     RangePush {
         domain: u64,
-        thread_id: u32,
-        attributes: RawAttributes,
+        attributes: Attributes,
     },
     RangePop {
         domain: u64,
-        thread_id: u32,
     },
     RangeStart {
         domain: u64,
         range_id: u64,
-        attributes: RawAttributes,
+        attributes: Attributes,
     },
     RangeEnd {
         domain: u64,
@@ -71,11 +69,11 @@ pub enum Event {
     },
     Mark {
         domain: u64,
-        attributes: RawAttributes,
+        attributes: Attributes,
     },
     DomainCreate {
         domain: u64,
-        name: RawString,
+        name: String,
     },
     DomainDestroy {
         domain: u64,
@@ -83,51 +81,47 @@ pub enum Event {
     RegisterString {
         domain: u64,
         handle: u64,
-        string: RawString,
+        string: String,
     },
     NameCategory {
         domain: u64,
         category: u32,
-        name: RawString,
+        name: String,
     },
     NameThread {
         thread_id: u32,
-        name: RawString,
+        name: String,
     },
     ResourceCreate {
         domain: u64,
         handle: u64,
         identifier_type: i32,
         identifier: u64,
-        message: Option<RawMessage>,
+        message: Option<Message>,
     },
     ResourceDestroy {
         handle: u64,
     },
 }
 
-/// Copy a `DomainRangePop` call to a verbatim [`Event::RangePop`].
-///
-/// `thread_id` is the OS thread id read on the app thread by the callback (this
-/// fn stays pure and does not read it here), so a pop pairs with the push on the
-/// same thread.
+/// Copy a `DomainRangePop` call to a verbatim [`Record::RangePop`].
 #[inline(always)]
-pub fn range_pop(domain: u64, thread_id: u32) -> Event {
-    Event::RangePop { domain, thread_id }
+pub fn range_pop(domain: u64) -> Record {
+    Record::RangePop { domain }
 }
 
-/// Copy a `DomainMarkEx` call to a verbatim [`Event::Mark`].
+/// Copy a `DomainMarkEx` call to a verbatim [`Record::Mark`].
 ///
 /// # Safety
 /// See [`range_push`].
 #[inline(always)]
-pub unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Event {
+pub unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
-    Event::Mark { domain, attributes }
+    Record::Mark { domain, attributes }
 }
 
-/// Copy a `DomainRangeStartEx` call to a verbatim [`Event::RangeStart`].
+/// Copy a `DomainRangeStartEx` call to a verbatim [`Record::RangeStart`].
 ///
 /// `range_id` is the id the injection layer synthesized and returns to the app,
 /// captured verbatim so a later `DomainRangeEnd` correlates (the analyzer pairs them).
@@ -135,23 +129,27 @@ pub unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Event {
 /// # Safety
 /// See [`range_push`].
 #[inline(always)]
-pub unsafe fn range_start(domain: u64, range_id: u64, attr: *const nvtxEventAttributes_t) -> Event {
+pub unsafe fn range_start(
+    domain: u64,
+    range_id: u64,
+    attr: *const nvtxEventAttributes_t,
+) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
-    Event::RangeStart {
+    Record::RangeStart {
         domain,
         range_id,
         attributes,
     }
 }
 
-/// Copy a `DomainRangeEnd` call to a verbatim [`Event::RangeEnd`].
+/// Copy a `DomainRangeEnd` call to a verbatim [`Record::RangeEnd`].
 #[inline(always)]
-pub fn range_end(domain: u64, range_id: u64) -> Event {
-    Event::RangeEnd { domain, range_id }
+pub fn range_end(domain: u64, range_id: u64) -> Record {
+    Record::RangeEnd { domain, range_id }
 }
 
-/// Copy a `DomainCreateA` call to a verbatim [`Event::DomainCreate`].
+/// Copy a `DomainCreateA` call to a verbatim [`Record::DomainCreate`].
 ///
 /// `domain` is the handle the injection layer synthesized and returns to the app.
 ///
@@ -159,20 +157,20 @@ pub fn range_end(domain: u64, range_id: u64) -> Event {
 /// `name` must be null or a valid NUL-terminated C string readable for this call;
 /// it is copied in before returning.
 #[inline(always)]
-pub unsafe fn domain_create(domain: u64, name: *const c_char) -> Event {
+pub unsafe fn domain_create(domain: u64, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
-    Event::DomainCreate { domain, name }
+    Record::DomainCreate { domain, name }
 }
 
-/// Copy a `DomainDestroy` call to a verbatim [`Event::DomainDestroy`].
+/// Copy a `DomainDestroy` call to a verbatim [`Record::DomainDestroy`].
 #[inline(always)]
-pub fn domain_destroy(domain: u64) -> Event {
-    Event::DomainDestroy { domain }
+pub fn domain_destroy(domain: u64) -> Record {
+    Record::DomainDestroy { domain }
 }
 
 /// Copy a `DomainRegisterStringA` call to a verbatim
-/// [`Event::RegisterString`].
+/// [`Record::RegisterString`].
 ///
 /// The string value is captured ONCE here at registration; every
 /// later event that references it carries only the raw `handle`.
@@ -181,44 +179,44 @@ pub fn domain_destroy(domain: u64) -> Event {
 /// `string` must be null or a valid NUL-terminated C string readable for this
 /// call; it is copied in before returning.
 #[inline(always)]
-pub unsafe fn register_string(domain: u64, handle: u64, string: *const c_char) -> Event {
+pub unsafe fn register_string(domain: u64, handle: u64, string: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `string`.
     let string = unsafe { copy_cstr(string) };
-    Event::RegisterString {
+    Record::RegisterString {
         domain,
         handle,
         string,
     }
 }
 
-/// Copy a `DomainNameCategoryA` call to a verbatim [`Event::NameCategory`].
+/// Copy a `DomainNameCategoryA` call to a verbatim [`Record::NameCategory`].
 ///
 /// # Safety
 /// `name` must be null or a valid NUL-terminated C string readable for this call.
 #[inline(always)]
-pub unsafe fn name_category(domain: u64, category: u32, name: *const c_char) -> Event {
+pub unsafe fn name_category(domain: u64, category: u32, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
-    Event::NameCategory {
+    Record::NameCategory {
         domain,
         category,
         name,
     }
 }
 
-/// Copy a `NameOsThreadA` call to a verbatim [`Event::NameThread`].
+/// Copy a `NameOsThreadA` call to a verbatim [`Record::NameThread`].
 ///
 /// # Safety
 /// `name` must be null or a valid NUL-terminated C string readable for this call.
 #[inline(always)]
-pub unsafe fn name_thread(thread_id: u32, name: *const c_char) -> Event {
+pub unsafe fn name_thread(thread_id: u32, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
-    Event::NameThread { thread_id, name }
+    Record::NameThread { thread_id, name }
 }
 
 /// Copy a `DomainResourceCreate` call to a verbatim
-/// [`Event::ResourceCreate`].
+/// [`Record::ResourceCreate`].
 ///
 /// `handle` is the resource handle the injection layer synthesized and returns to
 /// the app. The identifier tag/value are captured verbatim (raw bits, undecoded).
@@ -232,10 +230,10 @@ pub unsafe fn resource_create(
     domain: u64,
     handle: u64,
     attr: *const nvtxResourceAttributes_t,
-) -> Event {
+) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let (identifier_type, identifier, message) = unsafe { read_resource(attr) };
-    Event::ResourceCreate {
+    Record::ResourceCreate {
         domain,
         handle,
         identifier_type,
@@ -245,17 +243,13 @@ pub unsafe fn resource_create(
 }
 
 /// Copy a `DomainResourceDestroy` call to a verbatim
-/// [`Event::ResourceDestroy`].
+/// [`Record::ResourceDestroy`].
 #[inline(always)]
-pub fn resource_destroy(handle: u64) -> Event {
-    Event::ResourceDestroy { handle }
+pub fn resource_destroy(handle: u64) -> Record {
+    Record::ResourceDestroy { handle }
 }
 
-/// Copy a `DomainRangePushEx` call to a verbatim [`Event::RangePush`].
-///
-/// `thread_id` is the OS thread id read on the app thread by the callback (this
-/// fn stays pure and does not read it here), so a push pairs with its pop on the
-/// same thread.
+/// Copy a `DomainRangePushEx` call to a verbatim [`Record::RangePush`].
 ///
 /// # Safety
 /// `attr` must be null, or point to a valid `nvtxEventAttributes_t` whose `size`
@@ -263,17 +257,13 @@ pub fn resource_destroy(handle: u64) -> Event {
 /// yields empty attributes so the push is still captured (never dropped),
 /// keeping push/pop pairing balanced.
 #[inline(always)]
-pub unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t, thread_id: u32) -> Event {
+pub unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
-    Event::RangePush {
-        domain,
-        thread_id,
-        attributes,
-    }
+    Record::RangePush { domain, attributes }
 }
 
-/// Build a message-only [`RawAttributes`] from a caller-owned C string.
+/// Build a message-only [`Attributes`] from a caller-owned C string.
 ///
 /// The classic default-domain `*A` calls (`nvtxMarkA`, `nvtxRangePushA`,
 /// `nvtxRangeStartA`) carry a bare `const char*` rather than a full attribute
@@ -283,49 +273,46 @@ pub unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t, thread
 /// `message` must be null or a valid NUL-terminated C string readable for this
 /// call; it is copied in before returning.
 #[inline(always)]
-unsafe fn message_only_attributes(message: *const c_char) -> RawAttributes {
-    RawAttributes {
+unsafe fn message_only_attributes(message: *const c_char) -> Attributes {
+    Attributes {
         // SAFETY: forwarded from the caller's contract on `message`.
-        message: Some(RawMessage::String(unsafe { copy_cstr(message) })),
+        message: Some(Message::String(unsafe { copy_cstr(message) })),
         ..Default::default()
     }
 }
 
-/// Copy a default-domain `nvtxMarkA` call to a verbatim [`Event::Mark`]
+/// Copy a default-domain `nvtxMarkA` call to a verbatim [`Record::Mark`]
 /// on the default domain (`0`).
 ///
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn mark_a(message: *const c_char) -> Event {
+pub unsafe fn mark_a(message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
-    Event::Mark {
+    Record::Mark {
         domain: 0,
         attributes,
     }
 }
 
 /// Copy a default-domain `nvtxRangePushA` call to a verbatim
-/// [`Event::RangePush`] on the default domain (`0`).
-///
-/// `thread_id` is the OS thread id read on the app thread by the callback.
+/// [`Record::RangePush`] on the default domain (`0`).
 ///
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn range_push_a(message: *const c_char, thread_id: u32) -> Event {
+pub unsafe fn range_push_a(message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
-    Event::RangePush {
+    Record::RangePush {
         domain: 0,
-        thread_id,
         attributes,
     }
 }
 
 /// Copy a default-domain `nvtxRangeStartA` call to a verbatim
-/// [`Event::RangeStart`] on the default domain (`0`).
+/// [`Record::RangeStart`] on the default domain (`0`).
 ///
 /// `range_id` is the id the injection layer synthesized and returns to the app,
 /// captured verbatim so a later `nvtxRangeEnd` correlates.
@@ -333,10 +320,10 @@ pub unsafe fn range_push_a(message: *const c_char, thread_id: u32) -> Event {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Event {
+pub unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
-    Event::RangeStart {
+    Record::RangeStart {
         domain: 0,
         range_id,
         attributes,
@@ -346,7 +333,7 @@ pub unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Event {
 /// Read the captured attributes, or empty attributes if `attr` is null.
 ///
 /// A null attribute pointer means "no metadata". The mark/range event still
-/// happened, so we return [`RawAttributes::default`] and let the caller
+/// happened, so we return [`Attributes::default`] and let the caller
 /// emit the event rather than dropping it — dropping a push/start would desync
 /// the captured stream from the nesting level / range id already handed back to
 /// the app (an orphan pop/end later).
@@ -354,9 +341,9 @@ pub unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Event {
 /// # Safety
 /// `attr` must be null, or valid per [`read_attributes`].
 #[inline(always)]
-unsafe fn read_attributes_or_empty(attr: *const nvtxEventAttributes_t) -> RawAttributes {
+unsafe fn read_attributes_or_empty(attr: *const nvtxEventAttributes_t) -> Attributes {
     if attr.is_null() {
-        return RawAttributes::default();
+        return Attributes::default();
     }
     // SAFETY: non-null and valid per the caller's contract.
     unsafe { read_attributes(attr) }
@@ -369,7 +356,7 @@ unsafe fn read_attributes_or_empty(attr: *const nvtxEventAttributes_t) -> RawAtt
 /// never materialize a reference to the whole struct, so a smaller-than-`v2` app
 /// struct is safe as long as `size` is honest.
 #[inline(always)]
-unsafe fn read_attributes(attr: *const nvtxEventAttributes_t) -> RawAttributes {
+unsafe fn read_attributes(attr: *const nvtxEventAttributes_t) -> Attributes {
     let base = attr.cast::<u8>();
     // `size` (u16) sits immediately after `version` (u16) at the head of the
     // struct; it is present for any valid attribute pointer.
@@ -384,7 +371,7 @@ unsafe fn read_attributes(attr: *const nvtxEventAttributes_t) -> RawAttributes {
     let payload = unsafe { read_payload(base, size) };
     let message = unsafe { read_message(base, size) };
 
-    RawAttributes {
+    Attributes {
         category,
         color,
         message,
@@ -422,7 +409,7 @@ unsafe fn read_present<T: Copy>(base: *const u8, size: usize, offset: usize) -> 
 /// # Safety
 /// See [`read_attributes`].
 #[inline(always)]
-unsafe fn read_color(base: *const u8, size: usize) -> Option<RawColor> {
+unsafe fn read_color(base: *const u8, size: usize) -> Option<Color> {
     let color_type =
         unsafe { read_present::<i32>(base, size, offset_of!(nvtxEventAttributes_v2, colorType)) }?;
     if color_type == nvtxColorType_t::NVTX_COLOR_UNKNOWN as i32 {
@@ -430,7 +417,7 @@ unsafe fn read_color(base: *const u8, size: usize) -> Option<RawColor> {
     }
     let value =
         unsafe { read_present::<u32>(base, size, offset_of!(nvtxEventAttributes_v2, color)) }?;
-    Some(RawColor { color_type, value })
+    Some(Color { color_type, value })
 }
 
 /// Copy the initialized payload bits without decoding their numeric type.
@@ -438,7 +425,7 @@ unsafe fn read_color(base: *const u8, size: usize) -> Option<RawColor> {
 /// # Safety
 /// See [`read_attributes`].
 #[inline(always)]
-unsafe fn read_payload(base: *const u8, size: usize) -> Option<RawPayload> {
+unsafe fn read_payload(base: *const u8, size: usize) -> Option<Payload> {
     let payload_type = unsafe {
         read_present::<i32>(base, size, offset_of!(nvtxEventAttributes_v2, payloadType))
     }?;
@@ -459,7 +446,7 @@ unsafe fn read_payload(base: *const u8, size: usize) -> Option<RawPayload> {
         }
         _ => unsafe { read_present::<u64>(base, size, offset) }?,
     };
-    Some(RawPayload { payload_type, bits })
+    Some(Payload { payload_type, bits })
 }
 
 /// Read the message attribute, copying immediate strings in and
@@ -469,7 +456,7 @@ unsafe fn read_payload(base: *const u8, size: usize) -> Option<RawPayload> {
 /// See [`read_attributes`]; the message union holds a pointer valid only for the
 /// call's duration, which is copied before returning.
 #[inline(always)]
-unsafe fn read_message(base: *const u8, size: usize) -> Option<RawMessage> {
+unsafe fn read_message(base: *const u8, size: usize) -> Option<Message> {
     let message_type = unsafe {
         read_present::<i32>(base, size, offset_of!(nvtxEventAttributes_v2, messageType))
     }?;
@@ -488,7 +475,7 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<RawMessage> {
 }
 
 /// Copy a raw `(messageType, message-union bits)` pair into an owned
-/// [`RawMessage`], copying immediate strings in and keeping only the
+/// [`Message`], copying immediate strings in and keeping only the
 /// raw handle for registered strings (resolved in the analyzer).
 ///
 /// Shared by the event-attribute and resource-attribute readers.
@@ -498,24 +485,22 @@ unsafe fn read_message(base: *const u8, size: usize) -> Option<RawMessage> {
 /// valid for this call. If `NVTX_MESSAGE_TYPE_UNICODE`, `bits` must be a
 /// `const wchar_t*` valid for this call. Both are copied before returning.
 #[inline(always)]
-unsafe fn copy_message(message_type: i32, bits: usize) -> Option<RawMessage> {
+unsafe fn copy_message(message_type: i32, bits: usize) -> Option<Message> {
     match message_type {
         value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32 => {
             // SAFETY: NVTX guarantees the const char* is valid for the call; the
             // bytes are copied into an owned buffer before returning.
-            Some(RawMessage::String(unsafe {
-                copy_cstr(bits as *const c_char)
-            }))
+            Some(Message::String(unsafe { copy_cstr(bits as *const c_char) }))
         }
         value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as i32 => {
             // SAFETY: NVTX guarantees the const wchar_t* is valid for the call;
             // the code units are copied into an owned buffer before returning.
-            Some(RawMessage::String(unsafe {
+            Some(Message::String(unsafe {
                 copy_wchar(bits as *const wchar_t)
             }))
         }
         value if value == nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED as i32 => {
-            Some(RawMessage::RegisteredHandle(bits as u64))
+            Some(Message::RegisteredHandle(bits as u64))
         }
         // The default "no message" sentinel — silently absent, not an
         // unsupported encoding.
@@ -533,7 +518,7 @@ unsafe fn copy_message(message_type: i32, bits: usize) -> Option<RawMessage> {
 /// `(0, 0, None)` so the resource is still captured (never dropped), keeping the
 /// synthesized handle paired with a later `ResourceDestroy`.
 #[inline(always)]
-unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Option<RawMessage>) {
+unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Option<Message>) {
     use nvtx_sys::ffi::nvtxResourceAttributes_v0 as Res;
 
     if attr.is_null() {
@@ -575,14 +560,14 @@ unsafe fn read_resource(attr: *const nvtxResourceAttributes_t) -> (i32, u64, Opt
 /// # Safety
 /// `ptr` must be null or point to a NUL-terminated string readable for this call.
 #[inline(always)]
-unsafe fn copy_cstr(ptr: *const c_char) -> RawString {
+unsafe fn copy_cstr(ptr: *const c_char) -> String {
     let bytes = if ptr.is_null() {
         Vec::new()
     } else {
         // SAFETY: the caller guarantees a readable NUL-terminated string.
         unsafe { CStr::from_ptr(ptr) }.to_bytes().to_vec()
     };
-    RawString::Bytes(bytes)
+    String::Bytes(bytes)
 }
 
 /// Copy a caller-owned wide string without decoding its code units.
@@ -590,7 +575,7 @@ unsafe fn copy_cstr(ptr: *const c_char) -> RawString {
 /// # Safety
 /// `ptr` must be null or point to a NUL-terminated wide string readable for this call.
 #[inline(always)]
-pub unsafe fn copy_wchar(ptr: *const wchar_t) -> RawString {
+pub unsafe fn copy_wchar(ptr: *const wchar_t) -> String {
     let mut units = Vec::new();
     if !ptr.is_null() {
         let mut p = ptr;
@@ -602,10 +587,10 @@ pub unsafe fn copy_wchar(ptr: *const wchar_t) -> RawString {
             p = unsafe { p.add(1) };
         }
     }
-    RawString::Wide(units)
+    String::Wide(units)
 }
 
-/// Build a message-only [`RawAttributes`] from a caller-owned wide string.
+/// Build a message-only [`Attributes`] from a caller-owned wide string.
 ///
 /// The wide-char default-domain `*W` calls (`nvtxMarkW`, `nvtxRangePushW`,
 /// `nvtxRangeStartW`) carry a bare `const wchar_t*`; the only attribute is the
@@ -615,55 +600,54 @@ pub unsafe fn copy_wchar(ptr: *const wchar_t) -> RawString {
 /// `message` must be null or a valid NUL-terminated `wchar_t` array readable
 /// for this call; the code points are copied before returning.
 #[inline(always)]
-pub unsafe fn message_only_attributes_w(message: *const wchar_t) -> RawAttributes {
-    RawAttributes {
+pub unsafe fn message_only_attributes_w(message: *const wchar_t) -> Attributes {
+    Attributes {
         // SAFETY: forwarded from the caller's contract on `message`.
-        message: Some(RawMessage::String(unsafe { copy_wchar(message) })),
+        message: Some(Message::String(unsafe { copy_wchar(message) })),
         ..Default::default()
     }
 }
 
-/// Copy a default-domain `nvtxMarkW` call to a verbatim [`Event::Mark`]
+/// Copy a default-domain `nvtxMarkW` call to a verbatim [`Record::Mark`]
 /// on the default domain (`0`).
 ///
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn mark_w(message: *const wchar_t) -> Event {
+pub unsafe fn mark_w(message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
-    Event::Mark {
+    Record::Mark {
         domain: 0,
         attributes,
     }
 }
 
 /// Copy a default-domain `nvtxRangePushW` call to a verbatim
-/// [`Event::RangePush`] on the default domain (`0`).
+/// [`Record::RangePush`] on the default domain (`0`).
 ///
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn range_push_w(message: *const wchar_t, thread_id: u32) -> Event {
+pub unsafe fn range_push_w(message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
-    Event::RangePush {
+    Record::RangePush {
         domain: 0,
-        thread_id,
         attributes,
     }
 }
 
 /// Copy a default-domain `nvtxRangeStartW` call to a verbatim
-/// [`Event::RangeStart`] on the default domain (`0`).
+/// [`Record::RangeStart`] on the default domain (`0`).
 ///
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn range_start_w(range_id: u64, message: *const wchar_t) -> Event {
+pub unsafe fn range_start_w(range_id: u64, message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
-    Event::RangeStart {
+    Record::RangeStart {
         domain: 0,
         range_id,
         attributes,

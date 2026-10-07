@@ -30,8 +30,8 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 | Crate | Path | Role |
 |-------|------|------|
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
-| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `Event`, and hands them to a sink-agnostic `Fn(Event)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: decodes `Event` into `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
+| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
+| `nvtx-bridge` | `bridge/` | The **bridge**: decodes `Record` into `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
 | `nvtx-example` | `example/` | A runnable, self-verifying example. |
 
 ## How capture works
@@ -42,12 +42,12 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    injection **in-process** at the first NVTX call.
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
-3. Each callback copies caller-owned NVTX data into an owned `Event` and
+3. Each callback copies caller-owned NVTX data into an owned `Record` and
    calls the installed hook on the emitting thread.
-4. The application's hook converts each record into `NvtxEventEntity` and
-   forwards it into its `Observer`. Handles, ids, and nesting levels are
-   synthesized even before the hook is installed, so handles an app caches
-   early stay valid.
+4. The application's hook converts each record into `NvtxEventEntity`, adding
+   the caller's OS thread ID to push/pop events, then forwards it into its
+   `Observer`. Injection supplies handles, ids, and nesting levels even before
+   the hook is installed, so handles an app caches early stay valid.
 5. The hook and callback pointers stay installed for the process lifetime.
    A hook can hold a weak observer reference so the observer and exporter are
    released on drop. Late callbacks tolerate destroyed TLS.
