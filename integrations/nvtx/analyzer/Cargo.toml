@@ -18,7 +18,7 @@ real-capture-tests = [
     "dep:libc",
     "dep:nvtx",
     "dep:nvtx-injection",
-    "quent-nvtx-bridge/capture",
+    "dep:quent-nvtx-bridge",
     "dep:quent-instrumentation",
 ]
 

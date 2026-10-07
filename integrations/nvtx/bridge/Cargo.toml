@@ -7,27 +7,11 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
-[[test]]
-name = "capture"
-required-features = ["capture"]
-
-[[test]]
-name = "convert"
-required-features = ["capture"]
-
-[[test]]
-name = "drop_in_hook"
-required-features = ["capture"]
-
-[features]
-# Capture clients opt into the Linux-only injection dependency.
-capture = ["dep:libc", "dep:nvtx-injection", "dep:nvtx-sys"]
-
 [dependencies]
-libc = { version = "0.2", optional = true }
+libc = "0.2"
 quent-nvtx-events = { path = "../events" }
-nvtx-injection = { path = "../injection", optional = true }
-nvtx-sys = { workspace = true, optional = true }
+nvtx-injection = { path = "../injection" }
+nvtx-sys = { workspace = true }
 
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]
 nvtx = { workspace = true }

@@ -1748,7 +1748,20 @@ dependencies = [
 name = "nvtx-server"
 version = "0.1.0"
 dependencies = [
- "quent-nvtx-server",
+ "axum",
+ "moka",
+ "quent-events",
+ "quent-io",
+ "quent-nvtx-analyzer",
+ "quent-nvtx-events",
+ "quent-nvtx-ui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2537,26 +2550,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "quent-nvtx-server"
-version = "0.1.0"
-dependencies = [
- "axum",
- "moka",
- "quent-events",
- "quent-io",
- "quent-nvtx-analyzer",
- "quent-nvtx-events",
- "quent-nvtx-ui",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tower",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "quent-nvtx-ui"
 version = "0.1.0"
 dependencies = [
@@ -2816,9 +2809,9 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "nvtx-server",
  "quent-analyzer",
  "quent-io",
- "quent-nvtx-server",
  "quent-query-engine-analyzer",
  "quent-query-engine-server",
  "quent-simulator-analyzer",

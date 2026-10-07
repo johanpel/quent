@@ -34,7 +34,6 @@ members = [
     "integrations/nvtx/analyzer",
     "integrations/nvtx/ui",
     "integrations/nvtx/server",
-    "integrations/nvtx/server-compat",
     # Domain-specific crates
     "domains/query_engine/analyzer",
     "domains/query_engine/server",

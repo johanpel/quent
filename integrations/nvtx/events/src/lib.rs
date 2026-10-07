@@ -19,7 +19,6 @@ use quent_events::EventPayload;
 pub use attributes::{NvtxColor, NvtxEventAttributes, NvtxMessage};
 pub use payload::{NvtxPayload, NvtxPayloadValue, PayloadExtensionEvent};
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// A verbatim NVTX core event.
@@ -27,8 +26,7 @@ use serde::{Deserialize, Serialize};
 /// Every variant mirrors one core NVTX call kind. Handles are raw integers,
 /// captured with no resolution. The default (NULL) domain is represented as a
 /// `domain` of `0`.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub enum NvtxEvent {
     /// `nvtxDomainRangePushEx` — open a nested (per-thread) range.
     RangePush {
