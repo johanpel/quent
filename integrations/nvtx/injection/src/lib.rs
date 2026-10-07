@@ -1,22 +1,19 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Application-agnostic NVTX injection library.
+//! Deliver NVTX calls to a Rust hook as owned [`Event`] values.
 //!
-//! On attach, NVTX calls the exported [`InitializeInjectionNvtx2`] entry, which
-//! installs the CORE/CORE2 callback tables. Each callback copies caller-owned
-//! data into a [`RawEvent`] and passes it to the hook installed via
-//! [`install_hook`] or [`install_hook_with_options`]. Text and payload decoding
-//! belong to the hook's consumer.
+//! Register a process-lifetime hook with [`install_hook`]. Once NVTX loads the
+//! injection library, each supported NVTX call copies borrowed data into an
+//! [`Event`] and invokes the hook on the calling thread. The consumer decides
+//! how to interpret event text and payloads.
 //!
-//! # Attach modes
+//! # Loading
 //!
-//! - **Runtime (default):** built as a cdylib; NVTX `dlopen`s it via
-//!   `NVTX_INJECTION64_PATH` and calls the injection entry.
-//! - **In-process (`static-injection` feature):** a strong
-//!   `InitializeInjectionNvtx2_fnptr` is linked into the consuming image and
-//!   points at Quent's internal initializer, overriding NVTX's weak pointer so
-//!   that image initializes injection at its first NVTX call.
+//! - At runtime, build this crate as a shared library and set
+//!   `NVTX_INJECTION64_PATH` to its path.
+//! - For in-process use, enable the `static-injection` feature and link the
+//!   injection entry into the application.
 
 // Linux 64-bit only. NVTX injection relies on the ELF weak-symbol /
 // NVTX_INJECTION64_PATH mechanism; Windows and 32-bit are out of scope.
@@ -64,9 +61,8 @@ mod callbacks;
 mod init;
 pub mod record;
 
-pub use record::RawEvent;
+pub use record::Event;
 
 pub use init::{
-    HookOptions, InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2,
-    install_hook, install_hook_with_options,
+    InstallHookError, initialize_injection_nvtx2 as InitializeInjectionNvtx2, install_hook,
 };

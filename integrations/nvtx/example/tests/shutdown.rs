@@ -74,8 +74,6 @@ fn main() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{}: {stderr}", output.status);
     assert_eq!(output.stdout, LATE_CLEANUP, "late cleanup did not run");
-    // The original bug also exited successfully: catch_unwind contains the
-    // AccessError but still prints panic diagnostics. Exit status alone misses it.
     assert!(
         stderr.is_empty(),
         "late NVTX cleanup wrote to stderr: {stderr}"

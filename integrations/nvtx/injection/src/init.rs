@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use thiserror::Error;
 
-use crate::{RawEvent, callbacks};
+use crate::{Event, callbacks};
 use nvtx_sys::ffi::{
     NvtxCallbackIdCore, NvtxCallbackIdCore2, NvtxCallbackModule, NvtxExportTableCallbacks,
     NvtxExportTableID, NvtxFunctionPointer, NvtxFunctionTable, NvtxGetExportTableFunc_t,
@@ -27,69 +27,11 @@ use nvtx_sys::ffi::{
     nvtxRangeStartA_impl_fntype, nvtxRangeStartEx_impl_fntype, nvtxRangeStartW_impl_fntype,
 };
 
+// TODO(johanpel): Consider splitting this hook into typed functions for individual NVTX events.
 /// The process-lifetime hook for owned NVTX records.
-type Hook = Box<dyn Fn(RawEvent) + Send + Sync + 'static>;
+type Hook = Box<dyn Fn(Event) + Send + Sync + 'static>;
 
-struct InstalledHook {
-    callback: Hook,
-    options: HookOptions,
-}
-
-static HOOK: OnceLock<InstalledHook> = OnceLock::new();
-
-/// Select which owned NVTX events reach the installed hook.
-///
-/// Related calls share an option, and the default selects no events. Unselected
-/// C callbacks still provide NVTX return values.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct HookOptions {
-    pub marks: bool,
-    pub push_pop: bool,
-    pub start_end: bool,
-    pub domains: bool,
-    pub registered_strings: bool,
-    pub category_names: bool,
-    pub thread_names: bool,
-    pub resources: bool,
-}
-
-impl HookOptions {
-    /// Select every event type supported by the injection library.
-    pub const ALL: Self = Self {
-        marks: true,
-        push_pop: true,
-        start_end: true,
-        domains: true,
-        registered_strings: true,
-        category_names: true,
-        thread_names: true,
-        resources: true,
-    };
-
-    const fn includes(self, group: HookGroup) -> bool {
-        match group {
-            HookGroup::Marks => self.marks,
-            HookGroup::PushPop => self.push_pop,
-            HookGroup::StartEnd => self.start_end,
-            HookGroup::Domains => self.domains,
-            HookGroup::RegisteredStrings => self.registered_strings,
-            HookGroup::CategoryNames => self.category_names,
-            HookGroup::ThreadNames => self.thread_names,
-            HookGroup::Resources => self.resources,
-        }
-    }
-}
-
-pub(crate) enum HookGroup {
-    Marks,
-    PushPop,
-    StartEnd,
-    Domains,
-    RegisteredStrings,
-    CategoryNames,
-    ThreadNames,
-    Resources,
-}
+static HOOK: OnceLock<Hook> = OnceLock::new();
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
 const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
@@ -108,7 +50,7 @@ pub(crate) fn next_handle() -> u64 {
 }
 
 /// The calling thread's OS thread id, in the same id space `nvtxNameOsThread`
-/// (captured as [`RawEvent::NameThread`]) uses, so per-thread Push/Pop ranges
+/// (captured as [`Event::NameThread`]) uses, so per-thread Push/Pop ranges
 /// resolve against a named thread. Read on the app thread from inside a callback.
 ///
 /// The value is computed once per thread and cached in a thread-local so the
@@ -193,49 +135,30 @@ pub enum InstallHookError {
     AlreadyInstalled,
 }
 
-/// Install a process-lifetime hook for owned [`RawEvent`] values.
+/// Install a process-lifetime hook for owned [`Event`] values.
 ///
-/// The hook runs synchronously on the emitting thread and may be called
-/// concurrently. It must not emit NVTX events synchronously, since doing so
-/// would recursively invoke the hook. Installation is one-shot.
+/// Installation is one-shot. The hook must:
+///
+/// - Be safe for concurrent calls on NVTX-emitting threads.
+/// - Never call NVTX APIs, which can re-enter the hook and cause infinite recursion.
+/// - Catch its own panics if recovery is required. An uncaught panic aborts the
+///   process at the C ABI boundary.
 ///
 /// # Errors
+///
 /// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
 pub fn install_hook<F>(hook: F) -> Result<(), InstallHookError>
 where
-    F: Fn(RawEvent) + Send + Sync + 'static,
+    F: Fn(Event) + Send + Sync + 'static,
 {
-    install_hook_with_options(hook, HookOptions::ALL)
+    HOOK.set(Box::new(hook))
+        .map_err(|_| InstallHookError::AlreadyInstalled)
 }
 
-/// Install a process-lifetime hook for the selected owned NVTX events.
-///
-/// Installation may occur after NVTX has initialized. The selection is fixed
-/// once installed, and unselected calls still receive NVTX return values.
-/// The hook may run concurrently on emitting threads and must not emit NVTX
-/// synchronously.
-///
-/// # Errors
-/// Returns [`InstallHookError::AlreadyInstalled`] if a hook was already set.
-pub fn install_hook_with_options<F>(hook: F, options: HookOptions) -> Result<(), InstallHookError>
-where
-    F: Fn(RawEvent) + Send + Sync + 'static,
-{
-    HOOK.set(InstalledHook {
-        callback: Box::new(hook),
-        options,
-    })
-    .map_err(|_| InstallHookError::AlreadyInstalled)
-}
-
-/// Return the installed hook if it selects this event group.
+/// Return the installed hook, if any.
 #[inline(always)]
-pub(crate) fn hook(group: HookGroup) -> Option<&'static Hook> {
-    let installed = HOOK.get()?;
-    installed
-        .options
-        .includes(group)
-        .then_some(&installed.callback)
+pub(crate) fn hook() -> Option<&'static Hook> {
+    HOOK.get()
 }
 
 /// NVTX injection entry point.

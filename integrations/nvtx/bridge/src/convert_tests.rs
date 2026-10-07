@@ -722,7 +722,7 @@ fn records_own_bytes_and_wide_units_before_decoding() {
     let mut bytes = b"first\xff\0".to_vec();
     // SAFETY: the buffer is NUL-terminated and readable during capture.
     let raw = unsafe { record::mark_a(bytes.as_ptr().cast()) };
-    let nvtx_injection::RawEvent::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(
@@ -744,7 +744,7 @@ fn records_own_bytes_and_wide_units_before_decoding() {
     let mut units = vec![0x1f600, 0xd800, 0];
     // SAFETY: the buffer is a readable NUL-terminated wchar_t array.
     let raw = unsafe { record::mark_w(units.as_ptr()) };
-    let nvtx_injection::RawEvent::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(
@@ -777,7 +777,7 @@ fn records_own_attributes_and_narrow_payload_bits_before_decoding() {
     // SAFETY: only the selected union members are initialized, and the message
     // remains valid throughout capture.
     let raw = unsafe { record::mark(17, &attr) };
-    let nvtx_injection::RawEvent::Mark { attributes, .. } = &raw else {
+    let nvtx_injection::Event::Mark { attributes, .. } = &raw else {
         unreachable!()
     };
     assert_eq!(

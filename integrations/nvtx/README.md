@@ -30,8 +30,8 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 | Crate | Path | Role |
 |-------|------|------|
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
-| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `RawEvent`, and hands them to a sink-agnostic `Fn(RawEvent)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: decodes `RawEvent` into `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
+| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `Event`, and hands them to a sink-agnostic `Fn(Event)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
+| `nvtx-bridge` | `bridge/` | The **bridge**: decodes `Event` into `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
 | `nvtx-example` | `example/` | A runnable, self-verifying example. |
 
 ## How capture works
@@ -42,7 +42,7 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    injection **in-process** at the first NVTX call.
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
-3. Each callback copies caller-owned NVTX data into an owned `RawEvent` and
+3. Each callback copies caller-owned NVTX data into an owned `Event` and
    calls the installed hook on the emitting thread.
 4. The application's hook converts each record into `NvtxEventEntity` and
    forwards it into its `Observer`. Handles, ids, and nesting levels are
@@ -86,14 +86,7 @@ drop(observer);
 
 Installation is one-shot. The hook remains installed after the observer is
 dropped, but weak upgrades then fail and events are discarded. The hook must not
-emit NVTX recursively.
-
-To receive only selected event groups, use `install_hook_with_options` with a
-`HookOptions` value. For example, `HookOptions { marks: true,
-..HookOptions::default() }` forwards only marks. Push/pop and start/end each
-have a single option, so related calls are selected together. The options can
-be installed after NVTX initialization. Unselected calls still get their NVTX
-return values, but their events are not copied or sent to the Rust hook.
+call NVTX APIs.
 
 Stop and join NVTX-producing threads before dropping the observer if all events
 must be flushed. A callback that already upgraded the weak reference may finish
@@ -135,8 +128,8 @@ owner from inside the hook.
 `example/tests/shutdown.rs` runs capture on a subprocess's main thread, then
 emits CORE and CORE2 push/pop calls from an `atexit` handler after Rust TLS
 destruction.
-It checks stderr as well as the exit status, since contained TLS panics can
-still exit successfully. These tests require no GPU.
+It checks stderr as well as the exit status, so late cleanup must be silent and
+successful. These tests require no GPU.
 
 ## Captured surface
 

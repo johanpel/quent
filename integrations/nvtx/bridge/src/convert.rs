@@ -6,21 +6,21 @@
 use nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
-use nvtx_injection::record::{RawAttributes, RawEvent, RawMessage, RawString};
+use nvtx_injection::record::{Event, RawAttributes, RawMessage, RawString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::NvtxEventEntity;
 
-impl From<RawEvent> for NvtxEventEntity {
-    fn from(record: RawEvent) -> Self {
+impl From<Event> for NvtxEventEntity {
+    fn from(record: Event) -> Self {
         Self(convert(record))
     }
 }
 
-fn convert(record: RawEvent) -> NvtxEvent {
+fn convert(record: Event) -> NvtxEvent {
     match record {
-        RawEvent::RangePush {
+        Event::RangePush {
             domain,
             thread_id,
             attributes: raw,
@@ -29,8 +29,8 @@ fn convert(record: RawEvent) -> NvtxEvent {
             thread_id,
             attributes: attributes(raw),
         },
-        RawEvent::RangePop { domain, thread_id } => NvtxEvent::RangePop { domain, thread_id },
-        RawEvent::RangeStart {
+        Event::RangePop { domain, thread_id } => NvtxEvent::RangePop { domain, thread_id },
+        Event::RangeStart {
             domain,
             range_id,
             attributes: raw,
@@ -39,20 +39,20 @@ fn convert(record: RawEvent) -> NvtxEvent {
             range_id,
             attributes: attributes(raw),
         },
-        RawEvent::RangeEnd { domain, range_id } => NvtxEvent::RangeEnd { domain, range_id },
-        RawEvent::Mark {
+        Event::RangeEnd { domain, range_id } => NvtxEvent::RangeEnd { domain, range_id },
+        Event::Mark {
             domain,
             attributes: raw,
         } => NvtxEvent::Mark {
             domain,
             attributes: attributes(raw),
         },
-        RawEvent::DomainCreate { domain, name } => NvtxEvent::DomainCreate {
+        Event::DomainCreate { domain, name } => NvtxEvent::DomainCreate {
             domain,
             name: string(name),
         },
-        RawEvent::DomainDestroy { domain } => NvtxEvent::DomainDestroy { domain },
-        RawEvent::RegisterString {
+        Event::DomainDestroy { domain } => NvtxEvent::DomainDestroy { domain },
+        Event::RegisterString {
             domain,
             handle,
             string: raw,
@@ -61,7 +61,7 @@ fn convert(record: RawEvent) -> NvtxEvent {
             handle,
             string: string(raw),
         },
-        RawEvent::NameCategory {
+        Event::NameCategory {
             domain,
             category,
             name,
@@ -70,11 +70,11 @@ fn convert(record: RawEvent) -> NvtxEvent {
             category,
             name: string(name),
         },
-        RawEvent::NameThread { thread_id, name } => NvtxEvent::NameThread {
+        Event::NameThread { thread_id, name } => NvtxEvent::NameThread {
             thread_id,
             name: string(name),
         },
-        RawEvent::ResourceCreate {
+        Event::ResourceCreate {
             domain,
             handle,
             identifier_type,
@@ -87,7 +87,7 @@ fn convert(record: RawEvent) -> NvtxEvent {
             identifier,
             message: raw.map(message),
         },
-        RawEvent::ResourceDestroy { handle } => NvtxEvent::ResourceDestroy { handle },
+        Event::ResourceDestroy { handle } => NvtxEvent::ResourceDestroy { handle },
     }
 }
 
