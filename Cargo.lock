@@ -2524,8 +2524,12 @@ dependencies = [
  "nvtx",
  "nvtx-injection",
  "nvtx-sys",
+ "quent-events",
  "quent-instrumentation",
  "quent-nvtx-events",
+ "quent-time",
+ "thiserror",
+ "tokio",
  "uuid",
 ]
 

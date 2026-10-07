@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use quent_instrumentation::{ContextInner, Event, EventCallback};
 use quent_nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
-use quent_nvtx_bridge::convert;
+use quent_nvtx_bridge::Capture;
 use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
@@ -37,18 +37,10 @@ fn real_capture_roundtrip() {
 
     let session = Uuid::now_v7();
     let context = ContextInner::try_new(session).expect("context");
-    let observer = Arc::new(
-        context
-            .block_on(async { context.observer::<NvtxEvent>(&sink).await })
-            .expect("observer"),
-    );
-    let weak_observer = Arc::downgrade(&observer);
-    nvtx_injection::install_hook(move |record| {
-        if let Some(observer) = weak_observer.upgrade() {
-            observer.emit(session, convert(record));
-        }
-    })
-    .expect("install hook");
+    let observer = context
+        .block_on(async { context.observer::<NvtxEvent>(&sink).await })
+        .expect("observer");
+    let capture = Capture::install(session, observer).expect("install capture");
 
     // SAFETY: SYS_gettid takes no arguments and returns this thread's OS ID.
     let thread_id = unsafe { libc::syscall(libc::SYS_gettid) as u32 };
@@ -58,7 +50,7 @@ fn real_capture_roundtrip() {
     drop(local_range);
     let range = nvtx::Range::new(c"phase-2");
     drop(range);
-    drop(observer);
+    drop(capture);
 
     // Read through the `Arc` rather than `try_unwrap`ing it: the sink's closure
     // holds a second clone. Unwrapping would fail for a reason unrelated to

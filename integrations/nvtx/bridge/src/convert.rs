@@ -10,7 +10,7 @@ use quent_nvtx_events::{
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 
-fn current_thread_id() -> u32 {
+pub(crate) fn current_thread_id() -> u32 {
     thread_local! {
         static CACHED_TID: u32 = compute_thread_id();
     }
@@ -29,18 +29,22 @@ fn compute_thread_id() -> u32 {
 ///
 /// Push/pop records receive the calling thread's OS ID.
 pub fn convert(record: Record) -> NvtxEvent {
+    convert_with_thread_id(record, None)
+}
+
+pub(crate) fn convert_with_thread_id(record: Record, caller_thread_id: Option<u32>) -> NvtxEvent {
     match record {
         Record::RangePush {
             domain,
             attributes: raw,
         } => NvtxEvent::RangePush {
             domain,
-            thread_id: current_thread_id(),
+            thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
             attributes: attributes(raw),
         },
         Record::RangePop { domain } => NvtxEvent::RangePop {
             domain,
-            thread_id: current_thread_id(),
+            thread_id: caller_thread_id.unwrap_or_else(current_thread_id),
         },
         Record::RangeStart {
             domain,

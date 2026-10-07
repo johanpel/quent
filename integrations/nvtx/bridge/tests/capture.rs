@@ -8,7 +8,7 @@ use std::ffi::CString;
 use std::sync::{Arc, Barrier, Mutex};
 
 use quent_instrumentation::{ContextInner, EventCallback};
-use quent_nvtx_bridge::convert;
+use quent_nvtx_bridge::Capture;
 use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
@@ -23,18 +23,10 @@ fn captures_core_events_and_preserves_calling_thread_ids() {
     });
     let session = Uuid::now_v7();
     let context = ContextInner::try_new(session).unwrap();
-    let observer = Arc::new(
-        context
-            .block_on(async { context.observer::<NvtxEvent>(&exporter).await })
-            .unwrap(),
-    );
-    let weak_observer = Arc::downgrade(&observer);
-    nvtx_injection::install_hook(move |record| {
-        if let Some(observer) = weak_observer.upgrade() {
-            observer.emit(session, convert(record));
-        }
-    })
-    .unwrap();
+    let observer = context
+        .block_on(async { context.observer::<NvtxEvent>(&exporter).await })
+        .unwrap();
+    let capture = Capture::install(session, observer).unwrap();
 
     // SAFETY: SYS_gettid takes no arguments and returns this thread's OS ID.
     let thread_id = unsafe { libc::syscall(libc::SYS_gettid) as u32 };
@@ -59,7 +51,7 @@ fn captures_core_events_and_preserves_calling_thread_ids() {
         worker.join().unwrap();
     }
 
-    drop(observer);
+    drop(capture);
     let captured = collected.lock().unwrap().len();
     nvtx::mark(c"after observer drop");
     let events = collected.lock().unwrap();
