@@ -15,7 +15,6 @@
 //!   deadlocks. The worker owns the observer and performs that wait instead.
 
 use std::io;
-use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 
 use nvtx_injection::Record;
@@ -56,7 +55,7 @@ pub enum CaptureError {
 /// the observer's exporter to flush. Later calls and calls racing with shutdown
 /// may be discarded. Do not drop the capture from the observer's exporter thread.
 pub struct Capture {
-    sender: Arc<UnboundedSender<Message>>,
+    sender: UnboundedSender<Message>,
     worker: Option<JoinHandle<()>>,
 }
 
@@ -74,18 +73,16 @@ impl Capture {
         observer: ObserverInner<NvtxEvent>,
     ) -> Result<Self, CaptureError> {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let sender = Arc::new(sender);
         let worker = thread::Builder::new()
             .name("quent-nvtx-bridge".into())
             .spawn(move || forward(receiver, observer, session))?;
 
         let capture = Self {
-            sender: Arc::clone(&sender),
+            sender: sender.clone(),
             worker: Some(worker),
         };
-        let weak_sender = Arc::downgrade(&sender);
         nvtx_injection::install_hook(move |record| {
-            if let Some(sender) = weak_sender.upgrade() {
+            if !sender.is_closed() {
                 let timestamp = timestamp();
                 let thread_id =
                     matches!(&record, Record::RangePush { .. } | Record::RangePop { .. })
@@ -134,8 +131,8 @@ fn forward(
                     ));
                 }
                 Message::Stop => {
-                    // Closing the receiver lets shutdown finish even if a callback
-                    // still holds an upgraded sender.
+                    // The installed hook retains a sender for the process
+                    // lifetime, so shutdown must close the receiver explicitly.
                     receiver.close();
                 }
             }
@@ -151,10 +148,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shutdown_does_not_wait_for_an_in_flight_sender() {
+    fn shutdown_does_not_wait_for_the_hook_sender() {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let sender = Arc::new(sender);
-        let in_flight_sender = Arc::clone(&sender);
+        let hook_sender = sender.clone();
         let worker = thread::spawn(move || {
             forward(receiver, ObserverInner::noop(), Uuid::now_v7());
         });
@@ -169,8 +165,8 @@ mod tests {
         });
         finished
             .recv_timeout(Duration::from_secs(10))
-            .expect("shutdown waited for an in-flight callback sender");
+            .expect("shutdown waited for the hook sender");
         shutdown.join().unwrap();
-        assert!(in_flight_sender.send(Message::Stop).is_err());
+        assert!(hook_sender.send(Message::Stop).is_err());
     }
 }
