@@ -24,6 +24,8 @@ import {
   type ResourceTree,
   type SingleTimelineRequest,
   unpackEntityRef,
+  resolveResourceFsmType,
+  resourceFsmChoices,
 } from '@quent/utils';
 import {
   resourceFilterAtom,
@@ -127,8 +129,10 @@ export function useResourceTimelinesTreeModel({
       [
         ...new Set(
           Object.keys(entities.fsm_types).concat(
-            Object.values(entities.resource_types).flatMap(
-              resourceType => resourceType?.used_by ?? []
+            Object.values(entities.resource_types).flatMap(resourceType =>
+              (resourceType?.display_order ?? []).flatMap(selection =>
+                selection === 'All' ? [] : [selection.Type]
+              )
             )
           )
         ),
@@ -140,11 +144,11 @@ export function useResourceTimelinesTreeModel({
     if (rootResourceType != null) {
       return;
     }
-    const initial = resourceTypeOptions[0];
+    const initial = rootItem.availableResourceTypes?.[0] ?? resourceTypeOptions[0];
     if (initial) {
       setRootResourceType(initial);
     }
-  }, [rootResourceType, resourceTypeOptions, setRootResourceType]);
+  }, [rootResourceType, resourceTypeOptions, rootItem.availableResourceTypes, setRootResourceType]);
 
   const trees = useMemo(() => {
     const injectSubRows = (item: TreeTableItem) =>
@@ -250,9 +254,14 @@ export function useResourceTimelinesTreeModel({
       }
 
       const selectedType = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
-      const availableFsmTypes = selectedType
-        ? entities.resource_types[selectedType]?.used_by
-        : undefined;
+      const groupDeclaration =
+        entities.resource_group_types[
+          item.entity && 'type_name' in item.entity ? item.entity.type_name : item.type
+        ];
+      const availableFsmTypes = resourceFsmChoices(
+        entities.resource_types[selectedType],
+        groupDeclaration
+      );
       return (
         <ResourceColumn
           item={item as TreeTableItem}
@@ -264,7 +273,11 @@ export function useResourceTimelinesTreeModel({
             }
           }}
           availableFsmTypes={availableFsmTypes}
-          selectedFsmType={selectedFsmTypes.get(item.id) ?? null}
+          selectedFsmType={resolveResourceFsmType(
+            entities.resource_types[selectedType],
+            selectedFsmTypes.get(item.id),
+            groupDeclaration
+          )}
           onFsmChange={(itemId, fsmType) => {
             setSelectedFsmTypes(previous => new Map(previous).set(itemId, fsmType));
           }}
@@ -273,6 +286,7 @@ export function useResourceTimelinesTreeModel({
     },
     [
       entities.resource_types,
+      entities.resource_group_types,
       rootItem.id,
       selectedFsmTypes,
       selectedTypes,

@@ -2228,6 +2228,7 @@ version = "0.1.0"
 dependencies = [
  "quent-dynamic-attributes",
  "quent-events",
+ "quent-schema",
  "quent-time",
  "rustc-hash",
  "smallvec",

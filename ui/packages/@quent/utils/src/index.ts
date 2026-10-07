@@ -7,6 +7,7 @@ export { clamp } from './math';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
 export { getFsmTypeName, getResourceTypeName } from './timeline';
 export { workerDisplayName } from './worker';
+export { resolveResourceFsmType, resourceFsmChoices } from './resource';
 
 // Color utilities
 export {
