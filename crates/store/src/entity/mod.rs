@@ -90,3 +90,11 @@ pub trait OwnedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
     /// Returns an error if the handle does not identify an entity in this store.
     fn event_sequence_owned(&self, handle: &Self::Handle) -> Result<EventSequence<E>, Self::Error>;
 }
+
+/// Error returned when native grouping encounters multiple occurrences of a once-event.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[error("entity {entity_id} has multiple occurrences of once-event `{event_name}`")]
+pub struct DuplicateOnceEvent {
+    pub entity_id: Uuid,
+    pub event_name: &'static str,
+}
