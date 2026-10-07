@@ -168,13 +168,13 @@ pub(super) fn generate(
                 quote! { #original::#variant { #(#field_patterns,)* } }
             };
             let value = quote! { ::quent_events::Event::new(event_id, event_timestamp, #payload { #(#field_values,)* }) };
+            defaults.push(quote! { #slot: ::core::default::Default::default() });
             let once = event.cardinality() == Cardinality::Once;
             if once {
                 let event_name = event.name().to_string();
                 storage.push(
                     quote! { #slot: ::core::option::Option<::quent_events::Event<#payload>> },
                 );
-                defaults.push(quote! { #slot: ::core::option::Option::None });
                 arms.push(quote! { #pattern => {
                     ::quent_store::entity::insert_once(&mut result.#slot, #value)
                         .map_err(|event| ::quent_store::entity::DuplicateOnceEvent {
@@ -189,7 +189,6 @@ pub(super) fn generate(
                 implementations.push(quote! { fn #method(&self) -> ::core::option::Option<&::quent_events::Event<#payload>> { self.#slot.as_ref() } });
             } else {
                 storage.push(quote! { #slot: ::std::vec::Vec<::quent_events::Event<#payload>> });
-                defaults.push(quote! { #slot: ::std::vec::Vec::new() });
                 arms.push(quote! { #pattern => { result.#slot.push(#value); } });
                 methods.push(quote! {
                     /// Borrows events in timestamp order; equal timestamps retain input order.
