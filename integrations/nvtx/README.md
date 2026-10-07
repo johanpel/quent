@@ -23,7 +23,6 @@ injection crate.
 - [How capture works](#how-capture-works)
 - [Using it](#using-it)
 - [Captured surface](#captured-surface)
-- [NVTX injection bindings](#nvtx-injection-bindings)
 
 ## Crates
 
@@ -74,10 +73,12 @@ can delay observer release and exporter flush.
 `static-injection` is requested in the manifest:
 
 ```toml
+nvtx = { version = "2", default-features = false, features = ["std"] }
 nvtx-injection = { path = "…/injection", features = ["static-injection"] }
 quent-nvtx-bridge = { path = "…/bridge", features = ["capture"] }
-nvtx = { version = "2", default-features = false, features = ["std"] }
 ```
+
+Building capture requires `libclang` and a C compiler. Pixi provides both.
 
 The bundled example uses a **callback exporter** to debug-print each captured
 event. Run it without a GPU:
@@ -113,29 +114,7 @@ These tests require no GPU.
 
 ## Captured surface
 
-Both NVTX ASCII surfaces: **domain-scoped (CORE2)** — mark, range
-start/end/push/pop, domain/register-string/name-category/resource — and the
-**classic default domain (CORE)** on domain `0`, plus OS thread naming.
-
-Default-domain wide-char (`*W`) variants are copied as owned code units, then
-decoded by the bridge's `capture` feature while preserving nesting and
-synthesized IDs.
-Domain-scoped wide-name calls (`DomainCreateW`, `DomainRegisterStringW`, and
-`DomainNameCategoryW`) are not yet subscribed.
-
-## NVTX injection bindings
-
-`nvtx-injection` consumes the upstream NVTX injection ABI through
-[`nvtx-sys`](https://crates.io/crates/nvtx-sys) with its `tools` feature. That
-feature exposes the callback tables, callback ids, injection result codes, and
-function signatures needed by a tool such as Quent. `nvtx-sys` generates the
-target-specific Rust declarations from the NVTX headers bundled in the crate,
-so Quent no longer carries its own wrapper, bindgen allowlist, or generated
-bindings file. No external NVTX installation or `CONDA_PREFIX` is required.
-
-Because `nvtx-sys` runs bindgen and compiles its bundled C implementation, a
-fresh downstream build does require a discoverable `libclang` and a native C
-compiler. Quent's Pixi environment provides those on Linux through `libclang`
-and `cxx-compiler`; the aarch64 environment also installs `clang` for its
-compiler resource headers. Outside Pixi, install equivalent system packages
-and set `LIBCLANG_PATH` only when `clang-sys` cannot discover the library.
+Capture includes marks, ranges, domains, registered strings, categories,
+resources, and thread names. It handles calls on both the default domain and
+custom domains. Wide-character text is supported for default-domain calls, but
+not for domain-scoped names.
