@@ -12,10 +12,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 fn current_thread_id() -> u32 {
     thread_local! {
-        static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
+        static CACHED_TID: u32 = compute_thread_id();
     }
     CACHED_TID
-        .try_with(|cell| *cell.get_or_init(compute_thread_id))
+        .try_with(|thread_id| *thread_id)
         .unwrap_or_else(|_| compute_thread_id())
 }
 
