@@ -5,7 +5,7 @@
 
 use std::num::NonZeroUsize;
 
-use quent_events::{EntityMarker, EventPayload};
+use quent_events::{EntityMarker, Event, EventPayload};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 
@@ -97,4 +97,43 @@ pub trait OwnedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
 pub struct DuplicateOnceEvent {
     pub entity_id: Uuid,
     pub event_name: &'static str,
+}
+
+/// Inserts an event into an empty once-event slot.
+///
+/// # Errors
+///
+/// Returns the incoming event when occupied, leaving the existing event unchanged.
+pub fn insert_once<P>(slot: &mut Option<Event<P>>, event: Event<P>) -> Result<(), Event<P>> {
+    if slot.is_some() {
+        return Err(event);
+    }
+    *slot = Some(event);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inserting_once_returns_the_rejected_event_and_preserves_the_existing_event() {
+        struct Payload(&'static str);
+
+        let id = Uuid::from_u128(1);
+        let mut slot = None;
+        assert!(insert_once(&mut slot, Event::new(id, 10, Payload("first"))).is_ok());
+
+        let rejected = insert_once(&mut slot, Event::new(id, 10, Payload("second")))
+            .err()
+            .unwrap();
+        assert_eq!(rejected.id, id);
+        assert_eq!(rejected.timestamp, 10);
+        assert_eq!(rejected.data.0, "second");
+
+        let event = slot.unwrap();
+        assert_eq!(event.id, id);
+        assert_eq!(event.timestamp, 10);
+        assert_eq!(event.data.0, "first");
+    }
 }

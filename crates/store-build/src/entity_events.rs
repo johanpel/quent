@@ -176,10 +176,11 @@ pub(super) fn generate(
                 );
                 defaults.push(quote! { #slot: ::core::option::Option::None });
                 arms.push(quote! { #pattern => {
-                    if result.#slot.is_some() {
-                        return Err(::quent_store::entity::DuplicateOnceEvent { entity_id: event_id, event_name: #event_name });
-                    }
-                    result.#slot = ::core::option::Option::Some(#value);
+                    ::quent_store::entity::insert_once(&mut result.#slot, #value)
+                        .map_err(|event| ::quent_store::entity::DuplicateOnceEvent {
+                            entity_id: event.id,
+                            event_name: #event_name,
+                        })?;
                 } });
                 methods.push(quote! {
                     /// Borrows the recorded event, returning `None` when absent.
