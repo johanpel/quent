@@ -35,6 +35,7 @@ type Hook = Box<dyn Fn(Record) + Send + Sync + 'static>;
 static HOOK: OnceLock<Hook> = OnceLock::new();
 
 // NVTX's nvToolsExt.h defines this sentinel, but nvtx-sys does not expose it.
+// TODO(johanpel): Use the binding after https://github.com/NVIDIA/NVTX/pull/180 lands.
 const NVTX_NO_PUSH_POP_TRACKING: c_int = -2;
 
 /// Supplies range IDs and domain, string, and resource handles.

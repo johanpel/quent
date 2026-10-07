@@ -104,9 +104,8 @@ pub enum Record {
     },
 }
 
-/// Copy a `DomainRangePop` call to a verbatim [`Record::RangePop`].
 #[inline(always)]
-pub fn range_pop(domain: u64) -> Record {
+pub(crate) fn range_pop(domain: u64) -> Record {
     Record::RangePop { domain }
 }
 
@@ -115,7 +114,7 @@ pub fn range_pop(domain: u64) -> Record {
 /// # Safety
 /// See [`range_push`].
 #[inline(always)]
-pub unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
+pub(crate) unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
     Record::Mark { domain, attributes }
@@ -129,7 +128,7 @@ pub unsafe fn mark(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
 /// # Safety
 /// See [`range_push`].
 #[inline(always)]
-pub unsafe fn range_start(
+pub(crate) unsafe fn range_start(
     domain: u64,
     range_id: u64,
     attr: *const nvtxEventAttributes_t,
@@ -143,9 +142,8 @@ pub unsafe fn range_start(
     }
 }
 
-/// Copy a `DomainRangeEnd` call to a verbatim [`Record::RangeEnd`].
 #[inline(always)]
-pub fn range_end(domain: u64, range_id: u64) -> Record {
+pub(crate) fn range_end(domain: u64, range_id: u64) -> Record {
     Record::RangeEnd { domain, range_id }
 }
 
@@ -157,15 +155,14 @@ pub fn range_end(domain: u64, range_id: u64) -> Record {
 /// `name` must be null or a valid NUL-terminated C string readable for this call;
 /// it is copied in before returning.
 #[inline(always)]
-pub unsafe fn domain_create(domain: u64, name: *const c_char) -> Record {
+pub(crate) unsafe fn domain_create(domain: u64, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
     Record::DomainCreate { domain, name }
 }
 
-/// Copy a `DomainDestroy` call to a verbatim [`Record::DomainDestroy`].
 #[inline(always)]
-pub fn domain_destroy(domain: u64) -> Record {
+pub(crate) fn domain_destroy(domain: u64) -> Record {
     Record::DomainDestroy { domain }
 }
 
@@ -179,7 +176,7 @@ pub fn domain_destroy(domain: u64) -> Record {
 /// `string` must be null or a valid NUL-terminated C string readable for this
 /// call; it is copied in before returning.
 #[inline(always)]
-pub unsafe fn register_string(domain: u64, handle: u64, string: *const c_char) -> Record {
+pub(crate) unsafe fn register_string(domain: u64, handle: u64, string: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `string`.
     let string = unsafe { copy_cstr(string) };
     Record::RegisterString {
@@ -194,7 +191,7 @@ pub unsafe fn register_string(domain: u64, handle: u64, string: *const c_char) -
 /// # Safety
 /// `name` must be null or a valid NUL-terminated C string readable for this call.
 #[inline(always)]
-pub unsafe fn name_category(domain: u64, category: u32, name: *const c_char) -> Record {
+pub(crate) unsafe fn name_category(domain: u64, category: u32, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
     Record::NameCategory {
@@ -209,7 +206,7 @@ pub unsafe fn name_category(domain: u64, category: u32, name: *const c_char) -> 
 /// # Safety
 /// `name` must be null or a valid NUL-terminated C string readable for this call.
 #[inline(always)]
-pub unsafe fn name_thread(thread_id: u32, name: *const c_char) -> Record {
+pub(crate) unsafe fn name_thread(thread_id: u32, name: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `name`.
     let name = unsafe { copy_cstr(name) };
     Record::NameThread { thread_id, name }
@@ -226,7 +223,7 @@ pub unsafe fn name_thread(thread_id: u32, name: *const c_char) -> Record {
 /// `size` member truthfully describes the readable bytes. A null pointer yields
 /// a resource with empty identity so the event is still captured.
 #[inline(always)]
-pub unsafe fn resource_create(
+pub(crate) unsafe fn resource_create(
     domain: u64,
     handle: u64,
     attr: *const nvtxResourceAttributes_t,
@@ -242,10 +239,8 @@ pub unsafe fn resource_create(
     }
 }
 
-/// Copy a `DomainResourceDestroy` call to a verbatim
-/// [`Record::ResourceDestroy`].
 #[inline(always)]
-pub fn resource_destroy(handle: u64) -> Record {
+pub(crate) fn resource_destroy(handle: u64) -> Record {
     Record::ResourceDestroy { handle }
 }
 
@@ -257,7 +252,7 @@ pub fn resource_destroy(handle: u64) -> Record {
 /// yields empty attributes so the push is still captured (never dropped),
 /// keeping push/pop pairing balanced.
 #[inline(always)]
-pub unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
+pub(crate) unsafe fn range_push(domain: u64, attr: *const nvtxEventAttributes_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `attr`.
     let attributes = unsafe { read_attributes_or_empty(attr) };
     Record::RangePush { domain, attributes }
@@ -287,7 +282,7 @@ unsafe fn message_only_attributes(message: *const c_char) -> Attributes {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn mark_a(message: *const c_char) -> Record {
+pub(crate) unsafe fn mark_a(message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
     Record::Mark {
@@ -302,7 +297,7 @@ pub unsafe fn mark_a(message: *const c_char) -> Record {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn range_push_a(message: *const c_char) -> Record {
+pub(crate) unsafe fn range_push_a(message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
     Record::RangePush {
@@ -320,7 +315,7 @@ pub unsafe fn range_push_a(message: *const c_char) -> Record {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated C string.
 #[inline(always)]
-pub unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Record {
+pub(crate) unsafe fn range_start_a(range_id: u64, message: *const c_char) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes(message) };
     Record::RangeStart {
@@ -575,7 +570,7 @@ unsafe fn copy_cstr(ptr: *const c_char) -> String {
 /// # Safety
 /// `ptr` must be null or point to a NUL-terminated wide string readable for this call.
 #[inline(always)]
-pub unsafe fn copy_wchar(ptr: *const wchar_t) -> String {
+pub(crate) unsafe fn copy_wchar(ptr: *const wchar_t) -> String {
     let mut units = Vec::new();
     if !ptr.is_null() {
         let mut p = ptr;
@@ -600,7 +595,7 @@ pub unsafe fn copy_wchar(ptr: *const wchar_t) -> String {
 /// `message` must be null or a valid NUL-terminated `wchar_t` array readable
 /// for this call; the code points are copied before returning.
 #[inline(always)]
-pub unsafe fn message_only_attributes_w(message: *const wchar_t) -> Attributes {
+unsafe fn message_only_attributes_w(message: *const wchar_t) -> Attributes {
     Attributes {
         // SAFETY: forwarded from the caller's contract on `message`.
         message: Some(Message::String(unsafe { copy_wchar(message) })),
@@ -614,7 +609,7 @@ pub unsafe fn message_only_attributes_w(message: *const wchar_t) -> Attributes {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn mark_w(message: *const wchar_t) -> Record {
+pub(crate) unsafe fn mark_w(message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     Record::Mark {
@@ -629,7 +624,7 @@ pub unsafe fn mark_w(message: *const wchar_t) -> Record {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn range_push_w(message: *const wchar_t) -> Record {
+pub(crate) unsafe fn range_push_w(message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     Record::RangePush {
@@ -644,12 +639,395 @@ pub unsafe fn range_push_w(message: *const wchar_t) -> Record {
 /// # Safety
 /// `message` must be null or a readable NUL-terminated wide string.
 #[inline(always)]
-pub unsafe fn range_start_w(range_id: u64, message: *const wchar_t) -> Record {
+pub(crate) unsafe fn range_start_w(range_id: u64, message: *const wchar_t) -> Record {
     // SAFETY: forwarded from the caller's contract on `message`.
     let attributes = unsafe { message_only_attributes_w(message) };
     Record::RangeStart {
         domain: 0,
         range_id,
         attributes,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nvtx_sys::ffi::{
+        nvtxEventAttributes_v2_payload_t, nvtxMessageValue_t, nvtxResourceAttributes_v0,
+        nvtxResourceAttributes_v0_identifier_t, nvtxStringHandle_t,
+    };
+
+    fn full_attributes() -> nvtxEventAttributes_v2 {
+        nvtxEventAttributes_v2 {
+            version: 2,
+            size: size_of::<nvtxEventAttributes_v2>() as u16,
+            category: 0,
+            colorType: nvtxColorType_t::NVTX_COLOR_UNKNOWN as i32,
+            color: 0,
+            payloadType: nvtxPayloadType_t::NVTX_PAYLOAD_UNKNOWN as i32,
+            reserved0: 0,
+            payload: nvtxEventAttributes_v2_payload_t { ullValue: 0 },
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32,
+            message: nvtxMessageValue_t {
+                ascii: std::ptr::null(),
+            },
+        }
+    }
+
+    fn full_resource() -> nvtxResourceAttributes_v0 {
+        nvtxResourceAttributes_v0 {
+            version: 1,
+            size: size_of::<nvtxResourceAttributes_v0>() as u16,
+            identifierType: 0,
+            identifier: nvtxResourceAttributes_v0_identifier_t { ullValue: 0 },
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_UNKNOWN as i32,
+            message: nvtxMessageValue_t {
+                ascii: std::ptr::null(),
+            },
+        }
+    }
+
+    #[test]
+    fn copies_immediate_strings_before_the_caller_reuses_them() {
+        let mut bytes = b"first\xff\0".to_vec();
+        // SAFETY: the buffer is NUL-terminated and readable during this call.
+        let record = unsafe { mark_a(bytes.as_ptr().cast()) };
+        bytes.fill(0);
+        assert_eq!(
+            record,
+            Record::Mark {
+                domain: 0,
+                attributes: Attributes {
+                    message: Some(Message::String(String::Bytes(b"first\xff".to_vec()))),
+                    ..Attributes::default()
+                },
+            }
+        );
+
+        let mut units = [0x1f600, 0xd800, 0];
+        // SAFETY: the buffer is a NUL-terminated wide string for this call.
+        let record = unsafe { mark_w(units.as_ptr()) };
+        units.fill(0);
+        assert_eq!(
+            record,
+            Record::Mark {
+                domain: 0,
+                attributes: Attributes {
+                    message: Some(Message::String(String::Wide(vec![0x1f600, 0xd800]))),
+                    ..Attributes::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn null_inputs_still_produce_records() {
+        // SAFETY: null pointers are accepted by all three readers.
+        let (push, start, resource) = unsafe {
+            (
+                range_push(7, std::ptr::null()),
+                range_start(7, 9, std::ptr::null()),
+                resource_create(7, 11, std::ptr::null()),
+            )
+        };
+        assert_eq!(
+            push,
+            Record::RangePush {
+                domain: 7,
+                attributes: Attributes::default()
+            }
+        );
+        assert_eq!(
+            start,
+            Record::RangeStart {
+                domain: 7,
+                range_id: 9,
+                attributes: Attributes::default()
+            }
+        );
+        assert_eq!(
+            resource,
+            Record::ResourceCreate {
+                domain: 7,
+                handle: 11,
+                identifier_type: 0,
+                identifier: 0,
+                message: None,
+            }
+        );
+        // SAFETY: null immediate strings are accepted and copied as empty text.
+        assert_eq!(
+            unsafe { copy_wchar(std::ptr::null()) },
+            String::Wide(vec![])
+        );
+        assert_eq!(
+            unsafe { mark_a(std::ptr::null()) },
+            Record::Mark {
+                domain: 0,
+                attributes: Attributes {
+                    message: Some(Message::String(String::Bytes(vec![]))),
+                    ..Attributes::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn attribute_size_limits_reads() {
+        let name = b"ignored\0";
+        let attr = nvtxEventAttributes_v2 {
+            size: (offset_of!(nvtxEventAttributes_v2, color) + size_of::<u32>()) as u16,
+            category: 42,
+            colorType: nvtxColorType_t::NVTX_COLOR_ARGB as i32,
+            color: 0x00aa_bbcc,
+            payloadType: nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT64 as i32,
+            payload: nvtxEventAttributes_v2_payload_t { llValue: -1 },
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32,
+            message: nvtxMessageValue_t {
+                ascii: name.as_ptr().cast(),
+            },
+            ..full_attributes()
+        };
+        // SAFETY: the backing allocation is a full struct; `size` limits the fields read.
+        let Record::RangePush { attributes, .. } = (unsafe { range_push(1, &attr) }) else {
+            panic!("expected RangePush");
+        };
+        assert_eq!(
+            attributes,
+            Attributes {
+                category: 42,
+                color: Some(Color {
+                    color_type: nvtxColorType_t::NVTX_COLOR_ARGB as i32,
+                    value: 0x00aa_bbcc
+                }),
+                ..Attributes::default()
+            }
+        );
+    }
+
+    #[test]
+    fn payload_reads_only_the_tagged_member_width() {
+        for (payload_type, payload, bits) in [
+            (
+                nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_FLOAT,
+                nvtxEventAttributes_v2_payload_t { fValue: 0.25 },
+                0.25_f32.to_bits() as u64,
+            ),
+            (
+                nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32,
+                nvtxEventAttributes_v2_payload_t { iValue: -7 },
+                (-7_i32) as u32 as u64,
+            ),
+            (
+                nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_UNSIGNED_INT32,
+                nvtxEventAttributes_v2_payload_t { uiValue: 0xabcd },
+                0xabcd,
+            ),
+        ] {
+            let attr = nvtxEventAttributes_v2 {
+                payloadType: payload_type as i32,
+                payload,
+                ..full_attributes()
+            };
+            // SAFETY: `attr` is a valid full attribute struct.
+            let Record::Mark { attributes, .. } = (unsafe { mark(1, &attr) }) else {
+                panic!("expected Mark");
+            };
+            assert_eq!(
+                attributes.payload,
+                Some(Payload {
+                    payload_type: payload_type as i32,
+                    bits
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn registered_and_wide_messages_preserve_their_representation() {
+        let handle = 0xabcd_u64;
+        let registered = nvtxEventAttributes_v2 {
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_REGISTERED as i32,
+            message: nvtxMessageValue_t {
+                registered: handle as nvtxStringHandle_t,
+            },
+            ..full_attributes()
+        };
+        // SAFETY: `registered` is a valid full attribute struct; its handle is not a pointer.
+        let Record::Mark { attributes, .. } = (unsafe { mark(2, &registered) }) else {
+            panic!("expected Mark");
+        };
+        assert_eq!(attributes.message, Some(Message::RegisteredHandle(handle)));
+
+        let wide = [0x63 as wchar_t, 0x61, 0x66, 0xe9, 0];
+        let unicode = nvtxEventAttributes_v2 {
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_UNICODE as i32,
+            message: nvtxMessageValue_t {
+                ascii: wide.as_ptr().cast(),
+            },
+            ..full_attributes()
+        };
+        // SAFETY: `wide` is NUL-terminated and lives through the read.
+        let Record::Mark { attributes, .. } = (unsafe { mark(2, &unicode) }) else {
+            panic!("expected Mark");
+        };
+        assert_eq!(
+            attributes.message,
+            Some(Message::String(String::Wide(vec![0x63, 0x61, 0x66, 0xe9])))
+        );
+    }
+
+    #[test]
+    fn resource_size_limits_message_reads() {
+        let name = b"ignored\0";
+        let attr = nvtxResourceAttributes_v0 {
+            size: offset_of!(nvtxResourceAttributes_v0, messageType) as u16,
+            identifierType: 2,
+            identifier: nvtxResourceAttributes_v0_identifier_t { ullValue: 0xabcd },
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32,
+            message: nvtxMessageValue_t {
+                ascii: name.as_ptr().cast(),
+            },
+            ..full_resource()
+        };
+        // SAFETY: the backing allocation is a full resource struct; `size` limits reads.
+        assert_eq!(
+            unsafe { resource_create(1, 2, &attr) },
+            Record::ResourceCreate {
+                domain: 1,
+                handle: 2,
+                identifier_type: 2,
+                identifier: 0xabcd,
+                message: None,
+            }
+        );
+    }
+
+    #[test]
+    fn full_attributes_copy_the_message_and_payload() {
+        let mut name = b"owned\0".to_vec();
+        let mut attr = nvtxEventAttributes_v2 {
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32,
+            message: nvtxMessageValue_t {
+                ascii: name.as_ptr().cast(),
+            },
+            payloadType: nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 as i32,
+            payload: nvtxEventAttributes_v2_payload_t { iValue: -7 },
+            ..full_attributes()
+        };
+        // SAFETY: the selected union members are initialized and `name` is valid during the call.
+        let record = unsafe { mark(17, &attr) };
+        attr.message = nvtxMessageValue_t {
+            ascii: std::ptr::null(),
+        };
+        attr.payload = nvtxEventAttributes_v2_payload_t { ullValue: 0 };
+        std::hint::black_box(&attr);
+        name.fill(0);
+        assert_eq!(
+            record,
+            Record::Mark {
+                domain: 17,
+                attributes: Attributes {
+                    message: Some(Message::String(String::Bytes(b"owned".to_vec()))),
+                    payload: Some(Payload {
+                        payload_type: nvtxPayloadType_t::NVTX_PAYLOAD_TYPE_INT32 as i32,
+                        bits: (-7_i32) as u32 as u64,
+                    }),
+                    ..Attributes::default()
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn unknown_message_tags_do_not_read_the_union() {
+        let attr = full_attributes();
+        // SAFETY: `attr` is a valid full attribute struct.
+        let Record::Mark { attributes, .. } = (unsafe { mark(1, &attr) }) else {
+            panic!("expected Mark");
+        };
+        assert_eq!(attributes.message, None);
+
+        let resource = full_resource();
+        // SAFETY: `resource` is a valid full resource struct.
+        let Record::ResourceCreate { message, .. } = (unsafe { resource_create(1, 2, &resource) })
+        else {
+            panic!("expected ResourceCreate");
+        };
+        assert_eq!(message, None);
+    }
+
+    #[test]
+    fn resource_identity_and_immediate_name_are_owned() {
+        let name = b"cuda-stream\0";
+        let attr = nvtxResourceAttributes_v0 {
+            identifierType: 5,
+            identifier: nvtxResourceAttributes_v0_identifier_t {
+                ullValue: 0x1234_5678,
+            },
+            messageType: nvtxMessageType_t::NVTX_MESSAGE_TYPE_ASCII as i32,
+            message: nvtxMessageValue_t {
+                ascii: name.as_ptr().cast(),
+            },
+            ..full_resource()
+        };
+        // SAFETY: `attr` is a valid full resource struct and `name` is NUL-terminated.
+        assert_eq!(
+            unsafe { resource_create(8, 9, &attr) },
+            Record::ResourceCreate {
+                domain: 8,
+                handle: 9,
+                identifier_type: 5,
+                identifier: 0x1234_5678,
+                message: Some(Message::String(String::Bytes(b"cuda-stream".to_vec()))),
+            }
+        );
+    }
+
+    #[test]
+    fn immediate_ascii_and_wide_calls_use_the_default_domain() {
+        let ascii = b"name\0";
+        let wide = [0x6e as wchar_t, 0x61, 0x6d, 0x65, 0];
+        let ascii_attributes = Attributes {
+            message: Some(Message::String(String::Bytes(b"name".to_vec()))),
+            ..Attributes::default()
+        };
+        let wide_attributes = Attributes {
+            message: Some(Message::String(String::Wide(vec![0x6e, 0x61, 0x6d, 0x65]))),
+            ..Attributes::default()
+        };
+        // SAFETY: both buffers are readable NUL-terminated strings.
+        unsafe {
+            assert_eq!(
+                range_push_a(ascii.as_ptr().cast()),
+                Record::RangePush {
+                    domain: 0,
+                    attributes: ascii_attributes.clone()
+                }
+            );
+            assert_eq!(
+                range_start_a(3, ascii.as_ptr().cast()),
+                Record::RangeStart {
+                    domain: 0,
+                    range_id: 3,
+                    attributes: ascii_attributes
+                }
+            );
+            assert_eq!(
+                range_push_w(wide.as_ptr()),
+                Record::RangePush {
+                    domain: 0,
+                    attributes: wide_attributes.clone()
+                }
+            );
+            assert_eq!(
+                range_start_w(4, wide.as_ptr()),
+                Record::RangeStart {
+                    domain: 0,
+                    range_id: 4,
+                    attributes: wide_attributes
+                }
+            );
+        }
     }
 }
