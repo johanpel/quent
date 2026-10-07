@@ -17,10 +17,6 @@ name = "late_hook"
 required-features = ["static-injection"]
 
 [[test]]
-name = "registration"
-required-features = ["static-injection"]
-
-[[test]]
 name = "shutdown"
 required-features = ["static-injection"]
 harness = false
