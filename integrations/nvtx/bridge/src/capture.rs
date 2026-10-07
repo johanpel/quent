@@ -117,7 +117,13 @@ fn forward(
     session: Uuid,
 ) {
     let mut batch = Vec::new();
-    while receiver.blocking_recv_many(&mut batch, 64) != 0 {
+    loop {
+        // Drain the current backlog without growing one batch indefinitely if
+        // producers keep sending.
+        let limit = receiver.len().max(1);
+        if receiver.blocking_recv_many(&mut batch, limit) == 0 {
+            break;
+        }
         for message in batch.drain(..) {
             match message {
                 Message::Record(queued) => {
