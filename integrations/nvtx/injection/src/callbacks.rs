@@ -428,12 +428,18 @@ mod tests {
 
         exercise_callbacks();
         assert_eq!(calls.load(Ordering::Relaxed), 34);
-        assert!(init::install_hook(|_| unreachable!()).is_err());
+        assert!(matches!(
+            init::install_hook(|_| unreachable!()),
+            Err(init::InstallHookError::AlreadyInstalled)
+        ));
         on_mark_a(c"still capturing".as_ptr());
         assert_eq!(calls.load(Ordering::Relaxed), 35);
 
         exercise_callbacks();
         assert_eq!(calls.load(Ordering::Relaxed), 65);
-        assert!(init::install_hook(|_| unreachable!()).is_err());
+        assert!(matches!(
+            init::install_hook(|_| unreachable!()),
+            Err(init::InstallHookError::AlreadyInstalled)
+        ));
     }
 }

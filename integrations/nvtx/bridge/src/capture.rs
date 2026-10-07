@@ -23,6 +23,7 @@ use quent_instrumentation::ObserverInner;
 use quent_nvtx_events::NvtxEvent;
 use quent_time::{TimeUnixNanoSec, timestamp};
 use thiserror::Error;
+use tokio::runtime::{Handle, RuntimeFlavor};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use uuid::Uuid;
 
@@ -63,7 +64,7 @@ impl Capture {
     /// Install the NVTX hook and start forwarding records to `observer`.
     ///
     /// The observer's runtime must make progress while capture shutdown waits
-    /// for its exporter. Use an owned or multithreaded runtime for the observer.
+    /// for its exporter. It must not borrow a current-thread runtime.
     ///
     /// # Errors
     ///
@@ -103,7 +104,16 @@ impl Drop for Capture {
     fn drop(&mut self) {
         let _ = self.sender.send(Message::Stop);
         if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
+            let join = || {
+                let _ = worker.join();
+            };
+            match Handle::try_current() {
+                Ok(handle) if handle.runtime_flavor() == RuntimeFlavor::MultiThread => {
+                    // Leave a runtime worker available to flush the observer.
+                    tokio::task::block_in_place(join);
+                }
+                _ => join(),
+            }
         }
     }
 }

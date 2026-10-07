@@ -70,8 +70,8 @@ received NVTX event can generate an unbounded stream of events.
 Stop and join NVTX-producing threads before dropping the capture if all events
 must be flushed. An in-flight callback may finish after shutdown begins, and
 its event may be discarded. Drop the capture off the observer's exporter thread.
-The observer needs an owned or multithreaded runtime that can keep processing
-events during the flush.
+The observer must not borrow a current-thread runtime. An owned or multithreaded
+runtime can keep processing events during the flush.
 
 `static-injection` is requested in the manifest:
 
@@ -106,8 +106,8 @@ while NVTX calls are active:
 pixi run cargo test -p quent-nvtx-bridge
 ```
 
-Injection tests cover late hook installation, duplicate registration, and NVTX
-calls after Rust TLS destruction:
+Injection tests cover late hook installation, rejected second installation,
+and NVTX calls after Rust TLS destruction:
 
 ```sh
 pixi run cargo test -p nvtx-injection --features static-injection
