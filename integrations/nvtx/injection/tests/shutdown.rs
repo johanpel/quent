@@ -10,8 +10,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use nvtx::sys::ffi;
-use quent_instrumentation::EventCallback;
-use uuid::Uuid;
 
 thread_local! {
     static TLS_PROBE: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
@@ -54,16 +52,20 @@ fn main() {
         assert_eq!(unsafe { libc::atexit(late_nvtx) }, 0);
 
         let calls = Arc::new(AtomicUsize::new(0));
-        let sink = EventCallback::new({
-            let calls = Arc::clone(&calls);
-            move |_| {
+        let weak_calls = Arc::downgrade(&calls);
+        nvtx_injection::install_hook(move |_| {
+            if let Some(calls) = weak_calls.upgrade() {
                 calls.fetch_add(1, Ordering::Relaxed);
             }
-        });
-        // Exercise the real owner's install and cleanup path on the main OS
-        // thread. Its push/pop initializes the injection library's RANGE_DEPTH.
-        nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
-        assert_eq!(calls.load(Ordering::Relaxed), 6);
+        })
+        .expect("install hook");
+        // Initialize the injection library and its range-depth TLS on the main thread.
+        unsafe {
+            assert_eq!(ffi::nvtxRangePushA(c"before cleanup".as_ptr()), 0);
+            assert_eq!(ffi::nvtxRangePop(), 0);
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        drop(calls);
         return;
     }
 

@@ -7,12 +7,34 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 
+[[test]]
+name = "capture"
+required-features = ["capture"]
+
+[[test]]
+name = "convert"
+required-features = ["capture"]
+
+[[test]]
+name = "drop_in_hook"
+required-features = ["capture"]
+
+[features]
+# Capture clients opt into the Linux-only injection dependency.
+capture = ["dep:libc", "dep:nvtx-injection", "dep:nvtx-sys"]
+
 [dependencies]
-libc = "0.2"
+libc = { version = "0.2", optional = true }
 # The bridge is a single adapter type. It needs the NVTX event vocabulary, the
 # Quent `EventPayload` trait it implements, and serde for the transparent derive.
 nvtx-events = { path = "../events" }
-nvtx-injection = { path = "../injection" }
-nvtx-sys = { workspace = true }
+nvtx-injection = { path = "../injection", optional = true }
+nvtx-sys = { workspace = true, optional = true }
 quent-events = { path = "../../../crates/events" }
 serde = { workspace = true }
+
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]
+nvtx = { workspace = true }
+nvtx-injection = { path = "../injection", features = ["static-injection"] }
+quent-instrumentation = { path = "../../../crates/instrumentation", features = ["io-callback"] }
+uuid = { workspace = true }

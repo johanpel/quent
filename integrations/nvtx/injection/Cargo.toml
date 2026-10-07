@@ -12,6 +12,19 @@ publish.workspace = true
 # rlib   = the static/link-time path and in-process unit tests.
 crate-type = ["rlib"]
 
+[[test]]
+name = "late_hook"
+required-features = ["static-injection"]
+
+[[test]]
+name = "registration"
+required-features = ["static-injection"]
+
+[[test]]
+name = "shutdown"
+required-features = ["static-injection"]
+harness = false
+
 [dependencies]
 # `tools` exposes NVTX's callback-subscription and injection ABI.
 nvtx-sys = { workspace = true, features = ["tools"] }
@@ -21,6 +34,10 @@ thiserror = { workspace = true }
 # Only Quent's own build script needs this direct `cc` dependency, for the
 # `static-injection` strong-symbol shim. `nvtx-sys` also compiles bundled C code.
 cc = { workspace = true, optional = true }
+
+[dev-dependencies]
+libc = "0.2"
+nvtx = { workspace = true }
 
 [features]
 # static-injection: attach the injection in-process at link time instead of at

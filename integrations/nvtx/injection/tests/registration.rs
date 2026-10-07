@@ -6,9 +6,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use quent_instrumentation::EventCallback;
-use uuid::Uuid;
-
 #[test]
 fn failed_installation_does_not_replace_existing_hook() {
     let calls = Arc::new(AtomicUsize::new(0));
@@ -25,8 +22,10 @@ fn failed_installation_does_not_replace_existing_hook() {
     nvtx::mark(c"before duplicate");
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 
-    let result = nvtx_example::run_capture(Uuid::now_v7(), EventCallback::new(|_| {}));
-    assert!(result.unwrap_err().is::<nvtx_injection::InstallHookError>());
+    assert!(matches!(
+        nvtx_injection::install_hook(|_| {}),
+        Err(nvtx_injection::InstallHookError::AlreadyInstalled)
+    ));
 
     nvtx::mark(c"after duplicate");
     assert_eq!(calls.load(Ordering::Relaxed), 2);

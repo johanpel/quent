@@ -174,7 +174,3 @@ fn string(raw: RecordString) -> String {
             .collect(),
     }
 }
-
-#[cfg(test)]
-#[path = "convert_tests.rs"]
-mod tests;

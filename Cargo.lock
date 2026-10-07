@@ -1737,9 +1737,11 @@ dependencies = [
 name = "nvtx-analyzer"
 version = "0.1.0"
 dependencies = [
+ "libc",
+ "nvtx",
  "nvtx-bridge",
  "nvtx-events",
- "nvtx-example",
+ "nvtx-injection",
  "quent-events",
  "quent-instrumentation",
  "quent-time",
@@ -1753,11 +1755,14 @@ name = "nvtx-bridge"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "nvtx",
  "nvtx-events",
  "nvtx-injection",
  "nvtx-sys",
  "quent-events",
+ "quent-instrumentation",
  "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -1771,10 +1776,8 @@ dependencies = [
 name = "nvtx-example"
 version = "0.1.0"
 dependencies = [
- "libc",
  "nvtx",
  "nvtx-bridge",
- "nvtx-events",
  "nvtx-injection",
  "quent-instrumentation",
  "uuid",
@@ -1785,6 +1788,8 @@ name = "nvtx-injection"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "libc",
+ "nvtx",
  "nvtx-sys",
  "thiserror",
 ]

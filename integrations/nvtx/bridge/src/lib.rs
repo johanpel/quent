@@ -10,11 +10,13 @@
 //! upstreaming — so it lives here.
 //!
 //! See `integrations/nvtx/example` for a complete, runnable capture.
+//! Record conversion is available with the `capture` feature.
 
 use nvtx_events::NvtxEvent;
 use quent_events::EventPayload;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "capture")]
 mod convert;
 
 /// A `#[serde(transparent)]` newtype over [`NvtxEvent`] implementing

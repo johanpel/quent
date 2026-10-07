@@ -31,8 +31,8 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 |-------|------|------|
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
 | `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: decodes `Record` into `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
-| `nvtx-example` | `example/` | A runnable, self-verifying example. |
+| `nvtx-bridge` | `bridge/` | The **bridge**: `NvtxEventEntity` implements Quent's `EventPayload`. Its optional `capture` feature converts owned `Record` values and pulls in the Linux-only injection crate. |
+| `nvtx-example` | `example/` | A runnable example that forwards NVTX events to an observer. |
 
 ## How capture works
 
@@ -44,10 +44,11 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
    NVTX's implementation of the subscribed calls.
 3. Each callback copies caller-owned NVTX data into an owned `Record` and
    calls the installed hook on the emitting thread.
-4. The application's hook converts each record into `NvtxEventEntity`, adding
-   the caller's OS thread ID to push/pop events, then forwards it into its
-   `Observer`. Injection supplies handles, ids, and nesting levels even before
-   the hook is installed, so handles an app caches early stay valid.
+4. The example's hook uses the bridge's `capture` feature to convert each record
+   into `NvtxEventEntity`, adding the caller's OS thread ID to push/pop events.
+   It then forwards the event to its `Observer`. Injection supplies handles,
+   ids, and nesting levels even before the hook is installed, so handles an app
+   caches early stay valid.
 5. The hook and callback pointers stay installed for the process lifetime.
    A hook can hold a weak observer reference so the observer and exporter are
    released on drop. Late callbacks tolerate destroyed TLS.
@@ -55,7 +56,7 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 ## Using it
 
 The app owns the pipeline; wiring capture is two steps — build an observer, then
-install the hook:
+install the hook. The bridge's `capture` feature supplies the conversion:
 
 ```rust
 use std::sync::Arc;
@@ -96,6 +97,7 @@ before the observer and exporter are released.
 
 ```toml
 nvtx-injection = { path = "…/injection", features = ["static-injection"] }
+nvtx-bridge = { path = "…/bridge", features = ["capture"] }
 nvtx = { version = "2", default-features = false, features = ["std"] }
 ```
 
@@ -115,21 +117,21 @@ It prints one line per event — entity `id`, capture `timestamp` (ns), and the
 
 ### Test
 
-`example/tests/capture.rs` reuses the same capture routine in-process with a
-collecting callback exporter and asserts every core NVTX kind is captured — no
-subprocess, no files:
+The bridge tests check record conversion, capture, thread IDs, and dropping an
+observer from inside the hook:
 
 ```sh
-pixi run cargo test -p nvtx-example
+pixi run cargo test -p nvtx-bridge --features capture
 ```
 
-The tests also check failed duplicate registration and dropping the observer's
-owner from inside the hook.
-`example/tests/shutdown.rs` runs capture on a subprocess's main thread, then
-emits CORE and CORE2 push/pop calls from an `atexit` handler after Rust TLS
-destruction.
-It checks stderr as well as the exit status, so late cleanup must be silent and
-successful. These tests require no GPU.
+Injection tests cover late hook installation, duplicate registration, and NVTX
+calls after Rust TLS destruction:
+
+```sh
+pixi run cargo test -p nvtx-injection --features static-injection
+```
+
+These tests require no GPU.
 
 ## Captured surface
 
@@ -138,7 +140,8 @@ start/end/push/pop, domain/register-string/name-category/resource — and the
 **classic default domain (CORE)** on domain `0`, plus OS thread naming.
 
 Default-domain wide-char (`*W`) variants are copied as owned code units, then
-decoded by the bridge while preserving nesting and synthesized IDs.
+decoded by the bridge's `capture` feature while preserving nesting and
+synthesized IDs.
 Domain-scoped wide-name calls (`DomainCreateW`, `DomainRegisterStringW`, and
 `DomainNameCategoryW`) are not yet subscribed.
 

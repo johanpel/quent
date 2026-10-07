@@ -15,14 +15,14 @@ use std::sync::{Arc, Mutex};
 
 use nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
 use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{Event, EventCallback};
+use quent_instrumentation::{ContextInner, Event, EventCallback};
 use uuid::Uuid;
 
-/// The default (NULL) NVTX domain, which is where `nvtx_example` annotates.
+/// The default (NULL) NVTX domain used by the test annotations.
 const DEFAULT_DOMAIN: u64 = 0;
 
 #[test]
-fn example_capture_roundtrip() {
+fn real_capture_roundtrip() {
     // Collect the full envelope, not just the inner event: the builder orders by
     // `timestamp`, so dropping it would make this test prove nothing about the
     // real capture's ordering.
@@ -34,15 +34,34 @@ fn example_capture_roundtrip() {
         })
     };
 
-    // Injection is process-global and one-shot, so this is deliberately a single
-    // test doing a single capture — no parallel capture is possible here.
-    nvtx_example::run_capture(Uuid::now_v7(), sink).expect("capture");
+    let session = Uuid::now_v7();
+    let context = ContextInner::try_new(session).expect("context");
+    let observer = Arc::new(
+        context
+            .block_on(async { context.observer::<NvtxEventEntity>(&sink).await })
+            .expect("observer"),
+    );
+    let weak_observer = Arc::downgrade(&observer);
+    nvtx_injection::install_hook(move |record| {
+        if let Some(observer) = weak_observer.upgrade() {
+            observer.emit(session, NvtxEventEntity::from(record));
+        }
+    })
+    .expect("install hook");
+
+    // SAFETY: SYS_gettid takes no arguments and returns this thread's OS ID.
+    let thread_id = unsafe { libc::syscall(libc::SYS_gettid) as u32 };
+    nvtx::name_thread(thread_id, c"analyzer-roundtrip/main");
+    nvtx::mark(c"startup");
+    let local_range = nvtx::LocalRange::new(c"phase-1");
+    drop(local_range);
+    let range = nvtx::Range::new(c"phase-2");
+    drop(range);
+    drop(observer);
 
     // Read through the `Arc` rather than `try_unwrap`ing it: the sink's closure
-    // holds a second clone, and injection is process-global and one-shot, so
-    // nothing guarantees the registry drops the callback before `run_capture`
-    // returns. Unwrapping would make a retained callback fail this test for a
-    // reason unrelated to reconstruction.
+    // holds a second clone. Unwrapping would fail for a reason unrelated to
+    // reconstruction.
     let events = std::mem::take(&mut *collected.lock().expect("collector poisoned"));
     assert!(!events.is_empty(), "no NVTX events captured");
 
@@ -53,7 +72,7 @@ fn example_capture_roundtrip() {
         model
             .threads()
             .iter()
-            .any(|thread| thread.name == "nvtx-example/main"),
+            .any(|thread| thread.name == "analyzer-roundtrip/main"),
         "named thread missing; threads: {:?}",
         model.threads()
     );

@@ -1,12 +1,31 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{convert, string};
+use nvtx_bridge::NvtxEventEntity;
 use nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
 use nvtx_injection::record::{Attributes, Color, Message, Payload, Record, String as RecordString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
+
+fn convert(record: Record) -> NvtxEvent {
+    NvtxEventEntity::from(record).0
+}
+
+fn string(raw: RecordString) -> String {
+    let NvtxEvent::DomainCreate { name, .. } = convert(Record::DomainCreate {
+        domain: 0,
+        name: raw,
+    }) else {
+        panic!("expected DomainCreate");
+    };
+    name
+}
+
+fn current_thread_id() -> u32 {
+    // SAFETY: SYS_gettid takes no arguments and returns this thread's OS ID.
+    unsafe { libc::syscall(libc::SYS_gettid) as u32 }
+}
 
 #[test]
 fn push_and_pop_receive_the_converting_threads_id() {
@@ -22,7 +41,7 @@ fn push_and_pop_receive_the_converting_threads_id() {
         panic!("expected RangePush");
     };
     assert_eq!(domain, 0x1234);
-    assert_eq!(thread_id, super::current_thread_id());
+    assert_eq!(thread_id, current_thread_id());
     assert_eq!(attributes, NvtxEventAttributes::default());
 
     let NvtxEvent::RangePop { domain, thread_id } = convert(Record::RangePop { domain: 0x1234 })
@@ -30,7 +49,7 @@ fn push_and_pop_receive_the_converting_threads_id() {
         panic!("expected RangePop");
     };
     assert_eq!(domain, 0x1234);
-    assert_eq!(thread_id, super::current_thread_id());
+    assert_eq!(thread_id, current_thread_id());
 }
 
 #[test]
