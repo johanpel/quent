@@ -12,8 +12,8 @@ if [ "$(uname -s)" = Linux ] && [ -n "${CC:-}" ]; then
         nvtx_clang_args=""
         # On aarch64, Pixi's Clang supplies the built-in headers.
         if command -v clang >/dev/null 2>&1; then
-            nvtx_clang_args="-isystem $(clang -print-resource-dir)/include "
+            nvtx_clang_args="-isystem \"$(clang -print-resource-dir)/include\" "
         fi
-        export BINDGEN_EXTRA_CLANG_ARGS="${nvtx_clang_args}-isystem $nvtx_gcc_include -isystem $nvtx_sysroot/usr/include"
+        export BINDGEN_EXTRA_CLANG_ARGS="${nvtx_clang_args}-isystem \"$nvtx_gcc_include\" -isystem \"$nvtx_sysroot/usr/include\""
     fi
 fi
