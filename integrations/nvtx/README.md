@@ -10,8 +10,8 @@ thread names, resources, and the core payload union) from an application and
 turns them into Quent events.
 
 The application owns its Quent context and exporter, emits NVTX annotations,
-and links a small shim so NVTX initializes capture **in-process** — no cdylib or
-`NVTX_INJECTION64_PATH` is needed.
+and links a small shim so NVTX initializes capture **in-process**. Runtime
+loading through `NVTX_INJECTION64_PATH` is not supported.
 
 **In-process capture requires 64-bit Linux.** `nvtx-injection` enforces this at
 compile time. The event types, analyzer, server, and UI build without the
@@ -28,7 +28,7 @@ injection crate. The bridge is used only when capturing NVTX events.
 
 | Crate                 | Path             | Role                                                                                                                                                                                                                                         |
 | --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `nvtx-injection`      | `injection/`     | The **NVTX C ABI layer**, intended for upstreaming. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. The example links it in-process through `static-injection`. |
+| `nvtx-injection`      | `injection/`     | The **NVTX C ABI layer**, intended for upstreaming. Fills NVTX's callback tables, copies caller-owned values into `Record`, and calls a `Fn(Record)` hook. Supports in-process `static-injection` only.                              |
 | `quent-nvtx-events`   | `events/`        | The NVTX event types used by the Quent observer and analyzer.                                                                                                                                                                                 |
 | `quent-nvtx-bridge`   | `bridge/`        | Queues owned `Record` values, converts them to `NvtxEvent` on a worker, and forwards them to an observer. Depends on the Linux-only injection crate.                                                                                         |
 | `quent-nvtx-example`  | `example/`       | A runnable example that forwards NVTX events to an observer.                                                                                                                                                                                 |

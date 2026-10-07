@@ -3,18 +3,17 @@
 
 //! Deliver NVTX calls to a Rust hook as owned [`Record`] values.
 //!
-//! Register a process-lifetime hook with [`install_hook`]. Once NVTX loads the
-//! injection library, each supported NVTX call copies borrowed data into an
+//! Register a process-lifetime hook with [`install_hook`]. Once NVTX initializes
+//! the linked injection code, each supported NVTX call copies borrowed data into an
 //! [`Record`] and invokes the hook on the calling thread. The consumer decides
 //! how to interpret event text and payloads. The library also returns the
 //! nesting levels and opaque handles required by NVTX calls.
 //!
-//! # Loading
+//! # In-process setup
 //!
-//! - At runtime, build this crate as a shared library and set
-//!   `NVTX_INJECTION64_PATH` to its path.
-//! - For in-process use, enable the `static-injection` feature and link the
-//!   injection entry into the application.
+//! Enable the `static-injection` feature and link this crate into the application.
+//! Runtime loading through `NVTX_INJECTION64_PATH` is not supported because a
+//! separately loaded library would not share the application's installed hook.
 //!
 //! # Example
 //!
@@ -33,8 +32,8 @@
 //! If push/pop processing needs the caller's thread ID, capture it in the hook
 //! before forwarding the event to another thread.
 
-// Linux 64-bit only. NVTX injection relies on the ELF weak-symbol /
-// NVTX_INJECTION64_PATH mechanism; Windows and 32-bit are out of scope.
+// Linux 64-bit only. Static injection relies on an ELF weak-symbol override;
+// Windows and 32-bit are out of scope.
 #[cfg(not(all(target_os = "linux", target_pointer_width = "64")))]
 compile_error!("nvtx-injection supports Linux 64-bit only");
 

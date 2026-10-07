@@ -132,9 +132,8 @@ pub(crate) fn hook() -> Option<&'static Hook> {
 
 /// NVTX injection entry point.
 ///
-/// NVTX loads this cdylib via `NVTX_INJECTION64_PATH` and calls this **once per
-/// NVTX-using image** in the process — the executable and each instrumented
-/// shared library keep their own NVTX state (per-image `nvtxGlobals`) and
+/// NVTX calls this once per NVTX-using image in the process. The executable
+/// and each instrumented shared library keep their own NVTX state, and
 /// initialize lazily before that image's first NVTX call, each passing its own
 /// export-table accessor. We must therefore install callbacks into *every*
 /// caller's tables, not just the first: a later image left uninstalled has its
@@ -149,7 +148,7 @@ pub(crate) fn hook() -> Option<&'static Hook> {
 // object file (rather than from this archive, whose symbols are commonly
 // localized with `--exclude-libs`). Give that build an internal ABI name so a
 // consumer-owned exported trampoline can forward into this exact hook state.
-// The runtime-loaded library keeps exporting NVTX's required public name.
+// The entry keeps NVTX's public name when `static-injection` is disabled.
 #[cfg_attr(
     feature = "static-injection",
     unsafe(export_name = "quent_InitializeInjectionNvtx2")
@@ -360,8 +359,8 @@ unsafe fn install_core2(get_module_table: GetModuleTableFn) -> bool {
 
     let done = installed.iter().filter(|&&ok| ok).count();
     if done < installed.len() {
-        // The cdylib installs no tracing subscriber, so surface the partial
-        // install rather than capturing a silently incomplete domain surface.
+        // No tracing subscriber is guaranteed during initialization, so
+        // surface partial installation rather than silently losing events.
         eprintln!(
             "nvtx-injection: installed {done}/{} CORE2 domain callbacks (table reports {size} \
              slots); the rest are domain calls the running NVTX does not expose and will not \
@@ -392,8 +391,8 @@ unsafe fn install_core(get_module_table: GetModuleTableFn) {
     let Some((table, size)) =
         (unsafe { module_table(get_module_table, NvtxCallbackModule::NVTX_CB_MODULE_CORE) })
     else {
-        // The cdylib installs no tracing subscriber, so emit an unconditional
-        // diagnostic instead of failing quietly.
+        // No tracing subscriber is guaranteed during initialization, so emit
+        // an unconditional diagnostic instead of failing quietly.
         eprintln!(
             "nvtx-injection: NVTX CORE callback table unavailable; default-domain and OS-thread-name \
              events will not be captured"
