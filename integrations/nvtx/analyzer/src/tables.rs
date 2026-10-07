@@ -26,9 +26,9 @@ use std::collections::BTreeSet;
 
 use rustc_hash::FxHashMap as HashMap;
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_time::TimeUnixNanoSec;
 
 use crate::span::{NvtxCategory, NvtxDomain, NvtxThread, category_id};

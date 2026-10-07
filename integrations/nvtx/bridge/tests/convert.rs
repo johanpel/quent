@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{
-    NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
-};
 use nvtx_injection::record::{Attributes, Color, Message, Payload, Record, String as RecordString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::{
+    NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
+};
 
 fn convert(record: Record) -> NvtxEvent {
     NvtxEventEntity::from(record).0

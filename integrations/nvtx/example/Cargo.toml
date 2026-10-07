@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [package]
-name = "nvtx-example"
+name = "quent-nvtx-example"
 version.workspace = true
 edition.workspace = true
 publish = false
@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
-nvtx-bridge = { path = "../bridge", features = ["capture"] }
+quent-nvtx-bridge = { path = "../bridge", features = ["capture"] }
 # `io-callback` selects the callback exporter used to print captured events.
 quent-instrumentation = { path = "../../../crates/instrumentation", features = [
     "io-callback",

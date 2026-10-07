@@ -6,14 +6,13 @@
 //!
 //! It is one adapter: [`NvtxEventEntity`], a newtype over [`NvtxEvent`]
 //! implementing Quent's [`EventPayload`]. The orphan rule forbids that impl in
-//! either of *their* crates — the events crate stays Quent-agnostic for
-//! upstreaming — so it lives here.
+//! either of *their* crates, so it lives here.
 //!
 //! See `integrations/nvtx/example` for a complete, runnable capture.
 //! Record conversion is available with the `capture` feature.
 
-use nvtx_events::NvtxEvent;
 use quent_events::EventPayload;
+use quent_nvtx_events::NvtxEvent;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "capture")]

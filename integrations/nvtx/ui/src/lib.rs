@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt;
 
-use nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
+use quent_nvtx_analyzer::{NvtxColor, NvtxModel, NvtxSpan, SpanId, SpanKind};
 use quent_time::{TimeUnixNanoSec, to_nanosecs, to_secs, to_secs_relative};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -1081,10 +1081,10 @@ mod decimal_u64_vec {
 
 #[cfg(test)]
 mod tests {
-    use nvtx_analyzer::NvtxModelBuilder;
-    use nvtx_bridge::NvtxEventEntity;
-    use nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use quent_events::Event;
+    use quent_nvtx_analyzer::NvtxModelBuilder;
+    use quent_nvtx_bridge::NvtxEventEntity;
+    use quent_nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use uuid::Uuid;
 
     use super::*;

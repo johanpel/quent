@@ -3,18 +3,12 @@
 
 //! Verbatim, application-agnostic NVTX event vocabulary.
 //!
-//! Every downstream NVTX crate speaks this shared contract: the injection cdylib
-//! produces [`NvtxEvent`]s and the bridge forwards them to a consumer. Events are
-//! captured **verbatim** — every handle (domain / category / resource /
-//! registered-string id) is a raw integer, and no name resolution or payload
-//! decoding happens at capture time. Handles are resolved from the event stream
-//! by a later analysis stage.
+//! The bridge converts owned injection records into [`NvtxEvent`]s. Domain,
+//! category, resource, and registered-string handles remain raw integers. The
+//! analyzer resolves their names from the event stream later.
 //!
-//! The crate deliberately depends on nothing product-specific (optionally only
-//! `serde`, behind the default `serde` feature) so it stays cleanly separable and
-//! could be offered upstream to the NVTX Rust crates later. Adapting these events
-//! into a consumer's pipeline — entity naming, the event wrapper — is the bridge
-//! crate's responsibility, not this crate's.
+//! This crate depends only on optional `serde`. Adapting these events into
+//! Quent's pipeline is the bridge crate's responsibility.
 
 mod attributes;
 mod payload;

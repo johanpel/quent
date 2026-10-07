@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
-use nvtx_bridge::NvtxEventEntity;
 use quent_instrumentation::{ContextInner, EventCallback};
+use quent_nvtx_bridge::NvtxEventEntity;
 use uuid::Uuid;
 
 #[test]

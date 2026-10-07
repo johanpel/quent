@@ -7,10 +7,10 @@
 mod fixtures;
 
 use fixtures::{at, range_end, range_start};
-use nvtx_analyzer::{NvtxDomain, NvtxModel, NvtxModelBuilder};
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
+use quent_nvtx_analyzer::{NvtxDomain, NvtxModel, NvtxModelBuilder};
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_time::TimeUnixNanoSec;
 
 /// Attributes naming a previously (or subsequently) registered string.

@@ -3,11 +3,11 @@
 
 //! Decode owned NVTX records without accessing application memory.
 
-use nvtx_events::{
-    NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
-};
 use nvtx_injection::record::{Attributes, Message, Record, String as RecordString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
+use quent_nvtx_events::{
+    NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
+};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::NvtxEventEntity;
@@ -162,7 +162,7 @@ fn string(raw: RecordString) -> String {
                 static WARNED: AtomicBool = AtomicBool::new(false);
                 if !WARNED.swap(true, Ordering::Relaxed) {
                     eprintln!(
-                        "nvtx-bridge: invalid UTF-8 in an NVTX string was replaced with U+FFFD. This warning fires once."
+                        "quent-nvtx-bridge: invalid UTF-8 in an NVTX string was replaced with U+FFFD. This warning fires once."
                     );
                 }
                 String::from_utf8_lossy(error.as_bytes()).into_owned()

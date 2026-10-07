@@ -4,13 +4,13 @@
 //! Runnable NVTX capture demo: debug-prints each captured event.
 //!
 //! ```text
-//! pixi run cargo run -p nvtx-example
+//! pixi run cargo run -p quent-nvtx-example
 //! ```
 
 use std::sync::Arc;
 
-use nvtx_bridge::NvtxEventEntity;
 use quent_instrumentation::{ContextInner, EventCallback};
+use quent_nvtx_bridge::NvtxEventEntity;
 use uuid::Uuid;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

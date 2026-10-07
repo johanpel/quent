@@ -7,9 +7,9 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 use std::sync::{Arc, Barrier, Mutex};
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::NvtxEvent;
 use quent_instrumentation::{ContextInner, EventCallback};
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
 const N_THREADS: usize = 4;

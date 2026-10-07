@@ -15,12 +15,12 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
-use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_events::{Event, EventPayload};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
+use quent_nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use tokio::sync::Semaphore;
 use uuid::Uuid;
 
@@ -289,7 +289,7 @@ mod tests {
 
     use axum::body::{Body, to_bytes};
     use axum::http::Request;
-    use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
+    use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
     use tempfile::tempdir;
     use tower::ServiceExt;
 
@@ -468,11 +468,11 @@ mod tests {
         assert_eq!(alternate["trace_end"], 0.5);
 
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 4,
                 category_ids: vec![],
                 include_uncategorized: true,
@@ -526,11 +526,11 @@ mod tests {
         );
 
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 5,
                 category_ids: vec![],
                 include_uncategorized: true,
@@ -656,11 +656,11 @@ mod tests {
             Ok((context_id == present).then(|| range_events(context_id)))
         }));
         let request = NvtxViewportRequest {
-            viewport: nvtx_ui::NvtxViewportWindow {
+            viewport: quent_nvtx_ui::NvtxViewportWindow {
                 start: 0.0,
                 end: 1.0,
             },
-            selections: vec![nvtx_ui::NvtxDomainSelection {
+            selections: vec![quent_nvtx_ui::NvtxDomainSelection {
                 domain_id: 4,
                 category_ids: vec![],
                 include_uncategorized: false,

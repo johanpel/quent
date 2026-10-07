@@ -11,9 +11,9 @@
 
 use std::collections::BTreeMap;
 
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::NvtxEvent;
 use quent_events::Event;
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::NvtxEvent;
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 
 use crate::anomalies::ReconstructionAnomalies;

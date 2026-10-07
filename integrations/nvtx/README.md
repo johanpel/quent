@@ -9,12 +9,13 @@ Captures NVTX events (ranges, marks, domains, registered strings, categories,
 thread names, resources, and the core payload union) from an application and
 turns them into Quent events.
 
-The application owns its Quent `Context` and exporter, annotates its code with
-the NVTX Rust API, and links a small shim so NVTX initializes capture
-**in-process** — no cdylib, no `NVTX_INJECTION64_PATH`.
+The application owns its Quent context and exporter, emits NVTX annotations,
+and links a small shim so NVTX initializes capture **in-process** — no cdylib or
+`NVTX_INJECTION64_PATH` is needed.
 
-**Linux 64-bit only** — capture relies on the ELF weak-symbol mechanism
-(`nvtx-injection` enforces this with a `compile_error!`).
+**In-process capture requires 64-bit Linux.** `nvtx-injection` enforces this at
+compile time. The event types, analyzer, and default bridge build without the
+injection crate.
 
 ## Contents
 
@@ -23,22 +24,25 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 - [Using it](#using-it)
 - [Captured surface](#captured-surface)
 - [NVTX injection bindings](#nvtx-injection-bindings)
-- [Upstreaming](#upstreaming)
 
 ## Crates
 
-| Crate | Path | Role |
-|-------|------|------|
-| `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
-| `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: `NvtxEventEntity` implements Quent's `EventPayload`. Its optional `capture` feature converts owned `Record` values and pulls in the Linux-only injection crate. |
-| `nvtx-example` | `example/` | A runnable example that forwards NVTX events to an observer. |
+| Crate                 | Path             | Role                                                                                                                                                                                                                                         |
+| --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nvtx-injection`      | `injection/`     | The **NVTX C ABI layer**, intended for upstreaming. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. The example links it in-process through `static-injection`. |
+| `quent-nvtx-events`   | `events/`        | The NVTX event types used by the Quent bridge and analyzer.                                                                                                                                                                                  |
+| `quent-nvtx-bridge`   | `bridge/`        | The **bridge**: `NvtxEventEntity` implements Quent's `EventPayload`. Its optional `capture` feature converts owned `Record` values and pulls in the Linux-only injection crate.                                                              |
+| `quent-nvtx-example`  | `example/`       | A runnable example that forwards NVTX events to an observer.                                                                                                                                                                                 |
+| `quent-nvtx-analyzer` | `analyzer/`      | Reconstructs ranges, names, and resources from recorded NVTX events.                                                                                                                                                                         |
+| `quent-nvtx-ui`       | `ui/`            | Defines the NVTX viewport data and presentation contracts.                                                                                                                                                                                   |
+| `quent-nvtx-server`   | `server/`        | Loads NVTX streams and serves the analyzer and UI data through HTTP routes.                                                                                                                                                                  |
+| `nvtx-server`         | `server-compat/` | Re-exports the server API for `quent-open` viewers pinned to the former package name.                                                                                                                                                        |
 
 ## How capture works
 
 1. The application links `nvtx-injection` with its **`static-injection`**
-   feature, publishing a *strong* `InitializeInjectionNvtx2_fnptr` that
-   overrides the *weak* one in NVTX's header-only client. NVTX then initializes
+   feature, publishing a _strong_ `InitializeInjectionNvtx2_fnptr` that
+   overrides the _weak_ one in NVTX's header-only client. NVTX then initializes
    injection **in-process** at the first NVTX call.
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
@@ -55,57 +59,31 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 
 ## Using it
 
-The app owns the pipeline; wiring capture is two steps — build an observer, then
-install the hook. The bridge's `capture` feature supplies the conversion:
-
-```rust
-use std::sync::Arc;
-
-// 1. The app owns its Quent context and picks the exporter.
-let ctx = Context::try_new(session)?;
-let options = FileSystemExporterOptions::new(FileSystemFormat::Ndjson, out_dir);
-let observer = Arc::new(ctx.block_on(async {
-    ctx.observer::<NvtxEventEntity>(options).await
-})?);
-
-// 2. Forward captured NVTX events into it, before the first NVTX call.
-let weak_observer = Arc::downgrade(&observer);
-nvtx_injection::install_hook(move |event| {
-    if let Some(observer) = weak_observer.upgrade() {
-        observer.emit(session, NvtxEventEntity::from(event));
-    }
-})?;
-
-// 3. Ordinary app code, annotated with NVIDIA's NVTX Rust API.
-nvtx::mark(c"startup");
-let range = nvtx::Range::new(c"phase-1");
-drop(range); // end the range before flushing
-
-// 4. Release and flush the observer.
-drop(observer);
-```
+Create an observer, then install a hook before the NVTX events to capture. The
+bridge's `capture` feature converts the records. See the
+[runnable example](example/src/main.rs) for the complete setup.
 
 Installation is one-shot. The hook remains installed after the observer is
 dropped, but weak upgrades then fail and events are discarded. The hook must not
 call NVTX APIs.
 
 Stop and join NVTX-producing threads before dropping the observer if all events
-must be flushed. A callback that already upgraded the weak reference may finish
-before the observer and exporter are released.
+must be flushed. An in-flight callback that already upgraded the weak reference
+can delay observer release and exporter flush.
 
 `static-injection` is requested in the manifest:
 
 ```toml
 nvtx-injection = { path = "…/injection", features = ["static-injection"] }
-nvtx-bridge = { path = "…/bridge", features = ["capture"] }
+quent-nvtx-bridge = { path = "…/bridge", features = ["capture"] }
 nvtx = { version = "2", default-features = false, features = ["std"] }
 ```
 
 The bundled example uses a **callback exporter** to debug-print each captured
-event (a real app would swap in ndjson, the collector, …). Run it — no GPU:
+event. Run it without a GPU:
 
 ```sh
-pixi run cargo run -p nvtx-example
+pixi run cargo run -p quent-nvtx-example
 ```
 
 It prints one line per event — entity `id`, capture `timestamp` (ns), and the
@@ -121,7 +99,7 @@ The bridge tests check record conversion, capture, thread IDs, and dropping an
 observer from inside the hook:
 
 ```sh
-pixi run cargo test -p nvtx-bridge --features capture
+pixi run cargo test -p quent-nvtx-bridge --features capture
 ```
 
 Injection tests cover late hook installation, duplicate registration, and NVTX
@@ -161,10 +139,3 @@ compiler. Quent's Pixi environment provides those on Linux through `libclang`
 and `cxx-compiler`; the aarch64 environment also installs `clang` for its
 compiler resource headers. Outside Pixi, install equivalent system packages
 and set `LIBCLANG_PATH` only when `clang-sys` cannot discover the library.
-
-## Upstreaming
-
-`nvtx-injection` already sources its ABI definitions from upstream
-`nvtx-sys/tools`. Its capture logic and the application-agnostic `nvtx-events`
-vocabulary remain candidates for contribution to NVIDIA/NVTX. Parallel effort,
-not a blocker.

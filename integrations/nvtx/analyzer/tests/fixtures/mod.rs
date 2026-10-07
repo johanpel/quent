@@ -12,10 +12,10 @@
 //! part of it, hence the allow.
 #![allow(dead_code)]
 
-use nvtx_analyzer::{NvtxModel, NvtxSpan, SpanId};
-use nvtx_bridge::NvtxEventEntity;
-use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_events::Event;
+use quent_nvtx_analyzer::{NvtxModel, NvtxSpan, SpanId};
+use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_time::TimeUnixNanoSec;
 use uuid::Uuid;
 

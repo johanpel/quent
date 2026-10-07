@@ -13,9 +13,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
-use nvtx_bridge::NvtxEventEntity;
 use quent_instrumentation::{ContextInner, Event, EventCallback};
+use quent_nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
+use quent_nvtx_bridge::NvtxEventEntity;
 use uuid::Uuid;
 
 /// The default (NULL) NVTX domain used by the test annotations.
