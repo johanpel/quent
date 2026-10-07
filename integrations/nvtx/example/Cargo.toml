@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 nvtx-injection = { path = "../injection", features = ["static-injection"] }
 quent-nvtx-bridge = { path = "../bridge", features = ["capture"] }
+quent-nvtx-events = { path = "../events" }
 # `io-callback` selects the callback exporter used to print captured events.
 quent-instrumentation = { path = "../../../crates/instrumentation", features = [
     "io-callback",

@@ -15,7 +15,7 @@ real-capture-tests = ["quent-nvtx-analyzer/real-capture-tests"]
 axum = { version = "0.8.7" }
 moka = { version = "0.12.13", features = ["future", "sync"] }
 quent-nvtx-analyzer = { path = "../analyzer" }
-quent-nvtx-bridge = { path = "../bridge" }
+quent-nvtx-events = { path = "../events" }
 quent-nvtx-ui = { path = "../ui" }
 quent-events = { path = "../../../crates/events" }
 quent-io = { path = "../../../crates/io" }
@@ -25,7 +25,6 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-quent-nvtx-events = { path = "../events" }
 serde_json.workspace = true
 tempfile = "3"
 tower = { version = "0.5", features = ["util"] }

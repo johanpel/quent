@@ -29,13 +29,17 @@ injection crate.
 | Crate                 | Path             | Role                                                                                                                                                                                                                                         |
 | --------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `nvtx-injection`      | `injection/`     | The **NVTX C ABI layer**, intended for upstreaming. Fills NVTX's callback tables, copies caller-owned values into `Record`, and hands them to a sink-agnostic `Fn(Record)` hook. The example links it in-process through `static-injection`. |
-| `quent-nvtx-events`   | `events/`        | The NVTX event types used by the Quent bridge and analyzer.                                                                                                                                                                                  |
-| `quent-nvtx-bridge`   | `bridge/`        | The **bridge**: `NvtxEventEntity` implements Quent's `EventPayload`. Its optional `capture` feature converts owned `Record` values and pulls in the Linux-only injection crate.                                                              |
+| `quent-nvtx-events`   | `events/`        | The NVTX event types used by the Quent observer and analyzer.                                                                                                                                                                                 |
+| `quent-nvtx-bridge`   | `bridge/`        | Converts owned `Record` values into `NvtxEvent` values for capture. Its `capture` feature pulls in the Linux-only injection crate.                                                                                                           |
 | `quent-nvtx-example`  | `example/`       | A runnable example that forwards NVTX events to an observer.                                                                                                                                                                                 |
 | `quent-nvtx-analyzer` | `analyzer/`      | Reconstructs ranges, names, and resources from recorded NVTX events.                                                                                                                                                                         |
 | `quent-nvtx-ui`       | `ui/`            | Defines the NVTX viewport data and presentation contracts.                                                                                                                                                                                   |
 | `quent-nvtx-server`   | `server/`        | Loads NVTX streams and serves the analyzer and UI data through HTTP routes.                                                                                                                                                                  |
 | `nvtx-server`         | `server-compat/` | Re-exports the server API for `quent-open` viewers pinned to the former package name.                                                                                                                                                        |
+
+The server reads recorded `NvtxEvent` values directly. Recording applications
+enable the bridge's `capture` feature to convert injection `Record`s; that
+feature pulls in the Linux-only injection crate.
 
 ## How capture works
 
@@ -46,21 +50,19 @@ injection crate.
 2. Injection claims NVTX's callback tables — our `extern "C"` functions become
    NVTX's implementation of the subscribed calls.
 3. Each callback copies caller-owned NVTX data into an owned `Record` and
-   calls the installed hook on the emitting thread.
-4. The example's hook uses the bridge's `capture` feature to convert each record
-   into `NvtxEventEntity`, adding the caller's OS thread ID to push/pop events.
-   It then forwards the event to its `Observer`. Injection supplies handles,
-   ids, and nesting levels even before the hook is installed, so handles an app
-   caches early stay valid.
+   calls the installed hook on the emitting thread. Injection returns handles,
+   IDs, and nesting levels even before a hook is installed.
+4. The example's hook converts each record into `NvtxEvent` and sends it
+   to its observer. Push/pop events receive the calling thread's OS ID during
+   conversion.
 5. The hook and callback pointers stay installed for the process lifetime.
    A hook can hold a weak observer reference so the observer and exporter are
    released on drop. Late callbacks tolerate destroyed TLS.
 
 ## Using it
 
-Create an observer, then install a hook before the NVTX events to capture. The
-bridge's `capture` feature converts the records. See the
-[runnable example](example/src/main.rs) for the complete setup.
+Create an observer, then install a hook before the NVTX events to capture. See
+the [runnable example](example/src/main.rs) for the complete setup.
 
 Installation is one-shot. The hook remains installed after the observer is
 dropped, but weak upgrades then fail and events are discarded. The hook must not

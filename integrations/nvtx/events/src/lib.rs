@@ -7,11 +7,14 @@
 //! category, resource, and registered-string handles remain raw integers. The
 //! analyzer resolves their names from the event stream later.
 //!
-//! This crate depends only on optional `serde`. Adapting these events into
-//! Quent's pipeline is the bridge crate's responsibility.
+//! [`NvtxEvent`] also names its Quent event stream.
+//! This crate is scheduled for removal once Quent generates NVTX event
+//! definitions from its schema. See [#76](https://github.com/rapidsai/quent/issues/76).
 
 mod attributes;
 mod payload;
+
+use quent_events::EventPayload;
 
 pub use attributes::{NvtxColor, NvtxEventAttributes, NvtxMessage};
 pub use payload::{NvtxPayload, NvtxPayloadValue, PayloadExtensionEvent};
@@ -121,4 +124,8 @@ pub enum NvtxEvent {
         /// Raw resource handle being destroyed.
         handle: u64,
     },
+}
+
+impl EventPayload for NvtxEvent {
+    const NAME: &'static str = "NvtxEvent";
 }

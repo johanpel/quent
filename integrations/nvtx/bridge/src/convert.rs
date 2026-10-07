@@ -10,17 +10,6 @@ use quent_nvtx_events::{
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::NvtxEventEntity;
-
-/// Convert an owned NVTX record on the emitting thread before forwarding it.
-///
-/// Push/pop records receive that thread's OS ID during conversion.
-impl From<Record> for NvtxEventEntity {
-    fn from(record: Record) -> Self {
-        Self(convert(record))
-    }
-}
-
 fn current_thread_id() -> u32 {
     thread_local! {
         static CACHED_TID: std::cell::OnceCell<u32> = const { std::cell::OnceCell::new() };
@@ -36,7 +25,10 @@ fn compute_thread_id() -> u32 {
     unsafe { libc::syscall(libc::SYS_gettid) as u32 }
 }
 
-fn convert(record: Record) -> NvtxEvent {
+/// Convert an owned injection record into an NVTX event.
+///
+/// Push/pop records receive the calling thread's OS ID.
+pub fn convert(record: Record) -> NvtxEvent {
     match record {
         Record::RangePush {
             domain,

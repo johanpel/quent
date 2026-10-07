@@ -8,7 +8,7 @@ use std::ffi::CString;
 use std::sync::{Arc, Barrier, Mutex};
 
 use quent_instrumentation::{ContextInner, EventCallback};
-use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_bridge::convert;
 use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
@@ -17,21 +17,21 @@ const N_THREADS: usize = 4;
 #[test]
 fn captures_core_events_and_preserves_calling_thread_ids() {
     let collected = Arc::new(Mutex::new(Vec::<NvtxEvent>::new()));
-    let exporter = EventCallback::<NvtxEventEntity>::new({
+    let exporter = EventCallback::<NvtxEvent>::new({
         let collected = Arc::clone(&collected);
-        move |event| collected.lock().unwrap().push(event.data.0.clone())
+        move |event| collected.lock().unwrap().push(event.data.clone())
     });
     let session = Uuid::now_v7();
     let context = ContextInner::try_new(session).unwrap();
     let observer = Arc::new(
         context
-            .block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })
+            .block_on(async { context.observer::<NvtxEvent>(&exporter).await })
             .unwrap(),
     );
     let weak_observer = Arc::downgrade(&observer);
     nvtx_injection::install_hook(move |record| {
         if let Some(observer) = weak_observer.upgrade() {
-            observer.emit(session, NvtxEventEntity::from(record));
+            observer.emit(session, convert(record));
         }
     })
     .unwrap();

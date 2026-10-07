@@ -27,7 +27,6 @@ use std::collections::BTreeSet;
 use rustc_hash::FxHashMap as HashMap;
 
 use quent_events::Event;
-use quent_nvtx_bridge::NvtxEventEntity;
 use quent_nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage};
 use quent_time::TimeUnixNanoSec;
 
@@ -113,10 +112,10 @@ impl ResolutionTables {
     ///
     /// Order-independent by construction, which is what makes a `RegisterString`
     /// that arrives *after* the range using its handle resolve correctly.
-    pub(crate) fn build(events: &[Event<NvtxEventEntity>]) -> Self {
+    pub(crate) fn build(events: &[Event<NvtxEvent>]) -> Self {
         let mut tables = Self::default();
         for event in events {
-            tables.observe(event.timestamp, &event.data.0);
+            tables.observe(event.timestamp, &event.data);
         }
         tables
     }

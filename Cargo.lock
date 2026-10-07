@@ -2511,10 +2511,8 @@ dependencies = [
  "nvtx",
  "nvtx-injection",
  "nvtx-sys",
- "quent-events",
  "quent-instrumentation",
  "quent-nvtx-events",
- "serde",
  "uuid",
 ]
 
@@ -2522,6 +2520,7 @@ dependencies = [
 name = "quent-nvtx-events"
 version = "0.1.0"
 dependencies = [
+ "quent-events",
  "serde",
 ]
 
@@ -2533,6 +2532,7 @@ dependencies = [
  "nvtx-injection",
  "quent-instrumentation",
  "quent-nvtx-bridge",
+ "quent-nvtx-events",
  "uuid",
 ]
 
@@ -2545,7 +2545,6 @@ dependencies = [
  "quent-events",
  "quent-io",
  "quent-nvtx-analyzer",
- "quent-nvtx-bridge",
  "quent-nvtx-events",
  "quent-nvtx-ui",
  "serde",
@@ -2563,7 +2562,6 @@ version = "0.1.0"
 dependencies = [
  "quent-events",
  "quent-nvtx-analyzer",
- "quent-nvtx-bridge",
  "quent-nvtx-events",
  "quent-time",
  "serde",

@@ -25,13 +25,9 @@ capture = ["dep:libc", "dep:nvtx-injection", "dep:nvtx-sys"]
 
 [dependencies]
 libc = { version = "0.2", optional = true }
-# The bridge is a single adapter type. It needs the NVTX event vocabulary, the
-# Quent `EventPayload` trait it implements, and serde for the transparent derive.
 quent-nvtx-events = { path = "../events" }
 nvtx-injection = { path = "../injection", optional = true }
 nvtx-sys = { workspace = true, optional = true }
-quent-events = { path = "../../../crates/events" }
-serde = { workspace = true }
 
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]
 nvtx = { workspace = true }

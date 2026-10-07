@@ -15,7 +15,8 @@ use std::sync::{Arc, Mutex};
 
 use quent_instrumentation::{ContextInner, Event, EventCallback};
 use quent_nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
-use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_bridge::convert;
+use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
 /// The default (NULL) NVTX domain used by the test annotations.
@@ -26,10 +27,10 @@ fn real_capture_roundtrip() {
     // Collect the full envelope, not just the inner event: the builder orders by
     // `timestamp`, so dropping it would make this test prove nothing about the
     // real capture's ordering.
-    let collected: Arc<Mutex<Vec<Event<NvtxEventEntity>>>> = Arc::new(Mutex::new(Vec::new()));
+    let collected: Arc<Mutex<Vec<Event<NvtxEvent>>>> = Arc::new(Mutex::new(Vec::new()));
     let sink = {
         let collected = Arc::clone(&collected);
-        EventCallback::<NvtxEventEntity>::new(move |event| {
+        EventCallback::<NvtxEvent>::new(move |event| {
             collected.lock().expect("collector poisoned").push(event);
         })
     };
@@ -38,13 +39,13 @@ fn real_capture_roundtrip() {
     let context = ContextInner::try_new(session).expect("context");
     let observer = Arc::new(
         context
-            .block_on(async { context.observer::<NvtxEventEntity>(&sink).await })
+            .block_on(async { context.observer::<NvtxEvent>(&sink).await })
             .expect("observer"),
     );
     let weak_observer = Arc::downgrade(&observer);
     nvtx_injection::install_hook(move |record| {
         if let Some(observer) = weak_observer.upgrade() {
-            observer.emit(session, NvtxEventEntity::from(record));
+            observer.emit(session, convert(record));
         }
     })
     .expect("install hook");

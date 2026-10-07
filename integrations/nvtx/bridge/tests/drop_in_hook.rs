@@ -8,13 +8,14 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 use quent_instrumentation::{ContextInner, EventCallback};
-use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_bridge::convert;
+use quent_nvtx_events::NvtxEvent;
 use uuid::Uuid;
 
 #[test]
 fn observer_owner_dropped_inside_hook_still_flushes() {
     let calls = Arc::new(AtomicUsize::new(0));
-    let exporter = EventCallback::<NvtxEventEntity>::new({
+    let exporter = EventCallback::<NvtxEvent>::new({
         let calls = Arc::clone(&calls);
         move |_| {
             calls.fetch_add(1, Ordering::Relaxed);
@@ -24,7 +25,7 @@ fn observer_owner_dropped_inside_hook_still_flushes() {
     let context = ContextInner::try_new(session).unwrap();
     let observer = Arc::new(
         context
-            .block_on(async { context.observer::<NvtxEventEntity>(&exporter).await })
+            .block_on(async { context.observer::<NvtxEvent>(&exporter).await })
             .unwrap(),
     );
     let weak_observer = Arc::downgrade(&observer);
@@ -35,7 +36,7 @@ fn observer_owner_dropped_inside_hook_still_flushes() {
         move |event| {
             if let Some(observer) = observer.upgrade() {
                 drop(owner.lock().unwrap().take());
-                observer.emit(session, NvtxEventEntity::from(event));
+                observer.emit(session, convert(event));
             }
         }
     })

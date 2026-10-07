@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+quent-events = { path = "../../../crates/events" }
 serde = { workspace = true, optional = true }
 
 [features]

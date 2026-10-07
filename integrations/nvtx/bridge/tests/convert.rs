@@ -3,14 +3,10 @@
 
 use nvtx_injection::record::{Attributes, Color, Message, Payload, Record, String as RecordString};
 use nvtx_sys::ffi::nvtxPayloadType_t;
-use quent_nvtx_bridge::NvtxEventEntity;
+use quent_nvtx_bridge::convert;
 use quent_nvtx_events::{
     NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue,
 };
-
-fn convert(record: Record) -> NvtxEvent {
-    NvtxEventEntity::from(record).0
-}
 
 fn string(raw: RecordString) -> String {
     let NvtxEvent::DomainCreate { name, .. } = convert(Record::DomainCreate {

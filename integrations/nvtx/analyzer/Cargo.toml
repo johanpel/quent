@@ -27,7 +27,6 @@ real-capture-tests = [
 # time primitives. The shared analysis/modelling crates are excluded by design,
 # keeping the panic-prone FSM runtime off this crate's path.
 quent-nvtx-events = { path = "../events" }
-quent-nvtx-bridge = { path = "../bridge" }
 quent-events = { path = "../../../crates/events" }
 quent-time = { path = "../../../crates/time" }
 # Same hasher the shared analyzer uses. These keys are process-local NVTX
@@ -37,6 +36,7 @@ tracing = { workspace = true }
 
 # Roundtrip-test-only. Optional regular dependencies keep the default analyzer
 # build independent of the Linux-only injection toolchain.
+quent-nvtx-bridge = { path = "../bridge", optional = true }
 libc = { version = "0.2", optional = true }
 nvtx = { workspace = true, optional = true }
 nvtx-injection = { path = "../injection", features = ["static-injection"], optional = true }
