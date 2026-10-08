@@ -34,6 +34,8 @@ export type {
   DeterministicColorResolver,
 } from './colors';
 export {
+  ALL_FSM_TYPES_COLOR_KEY,
+  ALL_FSM_TYPES_COLORS,
   COLOR_REGISTRY_KEYS,
   createColorRegistry,
   createColorRegistryEntry,

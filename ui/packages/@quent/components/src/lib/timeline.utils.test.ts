@@ -22,6 +22,7 @@ import {
   computeVisibleMaxValue,
   deriveCapacityLabel,
   buildBulkParamsForItem,
+  buildBinnedTimelineSeries,
   transformResourceTree,
 } from './timeline.utils';
 import type { TimelineSeries, TimelineSeriesEntry } from '../timeline/types';
@@ -670,5 +671,37 @@ describe('buildTimelineMarks attributes', () => {
     expect(marks).toHaveLength(1);
     expect(marks![0]!.attributes).toBeUndefined();
     expect(marks![0]!.derivedAttributes).toBeUndefined();
+  });
+});
+
+describe('buildBinnedTimelineSeries All colour', () => {
+  const config = {
+    bin_duration: 1,
+    num_bins: 2n,
+    span: { start: 0, end: 2 },
+  } as unknown as Parameters<typeof buildBinnedTimelineSeries>[1];
+  const colorFsmState = () => 'state-colour';
+  const colorFsmType = (value: string) => (value === 'All' ? 'all-colour' : 'other');
+
+  it('colours the aggregate series with the "All" FSM type colour', () => {
+    const { series } = buildBinnedTimelineSeries(
+      { Binned: { capacities_values: { unit: [1, 2] }, long_fsms: [] } } as never,
+      config,
+      colorFsmState,
+      colorFsmType
+    );
+    expect(series.unit?.color).toBe('all-colour');
+  });
+
+  it('keeps per-state colours when a named FSM is selected', () => {
+    const { series } = buildBinnedTimelineSeries(
+      {
+        BinnedByState: { capacities_states_values: { unit: { busy: [1, 2] } }, long_fsms: [] },
+      } as never,
+      config,
+      colorFsmState,
+      colorFsmType
+    );
+    expect(series.busy?.color).toBe('state-colour');
   });
 });
