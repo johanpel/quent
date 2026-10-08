@@ -41,7 +41,8 @@ use std::path::PathBuf;
 use quent_schema::Schema;
 use quote::quote;
 
-mod entity_events;
+mod entities;
+mod event_loaders;
 
 /// Options controlling stored-event retrieval source generation.
 ///
@@ -161,48 +162,17 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
     let entity_events = if opts.entity_events {
-        Some(entity_events::generate(schema, &event_opts, &events)?)
+        Some(entities::generate(schema, &event_opts, &events)?)
     } else {
         None
     };
 
-    let model = quent_instrumentation_build::generated_model_path(schema);
-    let stored_model = if opts.filesystem {
-        let importers = schema.entities().map(|entity| {
-            let marker = quent_instrumentation_build::generated_entity_path(entity);
-            quote! {
-                ::quent_store::event::filesystem::EventImporter::<#model>::import_for_entity::<#marker>()
-            }
-        });
-        quote! {
-            impl ::quent_store::event::filesystem::Model for #model {
-                fn event_importers(
-                ) -> &'static [::quent_store::event::filesystem::EventImporter<Self>] {
-                    static IMPORTERS: &[
-                        ::quent_store::event::filesystem::EventImporter<#model>
-                    ] = &[
-                        #(#importers,)*
-                    ];
-                    IMPORTERS
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
-    let entities = schema.entities().map(|entity| {
-        let marker = quent_instrumentation_build::generated_entity_path(entity);
-        quote! {
-            impl ::quent_store::event::EntityMarkerInModel<#model> for #marker {}
-        }
-    });
+    let loaders = event_loaders::generate(schema, opts.filesystem);
 
     let file = syn::parse2::<syn::File>(quote! {
         #events
 
-        #stored_model
-
-        #(#entities)*
+        #loaders
 
         #entity_events
     })
