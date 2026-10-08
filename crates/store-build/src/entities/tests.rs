@@ -95,7 +95,8 @@ fn rejects_namespace_and_normalized_name_conflicts() {
             [],
         ),
         schema("Demo", [entity("Task", [event("id", [])])], []),
-        schema("Demo", [entity("Task", [event("event_groups", [])])], []),
+        schema("Demo", [entity("Task", [event("event_storage", [])])], []),
+        schema("Demo", [entity("Task", [event("properties", [])])], []),
     ];
     for schema in schemas {
         assert!(matches!(

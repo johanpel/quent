@@ -70,7 +70,9 @@ pub struct Options {
     /// Generate event-specific payloads, access traits, and consuming native storage.
     ///
     /// Types are emitted under `entity_events::<namespace>::<entity>`.
-    /// Event names `id`, `type_name`, and `event_groups` are reserved.
+    /// An entity's sole `Once` event is borrowed directly; other `Once` events
+    /// return `Option`, and `Multi` events return an iterator.
+    /// Event names `id`, `type_name`, `properties`, and `event_storage` are reserved.
     pub entity_events: bool,
 
     /// Directory the generated file is written into.

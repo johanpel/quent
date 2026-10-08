@@ -84,16 +84,20 @@ fn generate_entity(
         .to_owned();
     let access = quote::format_ident!("{}Events", entity_name);
     let native = quote::format_ident!("Native{}Events", entity_name);
-    let groups = quote::format_ident!("{}EventGroups", entity_name);
+    let event_storage_ident = quote::format_ident!("{}EventStorage", entity_name);
     type_names.insert(access.to_string(), "entity access trait".into());
     type_names.insert(native.to_string(), "native entity storage".into());
-    type_names.insert(groups.to_string(), "native event groups".into());
+    type_names.insert(
+        event_storage_ident.to_string(),
+        "native event storage".into(),
+    );
     let mut method_names = BTreeMap::from([
         ("id".to_owned(), "entity identity".to_owned()),
         ("type_name".to_owned(), "entity type name".to_owned()),
+        ("properties".to_owned(), "entity properties".to_owned()),
         (
-            "event_groups".to_owned(),
-            "native event groups accessor".to_owned(),
+            "event_storage".to_owned(),
+            "native event storage accessor".to_owned(),
         ),
     ]);
     let mut code = Vec::new();
@@ -117,8 +121,14 @@ fn generate_entity(
     }
     let payloads = code.iter().map(|event| &event.payload_struct_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
-    let native_storage =
-        storage::generate_entity(entity, &native, &groups, &access, &marker, &code);
+    let native_storage = storage::generate_entity(
+        entity,
+        &native,
+        &event_storage_ident,
+        &access,
+        &marker,
+        &code,
+    );
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {
         #(#payloads)*
@@ -144,8 +154,9 @@ fn generate_event(
         variant_pattern,
         event_constructor_expr,
     } = payload::generate(entity, event, namespace, opts, original)?;
-    let accessor = accessors::generate(event, &payload);
+    let accessor = accessors::generate(entity, event, &payload);
     let storage = storage::generate_event(
+        entity,
         event,
         &payload,
         &accessor.method_ident,

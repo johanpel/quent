@@ -55,6 +55,11 @@ fn moves_nested_field_types_without_clone_derives() {
 
     let events = NativeWorkerEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
     assert_eq!(events.id(), id);
+    assert_eq!(events.properties().id, id);
+    assert_eq!(events.properties().earliest_timestamp, 10);
+    assert_eq!(events.properties().latest_timestamp, 20);
+    assert_eq!(events.properties().event_count.get(), 2);
+    let _debug = format!("{events:?}");
     let event = events.r#type().unwrap();
     assert_eq!(event.id, id);
     assert_eq!(event.timestamp, 10);
@@ -91,6 +96,10 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
         },
     ));
     let events = NativeWorkerEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
+    assert_eq!(events.properties().id, id);
+    assert_eq!(events.properties().earliest_timestamp, 10);
+    assert_eq!(events.properties().latest_timestamp, 20);
+    assert_eq!(events.properties().event_count.get(), 3);
     assert!(events.r#type().is_none());
     assert!(events.renamed().is_none());
     assert_eq!(
@@ -111,7 +120,7 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
     let id = Uuid::from_u128(1);
     let single = Store::<Parent>::new([Event::new(id, 10, ParentEvent::Created)]);
     let grouped = NativeParentEvents::try_from(single.into_sequences().next().unwrap()).unwrap();
-    assert_eq!(grouped.created().unwrap().timestamp, 10);
+    assert_eq!(grouped.created().timestamp, 10);
     for timestamp in [10, 20] {
         let store = Store::<Parent>::new([
             Event::new(id, 10, ParentEvent::Created),
@@ -125,6 +134,20 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
             })
         );
     }
+}
+
+#[test]
+fn a_sole_multi_event_still_returns_all_occurrences() {
+    use model::{
+        Stream, StreamEvent,
+        entity_events::stream::{NativeStreamEvents, StreamEvents},
+    };
+    let id = Uuid::from_u128(4);
+    let store = Store::<Stream>::new([20, 10, 10].map(|timestamp| {
+        Event::new(id, timestamp, StreamEvent::Tick)
+    }));
+    let events = NativeStreamEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
+    assert_eq!(events.tick().map(|event| event.timestamp).collect::<Vec<_>>(), [10, 10, 20]);
 }
 
 #[test]

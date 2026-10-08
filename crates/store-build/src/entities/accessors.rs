@@ -5,7 +5,7 @@
 
 use proc_macro2::TokenStream;
 use quent_instrumentation_build::generated_module_ident;
-use quent_schema::{Cardinality, Event};
+use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 
 /// The name, signature, and trait declaration of one event accessor.
@@ -23,23 +23,31 @@ pub(super) struct AccessorCode {
     pub(super) method_decl: TokenStream,
 }
 
-pub(super) fn generate(event: &Event, payload: &syn::Ident) -> AccessorCode {
+pub(super) fn generate(entity: &Entity, event: &Event, payload: &syn::Ident) -> AccessorCode {
     let method = generated_module_ident(event.name());
-    let (return_type, docs) = if event.cardinality() == Cardinality::Once {
-        (
-            quote! { ::core::option::Option<&::quent_events::Event<#payload>> },
-            quote! {
-                /// Borrows the recorded event, returning `None` when absent.
-            },
-        )
-    } else {
-        (
-            quote! { impl ::core::iter::Iterator<Item = &::quent_events::Event<#payload>> },
-            quote! {
-                /// Borrows events in timestamp order; equal timestamps retain input order.
-            },
-        )
-    };
+    let (return_type, docs) =
+        if event.cardinality() == Cardinality::Once && entity.events().count() == 1 {
+            (
+                quote! { &::quent_events::Event<#payload> },
+                quote! {
+                    /// Borrows the entity's sole event.
+                },
+            )
+        } else if event.cardinality() == Cardinality::Once {
+            (
+                quote! { ::core::option::Option<&::quent_events::Event<#payload>> },
+                quote! {
+                    /// Borrows the recorded event, returning `None` when absent.
+                },
+            )
+        } else {
+            (
+                quote! { impl ::core::iter::Iterator<Item = &::quent_events::Event<#payload>> },
+                quote! {
+                    /// Borrows events in timestamp order; equal timestamps retain input order.
+                },
+            )
+        };
     let method_signature = quote! { fn #method(&self) -> #return_type };
     let method_decl = quote! { #docs #method_signature; };
     AccessorCode {

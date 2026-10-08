@@ -17,6 +17,7 @@ pub(super) struct EventStorageCode {
 }
 
 pub(super) fn generate_event(
+    entity: &Entity,
     event: &Event,
     payload: &syn::Ident,
     method: &syn::Ident,
@@ -26,6 +27,7 @@ pub(super) fn generate_event(
 ) -> EventStorageCode {
     EventStorageCode {
         native: native::generate_event(
+            entity,
             event,
             payload,
             method,
@@ -39,10 +41,10 @@ pub(super) fn generate_event(
 pub(super) fn generate_entity(
     entity: &Entity,
     native: &syn::Ident,
-    groups: &syn::Ident,
+    event_storage_ident: &syn::Ident,
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
 ) -> TokenStream {
-    native::generate_entity(entity, native, groups, access, marker, events)
+    native::generate_entity(entity, native, event_storage_ident, access, marker, events)
 }

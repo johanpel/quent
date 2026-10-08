@@ -8,13 +8,13 @@ use std::marker::PhantomData;
 use quent_events::{EntityMarker, Event};
 use uuid::Uuid;
 
-use super::{DuplicateOnceEvent, EntityHandle, sequence::EventSequence};
+use super::{DuplicateOnceEvent, EntityHandle, native::EntityProperties, sequence::EventSequence};
 
-/// Groups an entity's events by event type.
+/// Stores an entity's events by event type.
 ///
-/// [`Default`] must produce empty groups. Successful insertions preserve event
+/// [`Default`] must produce empty storage. Successful insertions preserve event
 /// metadata and insertion order within each group.
-pub trait EventGroups<E: EntityMarker>: Default {
+pub trait EventStorage<E: EntityMarker>: Default {
     /// Moves an event into its matching group.
     ///
     /// # Errors
@@ -24,43 +24,61 @@ pub trait EventGroups<E: EntityMarker>: Default {
     fn push(&mut self, event: Event<E::Payload>) -> Result<(), DuplicateOnceEvent>;
 }
 
-/// Owns an entity's identity and event groups.
+/// Owns an entity's identity and event storage.
 ///
 /// Conversion from [`EventSequence`] inserts events in timestamp order without
 /// requiring [`Clone`] and stops at the first grouping error.
-pub struct NativeEntity<E: EntityMarker, G: EventGroups<E>> {
-    id: Uuid,
-    event_groups: G,
+pub struct NativeEntity<E: EntityMarker, S: EventStorage<E>> {
+    properties: EntityProperties,
+    event_storage: S,
     marker: PhantomData<fn() -> E>,
 }
 
-impl<E: EntityMarker, G: EventGroups<E>> NativeEntity<E, G> {
-    /// Borrows the event groups.
-    pub fn event_groups(&self) -> &G {
-        &self.event_groups
+impl<E: EntityMarker, S: EventStorage<E>> NativeEntity<E, S> {
+    /// Returns metadata for the complete input event sequence.
+    pub fn properties(&self) -> &EntityProperties {
+        &self.properties
+    }
+
+    /// Borrows the event storage.
+    pub fn event_storage(&self) -> &S {
+        &self.event_storage
     }
 }
 
-impl<E: EntityMarker, G: EventGroups<E>> EntityHandle for NativeEntity<E, G> {
+impl<E: EntityMarker, S: EventStorage<E>> EntityHandle for NativeEntity<E, S> {
     type Entity = E;
 
     fn id(&self) -> Uuid {
-        self.id
+        self.properties.id
     }
 }
 
-impl<E: EntityMarker, G: EventGroups<E>> TryFrom<EventSequence<E>> for NativeEntity<E, G> {
+impl<E: EntityMarker, S: EventStorage<E>> TryFrom<EventSequence<E>> for NativeEntity<E, S> {
     type Error = DuplicateOnceEvent;
 
     fn try_from(sequence: EventSequence<E>) -> Result<Self, Self::Error> {
         let mut entity = Self {
-            id: sequence.id(),
-            event_groups: G::default(),
+            properties: EntityProperties {
+                id: sequence.id(),
+                earliest_timestamp: sequence.earliest_timestamp(),
+                latest_timestamp: sequence.latest_timestamp(),
+                event_count: sequence.event_count(),
+            },
+            event_storage: S::default(),
             marker: PhantomData,
         };
         for event in sequence.into_events() {
-            entity.event_groups.push(event)?;
+            entity.event_storage.push(event)?;
         }
         Ok(entity)
+    }
+}
+
+impl<E: EntityMarker, S: EventStorage<E>> std::fmt::Debug for NativeEntity<E, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeEntity")
+            .field("properties", &self.properties)
+            .finish_non_exhaustive()
     }
 }
