@@ -49,6 +49,18 @@ pub struct RuntimeOptions {
     /// Uses the available CPU count when unset, falling back to one worker if
     /// that count cannot be determined.
     pub worker_threads: Option<NonZeroUsize>,
+    /// Limits threads for blocking work, such as file writes in exporters,
+    /// separately from worker threads.
+    ///
+    /// Defaults to 512.
+    ///
+    /// Blocking threads are created as needed. Leave this unset unless you
+    /// really need to limit thread usage. Work waits when all threads are busy,
+    /// so a lower limit may slow file writes and flushing.
+    ///
+    /// Custom exporters can deadlock if their blocking tasks wait for other
+    /// work in the same pool and no thread is free to run it.
+    pub max_blocking_threads: Option<NonZeroUsize>,
     /// Overrides the default runtime thread name, `quent-rt-worker`, when set.
     pub thread_name: Option<String>,
 }

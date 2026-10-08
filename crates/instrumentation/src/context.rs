@@ -8,6 +8,7 @@ use crate::observer::{ObserverInner, spawn_forwarder};
 use quent_events::EventPayload;
 use quent_io::ExporterProvider;
 use std::future::Future;
+#[cfg(not(target_arch = "wasm32"))]
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime as TokioRuntime};
@@ -188,6 +189,7 @@ fn create_runtime(options: RuntimeOptions) -> Result<Runtime, Box<dyn std::error
             .or_else(|| std::thread::available_parallelism().ok())
             .map_or(1, NonZeroUsize::get);
         builder.worker_threads(worker_threads);
+        builder.max_blocking_threads(options.max_blocking_threads.map_or(512, NonZeroUsize::get));
         builder.thread_name(
             options
                 .thread_name
@@ -254,6 +256,7 @@ mod tests {
             RuntimeOptions {
                 worker_threads: NonZeroUsize::new(1),
                 thread_name: Some("quent-test-worker".to_owned()),
+                ..RuntimeOptions::default()
             },
         )
         .unwrap();
