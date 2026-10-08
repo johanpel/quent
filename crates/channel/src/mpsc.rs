@@ -204,6 +204,13 @@ impl<T: Send + 'static> Sender<T> {
     ///
     /// Returns the original value if the receiver is detected to be closed or
     /// dropped.
+    ///
+    /// # Panics
+    ///
+    /// Sending from a payload destructor can panic if that destructor runs
+    /// during another send, including a send through a different channel on
+    /// the same thread. Payload destructors must not send through this crate,
+    /// directly or indirectly.
     pub fn send(&self, value: T) -> Result<(), T> {
         let mut value = Some(value);
         let mut removed = Vec::new();
