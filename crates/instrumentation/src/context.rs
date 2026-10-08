@@ -24,6 +24,8 @@ pub(crate) struct Runtime {
 impl Runtime {
     /// The handle observers spawn and block on.
     pub(crate) fn handle(&self) -> &Handle {
+        // The runtime is always present until `Drop` takes it, after which this
+        // object is no longer accessible.
         self.runtime.as_ref().unwrap().handle()
     }
 
