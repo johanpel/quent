@@ -7,10 +7,21 @@ use crate::observer::{ObserverInner, spawn_forwarder};
 use quent_events::EventPayload;
 use quent_io::ExporterProvider;
 use std::future::Future;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime as TokioRuntime};
 use tracing::debug;
 use uuid::Uuid;
+
+/// Settings for an active context's asynchronous runtime.
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeOptions {
+    /// Uses the available CPU count when unset, falling back to one worker if
+    /// that count cannot be determined.
+    pub worker_threads: Option<NonZeroUsize>,
+    /// Overrides the default runtime thread name, `quent-rt-worker`, when set.
+    pub thread_name: Option<String>,
+}
 
 /// An owned runtime shared by an active context and its observers.
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
@@ -82,10 +93,20 @@ impl ContextInner {
     ///
     /// Initializes the timestamp clock, which may block during its first calibration.
     pub fn try_new(id: Uuid) -> Result<Self, Box<dyn std::error::Error>> {
+        Self::try_new_with_options(id, RuntimeOptions::default())
+    }
+
+    /// Constructs an active context with the supplied ID and runtime settings.
+    ///
+    /// Initializes the timestamp clock, which may block during its first calibration.
+    pub fn try_new_with_options(
+        id: Uuid,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         quent_time::initialize_clock();
         Ok(Self {
             id,
-            runtime: Some(Arc::new(create_runtime()?)),
+            runtime: Some(Arc::new(create_runtime(options)?)),
         })
     }
 
@@ -155,15 +176,33 @@ impl ContextInner {
 }
 
 /// Create an owned runtime for the context and its observers.
-fn create_runtime() -> Result<Runtime, Box<dyn std::error::Error>> {
+fn create_runtime(options: RuntimeOptions) -> Result<Runtime, Box<dyn std::error::Error>> {
     #[cfg(target_arch = "wasm32")]
-    return Err("active instrumentation contexts are unsupported on wasm32".into());
+    {
+        let _ = options;
+        Err("active instrumentation contexts are unsupported on wasm32".into())
+    }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
         debug!("spawning new async runtime");
-        let runtime =
-            TokioRuntime::new().map_err(|e| format!("unable to spawn async runtime: {e}"))?;
+        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        builder.enable_all();
+        // Set the worker count explicitly so `TOKIO_WORKER_THREADS`, which users
+        // may set for their application's runtime, does not also affect this runtime.
+        let worker_threads = options
+            .worker_threads
+            .or_else(|| std::thread::available_parallelism().ok())
+            .map_or(1, NonZeroUsize::get);
+        builder.worker_threads(worker_threads);
+        builder.thread_name(
+            options
+                .thread_name
+                .unwrap_or_else(|| "quent-rt-worker".to_owned()),
+        );
+        let runtime = builder
+            .build()
+            .map_err(|e| format!("unable to spawn async runtime: {e}"))?;
         Ok(Runtime {
             runtime: Some(runtime),
         })
@@ -178,5 +217,60 @@ mod tests {
     fn noop_context_has_no_runtime() {
         let ctx = ContextInner::noop(Uuid::now_v7());
         assert!(ctx.runtime.is_none());
+    }
+
+    #[test]
+    fn runtime_uses_default_thread_name() {
+        let ctx = ContextInner::try_new(Uuid::now_v7()).unwrap();
+        let runtime = ctx.runtime().unwrap();
+        assert_eq!(
+            runtime.handle().metrics().num_workers(),
+            std::thread::available_parallelism().map_or(1, NonZeroUsize::get)
+        );
+        let thread_name = ctx.block_on(
+            runtime
+                .handle()
+                .spawn(async { std::thread::current().name().map(str::to_owned) }),
+        );
+        assert_eq!(thread_name.unwrap().as_deref(), Some("quent-rt-worker"));
+    }
+
+    #[test]
+    fn default_runtime_ignores_tokio_worker_threads() {
+        // Run in a separate process to avoid changing other tests' environment.
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "context::tests::runtime_uses_default_thread_name",
+            ])
+            .env("TOKIO_WORKER_THREADS", "0")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "default runtime failed with TOKIO_WORKER_THREADS=0:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    #[test]
+    fn runtime_uses_configured_workers_and_thread_name() {
+        let ctx = ContextInner::try_new_with_options(
+            Uuid::now_v7(),
+            RuntimeOptions {
+                worker_threads: NonZeroUsize::new(1),
+                thread_name: Some("quent-test-worker".to_owned()),
+            },
+        )
+        .unwrap();
+        let runtime = ctx.runtime().unwrap();
+        assert_eq!(runtime.handle().metrics().num_workers(), 1);
+        let thread_name = ctx.block_on(
+            runtime
+                .handle()
+                .spawn(async { std::thread::current().name().map(str::to_owned) }),
+        );
+        assert_eq!(thread_name.unwrap().as_deref(), Some("quent-test-worker"));
     }
 }

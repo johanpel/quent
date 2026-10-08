@@ -3,7 +3,7 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, Uuid};
+use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, RuntimeOptions, Uuid};
 
 /// Provides typed access to an entity observer in a generated model.
 ///
@@ -68,10 +68,39 @@ impl<M: quent_events::EventModel + InstrumentedModel> Context<M> {
         M: crate::build_info::ModelSource + ObserverBuilder<P>,
         P: ContextExporter,
     {
+        Self::try_with_id_and_options(id, provider, RuntimeOptions::default())
+    }
+
+    /// Creates a context using the supplied runtime settings.
+    ///
+    /// Runtime settings are ignored for a no-op exporter.
+    pub fn try_new_with_options<P>(
+        provider: P,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
+        Self::try_with_id_and_options(Uuid::now_v7(), provider, options)
+    }
+
+    /// Creates a context using the supplied ID and runtime settings.
+    ///
+    /// Runtime settings are ignored for a no-op exporter.
+    pub fn try_with_id_and_options<P>(
+        id: Uuid,
+        provider: P,
+        options: RuntimeOptions,
+    ) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        M: crate::build_info::ModelSource + ObserverBuilder<P>,
+        P: ContextExporter,
+    {
         let inner = if provider.is_noop() {
             ContextInner::noop(id)
         } else {
-            ContextInner::try_new(id)?
+            ContextInner::try_new_with_options(id, options)?
         };
         provider.prepare_context(id, M::model_info());
         let observers = M::build_observers(&inner, &provider)?;
