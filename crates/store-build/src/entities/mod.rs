@@ -216,8 +216,7 @@ fn generate_payload(
     let payload = payload_ident(event);
     let mut names = BTreeMap::new();
     let mut fields = Vec::new();
-    let mut field_patterns = Vec::new();
-    let mut field_values = Vec::new();
+    let mut field_bindings = Vec::new();
     for (index, field) in event.fields().enumerate() {
         let ident = generated_module_ident(field.name());
         if let Some(first) = names.insert(ident.to_string(), field.name().to_string()) {
@@ -230,8 +229,7 @@ fn generate_payload(
         let ty = generated_field_type(field, namespace, opts)?;
         fields.push(quote! { pub #ident: #ty });
         let binding = quote::format_ident!("field_{}", index);
-        field_patterns.push(quote! { #ident: #binding });
-        field_values.push(quote! { #ident: #binding });
+        field_bindings.push(quote! { #ident: #binding });
     }
     let debug = opts.debug.then(|| quote! { #[derive(Debug)] });
     let docs = format!(
@@ -245,12 +243,12 @@ fn generate_payload(
         #[derive(::serde::Serialize, ::serde::Deserialize)]
         pub struct #payload { #(#fields,)* }
     };
-    let variant_pattern = if field_patterns.is_empty() {
+    let variant_pattern = if field_bindings.is_empty() {
         quote! { #original::#variant }
     } else {
-        quote! { #original::#variant { #(#field_patterns,)* } }
+        quote! { #original::#variant { #(#field_bindings,)* } }
     };
-    let event_constructor_expr = quote! { ::quent_events::Event::new(event_id, event_timestamp, #payload { #(#field_values,)* }) };
+    let event_constructor_expr = quote! { ::quent_events::Event::new(event_id, event_timestamp, #payload { #(#field_bindings,)* }) };
     Ok(PayloadCode {
         payload_struct_def,
         variant_pattern,
