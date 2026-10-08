@@ -3,7 +3,8 @@
 
 //! Instrumentation models and their contexts.
 
-use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, RuntimeOptions, Uuid};
+use crate::{ContextExporter, ContextInner, InstrumentedEntity, Observer, Uuid};
+use std::num::NonZeroUsize;
 
 /// Provides typed access to an entity observer in a generated model.
 ///
@@ -40,6 +41,16 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
         context: &ContextInner,
         provider: &P,
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
+}
+
+/// Settings for an active context's asynchronous runtime.
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeOptions {
+    /// Uses the available CPU count when unset, falling back to one worker if
+    /// that count cannot be determined.
+    pub worker_threads: Option<NonZeroUsize>,
+    /// Overrides the default runtime thread name, `quent-rt-worker`, when set.
+    pub thread_name: Option<String>,
 }
 
 /// Creates and holds the runtime and observers for an application's events.

@@ -3,6 +3,7 @@
 
 //! The runtime host that observers of a model instance run on.
 
+use crate::RuntimeOptions;
 use crate::observer::{ObserverInner, spawn_forwarder};
 use quent_events::EventPayload;
 use quent_io::ExporterProvider;
@@ -12,16 +13,6 @@ use std::sync::Arc;
 use tokio::runtime::{Handle, Runtime as TokioRuntime};
 use tracing::debug;
 use uuid::Uuid;
-
-/// Settings for an active context's asynchronous runtime.
-#[derive(Clone, Debug, Default)]
-pub struct RuntimeOptions {
-    /// Uses the available CPU count when unset, falling back to one worker if
-    /// that count cannot be determined.
-    pub worker_threads: Option<NonZeroUsize>,
-    /// Overrides the default runtime thread name, `quent-rt-worker`, when set.
-    pub thread_name: Option<String>,
-}
 
 /// An owned runtime shared by an active context and its observers.
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
