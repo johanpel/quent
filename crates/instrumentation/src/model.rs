@@ -44,7 +44,10 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
 }
 
 /// Settings for an active context's asynchronous runtime.
+///
+/// Create options with [`Self::default`] and set the fields you want to change.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct RuntimeOptions {
     /// Uses the available CPU count when unset, falling back to one worker if
     /// that count cannot be determined.
