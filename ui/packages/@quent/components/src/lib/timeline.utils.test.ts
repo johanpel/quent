@@ -131,13 +131,33 @@ describe('buildBulkParamsForItem FSM selection', () => {
       {
         ...entities,
         resource_types: {
-          thread: { ...resourceType, display_order: ['All', { Type: 'task' }] },
+          thread: {
+            ...resourceType,
+            display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+          },
         },
       },
       baseConfig
     );
     expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
       entity_type_name: null,
+    });
+  });
+
+  it('requests the only FSM instead of All when a single FSM is declared', () => {
+    const request = buildBulkParamsForItem(
+      group,
+      new Map(),
+      {
+        ...entities,
+        resource_types: {
+          thread: { ...resourceType, display_order: ['All', { Type: 'task' }] },
+        },
+      },
+      baseConfig
+    );
+    expect('ResourceGroup' in request && request.ResourceGroup.entity_filter).toEqual({
+      entity_type_name: 'task',
     });
   });
 

@@ -84,3 +84,38 @@ describe('analyzer-declared All choice', () => {
     expect(resolveResourceFsmType(declaration, 'task', group)).toBe('task');
   });
 });
+
+describe('single FSM default', () => {
+  const single: ResourceTypeDecl = { ...declaration, display_order: [{ Type: 'task' }] };
+
+  it('selects the only FSM type even when All is listed first', () => {
+    expect(resolveResourceFsmType(single)).toBe('task');
+    expect(resolveResourceFsmType({ ...single, display_order: ['All', { Type: 'task' }] })).toBe(
+      'task'
+    );
+  });
+
+  it('still preserves an explicit All selection', () => {
+    expect(
+      resolveResourceFsmType({ ...single, display_order: ['All', { Type: 'task' }] }, null)
+    ).toBeNull();
+  });
+
+  it('still defaults to All when several FSM types are available', () => {
+    expect(
+      resolveResourceFsmType({
+        ...single,
+        display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+      })
+    ).toBeNull();
+  });
+
+  it('counts only FSM types available to the resource when a group declaration is given', () => {
+    const group: ResourceGroupTypeDecl = {
+      name: 'worker',
+      contains_resource_types: ['thread'],
+      display_order: ['All', { Type: 'unavailable' }, { Type: 'task' }],
+    };
+    expect(resolveResourceFsmType(single, undefined, group)).toBe('task');
+  });
+});

@@ -36,6 +36,12 @@ export function resolveResourceFsmType(
   if (selection !== undefined) {
     return selection;
   }
-  const initial = resourceFsmChoices(declaration, groupDeclaration)[0];
+  const choices = resourceFsmChoices(declaration, groupDeclaration);
+  const fsmChoices = choices.filter(choice => choice !== 'All');
+  // With a single FSM, "All" is just that FSM's aggregate; show the FSM itself.
+  if (fsmChoices.length === 1) {
+    return fsmChoices[0]!.Type;
+  }
+  const initial = choices[0];
   return initial && initial !== 'All' ? initial.Type : null;
 }
