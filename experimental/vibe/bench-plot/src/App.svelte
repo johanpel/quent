@@ -5,11 +5,12 @@
   import { onMount } from 'svelte';
   import BenchmarkPlot from './BenchmarkPlot.svelte';
   import type { BenchCase, BenchLanguage, BenchReport } from './report';
-  import { availableLanguages, caseLanguage, frameworkColors, hasDiscardedCalls, isNoopCase, languageLabel, payloadGroups, sortCasesByAverage } from './report';
+  import { availableLanguages, caseLanguage, frameworkColors, hasDiscardedCalls, implementationName, isNoopCase, languageLabel, payloadGroups, sortCasesByAverage } from './report';
   import { loadPlotPreference, plotPreference, setIncludeDiscarded, setIncludeNoop, setPlotMode } from './plotPreference.svelte';
   import badgerUrl from '../../../../ui/public/logo.svg';
 
   const payloadColumnWidth = 72;
+  const benchmarkWarning = import.meta.env.VITE_BENCH_WARNING?.trim() ?? '';
   interface Selection { current: { url: string; version: string } | null }
   let current = $state<BenchReport | null>(null);
   let currentUrl = $state<string | null>(null);
@@ -30,7 +31,7 @@
     caseLanguage(item) === selectedLanguage && hasDiscardedCalls(item)) ?? []);
   let visibleDiscarded = $derived(discardedCases.some((item) =>
     (plotPreference.includeNoop || !isNoopCase(item)) && !excludedThreads.includes(item.threads)));
-  let colors = $derived(frameworkColors(current?.cases.map((item) => item.implementation) ?? []));
+  let colors = $derived(frameworkColors(current?.cases.map((item) => implementationName(item.implementation)) ?? []));
   let groups = $derived(current ? payloadGroups(current, selectedLanguage, plotPreference.includeNoop,
     plotPreference.includeDiscarded) : []);
   let emptyLoops = $derived(current?.cases.filter((item) => item.event_shape === null &&
@@ -197,6 +198,11 @@
       {/if}
     </div>
   </header>
+  {#if benchmarkWarning}
+    <aside class="alert alert-warning mx-4 sm:mx-6" aria-label="Benchmark warning">
+      <span>{benchmarkWarning}</span>
+    </aside>
+  {/if}
   <div class="tabs tabs-border px-4 sm:px-6" role="tablist" aria-label="Measurement type">
     <button id="latency-tab" class="tab tab-active" type="button" role="tab" aria-selected="true" aria-controls="latency-panel">Instrumentation latency</button>
   </div>

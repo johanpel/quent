@@ -4,22 +4,33 @@
 use std::path::Path;
 
 use quent_bench_rust_common::measure_threads;
-use quent_bench_types::{EventShape, Implementation, Language, MeasurementArgs};
+use quent_bench_types::{
+    EventShape, Implementation, Language, MeasurementArgs,
+    frameworks::quent::{Channel, Clock, Exporter},
+};
 use quent_instrumentation::{
-    Context, EventModel, ExporterOptions, FileSystemExporterOptions, HandleError,
+    Context, EventModel, ExporterOptions, FileSystemExporterOptions, FileSystemFormat, HandleError,
     InstrumentedEntity, InstrumentedModel, Noop, ObserverBuilder, ObserverProvider,
     build_info::ModelSource,
 };
 
-use crate::{BenchResult, CaseResult, Exporter, models, verify};
+use crate::{BenchResult, CaseResult, models, verify};
+
+fn file_format(exporter: Exporter) -> Option<FileSystemFormat> {
+    match exporter {
+        Exporter::Noop => None,
+        Exporter::Ndjson => Some(FileSystemFormat::Ndjson),
+        Exporter::Msgpack => Some(FileSystemFormat::Msgpack),
+        Exporter::Postcard => Some(FileSystemFormat::Postcard),
+    }
+}
 
 pub fn run_case(
     exporter: Exporter,
     shape: EventShape,
     workload: MeasurementArgs,
 ) -> BenchResult<CaseResult> {
-    let directory = exporter
-        .file_format()
+    let directory = file_format(exporter)
         .map(|_| tempfile::tempdir())
         .transpose()?;
     let export_root = directory.as_ref().map(|directory| directory.path());
@@ -77,13 +88,18 @@ pub fn run_case(
             |handle, (small, large, short, long)| handle.instr_call(small, large, short, long),
         )?,
     };
-    let implementation = if cfg!(feature = "channel-per-thread") {
-        Implementation::QuentPerThread
+    let channel = if cfg!(feature = "channel-per-thread") {
+        Channel::PerThread
     } else {
-        Implementation::Quent
+        Channel::Tokio
+    };
+    let clock = if cfg!(feature = "clock-quanta") {
+        Clock::Quanta
+    } else {
+        Clock::Std
     };
     Ok(CaseResult::try_new(
-        implementation,
+        Implementation::Quent(channel, clock),
         Language::Rust,
         Some(exporter),
         Some(shape),
@@ -121,7 +137,7 @@ where
     PrepareFn: Fn(u64) -> P + Copy + Send + 'static,
     EmitFn: Fn(&E::Handle, P) -> Result<(), HandleError> + Copy + Send + 'static,
 {
-    let context = match exporter.file_format() {
+    let context = match file_format(exporter) {
         None => Context::<M>::try_new(Noop)?,
         Some(format) => {
             Context::<M>::try_new(ExporterOptions::FileSystem(FileSystemExporterOptions::new(

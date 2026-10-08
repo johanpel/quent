@@ -12,7 +12,7 @@
   },
   "cases": [
     {
-      "implementation": "quent",
+      "implementation": {"quent": ["tokio", "std"]},
       "exporter": "noop",
       "event_shape": "empty",
       "threads": 1,

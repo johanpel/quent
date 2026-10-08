@@ -7,7 +7,7 @@
 From the repository root:
 
 ```sh
-pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop --threads 1,2,4 --num-batches 1000 --batch-size 20 --num-warmup-batches 10 --batch-pause-us 10
+pixi run cargo run --release -p quent-bench -- --frameworks quent --empty-loop --num-batches 1000 --batch-size 20 --num-warmup-batches 10 --batch-pause-us 10
 ```
 
 `quent-bench` builds implementations when needed and runs each case in a
@@ -19,7 +19,7 @@ overlap. It prints a summary table and writes a JSON report.
 | `--frameworks`         | `quent`          | Frameworks to measure, as a comma-separated list. Other frameworks are WIP.             |
 | `--empty-loop`         | Off              | Add an empty-loop measurement for each selected language.                               |
 | `--event-shape`        | All shapes below | Event payloads to measure, as a comma-separated list.                                   |
-| `--threads`            | `1`              | Concurrent caller threads, as comma-separated positive counts.                          |
+| `--threads`            | `1,2,4`          | Concurrent caller threads, as comma-separated positive counts.                          |
 | `--num-batches`        | `1000`           | Measured batches per thread.                                                            |
 | `--batch-size`         | `20`             | Calls or empty-loop iterations per thread in each batch.                                |
 | `--num-warmup-batches` | `10`             | Untimed batches before measurement.                                                     |
@@ -35,16 +35,23 @@ local time.
 
 #### Quent
 
-| Argument           | Default                        | Meaning                                       |
-| ------------------ | ------------------------------ | --------------------------------------------- |
-| `--quent-channel`  | `tokio,per-thread`                   | Select channel variants from a comma-separated list. |
-| `--quent-exporter` | `noop,ndjson,msgpack,postcard` | Select exporters from a comma-separated list. |
+| Argument           | Default                       | Meaning                                                  |
+| ------------------ | ----------------------------- | -------------------------------------------------------- |
+| `--quent-channel`  | `tokio,per-thread`            | Select channels from a comma-separated list.             |
+| `--quent-clock`    | `std,quanta`                  | Select instrumentation clocks from `std` and `quanta`.   |
+| `--quent-exporter` | `noop,ndjson,msgpack,postcard` | Select exporters from a comma-separated list.            |
 
 `tokio` uses Quent's default unbounded mpsc channel and appears as `quent` in
-the report. `per-thread` enables the `channel-per-thread` Cargo feature and
-appears as `quent-per-thread`. Each variant is built separately and runs in a
-separate process. Their different shutdown guarantees are documented in
+case labels. `per-thread` enables the `channel-per-thread` Cargo feature and
+appears as `quent-pt`. `quanta` enables the `clock-quanta` Cargo feature,
+adding `-quanta` to the case label (`quent-quanta` or `quent-pt-quanta`).
+The JSON report records the channel and clock as separate Quent options. Both
+clocks are benchmarked by default; use `--quent-clock std` or
+`--quent-clock quanta` to select one.
+Each combination is built separately and runs in a separate process. The
+channels' different shutdown guarantees are documented in
 [`crates/instrumentation/PERFORMANCE.md`](../crates/instrumentation/PERFORMANCE.md).
+The benchmark's own batch timing uses `std::time::Instant` for all combinations.
 
 Available `--quent-exporter` values:
 
@@ -153,3 +160,6 @@ pixi run pnpm --dir experimental/vibe/bench-plot build:single
 ```
 
 The file is written to `benchmarks/results/benchmark-plot.html`.
+Set `VITE_BENCH_WARNING` when building to show a warning box above the plots.
+The CI page uses it to identify the standard GitHub-hosted Actions runners used
+for its measurements.

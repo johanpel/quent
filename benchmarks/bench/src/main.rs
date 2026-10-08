@@ -71,7 +71,7 @@ struct SharedArgs {
         default_value = "empty,u8,u64,short-string,long-string,all"
     )]
     event_shape: Vec<EventShape>,
-    #[arg(long, value_delimiter = ',', default_value = "1")]
+    #[arg(long, value_delimiter = ',', default_value = "1,2,4")]
     threads: Vec<NonZeroUsize>,
     #[command(flatten)]
     batch: BatchArgs,

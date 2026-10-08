@@ -11,7 +11,8 @@ use quent_instrumentation::Uuid;
 
 use quent_bench_types::MeasurementArgs;
 
-use crate::{BenchResult, Exporter};
+use crate::BenchResult;
+use quent_bench_types::frameworks::quent::Exporter;
 
 pub fn discarded_events(
     exporter: Exporter,

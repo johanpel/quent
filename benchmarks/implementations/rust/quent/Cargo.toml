@@ -7,6 +7,7 @@ build = "build.rs"
 
 [features]
 channel-per-thread = ["quent-instrumentation/channel-per-thread"]
+clock-quanta = ["quent-instrumentation/clock-quanta"]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

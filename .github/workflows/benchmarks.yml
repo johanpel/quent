@@ -24,7 +24,8 @@ jobs:
       - name: Run instrumentation benchmarks
         run: |
           pixi run --frozen cargo run --release --locked -p quent-bench -- \
-            --empty-loop --threads 1,2,4 \
+            --empty-loop \
+            --quent-channel tokio,per-thread --quent-clock std,quanta \
             --output benchmarks/results/current.json
       - name: Upload benchmark report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -53,6 +54,8 @@ jobs:
         run: pixi run --frozen pnpm --dir experimental/vibe/bench-plot install --frozen-lockfile
       - name: Build standalone benchmark report
         run: pixi run --frozen pnpm --dir experimental/vibe/bench-plot build:single --results benchmarks/results --output pages/benchmarks/index.html
+        env:
+          VITE_BENCH_WARNING: Benchmarks run on standard GitHub-hosted Actions runners. Shared hardware and variable host load can affect results.
       - name: Upload benchmark plot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

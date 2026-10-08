@@ -8,6 +8,13 @@ export function caseKey(value) {
   return JSON.stringify([value.language ?? 'rust', value.implementation, value.exporter, value.event_shape, value.threads]);
 }
 
+function validImplementation(value) {
+  if (typeof value === 'string') return value.length > 0;
+  return value && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).length === 1 && Array.isArray(value.quent) && value.quent.length === 2 &&
+    ['tokio', 'per-thread'].includes(value.quent[0]) && ['std', 'quanta'].includes(value.quent[1]);
+}
+
 export function validateReport(report) {
   if (!report || typeof report !== 'object' || !report.system || !Array.isArray(report.cases) || !report.cases.length) {
     throw new Error('report needs system and cases');
@@ -24,7 +31,7 @@ export function validateReport(report) {
   }
   const keys = new Set();
   for (const item of report.cases) {
-    if (!item || typeof item !== 'object' || typeof item.implementation !== 'string' || !item.implementation ||
+    if (!item || typeof item !== 'object' || !validImplementation(item.implementation) ||
         !(item.language === undefined || ['rust', 'cpp', 'python'].includes(item.language)) ||
         !Number.isSafeInteger(item.threads) || item.threads < 1 ||
         !Number.isSafeInteger(item.num_batches) || item.num_batches < 1 ||
