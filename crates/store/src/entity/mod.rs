@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use self::sequence::EventSequence;
 
+pub mod grouped;
 pub mod native;
 pub mod sequence;
 

@@ -22,6 +22,7 @@ pub(super) fn generate_event(
     method: &syn::Ident,
     variant_pattern: &TokenStream,
     event_constructor_expr: &TokenStream,
+    accessor_method_signature: &TokenStream,
 ) -> EventStorageCode {
     EventStorageCode {
         native: native::generate_event(
@@ -30,6 +31,7 @@ pub(super) fn generate_event(
             method,
             variant_pattern,
             event_constructor_expr,
+            accessor_method_signature,
         ),
     }
 }
@@ -37,9 +39,10 @@ pub(super) fn generate_event(
 pub(super) fn generate_entity(
     entity: &Entity,
     native: &syn::Ident,
+    groups: &syn::Ident,
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
 ) -> TokenStream {
-    native::generate_entity(entity, native, access, marker, events)
+    native::generate_entity(entity, native, groups, access, marker, events)
 }
