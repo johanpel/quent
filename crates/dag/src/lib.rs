@@ -108,52 +108,70 @@ pub enum DagRoleParseError {
     UnknownRole(String),
 }
 
-/// Validates entity types that form directed acyclic graphs.
+/// Checks the schema rules for DAGs, vertices, and directed edges.
 ///
-/// DAGs, vertices, and edges are entities. Vertices and edges identify their
-/// containing DAG through a targeted `member-of` reference. Each edge declares
-/// exactly one source and target vertex in the same once-event.
+/// Vertices and edges use `member-of` to refer to their DAG. Edges use `source`
+/// and `target` to refer to their vertices.
 ///
 /// ## Requirements
 ///
-/// 1. `dag`, `vertex`, and `edge` roles annotate entities.
-/// 2. `member-of`, `source`, and `target` roles annotate direct event fields.
-/// 3. Every vertex and edge has exactly one `member-of` field.
-/// 4. A `member-of` field has a targeted entity-reference type.
-/// 5. A `member-of` reference points to a DAG type.
-/// 6. The event declaring `member-of` has once-cardinality.
-/// 7. Every edge has exactly one source and one target field.
-/// 8. An edge's `member-of`, source, and target fields occur in the same event.
-/// 9. Source and target fields have an entity-reference type.
-/// 10. Every source and target reference targets a vertex type.
-/// 11. Every endpoint vertex type belongs to the same DAG type as the edge.
+/// 1. The `dag`, `vertex`, and `edge` roles are allowed only on entities.
+/// 2. Only vertex and edge entities may declare `member-of` fields. Each must
+///    have exactly one, an entity reference naming an existing DAG entity type.
+/// 3. Only edge entities may declare `source` and `target` fields. Each edge
+///    must have exactly one of each, both entity references naming existing
+///    vertex entity types.
+/// 4. These fields must be directly on events, not inside records. The event
+///    containing `member-of` can occur only once per entity. An edge's `source`
+///    and `target` fields must be in that same event.
+/// 5. An edge and its referenced vertex types must belong to the same DAG type.
 ///
-/// Acyclicity and instance-level reference integrity depend on emitted entity
-/// IDs and must be validated when events are reconstructed.
+/// This constraint only checks the schema. Analysis must use emitted entity
+/// IDs to check for cycles and ensure that vertices and edges belong to the
+/// same DAG instance.
 #[derive(Default)]
 pub struct DagConstraint {
+    /// Schema violations found during validation.
     errors: Vec<DagError>,
+    /// All declared entity type paths, used to check reference targets.
     entities: Set<Path>,
+    /// Entity type paths in schema order, for consistent diagnostics.
     entity_order: Vec<Path>,
+    /// DAG, vertex, or edge roles assigned to entity types.
     roles: Map<Path, DagRole>,
+    /// Membership fields grouped by the entity type that declares them.
     member_of: Map<Path, Vec<MemberOf>>,
+    /// Source and target fields grouped by the entity type that declares them.
     endpoints: Map<Path, Vec<Endpoint>>,
 }
 
+/// A declared reference to a vertex or edge's containing DAG.
 struct MemberOf {
+    /// The event containing the field.
     event: Identifier,
+    /// Whether the event can occur once or repeatedly.
     cardinality: Cardinality,
+    /// The referenced DAG entity type, if the target annotation can be read.
     target: Option<Path>,
+    /// Whether the field is an entity reference.
     valid_type: bool,
+    /// The field's schema location for error messages.
     location: String,
 }
 
+/// A declared source or target vertex reference.
 struct Endpoint {
+    /// Whether the field marks the source or target vertex.
     role: DagRole,
+    /// The event containing the field.
     event: Identifier,
+    /// Whether the event can occur once or repeatedly.
     cardinality: Cardinality,
+    /// The referenced vertex entity type, if the target annotation can be read.
     target: Option<Path>,
+    /// Whether the field is an entity reference.
     valid_type: bool,
+    /// The field's schema location for error messages.
     location: String,
 }
 
@@ -169,6 +187,7 @@ impl Visitor for DagConstraint {
                     Some(role @ (DagRole::Dag | DagRole::Vertex | DagRole::Edge)) => {
                         self.roles.insert(entity.path().clone(), role);
                     }
+                    // Requirement 4: relation roles require event fields.
                     Some(role @ (DagRole::MemberOf | DagRole::Source | DagRole::Target)) => {
                         self.errors.push(DagError::MisplacedRole {
                             location: cursor.to_string(),
@@ -181,6 +200,7 @@ impl Visitor for DagConstraint {
             }
             Element::Field(field) => match self.decode_role(cursor, field.annotations()) {
                 Some(role @ DagRole::MemberOf) => {
+                    // Requirement 4: membership fields are directly on events.
                     let Some((entity, event)) = direct_event_at_cursor(cursor) else {
                         self.errors.push(DagError::MisplacedRole {
                             location: cursor.to_string(),
@@ -202,6 +222,7 @@ impl Visitor for DagConstraint {
                         });
                 }
                 Some(role @ (DagRole::Source | DagRole::Target)) => {
+                    // Requirement 4: endpoint fields are directly on events.
                     let Some((entity, event)) = direct_event_at_cursor(cursor) else {
                         self.errors.push(DagError::MisplacedRole {
                             location: cursor.to_string(),
@@ -223,6 +244,7 @@ impl Visitor for DagConstraint {
                             location: cursor.to_string(),
                         });
                 }
+                // Requirement 1: entity roles are not allowed on fields.
                 Some(role @ (DagRole::Dag | DagRole::Vertex | DagRole::Edge)) => {
                     self.errors.push(DagError::MisplacedRole {
                         location: cursor.to_string(),
@@ -232,6 +254,7 @@ impl Visitor for DagConstraint {
                 }
                 None => {}
             },
+            // Requirements 1 and 4: roles are not allowed on other elements.
             Element::Annotations(annotations)
                 if !matches!(
                     cursor.previous(),
@@ -269,6 +292,7 @@ impl Visitor for DagConstraint {
                 continue;
             }
             let declared = member_of.get(entity).map(Vec::as_slice).unwrap_or_default();
+            // Requirement 2: each vertex and edge has one membership field.
             let [member] = declared else {
                 match declared {
                     [] => errors.push(DagError::MissingMemberOf {
@@ -286,12 +310,14 @@ impl Visitor for DagConstraint {
                 }
                 continue;
             };
+            // Requirement 4: the membership event can occur only once.
             if member.cardinality != Cardinality::Once {
                 errors.push(DagError::MemberOfEventNotOnce {
                     entity: entity.clone(),
                     event: member.event.clone(),
                 });
             }
+            // Requirement 2: membership references an existing DAG type.
             if !member.valid_type {
                 errors.push(DagError::InvalidMemberOfType {
                     location: member.location.clone(),
@@ -325,6 +351,7 @@ impl Visitor for DagConstraint {
             let Some(declared) = member_of.get(entity) else {
                 continue;
             };
+            // Requirement 2: only vertices and edges declare membership fields.
             if !matches!(roles.get(entity), Some(DagRole::Vertex | DagRole::Edge)) {
                 for member in declared {
                     errors.push(DagError::MemberOfOnNonMember {
@@ -339,6 +366,7 @@ impl Visitor for DagConstraint {
             let Some(declared) = endpoints.get(entity) else {
                 continue;
             };
+            // Requirement 3: only edges may declare endpoint fields.
             if roles.get(entity) != Some(&DagRole::Edge) {
                 for endpoint in declared {
                     errors.push(DagError::EndpointOnNonEdge {
@@ -367,9 +395,11 @@ impl Visitor for DagConstraint {
                 .filter(|endpoint| endpoint.role == DagRole::Target)
                 .collect();
 
+            // Requirement 3: each edge has exactly one source and one target.
             check_endpoint_count(edge, DagRole::Source, &sources, &mut errors);
             check_endpoint_count(edge, DagRole::Target, &targets, &mut errors);
             for endpoint in declared {
+                // Requirement 3: endpoints must be entity references.
                 if !endpoint.valid_type {
                     errors.push(DagError::InvalidEndpointType {
                         location: endpoint.location.clone(),
@@ -383,6 +413,7 @@ impl Visitor for DagConstraint {
             let ([source], [target]) = (sources.as_slice(), targets.as_slice()) else {
                 continue;
             };
+            // Requirement 4: both endpoints share an event that can occur once.
             if source.event != target.event {
                 errors.push(DagError::EndpointsInDifferentEvents {
                     edge: edge.clone(),
@@ -395,6 +426,7 @@ impl Visitor for DagConstraint {
                     event: source.event.clone(),
                 });
             }
+            // Requirement 4: membership and endpoints share the same event.
             if let Some([member]) = member_of.get(edge).map(Vec::as_slice)
                 && source.event == target.event
                 && member.event != source.event
@@ -465,6 +497,7 @@ fn check_endpoint_target(
     dag_parents: &Map<Path, Path>,
     errors: &mut Vec<DagError>,
 ) {
+    // Requirement 3: each endpoint names an existing vertex entity type.
     let Some(target) = &endpoint.target else {
         errors.push(DagError::UntargetedEndpoint {
             location: endpoint.location.clone(),
@@ -487,6 +520,7 @@ fn check_endpoint_target(
         });
         return;
     }
+    // Requirement 5: the edge and vertex must belong to the same DAG type.
     let (Some(edge_dag), Some(vertex_dag)) = (dag_parents.get(edge), dag_parents.get(target))
     else {
         return;

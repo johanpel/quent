@@ -11,7 +11,8 @@ use serde::Deserialize;
 use crate::diag::Diagnostics;
 use crate::extensions::reference::entity_ref_type;
 
-/// A DAG entity role.
+/// An entity's `dag:` value: `true` for a DAG, `false` for no role, or a
+/// constituent role.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum DagEntityDecl {
@@ -19,6 +20,7 @@ pub(crate) enum DagEntityDecl {
     Role(DagEntityRole),
 }
 
+/// Named `dag:` values for vertex and directed edge entities.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub(crate) enum DagEntityRole {
@@ -26,13 +28,14 @@ pub(crate) enum DagEntityRole {
     Edge,
 }
 
-/// A field forming a `member-of` or edge endpoint relation.
+/// An event field declared with a `dag:` topology relation.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DagRelationField {
     pub(crate) dag: DagFieldDecl,
 }
 
+/// A `dag:` mapping with exactly one `in`, `source`, or `target` entity type.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(crate) enum DagFieldDecl {
@@ -41,6 +44,7 @@ pub(crate) enum DagFieldDecl {
     Target(DagTargetDecl),
 }
 
+/// The `{ in: DagType }` mapping naming a vertex or edge's containing DAG type.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DagMemberOfDecl {
@@ -48,12 +52,16 @@ pub(crate) struct DagMemberOfDecl {
     pub(crate) target: String,
 }
 
+/// The `{ source: VertexType }` mapping naming a directed edge's source vertex
+/// type.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DagSourceDecl {
     pub(crate) source: String,
 }
 
+/// The `{ target: VertexType }` mapping naming a directed edge's target vertex
+/// type.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct DagTargetDecl {

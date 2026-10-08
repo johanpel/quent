@@ -10,10 +10,16 @@ use quent_schema::{
 
 use crate::DagRole;
 
-/// The once-event that declares DAG membership and optional edge endpoints.
+/// An event that records which DAG a vertex or edge belongs to.
+///
+/// The event can occur once per entity and also records an edge's source and
+/// target.
 pub struct DagEventDecl {
+    /// The name of the event to create.
     name: Identifier,
+    /// Extra fields added alongside the DAG, source, and target references.
     attributes: Vec<Field>,
+    /// Documentation, metadata, and constraints attached to the event.
     annotations: Annotations,
 }
 
@@ -46,12 +52,17 @@ impl DagEventDecl {
     }
 }
 
-/// A vertex or edge reference to its DAG.
+/// A reference that identifies which DAG a vertex or edge belongs to.
 pub struct MemberOfDecl {
+    /// The name of the reference field to create.
     field: Identifier,
+    /// The DAG entity type that the reference points to.
     dag: Path,
+    /// Optional data carried alongside the DAG entity ID.
     data: Option<Box<DataType>>,
+    /// Documentation, metadata, and constraints attached to the field.
     field_annotations: Annotations,
+    /// Documentation, metadata, and constraints attached to the reference type.
     reference_annotations: Annotations,
 }
 
@@ -85,6 +96,13 @@ impl MemberOfDecl {
         self
     }
 
+    /// Build a reference field pointing to the containing DAG.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the field annotations already contain the DAG
+    /// constraint or the reference annotations already contain the target
+    /// constraint.
     fn build(self) -> Result<Field, BuilderError> {
         reference_field(
             self.field,
@@ -99,10 +117,15 @@ impl MemberOfDecl {
 
 /// A source or target reference declared by an edge.
 pub struct EndpointDecl {
+    /// The name of the source or target reference field to create.
     field: Identifier,
+    /// The vertex entity type that the reference points to.
     vertex: Path,
+    /// Optional data carried alongside the vertex entity ID.
     data: Option<Box<DataType>>,
+    /// Documentation, metadata, and constraints attached to the field.
     field_annotations: Annotations,
+    /// Documentation, metadata, and constraints attached to the reference type.
     reference_annotations: Annotations,
 }
 
@@ -136,6 +159,15 @@ impl EndpointDecl {
         self
     }
 
+    /// Build a vertex reference field annotated with `role`.
+    ///
+    /// Use [`DagRole::Source`] or [`DagRole::Target`] for `role`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the field annotations already contain the DAG
+    /// constraint or the reference annotations already contain the target
+    /// constraint.
     fn build(self, role: DagRole) -> Result<Field, BuilderError> {
         reference_field(
             self.field,
@@ -162,15 +194,22 @@ enum Declaration {
     },
 }
 
-/// Builds a DAG, vertex, or edge entity.
+/// Builds a DAG, vertex, or directed edge entity.
 ///
-/// Vertex and edge constructors generate the required once-event and topology
-/// fields. Reference targets are validated with the containing schema.
+/// Vertex and edge builders add an event that can occur once and contains the
+/// required DAG and vertex references. Validate the whole schema to check the
+/// referenced entity types.
 pub struct DagEntityBuilder {
+    /// The entity type's path in the schema.
     path: Path,
+    /// Additional events supplied by the caller.
     events: Vec<Event>,
+    /// Documentation, metadata, and constraints supplied for the entity.
     annotations: Annotations,
+    /// Whether the entity represents a DAG, vertex, or directed edge.
     role: DagRole,
+    /// The vertex or edge declaration event and its references, or none for a
+    /// DAG.
     declaration: Declaration,
 }
 
