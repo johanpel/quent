@@ -3,7 +3,7 @@
 
 //! Shared event forwarding state for entity observers.
 
-use crate::context::{Runtime, drive};
+use crate::context::Runtime;
 use quent_events::{Event, EventPayload};
 use quent_io::Exporter;
 use std::sync::{
@@ -124,15 +124,18 @@ impl<T> EventSender<T> {
 /// lifecycle.
 #[doc(hidden)]
 pub struct ObserverInner<T> {
+    /// Queues events for export, or discards them for a no-op observer.
     events_sender: EventSender<T>,
+    /// Signals the forwarder to drain queued events and shut down the exporter.
     cancellation_token: CancellationToken,
-    forwarder_handle: Option<JoinHandle<()>>,
-    /// The runtime this pipeline's forwarder runs on; `None` for a no-op
-    /// pipeline. An `Owned` runtime is kept alive here for the pipeline's
-    /// lifetime, so its drop flush is valid even after the [`Context`] is gone.
+    /// Joined on drop to wait for export and shutdown.
     ///
-    /// [`Context`]: crate::Context
-    runtime: Option<Runtime>,
+    /// Absent for a no-op observer.
+    forwarder_handle: Option<JoinHandle<()>>,
+    /// Keeps the asynchronous runtime alive until flushing completes.
+    ///
+    /// Absent for a no-op observer.
+    runtime: Option<Arc<Runtime>>,
 }
 
 impl<T> ObserverInner<T> {
@@ -178,18 +181,20 @@ impl<T> Drop for ObserverInner<T> {
         };
 
         // The forwarder drains remaining events and flushes the exporter on
-        // cancellation; joining waits for that to finish. `drive` blocks here
+        // cancellation. Joining waits for that to finish. `block_on` blocks here
         // whether dropped off a runtime or on a multi-threaded worker.
-        if let Err(e) = drive(&runtime.handle(), forwarder_handle) {
+        if let Err(e) = runtime.block_on(forwarder_handle) {
             warn!("forwarder task failed: {e}");
         }
     }
 }
 
 /// Spawn the forwarder task for `exporter` on `runtime` and wrap it in an
-/// [`ObserverInner`]. The task drains and flushes the exporter on cancellation.
+/// [`ObserverInner`].
+///
+/// The task drains and flushes the exporter on cancellation.
 pub(crate) fn spawn_forwarder<T>(
-    runtime: &Runtime,
+    runtime: &Arc<Runtime>,
     mut exporter: Box<dyn Exporter<T>>,
 ) -> ObserverInner<T>
 where
@@ -198,9 +203,7 @@ where
     #[cfg(feature = "channel-per-thread")]
     let ticker = {
         let _guard = runtime.handle().enter();
-        std::panic::catch_unwind(|| interval(Duration::from_millis(1))).expect(
-            "quent-instrumentation channel-per-thread requires a Tokio runtime with timer support enabled via enable_time() or enable_all()",
-        )
+        interval(Duration::from_millis(1))
     };
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
@@ -232,7 +235,7 @@ where
         },
         cancellation_token,
         forwarder_handle: Some(forwarder_handle),
-        runtime: Some(runtime.clone()),
+        runtime: Some(Arc::clone(runtime)),
     }
 }
 
@@ -430,16 +433,6 @@ mod tests {
                 assert_eq!(*recorded.lock().unwrap(), (0..EVENTS).collect::<Vec<_>>());
             });
         }
-    }
-
-    #[cfg(feature = "channel-per-thread")]
-    #[test]
-    #[should_panic(expected = "channel-per-thread requires a Tokio runtime with timer support")]
-    fn timer_disabled_runtime_panics_before_spawning_forwarder() {
-        let runtime = tokio::runtime::Builder::new_multi_thread().build().unwrap();
-        let borrowed = Runtime::Borrowed(runtime.handle().clone());
-        let exporter = Box::new(RecordingExporter(Arc::new(Mutex::new(Vec::new()))));
-        let _observer = spawn_forwarder(&borrowed, exporter);
     }
 
     #[test]
