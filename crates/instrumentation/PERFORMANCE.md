@@ -126,6 +126,12 @@ the last owner of the instrumentation, which is good practice in general, Level
 before shutdown returns. Both channels log exporter failures instead of
 reporting them to the caller.
 
+With `channel-per-thread`, shutdown drains at most the buffered event count
+observed during closure plus one segment's capacity per producer queue.
+It stops earlier if no events are available. Later sends do not extend this
+budget, so producers cannot keep shutdown draining indefinitely by refilling
+their queues.
+
 To use `channel-per-thread`, add it to the feature list of your existing
 `quent-instrumentation` dependency. Cargo features apply to the whole build. If
 any dependency enables this feature, all uses of `quent-instrumentation` use the

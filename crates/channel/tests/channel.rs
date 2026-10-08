@@ -229,6 +229,37 @@ fn closure_preserves_buffered_values_and_returns_rejected_values() {
     assert_eq!(output, [1, 2]);
 }
 
+/// Checks that closure preserves buffered segments but bounds later refills,
+/// including when closure is repeated or queues were already collected.
+#[test]
+fn shutdown_budget_is_fixed_per_queue() {
+    for collect_first in [false, true] {
+        let (sender, mut receiver) = unbounded_channel_with_config(config(2, 0));
+        for value in 0..5 {
+            sender.send(value).unwrap();
+        }
+        let mut output = Vec::new();
+        let limit = NonZeroUsize::new(2).unwrap();
+        if collect_first {
+            assert_eq!(receiver.drain_into(&mut output, limit), 2);
+        }
+        receiver.close();
+        while output.len() < 5 {
+            assert_ne!(receiver.drain_into(&mut output, limit), 0);
+        }
+        assert_eq!(output, [0, 1, 2, 3, 4]);
+        for value in 5..7 {
+            sender.send(value).unwrap();
+            receiver.close();
+            assert_eq!(receiver.drain_into(&mut output, limit), 1);
+        }
+        let _ = sender.send(7);
+        receiver.close();
+        assert_eq!(receiver.drain_into(&mut output, limit), 0);
+        assert_eq!(output, [0, 1, 2, 3, 4, 5, 6]);
+    }
+}
+
 /// Checks that final draining finishes without waiting for a live producer to
 /// drop.
 #[test]

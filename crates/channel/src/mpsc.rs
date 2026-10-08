@@ -284,8 +284,9 @@ impl<T: Send + 'static> Receiver<T> {
     /// number appended.
     ///
     /// Preserves existing contents of `output` and does not wait for new
-    /// values. A zero return does not mean all senders have disconnected or
-    /// that no further values can arrive.
+    /// values. While open, a zero return does not mean all senders have
+    /// disconnected or that no further values can arrive. After closure,
+    /// draining is limited by the budget described in [`Self::close`].
     ///
     /// Values sent by one thread retain their order, except that values sent
     /// during thread-local destruction may arrive before that thread's earlier
@@ -344,7 +345,12 @@ impl<T: Send + 'static> Receiver<T> {
 
     /// Stop accepting registration and teardown fallback events.
     ///
-    /// Already registered channels remain drainable.
+    /// Each existing per-thread queue remains drainable up to the number of
+    /// buffered values observed during closure plus one segment's capacity.
+    /// Later sends do not replenish this budget, and repeated calls do not
+    /// reset it. All values buffered before closure remain drainable.
+    ///
+    /// Closure visits every buffered segment and may acquire locks.
     ///
     /// Senders notice closure only when they need to switch segments.
     pub fn close(&mut self) {

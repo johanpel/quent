@@ -316,8 +316,8 @@ async fn forward_spsc<T: Send + 'static>(
         }
     }
 
-    // Completed pre-shutdown sends are published, but concurrent producers may
-    // keep writing until their next segment switch.
+    // Closure fixes each queue's drain budget so concurrent sends cannot keep
+    // shutdown draining indefinitely.
     receiver.close();
     loop {
         let limit = exporter.batch_size_hint();

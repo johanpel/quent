@@ -30,12 +30,14 @@
 //! reduces per-send overhead, which matters when the producer sends a burst of
 //! many small values.
 //!
-//! Until the segment fills up, sends can succeed even after the consumer
-//! closes or drops. Draining can free slots and delay the check. A send can
-//! therefore report success even though the consumer will never receive its
-//! value. To receive every value, stop the producer and wait for any send in
-//! progress to finish before closing and draining the consumer. Dropping the
-//! consumer discards unread values.
+//! Until the segment fills up, sends can succeed even after the consumer closes
+//! or drops. Draining can free slots and delay the check. A send can therefore
+//! report success even though the consumer will never receive its value. To
+//! receive every value, stop the producer and wait for any send in progress to
+//! finish before closing and draining the consumer. Dropping the consumer
+//! discards unread values. Closing limits subsequent draining to the buffered
+//! values observed at closure plus one segment's capacity, so refilling cannot
+//! prolong draining indefinitely.
 
 use std::{
     num::NonZeroUsize,
@@ -183,6 +185,9 @@ pub(crate) struct Consumer<T> {
     node: Option<Arc<SegmentState<T>>>,
     /// Settings controlling retention of empty segments for reuse.
     config: Config,
+    /// Values still eligible for draining after closure, including one segment
+    /// of allowance for concurrent sends. Absent while open.
+    shutdown_remaining: Option<usize>,
 }
 
 /// Create an unbounded single-producer, single-consumer channel.
@@ -210,6 +215,7 @@ pub(crate) fn spsc<T: Send + 'static>(config: Config) -> (Producer<T>, Consumer<
             state,
             node: Some(node),
             config,
+            shutdown_remaining: None,
         },
     )
 }
@@ -275,16 +281,18 @@ impl<T> Drop for Producer<T> {
 }
 
 impl<T: Send + 'static> Consumer<T> {
-    /// Returns whether all segments have been drained and released.
+    /// Returns whether no segments remain or the shutdown budget is exhausted.
     pub(crate) fn is_finished(&self) -> bool {
-        self.current.is_none()
+        self.current.is_none() || self.shutdown_remaining == Some(0)
     }
 
     /// Append at most `limit` published values to `output`.
     ///
     /// `pending` also remains true for an open but currently empty channel.
     pub fn drain_into(&mut self, output: &mut Vec<T>, limit: NonZeroUsize) -> DrainResult {
-        let limit = limit.get();
+        let limit = self
+            .shutdown_remaining
+            .map_or(limit.get(), |remaining| limit.get().min(remaining));
         let mut drained = 0;
         while drained < limit && self.current.is_some() {
             // safety: The loop condition established that a current reader
@@ -303,15 +311,33 @@ impl<T: Send + 'static> Consumer<T> {
                 break;
             }
         }
+        if let Some(remaining) = &mut self.shutdown_remaining {
+            *remaining -= drained;
+        }
         DrainResult {
             drained,
-            pending: self.current.is_some(),
+            pending: !self.is_finished(),
         }
     }
 
-    /// Signal disconnection; already published values remain drainable.
+    /// Signals disconnection and bounds draining to buffered values plus one
+    /// segment's capacity. Repeated calls do not replenish the budget.
     pub fn close(&mut self) {
+        if self.shutdown_remaining.is_some() {
+            return;
+        }
         self.state.consumer_closed.store(true, Ordering::Release);
+        let mut remaining = self.current.as_ref().map_or(0, RingConsumer::slots);
+        let mut node = self.node.clone();
+        while let Some(current) = node {
+            node = current.transition.get().map(|transition| {
+                let transition = transition.lock().unwrap_or_else(|error| error.into_inner());
+                remaining = remaining.saturating_add(transition.next_reader.slots());
+                Arc::clone(&transition.next_node)
+            });
+        }
+        self.shutdown_remaining =
+            Some(remaining.saturating_add(self.config.segment_capacity.get()));
     }
 
     fn advance(&mut self) -> bool {
