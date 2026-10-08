@@ -131,9 +131,6 @@ To use `channel-per-thread`, add it to the feature list of your existing
 any dependency enables this feature, all uses of `quent-instrumentation` use the
 new channel. You cannot choose a different channel for each `Context`.
 
-Each active context creates its own Tokio runtime with timers enabled, so
-`channel-per-thread` does not require timer support in the application's runtime.
-
 ## In what order will my events be exported?
 
 This totally depends on the exporter. The simple "filesystem" exporters
