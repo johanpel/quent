@@ -42,7 +42,11 @@ pub trait ObserverBuilder<P>: InstrumentedModel {
     ) -> Result<Self::Observers, Box<dyn std::error::Error>>;
 }
 
-/// Instrumentation context for a generated model.
+/// Creates and holds the runtime and observers for an application's events.
+///
+/// Each active context creates its own asynchronous runtime and worker threads.
+/// Creating multiple active contexts therefore uses more threads and resources.
+/// No-op contexts do not create a runtime.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,
