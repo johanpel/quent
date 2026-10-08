@@ -73,6 +73,10 @@ pub struct RuntimeOptions {
 /// Each active context creates its own asynchronous runtime and worker threads.
 /// Creating multiple active contexts therefore uses more threads and resources.
 /// No-op contexts do not create a runtime.
+///
+/// Observers and handles keep the runtime alive after the context is dropped.
+/// Dropping the last owner of an observer, including its handles, waits for
+/// queued events to be exported and its exporter to flush.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,
