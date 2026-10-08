@@ -16,7 +16,7 @@ quent-events = { path = "../../../crates/events" }
 quent-instrumentation = { path = "../../../crates/instrumentation" }
 quent-time = { path = "../../../crates/time" }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["sync", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["sync"] }
 uuid = { workspace = true }
 
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dev-dependencies]

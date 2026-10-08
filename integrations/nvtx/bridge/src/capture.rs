@@ -3,16 +3,16 @@
 
 //! Convert and forward NVTX records to a Quent observer on a worker thread.
 //!
-//! Using a worker thread has several benefits:
+//! The hook queues records while a worker owns the observer. This has several
+//! benefits:
 //!
 //! - Text decoding and Quent event construction do not delay NVTX callers.
-//! - Observer shutdown stays out of NVTX callbacks. A library may call NVTX
-//!   from a global destructor while the application is shutting down. If the
-//!   hook takes an observer reference just before the application releases its
-//!   own, the callback becomes the last owner. Returning from the callback
-//!   then drops the observer and waits for its exporter. Tokio's `block_in_place`
-//!   panics on a current-thread runtime, while a call from the exporter thread
-//!   deadlocks. The worker owns the observer and performs that wait instead.
+//! - Observer shutdown stays out of callbacks during process shutdown. A
+//!   library may emit NVTX from a global destructor. If that callback held
+//!   the last observer reference, it would block while the exporter flushes.
+//! - In the unusual case where an exporter or a library it calls emits NVTX,
+//!   the callback does not trigger observer shutdown. If it did, it would wait
+//!   for the exporter that is executing it and deadlock.
 
 use std::io;
 use std::thread::{self, JoinHandle};
@@ -23,7 +23,6 @@ use quent_instrumentation::ObserverInner;
 use quent_nvtx_events::NvtxEvent;
 use quent_time::{TimeUnixNanoSec, timestamp};
 use thiserror::Error;
-use tokio::runtime::{Handle, RuntimeFlavor};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use uuid::Uuid;
 
@@ -52,9 +51,9 @@ pub enum CaptureError {
 /// Forwards NVTX records and flushes the observer on a dedicated worker.
 ///
 /// Installation is one-shot per process, including after this value is dropped.
-/// Dropping the capture closes its queue, drains accepted records, and waits for
-/// the observer's exporter to flush. Later calls and calls racing with shutdown
-/// may be discarded. Do not drop the capture from the observer's exporter thread.
+/// On normal completion, dropping the capture closes its queue, drains accepted
+/// records, and waits for the observer's exporter to flush. Later calls and
+/// calls racing with shutdown may be discarded.
 pub struct Capture {
     sender: UnboundedSender<Message>,
     worker: Option<JoinHandle<()>>,
@@ -62,9 +61,6 @@ pub struct Capture {
 
 impl Capture {
     /// Install the NVTX hook and start forwarding records to `observer`.
-    ///
-    /// The observer's runtime must make progress while capture shutdown waits
-    /// for its exporter. It must not borrow a current-thread runtime.
     ///
     /// # Errors
     ///
@@ -104,16 +100,10 @@ impl Drop for Capture {
     fn drop(&mut self) {
         let _ = self.sender.send(Message::Stop);
         if let Some(worker) = self.worker.take() {
-            let join = || {
-                let _ = worker.join();
-            };
-            match Handle::try_current() {
-                Ok(handle) if handle.runtime_flavor() == RuntimeFlavor::MultiThread => {
-                    // Leave a runtime worker available to flush the observer.
-                    tokio::task::block_in_place(join);
-                }
-                _ => join(),
-            }
+            // Joining also waits for the worker-owned observer to flush. Doing
+            // so on its exporter or Quent runtime worker can deadlock. A worker
+            // panic is ignored here and may leave records unflushed.
+            let _ = worker.join();
         }
     }
 }

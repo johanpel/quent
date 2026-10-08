@@ -69,9 +69,7 @@ received NVTX event can generate an unbounded stream of events.
 
 Stop and join NVTX-producing threads before dropping the capture if all events
 must be flushed. An in-flight callback may finish after shutdown begins, and
-its event may be discarded. Drop the capture off the observer's exporter thread.
-The observer must not borrow a current-thread runtime. An owned or multithreaded
-runtime can keep processing events during the flush.
+its event may be discarded.
 
 `static-injection` is requested in the manifest:
 
