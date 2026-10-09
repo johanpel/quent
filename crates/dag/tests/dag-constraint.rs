@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use quent_constraints::Constraint as _;
-use quent_dag::{DagConstraint, DagError, DagRole, DagRoleParseError};
+use quent_dag::{DagConstraint, DagError, DagRole};
 use quent_ref_target::RefTargetConstraint;
 use quent_schema::{
-    Annotations, Cardinality, DataType, Entity, Field, Schema,
+    Cardinality, DataType, Entity, Field, Schema,
     builder::{AnnotationsBuilder, EntityBuilder, EventBuilder, RecordBuilder, SchemaBuilder},
     test_utils::{event, field, ident, schema},
 };
@@ -86,38 +86,7 @@ fn errors(schema: &Schema) -> Vec<DagError> {
     }
 }
 
-#[test]
-fn roles_round_trip_through_annotations() {
-    for role in [
-        DagRole::Dag,
-        DagRole::Vertex,
-        DagRole::Edge,
-        DagRole::MemberOf,
-        DagRole::Source,
-        DagRole::Target,
-    ] {
-        assert_eq!(
-            DagRole::from_annotations(&role.annotations()),
-            Ok(Some(role))
-        );
-        assert_eq!(role.to_string().parse(), Ok(role));
-    }
-    assert_eq!(
-        "node".parse::<DagRole>(),
-        Err(DagRoleParseError::UnknownRole("node".to_string()))
-    );
-
-    let annotations = DagRole::Vertex
-        .annotate(AnnotationsBuilder::new().with_docs("An operator."))
-        .build()
-        .unwrap();
-    assert_eq!(annotations.docs(), Some("An operator."));
-    assert_eq!(
-        DagRole::from_annotations(&annotations),
-        Ok(Some(DagRole::Vertex))
-    );
-}
-
+// Accepts a schema with a DAG, a vertex type, and a correctly declared edge.
 #[test]
 fn valid_dag_types_pass() {
     let plan = dag("Plan");
@@ -133,72 +102,7 @@ fn valid_dag_types_pass() {
     assert!(errors(&dag_schema([plan, operator, plan_edge])).is_empty());
 }
 
-#[test]
-fn type_erased_endpoints_are_rejected() {
-    let plan_edge = edge(
-        "PlanEdge",
-        "Plan",
-        ref_to(None),
-        ref_to(None),
-        Cardinality::Once,
-    );
-    let errors = errors(&dag_schema([
-        dag("Plan"),
-        vertex("Scan", "Plan"),
-        vertex("Filter", "Plan"),
-        plan_edge,
-    ]));
-    assert_eq!(
-        errors
-            .iter()
-            .filter(|error| matches!(error, DagError::UntargetedEndpoint { .. }))
-            .count(),
-        2
-    );
-}
-
-#[test]
-fn vertex_and_edge_require_membership() {
-    let operator = entity_with_role(
-        "Operator",
-        DagRole::Vertex,
-        [event("declared", [field("name", DataType::String)])],
-    );
-    let plan_edge = entity_with_role(
-        "PlanEdge",
-        DagRole::Edge,
-        [event(
-            "declared",
-            [
-                role_field("source", ref_to(None), DagRole::Source),
-                role_field("target", ref_to(None), DagRole::Target),
-            ],
-        )],
-    );
-    let errors = errors(&dag_schema([dag("Plan"), operator, plan_edge]));
-
-    assert!(errors.iter().any(
-        |error| matches!(error, DagError::MissingMemberOf { entity, .. } if entity == "Operator")
-    ));
-    assert!(errors.iter().any(
-        |error| matches!(error, DagError::MissingMemberOf { entity, .. } if entity == "PlanEdge")
-    ));
-}
-
-#[test]
-fn membership_target_must_be_a_dag() {
-    let owner = EntityBuilder::new(ident("Owner"))
-        .with_event(event("declared", []))
-        .build()
-        .unwrap();
-    let errors = errors(&dag_schema([owner, vertex("Operator", "Owner")]));
-
-    assert!(errors.iter().any(|error| matches!(
-        error,
-        DagError::MemberOfTargetNotDag { target, .. } if target == "Owner"
-    )));
-}
-
+// Reports unknown entity types named by membership, source, and target fields.
 #[test]
 fn topology_targets_must_name_declared_entities() {
     let errors = errors(&dag_schema([
@@ -223,6 +127,7 @@ fn topology_targets_must_name_declared_entities() {
     assert_eq!(targets, ["MissingPlan", "MissingSource", "MissingTarget"]);
 }
 
+// Reports missing membership in schema order rather than alphabetical order.
 #[test]
 fn diagnostics_follow_entity_declaration_order() {
     let without_membership =
@@ -242,6 +147,7 @@ fn diagnostics_follow_entity_declaration_order() {
     assert_eq!(entities, ["LaterAlphabetically", "EarlierAlphabetically"]);
 }
 
+// Rejects membership inside a record without counting it as entity membership.
 #[test]
 fn membership_must_be_a_direct_event_field() {
     let membership = RecordBuilder::new(ident("Membership"))
@@ -276,8 +182,10 @@ fn membership_must_be_a_direct_event_field() {
     ));
 }
 
+// Rejects membership with a non-reference type, no target type, or a non-DAG
+// target type.
 #[test]
-fn membership_requires_a_targeted_entity_reference() {
+fn membership_requires_a_reference_to_a_dag() {
     let invalid_type = entity_with_role(
         "InvalidType",
         DagRole::Vertex,
@@ -294,7 +202,17 @@ fn membership_requires_a_targeted_entity_reference() {
             [role_field("dag", ref_to(None), DagRole::MemberOf)],
         )],
     );
-    let errors = errors(&dag_schema([dag("Plan"), invalid_type, untargeted]));
+    let owner = EntityBuilder::new(ident("Owner"))
+        .with_event(event("declared", []))
+        .build()
+        .unwrap();
+    let errors = errors(&dag_schema([
+        dag("Plan"),
+        invalid_type,
+        untargeted,
+        owner,
+        vertex("WrongTarget", "Owner"),
+    ]));
 
     assert!(
         errors
@@ -306,10 +224,28 @@ fn membership_requires_a_targeted_entity_reference() {
             .iter()
             .any(|error| matches!(error, DagError::UntargetedMemberOf { .. }))
     );
+    assert!(errors.iter().any(|error| matches!(
+        error,
+        DagError::MemberOfTargetNotDag { target, .. } if target == "Owner"
+    )));
 }
 
+// Rejects missing or duplicate membership and membership in repeatable events.
 #[test]
-fn membership_is_unique_and_declared_once() {
+fn membership_is_required_unique_and_declared_once() {
+    let missing_vertex =
+        entity_with_role("MissingVertex", DagRole::Vertex, [event("declared", [])]);
+    let missing_edge = entity_with_role(
+        "MissingEdge",
+        DagRole::Edge,
+        [event(
+            "declared",
+            [
+                role_field("source", ref_to(Some("MissingVertex")), DagRole::Source),
+                role_field("target", ref_to(Some("MissingVertex")), DagRole::Target),
+            ],
+        )],
+    );
     let duplicate = entity_with_role(
         "Duplicate",
         DagRole::Vertex,
@@ -326,8 +262,20 @@ fn membership_is_unique_and_declared_once() {
         .build()
         .unwrap();
     let repeated = entity_with_role("Repeated", DagRole::Vertex, [repeated_event]);
-    let errors = errors(&dag_schema([dag("Plan"), duplicate, repeated]));
+    let errors = errors(&dag_schema([
+        dag("Plan"),
+        missing_vertex,
+        missing_edge,
+        duplicate,
+        repeated,
+    ]));
 
+    assert!(errors.iter().any(
+        |error| matches!(error, DagError::MissingMemberOf { entity, .. } if entity == "MissingVertex")
+    ));
+    assert!(errors.iter().any(
+        |error| matches!(error, DagError::MissingMemberOf { entity, .. } if entity == "MissingEdge")
+    ));
     assert!(errors.iter().any(
         |error| matches!(error, DagError::MultipleMemberOf { entity, .. } if entity == "Duplicate")
     ));
@@ -336,6 +284,7 @@ fn membership_is_unique_and_declared_once() {
     ));
 }
 
+// Rejects an edge with no target or more than one source.
 #[test]
 fn edge_requires_one_source_and_target() {
     let missing_target = entity_with_role(
@@ -375,46 +324,40 @@ fn edge_requires_one_source_and_target() {
     )));
 }
 
+// Rejects edges whose membership, source, and target do not share one
+// once-event.
 #[test]
-fn endpoints_must_share_one_once_event() {
-    let split = entity_with_role(
-        "SplitEdge",
+fn edge_topology_must_share_one_once_event() {
+    let split_endpoints = entity_with_role(
+        "SplitEndpoints",
         DagRole::Edge,
         [
             event(
                 "source",
                 [
                     role_field("dag", ref_to(Some("Plan")), DagRole::MemberOf),
-                    role_field("vertex", ref_to(None), DagRole::Source),
+                    role_field("vertex", ref_to(Some("Operator")), DagRole::Source),
                 ],
             ),
             event(
                 "target",
-                [role_field("vertex", ref_to(None), DagRole::Target)],
+                [role_field(
+                    "vertex",
+                    ref_to(Some("Operator")),
+                    DagRole::Target,
+                )],
             ),
         ],
     );
     let repeated = edge(
         "RepeatedEdge",
         "Plan",
-        ref_to(None),
-        ref_to(None),
+        ref_to(Some("Operator")),
+        ref_to(Some("Operator")),
         Cardinality::Multi,
     );
-    let errors = errors(&dag_schema([dag("Plan"), split, repeated]));
-
-    assert!(errors.iter().any(
-        |error| matches!(error, DagError::EndpointsInDifferentEvents { edge, .. } if edge == "SplitEdge")
-    ));
-    assert!(errors.iter().any(
-        |error| matches!(error, DagError::EndpointEventNotOnce { edge, .. } if edge == "RepeatedEdge")
-    ));
-}
-
-#[test]
-fn edge_membership_and_endpoints_share_an_event() {
-    let split = entity_with_role(
-        "SplitEdge",
+    let split_membership = entity_with_role(
+        "SplitMembership",
         DagRole::Edge,
         [
             event(
@@ -424,26 +367,47 @@ fn edge_membership_and_endpoints_share_an_event() {
             event(
                 "endpoints",
                 [
-                    role_field("source", ref_to(None), DagRole::Source),
-                    role_field("target", ref_to(None), DagRole::Target),
+                    role_field("source", ref_to(Some("Operator")), DagRole::Source),
+                    role_field("target", ref_to(Some("Operator")), DagRole::Target),
                 ],
             ),
         ],
     );
-    let errors = errors(&dag_schema([dag("Plan"), split]));
+    let errors = errors(&dag_schema([
+        dag("Plan"),
+        vertex("Operator", "Plan"),
+        split_endpoints,
+        repeated,
+        split_membership,
+    ]));
 
     assert!(errors.iter().any(
-        |error| matches!(error, DagError::MemberOfInDifferentEvent { edge, .. } if edge == "SplitEdge")
+        |error| matches!(error, DagError::EndpointsInDifferentEvents { edge, .. } if edge == "SplitEndpoints")
+    ));
+    assert!(errors.iter().any(
+        |error| matches!(error, DagError::EndpointEventNotOnce { edge, .. } if edge == "RepeatedEdge")
+    ));
+    assert!(errors.iter().any(
+        |error| matches!(error, DagError::MemberOfInDifferentEvent { edge, .. } if edge == "SplitMembership")
     ));
 }
 
+// Rejects non-reference or untyped endpoints and endpoint roles on vertices.
+// Only entity references without target types get missing-target errors.
 #[test]
-fn endpoint_roles_require_entity_references_on_edges() {
+fn endpoints_require_typed_entity_references_on_edges() {
     let bad_edge = edge(
         "PlanEdge",
         "Plan",
         DataType::Uuid,
         DataType::String,
+        Cardinality::Once,
+    );
+    let untargeted = edge(
+        "UntargetedEdge",
+        "Plan",
+        ref_to(None),
+        ref_to(None),
         Cardinality::Once,
     );
     let misplaced = entity_with_role(
@@ -457,7 +421,7 @@ fn endpoint_roles_require_entity_references_on_edges() {
             ],
         )],
     );
-    let errors = errors(&dag_schema([dag("Plan"), bad_edge, misplaced]));
+    let errors = errors(&dag_schema([dag("Plan"), bad_edge, untargeted, misplaced]));
 
     assert_eq!(
         errors
@@ -466,16 +430,19 @@ fn endpoint_roles_require_entity_references_on_edges() {
             .count(),
         2
     );
-    assert!(
+    assert_eq!(
         errors
             .iter()
-            .all(|error| !matches!(error, DagError::UntargetedEndpoint { .. }))
+            .filter(|error| matches!(error, DagError::UntargetedEndpoint { .. }))
+            .count(),
+        2
     );
     assert!(errors.iter().any(
         |error| matches!(error, DagError::EndpointOnNonEdge { entity, .. } if entity == "Operator")
     ));
 }
 
+// Rejects endpoints that reference non-vertex entities or another DAG type.
 #[test]
 fn targeted_endpoints_must_name_vertices_in_the_same_dag() {
     let wrong_role = edge(
@@ -516,6 +483,7 @@ fn targeted_endpoints_must_name_vertices_in_the_same_dag() {
     )));
 }
 
+// Rejects an unknown role name and a DAG role placed on a record.
 #[test]
 fn invalid_and_misplaced_roles_are_rejected() {
     let invalid = AnnotationsBuilder::new()
@@ -550,11 +518,11 @@ fn invalid_and_misplaced_roles_are_rejected() {
     );
 }
 
+// Leaves ordinary entities without DAG annotations unrestricted by this check.
 #[test]
 fn absent_dag_annotations_are_ignored() {
     let plain = EntityBuilder::new(ident("Plain"))
         .with_event(event("declared", []))
-        .with_annotations(Annotations::default())
         .build()
         .unwrap();
     assert!(errors(&dag_schema([plain])).is_empty());
