@@ -31,6 +31,7 @@ rumdl = "*"
 scripts = ["integrations/nvtx/activate-bindgen.sh"]
 
 [tasks]
+# clang-format needs an explicit file list; Git excludes ignored build output and dependencies.
 format-cpp = "git ls-files -z --cached --others --exclude-standard -- '*.cpp' '*.cc' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' | xargs -0 clang-format -i"
 format-cpp-check = "git ls-files -z --cached --others --exclude-standard -- '*.cpp' '*.cc' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' | xargs -0 clang-format --dry-run --Werror"
 format-python = "ruff format ."
