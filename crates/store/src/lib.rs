@@ -10,3 +10,4 @@ pub mod event;
 
 pub use entity::{EntityHandle, EntityStore};
 pub use error::Error;
+pub use quent_time::TimeUnixNanoSec;
