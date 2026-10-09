@@ -49,6 +49,22 @@ model: m
 }
 
 #[test]
+fn compatible_versions() {
+    for version in ["0.1.1", "alpha"] {
+        let source = format!("quent: '{version}'\nmodel: m\n");
+        assert!(parse_from_str(&source, None).is_ok(), "{version}");
+    }
+}
+
+#[test]
+fn unsupported_version() {
+    expect_raw(
+        "quent: '0.2.0'\nmodel: m\n",
+        &["unsupported Quent version `0.2.0`", ">=0.1, <0.2"],
+    );
+}
+
+#[test]
 fn event_multi_must_be_boolean() {
     expect_error(
         "\

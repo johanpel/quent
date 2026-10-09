@@ -15,8 +15,17 @@ pub(crate) fn validate(version: &str, sink: &mut Diagnostics) {
     } else {
         semver::Version::parse(version)
     };
-    let supported =
-        semver::VersionReq::parse(SUPPORTED_VERSIONS).expect("valid Quent version range");
+    let supported = match semver::VersionReq::parse(SUPPORTED_VERSIONS) {
+        Ok(supported) => supported,
+        Err(error) => {
+            sink.error(
+                "quent",
+                format!("invalid supported Quent version range `{SUPPORTED_VERSIONS}`: {error}"),
+                None,
+            );
+            return;
+        }
+    };
     if !parsed.is_ok_and(|version| supported.matches(&version)) {
         sink.error(
             "quent",
