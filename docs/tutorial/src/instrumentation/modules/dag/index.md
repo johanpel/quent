@@ -24,7 +24,7 @@ checks that edges belong to one DAG instance and form no cycles.
 ## Instrumentation API
 
 Each generated API accepts typed entity references. DAGs use the usual event
-methods; the DAG declarations add these graph rules to the schema.
+methods.
 
 ```rust
 {{#include ../../../../../../crates/yaml/examples/dag/src/main.rs:9:}}
