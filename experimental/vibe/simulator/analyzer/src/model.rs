@@ -30,6 +30,16 @@ use crate::{
     view::SimulatorModelQueryView,
 };
 
+const RESOURCE_TYPE_DISPLAY_ORDER: [&str; 7] = [
+    "task_executor_thread",
+    "host_memory",
+    "gpu_memory",
+    "network_channel",
+    "pcie_channel",
+    "storage_channel",
+    "storage",
+];
+
 fn derive_resource_scope_types(
     model: &SimulatorModel,
 ) -> AnalyzerResult<HashMap<String, ResourceGroupTypeDecl>> {
@@ -72,16 +82,21 @@ fn derive_resource_scope_types(
     Ok(declarations
         .into_iter()
         .map(|(name, (used_by_entity_types, contains_resource_types))| {
-            (
-                name.clone(),
-                ResourceGroupTypeDecl {
-                    name,
-                    display_order: std::iter::once(FsmTypeSelection::All)
-                        .chain(used_by_entity_types)
-                        .collect(),
-                    contains_resource_types: contains_resource_types.into_iter().collect(),
-                },
-            )
+            let mut resource_type_order: Vec<_> = contains_resource_types.into_iter().collect();
+            resource_type_order.sort_by_key(|name| {
+                RESOURCE_TYPE_DISPLAY_ORDER
+                    .iter()
+                    .position(|&resource_type| resource_type == name)
+                    .unwrap_or(usize::MAX)
+            });
+            let declaration = ResourceGroupTypeDecl {
+                name: name.clone(),
+                display_order: std::iter::once(FsmTypeSelection::All)
+                    .chain(used_by_entity_types)
+                    .collect(),
+                contains_resource_types: resource_type_order,
+            };
+            (name, declaration)
         })
         .collect())
 }
