@@ -57,9 +57,9 @@ impl<E: EntityMarker> EventSequence<E> {
         }
     }
 
-    /// Returns the entity UUID.
-    pub fn id(&self) -> Uuid {
-        self.id
+    /// Returns the typed entity ID.
+    pub fn id(&self) -> super::Id<E> {
+        super::Id::new(self.id)
     }
 
     /// Returns events in timestamp order.
@@ -85,5 +85,25 @@ impl<E: EntityMarker> EventSequence<E> {
     /// Consumes the sequence and returns its events in timestamp order.
     pub fn into_events(self) -> Vec<Event<E::Payload>> {
         self.events
+    }
+}
+
+impl<E: EntityMarker> super::EntityHandle for EventSequence<E> {
+    type Entity = E;
+
+    fn id(&self) -> super::Id<E> {
+        super::Id::new(self.id)
+    }
+
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        self.earliest_timestamp
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        self.latest_timestamp
+    }
+
+    fn num_events(&self) -> NonZeroUsize {
+        self.event_count()
     }
 }

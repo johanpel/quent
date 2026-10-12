@@ -11,16 +11,13 @@ pub mod filesystem;
 /// An iterator yielding owned [`Event<T>`](Event) values or read failures.
 pub type EventIterator<T, E> = Box<dyn Iterator<Item = Result<Event<T>, E>>>;
 
-/// The result of creating an [`EventIterator`].
-pub type EventIteratorResult<T, E> = Result<EventIterator<T, E>, E>;
-
-/// Loads owned events for entity marker `E` from selected contexts.
+/// Loads owned events for entity marker `E`.
 pub trait EventLoader<E: EntityMarker> {
     /// Error returned when events cannot be loaded.
     type Error;
 
     /// Loads `E::Payload` payloads without an ordering guarantee.
-    fn events(&self) -> EventIteratorResult<E::Payload, Self::Error>;
+    fn events(&self) -> Result<EventIterator<E::Payload, Self::Error>, Self::Error>;
 }
 
 /// Loads owned model-wide events with combined event payloads.
@@ -34,7 +31,7 @@ pub trait CombinedEventLoader<M: CombinedEventModel> {
     type Error;
 
     /// Loads `Event<M::CombinedEvent>` values without an ordering guarantee.
-    fn combined_events(&self) -> EventIteratorResult<M::CombinedEvent, Self::Error>;
+    fn combined_events(&self) -> Result<EventIterator<M::CombinedEvent, Self::Error>, Self::Error>;
 }
 
 /// Marks an entity marker as belonging to model `M`.

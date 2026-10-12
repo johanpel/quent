@@ -35,7 +35,7 @@ pub(crate) fn entity_types(entity: &Entity, opts: &Options) -> TokenStream {
     };
     quote! {
         #[doc = #marker_doc]
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub struct #marker;
 
         impl #runtime::EventPayload for #event {

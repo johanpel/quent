@@ -13,13 +13,10 @@ use quent_io::filesystem::{Format, importer};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use crate::Error;
 use crate::context::ContextSet;
+use crate::{Error, Result};
 
 use super::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader};
-
-/// Result returned by filesystem event stores.
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// Associates a generated model with its filesystem event importers.
 ///
@@ -303,7 +300,7 @@ mod tests {
     use std::fs;
 
     use crate::entity::native;
-    use crate::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore};
+    use crate::entity::{BorrowedEventSequenceStore, EntityStore};
     use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
     use quent_events::{CombinedEventModel, EntityMarker, Event, EventModel, EventPayload};
     use quent_instrumentation::{ContextExporter, ContextInner};
@@ -321,6 +318,7 @@ mod tests {
         const NAME: &'static str = "Alpha";
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     struct Alpha;
 
     impl EntityMarker for Alpha {
@@ -336,6 +334,7 @@ mod tests {
         const NAME: &'static str = "Beta";
     }
 
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     struct Beta;
 
     impl EntityMarker for Beta {
@@ -508,14 +507,11 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(handles.len(), 2);
-        assert!(handles.iter().any(|handle| handle.id() == first_entity));
-        assert!(handles.iter().any(|handle| handle.id() == second_entity));
-        let first_handle = EntityStore::<Alpha>::entity(&entities, first_entity)
-            .unwrap()
-            .unwrap();
+        assert!(handles.iter().any(|handle| handle.uuid() == first_entity));
+        assert!(handles.iter().any(|handle| handle.uuid() == second_entity));
         assert_eq!(
             entities
-                .event_sequence(&first_handle)
+                .event_sequence(first_entity.into())
                 .unwrap()
                 .events()
                 .iter()
@@ -524,10 +520,11 @@ mod tests {
             [2, 1]
         );
         assert_eq!(
-            EntityStore::<Alpha>::entity(&entities, first_entity)
+            EntityStore::<Alpha>::entity(&entities, first_entity.into())
                 .unwrap()
                 .unwrap()
-                .id(),
+                .id()
+                .uuid(),
             first_entity
         );
     }
