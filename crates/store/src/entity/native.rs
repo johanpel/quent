@@ -141,8 +141,8 @@ impl<E: EntityMarker, T: StoredEntity<E>> EntityStore<E> for Store<E, T> {
         Ok(self.entities.keys().copied().map(Id::new))
     }
 
-    fn entity(&self, entity_id: Id<E>) -> Result<Option<Self::Handle<'_>>, Self::Error> {
-        Ok(self.entities.get(&entity_id.uuid()))
+    fn entity(&self, entity_id: impl Into<Id<E>>) -> Result<Option<Self::Handle<'_>>, Self::Error> {
+        Ok(self.entities.get(&entity_id.into().uuid()))
     }
 }
 
@@ -364,7 +364,7 @@ mod tests {
         let store = Store::<Task>::try_from_loader(&loader).unwrap();
         assert_eq!(loader.reads.get(), 4);
         assert_eq!(store.entities().unwrap().count(), 2);
-        let handle = store.entity(Uuid::from_u128(1).into()).unwrap().unwrap();
+        let handle = store.entity(Uuid::from_u128(1)).unwrap().unwrap();
         let sequence = store.event_sequence(handle.id()).unwrap();
         assert_eq!(
             sequence
@@ -409,7 +409,7 @@ mod tests {
             .collect::<Vec<_>>();
         ids.sort_unstable();
         assert_eq!(ids, [first, second]);
-        let handle = store.entity(first.into()).unwrap().unwrap();
+        let handle = store.entity(first).unwrap().unwrap();
         assert_eq!(EventSequence::<Task>::type_name(), "Task");
         assert_eq!(handle.earliest_timestamp(), 1);
         assert_eq!(handle.latest_timestamp(), 2);
@@ -435,13 +435,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             [&TaskEvent("early"), &TaskEvent("equal"), &TaskEvent("late")]
         );
-        assert!(store.entity(Uuid::from_u128(3).into()).unwrap().is_none());
+        assert!(store.entity(Uuid::from_u128(3)).unwrap().is_none());
         let other_store =
             Store::<Task>::new([Event::new(Uuid::from_u128(3), 4, TaskEvent("foreign"))]);
-        let foreign_handle = other_store
-            .entity(Uuid::from_u128(3).into())
-            .unwrap()
-            .unwrap();
+        let foreign_handle = other_store.entity(Uuid::from_u128(3)).unwrap().unwrap();
         assert!(
             matches!(store.event_sequence(foreign_handle.id()), Err(Error::MissingEntity(id)) if id == foreign_handle.id().uuid())
         );

@@ -520,7 +520,7 @@ mod tests {
             [2, 1]
         );
         assert_eq!(
-            EntityStore::<Alpha>::entity(&entities, first_entity.into())
+            EntityStore::<Alpha>::entity(&entities, first_entity)
                 .unwrap()
                 .unwrap()
                 .id()

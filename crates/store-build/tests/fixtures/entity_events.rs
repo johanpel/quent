@@ -41,6 +41,11 @@ fn indexed_store_returns_borrowed_views_and_retains_raw_sequences() {
     assert_eq!(entity.renamed().unwrap().string(), "name");
     assert_eq!(entity.update().next().unwrap().timestamp(), 20);
     assert!(std::ptr::eq(entity, store.entity(id).unwrap().unwrap()));
+    let reference = EntityRef::<Worker, _>::new(id.uuid(), "reference data".to_owned());
+    assert!(std::ptr::eq(entity, store.entity(&reference).unwrap().unwrap()));
+    assert_eq!(reference.data, "reference data");
+    assert!(std::ptr::eq(entity, store.entity(reference).unwrap().unwrap()));
+    assert!(std::ptr::eq(entity, store.entity(id.uuid()).unwrap().unwrap()));
     assert_eq!(store.event_sequence(id).unwrap().events().as_ptr(), original_buffer);
     assert_eq!(entity.earliest_timestamp(), 10);
     assert_eq!(entity.latest_timestamp(), 20);

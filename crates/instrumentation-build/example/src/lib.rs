@@ -76,7 +76,7 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
         // A handle can deal out a reference to the entity it represents:
         server.as_entity_ref(),
     )?;
-    conn.data(1234, None)?;
+    conn.transfer(1234, None)?;
 
     // A `dynamic` schema field maps to `DynamicAttributes`, which are
     // dynamically-typed key-value pairs:
@@ -84,7 +84,7 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     extra.add("peer_agent", "curl/8.4");
     extra.add("chunk_index", 3_u64);
     extra.add("compressed", true);
-    conn.data(
+    conn.transfer(
         5678,
         Some(demo::Meta {
             tags: vec!["tls".to_string(), "keepalive".to_string()],

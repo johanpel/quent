@@ -78,7 +78,7 @@ pub trait EntityStore<E: EntityMarker> {
     fn entities(&self) -> Result<impl Iterator<Item = Id<E>>, Self::Error>;
 
     /// Returns a borrowed handle, or `None` when the entity is absent.
-    fn entity(&self, entity_id: Id<E>) -> Result<Option<Self::Handle<'_>>, Self::Error>;
+    fn entity(&self, entity_id: impl Into<Id<E>>) -> Result<Option<Self::Handle<'_>>, Self::Error>;
 }
 
 /// Provides borrowed, timestamp-ordered raw event sequences for an entity marker.

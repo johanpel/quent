@@ -5,7 +5,7 @@
 
 use std::marker::PhantomData;
 
-use quent_events::EntityMarker;
+use quent_events::{EntityMarker, EntityRef};
 use uuid::Uuid;
 
 /// An entity UUID scoped to its entity marker.
@@ -33,5 +33,17 @@ impl<E: EntityMarker> Id<E> {
 impl<E: EntityMarker> From<Uuid> for Id<E> {
     fn from(uuid: Uuid) -> Self {
         Self::new(uuid)
+    }
+}
+
+impl<E: EntityMarker, T> From<EntityRef<E, T>> for Id<E> {
+    fn from(reference: EntityRef<E, T>) -> Self {
+        Self::new(reference.target)
+    }
+}
+
+impl<E: EntityMarker, T> From<&EntityRef<E, T>> for Id<E> {
+    fn from(reference: &EntityRef<E, T>) -> Self {
+        Self::new(reference.target)
     }
 }
