@@ -3,6 +3,11 @@
 
 import type { FsmTypeSelection, ResourceGroupTypeDecl, ResourceTypeDecl } from './types';
 
+/** Whether `choices` contains the named FSM type ("All" never matches). */
+function hasFsmType(choices: readonly FsmTypeSelection[], type: string): boolean {
+  return choices.some(choice => choice !== 'All' && choice.Type === type);
+}
+
 /** Return the declared FSM choices available for a resource, in group preference order. */
 export function resourceFsmChoices(
   declaration: ResourceTypeDecl | undefined,
@@ -13,17 +18,11 @@ export function resourceFsmChoices(
     return choices;
   }
   const groupChoices = groupDeclaration.display_order.filter(
-    selection =>
-      selection === 'All' ||
-      choices.some(choice => choice !== 'All' && choice.Type === selection.Type)
+    selection => selection === 'All' || hasFsmType(choices, selection.Type)
   );
   return [
     ...groupChoices,
-    ...choices.filter(
-      choice =>
-        choice !== 'All' &&
-        !groupChoices.some(selection => selection !== 'All' && selection.Type === choice.Type)
-    ),
+    ...choices.filter(choice => choice !== 'All' && !hasFsmType(groupChoices, choice.Type)),
   ];
 }
 
