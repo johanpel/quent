@@ -77,13 +77,6 @@ impl<E: EntityMarker> Store<E> {
     }
 }
 
-impl<E: EntityMarker, T: StoredEntity<E>> Store<E, T> {
-    /// Consumes the store and yields sequences in unspecified order.
-    pub fn into_sequences(self) -> impl Iterator<Item = EventSequence<E>> {
-        self.entities.into_values().map(T::into_sequence)
-    }
-}
-
 impl<E: EntityMarker, I: EventIndex<E>> Store<E, NativeEntity<E, I>> {
     /// Loads and indexes entity event sequences.
     ///
@@ -156,14 +149,10 @@ where
 #[doc(hidden)]
 pub trait StoredEntity<E: EntityMarker>: EntityHandle<Entity = E> {
     fn sequence(&self) -> &EventSequence<E>;
-    fn into_sequence(self) -> EventSequence<E>;
 }
 
 impl<E: EntityMarker> StoredEntity<E> for EventSequence<E> {
     fn sequence(&self) -> &EventSequence<E> {
-        self
-    }
-    fn into_sequence(self) -> EventSequence<E> {
         self
     }
 }
@@ -171,9 +160,6 @@ impl<E: EntityMarker> StoredEntity<E> for EventSequence<E> {
 impl<E: EntityMarker, I: EventIndex<E>> StoredEntity<E> for NativeEntity<E, I> {
     fn sequence(&self) -> &EventSequence<E> {
         &self.sequence
-    }
-    fn into_sequence(self) -> EventSequence<E> {
-        self.sequence
     }
 }
 
@@ -422,12 +408,6 @@ mod tests {
         assert!(
             matches!(store.event_sequence_owned(foreign_handle.id()), Err(Error::MissingEntity(id)) if id == foreign_handle.id().uuid())
         );
-        let mut lengths = store
-            .into_sequences()
-            .map(|sequence| sequence.into_events().len())
-            .collect::<Vec<_>>();
-        lengths.sort_unstable();
-        assert_eq!(lengths, [1, 3]);
     }
 
     #[test]

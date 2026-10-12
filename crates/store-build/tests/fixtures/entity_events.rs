@@ -20,7 +20,6 @@ mod events_only {
 
 use crate::model::{
     EntityRef, Event, Uuid,
-    entity_events::nested::r#type::worker::NativeWorkerEvents,
     nested::r#type::{Worker, WorkerEvent, WorkerEvents, WorkerStore},
 };
 
@@ -114,9 +113,9 @@ fn borrows_nested_fields_without_clone_derives() {
         ),
     ]);
 
-    let sequence = store.into_sequences().next().unwrap();
-    let sequence_pointer = sequence.events().as_ptr();
-    let events = NativeWorkerEvents::try_from(sequence).unwrap();
+    let sequence_pointer = store.event_sequence(id.into()).unwrap().events().as_ptr();
+    let store = WorkerStore::try_from(store).unwrap();
+    let events = store.entity(id).unwrap().unwrap();
     assert_eq!(events.event_sequence().events().as_ptr(), sequence_pointer);
     assert_eq!(events.id().uuid(), id);
     assert_eq!(events.earliest_timestamp(), 10);
@@ -162,7 +161,8 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
             )
         },
     ).into_iter().chain([Event::new(id, 15, WorkerEvent::Renamed { string: "renamed".to_owned() })]));
-    let events = NativeWorkerEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
+    let store = WorkerStore::try_from(store).unwrap();
+    let events = store.entity(id).unwrap().unwrap();
     assert_eq!(events.earliest_timestamp(), 10);
     assert_eq!(events.latest_timestamp(), 20);
     assert_eq!(events.num_events().get(), 4);
@@ -181,12 +181,12 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
 #[test]
 fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
     use crate::model::{
-        Parent, ParentEvent,
-        entity_events::parent::{NativeParentEvents, ParentEvents},
+        Parent, ParentEvent, ParentEvents, ParentStore,
     };
     let id = Uuid::from_u128(1);
     let single = Store::<Parent>::new([Event::new(id, 10, ParentEvent::Created)]);
-    let grouped = NativeParentEvents::try_from(single.into_sequences().next().unwrap()).unwrap();
+    let single = ParentStore::try_from(single).unwrap();
+    let grouped = single.entity(id).unwrap().unwrap();
     assert_eq!(grouped.created().timestamp(), 10);
     for timestamp in [10, 20] {
         let store = Store::<Parent>::new([
@@ -194,7 +194,7 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
             Event::new(id, timestamp, ParentEvent::Created),
         ]);
         assert!(matches!(
-            NativeParentEvents::try_from(store.into_sequences().next().unwrap()).err(),
+            ParentStore::try_from(store).err(),
             Some(Error::DuplicateOnceEvent {
                 entity_id,
                 event_name: "created"
@@ -206,14 +206,14 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
 #[test]
 fn a_sole_multi_event_still_returns_all_occurrences() {
     use crate::model::{
-        Stream, StreamEvent,
-        entity_events::stream::{NativeStreamEvents, StreamEvents},
+        Stream, StreamEvent, StreamEvents, StreamStore,
     };
     let id = Uuid::from_u128(4);
     let store = Store::<Stream>::new([20, 10, 10].map(|timestamp| {
         Event::new(id, timestamp, StreamEvent::Tick)
     }));
-    let events = NativeStreamEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
+    let store = StreamStore::try_from(store).unwrap();
+    let events = store.entity(id).unwrap().unwrap();
     assert_eq!(events.tick().map(|event| event.timestamp()).collect::<Vec<_>>(), [10, 10, 20]);
 }
 
@@ -232,7 +232,8 @@ fn payload_fields_do_not_shadow_the_recorded_timestamp() {
             field_0: "field_0".to_owned(),
         },
     )]);
-    let grouped = NativeWorkerEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
+    let store = WorkerStore::try_from(store).unwrap();
+    let grouped = store.entity(id).unwrap().unwrap();
     let event = grouped.metadata().unwrap();
     assert_eq!(event.timestamp(), 42);
     assert_eq!(*event.id(), 7);
