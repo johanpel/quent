@@ -22,6 +22,7 @@ import {
   computeVisibleMaxValue,
   deriveCapacityLabel,
   buildBulkParamsForItem,
+  ALL_FSMS_COLORS,
   buildBinnedTimelineSeries,
   transformResourceTree,
 } from './timeline.utils';
@@ -681,16 +682,15 @@ describe('buildBinnedTimelineSeries All colour', () => {
     span: { start: 0, end: 2 },
   } as unknown as Parameters<typeof buildBinnedTimelineSeries>[1];
   const colorFsmState = () => 'state-colour';
-  const colorFsmType = (value: string) => (value === 'All' ? 'all-colour' : 'other');
 
-  it('colours the aggregate series with the "All" FSM type colour', () => {
+  it('colours the aggregate series with the fixed "All" FSMs colour', () => {
     const { series } = buildBinnedTimelineSeries(
       { Binned: { capacities_values: { unit: [1, 2] }, long_fsms: [] } } as never,
       config,
       colorFsmState,
-      colorFsmType
+      ALL_FSMS_COLORS.light
     );
-    expect(series.unit?.color).toBe('all-colour');
+    expect(series.unit?.color).toBe(ALL_FSMS_COLORS.light);
   });
 
   it('keeps per-state colours when a named FSM is selected', () => {
@@ -700,7 +700,7 @@ describe('buildBinnedTimelineSeries All colour', () => {
       } as never,
       config,
       colorFsmState,
-      colorFsmType
+      ALL_FSMS_COLORS.light
     );
     expect(series.busy?.color).toBe('state-colour');
   });

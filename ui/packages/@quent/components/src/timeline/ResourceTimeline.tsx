@@ -23,6 +23,7 @@ import type { TimelineHoverPosition } from './Timeline';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import {
+  ALL_FSMS_COLORS,
   buildBinnedTimelineSeries,
   dimSeries,
   mergeOverlaySeries,
@@ -85,7 +86,7 @@ export function ResourceTimeline({
   isDark,
   showPlayheadIndicator = false,
 }: ResourceTimelineProps) {
-  const colorFsmType = useColorResolver(COLOR_REGISTRY_KEYS.FSM_TYPES);
+  const allFsmsColor = ALL_FSMS_COLORS[isDark ? 'dark' : 'light'];
   const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
   const deferredReady = useDeferredReady();
   const zoomRange = useDebouncedZoomRange();
@@ -203,7 +204,7 @@ export function ResourceTimeline({
       data.data,
       data.config,
       colorFsmState,
-      colorFsmType,
+      allFsmsColor,
       resourceTypeDecl,
       quantitySpecs
     );
@@ -218,7 +219,7 @@ export function ResourceTimeline({
             overlayPreloadedData.data,
             overlayPreloadedData.config,
             colorFsmState,
-            colorFsmType,
+            allFsmsColor,
             resourceTypeDecl,
             quantitySpecs
           );
@@ -250,7 +251,7 @@ export function ResourceTimeline({
     quantitySpecs,
     operatorLabel,
     colorFsmState,
-    colorFsmType,
+    allFsmsColor,
   ]);
 
   // Bridge the chart's atom-unaware `onHoverChange` callback into the shared

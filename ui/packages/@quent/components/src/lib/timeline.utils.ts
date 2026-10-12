@@ -9,7 +9,6 @@ import {
   withOpacity,
   unpackEntityRef,
   resolveResourceFsmType,
-  ALL_FSM_TYPES_COLOR_KEY,
   type ColorResolver,
 } from '@quent/utils';
 import type {
@@ -70,11 +69,17 @@ export function getLongEntitiesThreshold(
   );
 }
 
+/** Fixed slate-blue for the "All FSMs" aggregate series, per theme. */
+export const ALL_FSMS_COLORS = {
+  light: '#4F6D8F',
+  dark: '#7F9CBF',
+} as const;
+
 export function buildBinnedTimelineSeries(
   data: ResourceTimeline,
   config: BinnedSpanSec,
   colorFsmState: ColorResolver,
-  colorFsmType: ColorResolver,
+  allFsmsColor: string,
   resourceTypeDecl?: ResourceTypeDecl,
   quantitySpecs?: { [key in string]?: QuantitySpec }
 ): {
@@ -112,9 +117,8 @@ export function buildBinnedTimelineSeries(
 
   if ('Binned' in data) {
     // ResourceTimelineBinned: capacities_values (flat: capacity → values).
-    // This is the aggregate over all FSMs, so it uses the "All" FSM colour.
+    // This is the aggregate over all FSMs, so it uses the fixed "All" FSMs colour.
     const { capacities_values } = data.Binned;
-    const allFsmsColor = colorFsmType(ALL_FSM_TYPES_COLOR_KEY);
     for (const [capacity, values] of Object.entries(capacities_values)) {
       const formatter = getFormatter(capacity);
       series[capacity] = {
