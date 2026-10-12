@@ -200,7 +200,10 @@
   </header>
   {#if benchmarkWarning}
     <aside class="alert alert-warning mx-4 sm:mx-6" aria-label="Benchmark warning">
-      <span>{benchmarkWarning}</span>
+      <span>
+        {benchmarkWarning}
+        <a class="link" href="https://github.com/rapidsai/quent/blob/main/benchmarks/README.md">Run benchmarks and the viewer locally.</a>
+      </span>
     </aside>
   {/if}
   <div class="tabs tabs-border px-4 sm:px-6" role="tablist" aria-label="Measurement type">
