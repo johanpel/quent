@@ -27,15 +27,19 @@ export function resourceFsmChoices(
 }
 
 /** Resolve the FSM filter, preserving explicit selections including null (all FSMs). */
-export function resolveResourceFsmType(
-  declaration: ResourceTypeDecl | undefined,
-  selection?: string | null,
-  groupDeclaration?: ResourceGroupTypeDecl
-): string | null {
-  if (selection !== undefined) {
-    return selection;
+export function resolveResourceFsmType({
+  resourceType,
+  selectedFsmType,
+  resourceGroupType,
+}: {
+  resourceType?: ResourceTypeDecl;
+  selectedFsmType?: string | null;
+  resourceGroupType?: ResourceGroupTypeDecl;
+}): string | null {
+  if (selectedFsmType !== undefined) {
+    return selectedFsmType;
   }
-  const choices = resourceFsmChoices(declaration, groupDeclaration);
+  const choices = resourceFsmChoices(resourceType, resourceGroupType);
   const fsmChoices = choices.filter(choice => choice !== 'All');
   // With a single FSM, "All" is just that FSM's aggregate; show the FSM itself.
   if (fsmChoices.length === 1) {

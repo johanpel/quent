@@ -542,6 +542,11 @@ export function findItemById(root: TreeTableItem, id: string): TreeTableItem | u
  *    Map value: null = aggregate all FSMs, string = filter to that FSM type.
  *    Missing key = use the first declared FSM type available for the resource type.
  */
+/** The `type_name` of the entity behind a tree row, when it has one. */
+function getTreeItemEntityTypeName(item: TreeTableItem): string | undefined {
+  return item.entity && 'type_name' in item.entity ? (item.entity.type_name as string) : undefined;
+}
+
 export function buildBulkParamsForItem(
   item: TreeTableItem,
   selectedTypes: Map<string, string>,
@@ -550,43 +555,38 @@ export function buildBulkParamsForItem(
   groupFsmFilters?: Map<string, string | null>,
   operatorIds: readonly string[] = []
 ): TimelineRequest<OperatorFilter> {
-  const isGroup = item.type !== EntityTypeKey.Resource;
-  const resourceTypeName = isGroup
-    ? selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || ''
-    : undefined;
-  const typeName = isGroup
-    ? resourceTypeName
-    : item.entity && 'type_name' in item.entity
-      ? (item.entity.type_name as string)
-      : undefined;
-  const fsmTypeName = resolveResourceFsmType(
-    typeName ? entities.resource_types[typeName] : undefined,
-    isGroup ? groupFsmFilters?.get(item.id) : undefined,
-    isGroup
-      ? entities.resource_group_types[
-          item.entity && 'type_name' in item.entity ? item.entity.type_name : item.type
-        ]
-      : undefined
-  );
-  if (isGroup) {
+  const entityTypeName = getTreeItemEntityTypeName(item);
+
+  if (item.type === EntityTypeKey.Resource) {
+    const fsmTypeName = resolveResourceFsmType({
+      resourceType: entityTypeName ? entities.resource_types[entityTypeName] : undefined,
+    });
+
     return {
-      ResourceGroup: {
-        resource_group_id: item.id,
-        resource_type_name: resourceTypeName || '',
+      Resource: {
+        resource_id: item.id,
         long_entities_threshold_s: null,
         entity_filter: { entity_type_name: fsmTypeName },
-        app_params: { operator_ids: [...operatorIds] },
+        application: { operator_ids: [...operatorIds] },
         config,
       },
     };
   }
 
+  const resourceTypeName = selectedTypes.get(item.id) || item.availableResourceTypes?.[0] || '';
+  const fsmTypeName = resolveResourceFsmType({
+    resourceType: entities.resource_types[resourceTypeName],
+    selectedFsmType: groupFsmFilters?.get(item.id),
+    resourceGroupType: entities.resource_group_types[entityTypeName ?? item.type],
+  });
+
   return {
-    Resource: {
-      resource_id: item.id,
+    ResourceGroup: {
+      resource_group_id: item.id,
+      resource_type_name: resourceTypeName,
       long_entities_threshold_s: null,
       entity_filter: { entity_type_name: fsmTypeName },
-      application: { operator_ids: [...operatorIds] },
+      app_params: { operator_ids: [...operatorIds] },
       config,
     },
   };

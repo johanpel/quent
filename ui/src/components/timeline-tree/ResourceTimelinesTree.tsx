@@ -273,11 +273,11 @@ export function useResourceTimelinesTreeModel({
             }
           }}
           availableFsmTypes={availableFsmTypes}
-          selectedFsmType={resolveResourceFsmType(
-            entities.resource_types[selectedType],
-            selectedFsmTypes.get(item.id),
-            groupDeclaration
-          )}
+          selectedFsmType={resolveResourceFsmType({
+            resourceType: entities.resource_types[selectedType],
+            selectedFsmType: selectedFsmTypes.get(item.id),
+            resourceGroupType: groupDeclaration,
+          })}
           onFsmChange={(itemId, fsmType) => {
             setSelectedFsmTypes(previous => new Map(previous).set(itemId, fsmType));
           }}

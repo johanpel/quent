@@ -41,13 +41,14 @@ export function UsageColumn({
   const resourceTypeDecl = resourceTypeName
     ? queryBundle.entities.resource_types[resourceTypeName]
     : undefined;
-  const fsmTypeName = resolveResourceFsmType(
-    resourceTypeDecl,
-    resourceType === EntityTypeKey.ResourceGroup ? selectedFsmTypes?.get(item.id) : undefined,
-    resourceType === EntityTypeKey.ResourceGroup
+  const isGroup = resourceType === EntityTypeKey.ResourceGroup;
+  const fsmTypeName = resolveResourceFsmType({
+    resourceType: resourceTypeDecl,
+    selectedFsmType: isGroup ? selectedFsmTypes?.get(item.id) : undefined,
+    resourceGroupType: isGroup
       ? queryBundle.entities.resource_group_types[entityTypeName ?? item.type]
-      : undefined
-  );
+      : undefined,
+  });
   // Cell wrapper kept (without enter/leave) so click events still don't
   // propagate to the table-row click handler. Tooltip visibility is driven
   // by the chart's own pointermove via `timelineHoverAtom` — no row-level

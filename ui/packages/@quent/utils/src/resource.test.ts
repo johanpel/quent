@@ -13,23 +13,26 @@ const declaration: ResourceTypeDecl = {
 
 describe('resolveResourceFsmType', () => {
   it('selects the first FSM type in declaration order', () => {
-    expect(resolveResourceFsmType(declaration)).toBe('task');
+    expect(resolveResourceFsmType({ resourceType: declaration })).toBe('task');
     expect(
       resolveResourceFsmType({
-        ...declaration,
-        display_order: [{ Type: 'worker' }, { Type: 'task' }],
+        resourceType: { ...declaration, display_order: [{ Type: 'worker' }, { Type: 'task' }] },
       })
     ).toBe('worker');
   });
 
   it('preserves explicit selections, including all FSMs', () => {
-    expect(resolveResourceFsmType(declaration, 'worker')).toBe('worker');
-    expect(resolveResourceFsmType(declaration, null)).toBeNull();
+    expect(resolveResourceFsmType({ resourceType: declaration, selectedFsmType: 'worker' })).toBe(
+      'worker'
+    );
+    expect(resolveResourceFsmType({ resourceType: declaration, selectedFsmType: null })).toBeNull();
   });
 
   it('selects all FSMs when no types are declared', () => {
-    expect(resolveResourceFsmType({ ...declaration, display_order: [] })).toBeNull();
-    expect(resolveResourceFsmType(undefined)).toBeNull();
+    expect(
+      resolveResourceFsmType({ resourceType: { ...declaration, display_order: [] } })
+    ).toBeNull();
+    expect(resolveResourceFsmType({})).toBeNull();
   });
 
   it('uses group declaration order for FSM types available on the selected resource', () => {
@@ -38,12 +41,20 @@ describe('resolveResourceFsmType', () => {
       contains_resource_types: ['thread'],
       display_order: [{ Type: 'unavailable' }, { Type: 'worker' }, { Type: 'task' }],
     };
-    expect(resolveResourceFsmType(declaration, undefined, group)).toBe('worker');
-    expect(resolveResourceFsmType(declaration, null, group)).toBeNull();
+    expect(resolveResourceFsmType({ resourceType: declaration, resourceGroupType: group })).toBe(
+      'worker'
+    );
     expect(
-      resolveResourceFsmType(declaration, undefined, {
-        ...group,
-        display_order: [],
+      resolveResourceFsmType({
+        resourceType: declaration,
+        selectedFsmType: null,
+        resourceGroupType: group,
+      })
+    ).toBeNull();
+    expect(
+      resolveResourceFsmType({
+        resourceType: declaration,
+        resourceGroupType: { ...group, display_order: [] },
       })
     ).toBe('task');
   });
@@ -53,14 +64,18 @@ describe('analyzer-declared All choice', () => {
   it('selects All when it is first, and a specific type when All follows it', () => {
     expect(
       resolveResourceFsmType({
-        ...declaration,
-        display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+        resourceType: {
+          ...declaration,
+          display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+        },
       })
     ).toBeNull();
     expect(
       resolveResourceFsmType({
-        ...declaration,
-        display_order: [{ Type: 'task' }, 'All', { Type: 'worker' }],
+        resourceType: {
+          ...declaration,
+          display_order: [{ Type: 'task' }, 'All', { Type: 'worker' }],
+        },
       })
     ).toBe('task');
   });
@@ -80,8 +95,16 @@ describe('analyzer-declared All choice', () => {
       { Type: 'worker' },
       { Type: 'task' },
     ]);
-    expect(resolveResourceFsmType(declaration, undefined, group)).toBeNull();
-    expect(resolveResourceFsmType(declaration, 'task', group)).toBe('task');
+    expect(
+      resolveResourceFsmType({ resourceType: declaration, resourceGroupType: group })
+    ).toBeNull();
+    expect(
+      resolveResourceFsmType({
+        resourceType: declaration,
+        selectedFsmType: 'task',
+        resourceGroupType: group,
+      })
+    ).toBe('task');
   });
 });
 
@@ -89,23 +112,30 @@ describe('single FSM default', () => {
   const single: ResourceTypeDecl = { ...declaration, display_order: [{ Type: 'task' }] };
 
   it('selects the only FSM type even when All is listed first', () => {
-    expect(resolveResourceFsmType(single)).toBe('task');
-    expect(resolveResourceFsmType({ ...single, display_order: ['All', { Type: 'task' }] })).toBe(
-      'task'
-    );
+    expect(resolveResourceFsmType({ resourceType: single })).toBe('task');
+    expect(
+      resolveResourceFsmType({
+        resourceType: { ...single, display_order: ['All', { Type: 'task' }] },
+      })
+    ).toBe('task');
   });
 
   it('still preserves an explicit All selection', () => {
     expect(
-      resolveResourceFsmType({ ...single, display_order: ['All', { Type: 'task' }] }, null)
+      resolveResourceFsmType({
+        resourceType: { ...single, display_order: ['All', { Type: 'task' }] },
+        selectedFsmType: null,
+      })
     ).toBeNull();
   });
 
   it('still defaults to All when several FSM types are available', () => {
     expect(
       resolveResourceFsmType({
-        ...single,
-        display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+        resourceType: {
+          ...single,
+          display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+        },
       })
     ).toBeNull();
   });
@@ -116,6 +146,6 @@ describe('single FSM default', () => {
       contains_resource_types: ['thread'],
       display_order: ['All', { Type: 'unavailable' }, { Type: 'task' }],
     };
-    expect(resolveResourceFsmType(single, undefined, group)).toBe('task');
+    expect(resolveResourceFsmType({ resourceType: single, resourceGroupType: group })).toBe('task');
   });
 });
