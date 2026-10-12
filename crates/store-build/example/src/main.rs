@@ -3,18 +3,12 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{
-    Demo,
-    entity_events::connection::{ConnectionEvents, ConnectionStore},
-};
+use demo::{ConnectionEvents, ConnectionStore, Demo, Query, ServerEvents, ServerStore};
 use quent_store::{
     context::ContextSet,
     entity::EntityStore,
     event::{EventLoader, filesystem},
 };
-
-use crate::demo::Query;
-use crate::demo::entity_events::server::{ServerEvents, ServerStore};
 
 #[allow(unused_imports, dead_code)]
 mod demo {

@@ -20,8 +20,8 @@ mod access_only {
 
 use model::{
     EntityRef, Event, Uuid,
-    entity_events::nested::r#type::worker::{NativeWorkerEvents, WorkerEvents, WorkerStore},
-    nested::r#type::{Worker, WorkerEvent},
+    entity_events::nested::r#type::worker::NativeWorkerEvents,
+    nested::r#type::{Worker, WorkerEvent, WorkerEvents, WorkerStore},
 };
 
 #[test]
@@ -62,7 +62,7 @@ fn indexed_store_returns_borrowed_views_and_retains_raw_sequences() {
 
 #[test]
 fn indexed_store_rejects_duplicate_once_events() {
-    use model::{Parent, ParentEvent, entity_events::parent::ParentStore};
+    use model::{Parent, ParentEvent, ParentStore};
     let id = Uuid::from_u128(10);
     let sequences = Store::<Parent>::new([
         Event::new(id, 1, ParentEvent::Created),

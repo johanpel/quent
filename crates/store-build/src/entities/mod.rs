@@ -16,6 +16,7 @@ use quote::quote;
 use crate::{GenerateError, StorageSet};
 
 mod accessors;
+mod exports;
 mod handles;
 mod namespaces;
 mod storage;
@@ -44,7 +45,7 @@ struct EventCode {
 pub(super) fn generate(
     schema: &Schema,
     opts: &Options,
-    events: &syn::File,
+    events: &mut syn::File,
     storage: &StorageSet,
 ) -> Result<syn::ItemMod, GenerateError> {
     if events
@@ -64,6 +65,7 @@ pub(super) fn generate(
         let (module, namespace) = namespaces::for_entity(&mut tree, entity, &root)?;
         let items = generate_entity(entity, &namespace, opts, storage, &mut module.type_names)?;
         module.items.extend(items.items);
+        exports::generate(entity, events, storage)?;
     }
     tree.into_item(syn::parse_quote!(entity_events))
 }

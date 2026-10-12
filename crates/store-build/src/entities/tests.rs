@@ -70,6 +70,22 @@ fn rejects_namespace_and_normalized_name_conflicts() {
     let schemas = [
         schema(
             "Demo",
+            [
+                entity("Task", [event("created", [])]),
+                entity("TaskEvents", [event("created", [])]),
+            ],
+            [],
+        ),
+        schema(
+            "Demo",
+            [
+                entity("Nested::Task", [event("created", [])]),
+                entity("Nested::TaskStore", [event("created", [])]),
+            ],
+            [],
+        ),
+        schema(
+            "Demo",
             [entity("EntityEvents::Task", [event("created", [])])],
             [],
         ),

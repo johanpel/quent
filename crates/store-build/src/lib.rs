@@ -74,6 +74,7 @@ pub struct Options {
     /// handles and access traits.
     ///
     /// Types are emitted under `entity_events::<namespace>::<entity>`.
+    /// Access traits and store aliases are also re-exported beside entity markers.
     ///
     /// Accessors return:
     ///
@@ -184,12 +185,12 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         ..quent_instrumentation_build::Options::default()
     };
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
-    let events =
+    let mut events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
     let entity_events = opts
         .entity_storage
         .as_ref()
-        .map(|storage| entities::generate(schema, &event_opts, &events, storage))
+        .map(|storage| entities::generate(schema, &event_opts, &mut events, storage))
         .transpose()?;
 
     let loaders = event_loaders::generate(schema, opts.filesystem);
