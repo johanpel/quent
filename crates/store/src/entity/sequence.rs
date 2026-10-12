@@ -7,12 +7,12 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
 use quent_events::{EntityMarker, Event};
-use quent_time::TimeUnixNanoSec;
+use quent_time::{OrderedCollector, TimeUnixNanoSec};
 use uuid::Uuid;
 
 // TODO(johanpel): Deduplicate entity ID and timestamp metadata with
 // quent_analyzer::entity::native::AnalyzedEntity as part of rapidsai/quent#516.
-/// A non-empty, timestamp-ordered event sequence for one entity marker.
+/// A non-empty, timestamp-ordered event sequence for one entity instance.
 /// Equal timestamps retain input order; timestamp order is not causal order across contexts.
 pub struct EventSequence<E: EntityMarker> {
     id: Uuid,
@@ -38,14 +38,11 @@ where
 }
 
 impl<E: EntityMarker> EventSequence<E> {
-    pub(crate) fn from_ordered_events(id: Uuid, events: Vec<Event<E::Payload>>) -> Self {
-        debug_assert!(!events.is_empty());
-        debug_assert!(events.iter().all(|event| event.id == id));
-        debug_assert!(
-            events
-                .windows(2)
-                .all(|pair| pair[0].timestamp <= pair[1].timestamp)
-        );
+    pub(crate) fn from_ordered_events(
+        id: Uuid,
+        events: OrderedCollector<Event<E::Payload>>,
+    ) -> Self {
+        let events = events.into_inner();
         let earliest_timestamp = events.first().unwrap().timestamp;
         let latest_timestamp = events.last().unwrap().timestamp;
         Self {

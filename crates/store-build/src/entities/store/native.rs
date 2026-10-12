@@ -12,23 +12,10 @@ use super::super::EventCode;
 /// Native index, insertion, and accessor implementation fragments.
 pub(super) struct NativeEventStoreCode {
     /// A field holding an optional position or a vector of positions.
-    ///
-    /// For example, `event_init: Option<usize>`.
     pub(super) index_field_def: TokenStream,
     /// A match arm recording the position and checking cardinality.
-    ///
-    /// For example, `TaskEvent::Tick => self.event_tick.push(position)`.
     pub(super) conversion_match_arm: TokenStream,
     /// The native implementation returning borrowing handles.
-    ///
-    /// For example:
-    /// ```text
-    /// fn init(&self) -> Option<InitHandle<'_>> {
-    ///     self.event_index().event_init.map(|position| InitHandle {
-    ///         event: &self.event_sequence().events()[position],
-    ///     })
-    /// }
-    /// ```
     pub(super) accessor_method_impl: TokenStream,
 }
 
@@ -43,9 +30,7 @@ pub(super) fn generate_event(
     let slot = quote::format_ident!("event_{}", method.to_string().trim_start_matches("r#"));
     // TODO(johanpel): Consider u32 positions with u32::MAX for absent Once events,
     // and block-based delta encoding for large Multi groups.
-    let (index_field_def, conversion_match_arm, accessor_method_impl) = if event.cardinality()
-        == Cardinality::Once
-    {
+    if event.cardinality() == Cardinality::Once {
         let event_name = event.name().to_string();
         let accessor_expr = if entity.events().count() == 1 {
             quote! { #handle {
@@ -56,32 +41,27 @@ pub(super) fn generate_event(
                 event: &self.event_sequence().events()[position],
             }) }
         };
-        (
-            quote! { #slot: ::core::option::Option<usize> },
-            quote! { #variant_pattern => {
+        NativeEventStoreCode {
+            index_field_def: quote! { #slot: ::core::option::Option<usize> },
+            conversion_match_arm: quote! { #variant_pattern => {
                 ::quent_store::entity::native::insert_once(&mut self.#slot, position)
                     .map_err(|_| ::quent_store::Error::DuplicateOnceEvent {
                         entity_id: event.id,
                         event_name: #event_name,
                     })?;
             } },
-            quote! { #accessor_method_signature { #accessor_expr } },
-        )
+            accessor_method_impl: quote! { #accessor_method_signature { #accessor_expr } },
+        }
     } else {
-        (
-            quote! { #slot: ::std::vec::Vec<usize> },
-            quote! { #variant_pattern => { self.#slot.push(position); } },
-            quote! { #accessor_method_signature {
+        NativeEventStoreCode {
+            index_field_def: quote! { #slot: ::std::vec::Vec<usize> },
+            conversion_match_arm: quote! { #variant_pattern => { self.#slot.push(position); } },
+            accessor_method_impl: quote! { #accessor_method_signature {
                 self.event_index().#slot.iter().map(|&position| #handle {
                     event: &self.event_sequence().events()[position],
                 })
             } },
-        )
-    };
-    NativeEventStoreCode {
-        index_field_def,
-        conversion_match_arm,
-        accessor_method_impl,
+        }
     }
 }
 

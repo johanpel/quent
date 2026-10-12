@@ -55,7 +55,7 @@ impl<E: EntityMarker> Store<E> {
         for event in events {
             entities.entry(event.id).or_default().push(event);
         }
-        Self::from_collectors(entities)
+        Self::from_time_ordered_collectors(entities)
     }
 
     /// Loads events, grouping them by UUID and ordering each sequence by timestamp.
@@ -69,18 +69,15 @@ impl<E: EntityMarker> Store<E> {
             let event = event?;
             entities.entry(event.id).or_default().push(event);
         }
-        Ok(Self::from_collectors(entities))
+        Ok(Self::from_time_ordered_collectors(entities))
     }
 
-    fn from_collectors(entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>>) -> Self {
+    fn from_time_ordered_collectors(
+        entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>>,
+    ) -> Self {
         let entities = entities
             .into_iter()
-            .map(|(id, events)| {
-                (
-                    id,
-                    EventSequence::from_ordered_events(id, events.into_inner()),
-                )
-            })
+            .map(|(id, events)| (id, EventSequence::from_ordered_events(id, events)))
             .collect();
         Self {
             entities,
