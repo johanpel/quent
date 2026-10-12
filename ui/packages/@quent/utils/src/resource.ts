@@ -3,9 +3,12 @@
 
 import type { FsmTypeSelection, ResourceGroupTypeDecl, ResourceTypeDecl } from './types';
 
+/** The FSM selection that aggregates over every FSM of a resource. */
+export const ALL_FSMS = 'All' satisfies FsmTypeSelection;
+
 /** Whether `choices` contains the named FSM type ("All" never matches). */
 function hasFsmType(choices: readonly FsmTypeSelection[], type: string): boolean {
-  return choices.some(choice => choice !== 'All' && choice.Type === type);
+  return choices.some(choice => choice !== ALL_FSMS && choice.Type === type);
 }
 
 /** Merge the resource's declared FSM choices with the group's preferred order. */
@@ -18,11 +21,11 @@ function orderedFsmChoices(
     return choices;
   }
   const groupChoices = groupDeclaration.display_order.filter(
-    selection => selection === 'All' || hasFsmType(choices, selection.Type)
+    selection => selection === ALL_FSMS || hasFsmType(choices, selection.Type)
   );
   return [
     ...groupChoices,
-    ...choices.filter(choice => choice !== 'All' && !hasFsmType(groupChoices, choice.Type)),
+    ...choices.filter(choice => choice !== ALL_FSMS && !hasFsmType(groupChoices, choice.Type)),
   ];
 }
 
@@ -35,7 +38,7 @@ export function resourceFsmChoices(
   groupDeclaration?: ResourceGroupTypeDecl
 ): FsmTypeSelection[] {
   const choices = orderedFsmChoices(declaration, groupDeclaration);
-  const fsmChoices = choices.filter(choice => choice !== 'All');
+  const fsmChoices = choices.filter(choice => choice !== ALL_FSMS);
   return fsmChoices.length === 1 ? fsmChoices : choices;
 }
 
@@ -54,5 +57,5 @@ export function resolveResourceFsmType({
   }
   const choices = resourceFsmChoices(resourceType, resourceGroupType);
   const initial = choices[0];
-  return initial && initial !== 'All' ? initial.Type : null;
+  return initial && initial !== ALL_FSMS ? initial.Type : null;
 }

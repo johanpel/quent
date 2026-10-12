@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { ResourceGroup, type FsmTypeSelection } from '@quent/utils';
+import { ALL_FSMS, ResourceGroup, type FsmTypeSelection } from '@quent/utils';
 import { InlineSelector } from './InlineSelector';
 import { DataText } from '../ui/data-text';
 
@@ -35,8 +35,8 @@ export const ResourceGroupRow = ({
   const hasOneFsm = fsmCount === 1;
   const hasMultipleFsms = fsmCount > 1;
   const fsmOptions = (availableFsmTypes ?? []).map(type => ({
-    value: type === 'All' ? FSM_ALL : type.Type,
-    label: type === 'All' ? 'All' : type.Type,
+    value: type === ALL_FSMS ? FSM_ALL : type.Type,
+    label: type === ALL_FSMS ? 'All' : type.Type,
   }));
 
   const showType = hasMultipleChildTypes && selectedType && onTypeChange && availableResourceTypes;

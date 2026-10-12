@@ -17,6 +17,7 @@ import {
 } from '@quent/components';
 import { useBulkTimelines, useHighlightedItemIds } from '@quent/hooks';
 import {
+  ALL_FSMS,
   type EntityRef,
   type OperatorFilter,
   type QueryBundle,
@@ -131,7 +132,7 @@ export function useResourceTimelinesTreeModel({
           Object.keys(entities.fsm_types).concat(
             Object.values(entities.resource_types).flatMap(resourceType =>
               (resourceType?.display_order ?? []).flatMap(selection =>
-                selection === 'All' ? [] : [selection.Type]
+                selection === ALL_FSMS ? [] : [selection.Type]
               )
             )
           )
