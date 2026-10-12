@@ -3,7 +3,7 @@
 
 use std::{fs, path::Path, process::Command};
 
-use quent_store_build::{Options, StorageSet, generate};
+use quent_store_build::{EntityStoreImplementations, Options, generate};
 
 #[path = "fixtures/schema.rs"]
 mod model_schema;
@@ -13,11 +13,11 @@ fn generated_entity_handles_compile_and_borrow_declared_field_types() {
     let fixture = tempfile::tempdir().unwrap();
     let source = fixture.path().join("src");
     fs::create_dir(&source).unwrap();
-    for (file_name, native) in [("model.rs", true), ("access_only.rs", false)] {
+    for (file_name, native) in [("model.rs", true), ("events_only.rs", false)] {
         generate(
             &model_schema::schema(),
             &Options {
-                entity_storage: Some(StorageSet { native }),
+                entity_store: EntityStoreImplementations { native },
                 debug: native,
                 combined_event: false,
                 filesystem: false,

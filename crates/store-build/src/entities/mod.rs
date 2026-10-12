@@ -13,20 +13,20 @@ use quent_instrumentation_build::{
 use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
-use crate::{GenerateError, StorageSet};
+use crate::{EntityStoreImplementations, GenerateError};
 
 mod accessors;
 mod exports;
 mod handles;
 mod namespaces;
-mod storage;
+mod store;
 
 #[cfg(test)]
 mod tests;
 
 use handles::EventHandleCode;
 use namespaces::Module;
-use storage::EventStorageCode;
+use store::EventStoreCode;
 
 /// Backend-independent handle and accessor declarations for one schema event.
 struct EventCode {
@@ -38,15 +38,15 @@ struct EventCode {
     ///
     /// For example, `fn init(&self) -> Option<InitHandle<'_>>;`.
     accessor_method_decl: TokenStream,
-    /// Storage fragments grouped by backend.
-    storage: EventStorageCode,
+    /// Store fragments grouped by backend.
+    store: EventStoreCode,
 }
 
 pub(super) fn generate(
     schema: &Schema,
     opts: &Options,
     events: &mut syn::File,
-    storage: &StorageSet,
+    stores: &EntityStoreImplementations,
 ) -> Result<syn::ItemMod, GenerateError> {
     if events
         .items
@@ -63,9 +63,9 @@ pub(super) fn generate(
     let mut tree = Module::default();
     for entity in schema.entities() {
         let (module, namespace) = namespaces::for_entity(&mut tree, entity, &root)?;
-        let items = generate_entity(entity, &namespace, opts, storage, &mut module.type_names)?;
+        let items = generate_entity(entity, &namespace, opts, stores, &mut module.type_names)?;
         module.items.extend(items.items);
-        exports::generate(entity, events, storage)?;
+        exports::generate(entity, events, stores)?;
     }
     tree.into_item(syn::parse_quote!(entity_events))
 }
@@ -74,7 +74,7 @@ fn generate_entity(
     entity: &Entity,
     namespace: &[Identifier],
     opts: &Options,
-    storage: &StorageSet,
+    stores: &EntityStoreImplementations,
     type_names: &mut BTreeMap<String, String>,
 ) -> Result<syn::File, GenerateError> {
     let parents = vec![quote!(super); namespace.len()];
@@ -89,15 +89,12 @@ fn generate_entity(
     let access = quote::format_ident!("{}Events", entity_name);
     let native = quote::format_ident!("Native{}Events", entity_name);
     let store = quote::format_ident!("{}Store", entity_name);
-    let event_storage_ident = quote::format_ident!("{}EventIndex", entity_name);
+    let event_index_ident = quote::format_ident!("{}EventIndex", entity_name);
     type_names.insert(access.to_string(), "entity access trait".into());
-    if storage.native {
-        type_names.insert(native.to_string(), "native entity storage".into());
+    if stores.native {
+        type_names.insert(native.to_string(), "native entity view".into());
         type_names.insert(store.to_string(), "native entity store".into());
-        type_names.insert(
-            event_storage_ident.to_string(),
-            "native event indices".into(),
-        );
+        type_names.insert(event_index_ident.to_string(), "native event indices".into());
     }
     let mut method_names = BTreeMap::from([
         ("id".to_owned(), "entity identity".to_owned()),
@@ -142,12 +139,12 @@ fn generate_entity(
     }
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
-    let native_storage = storage.native.then(|| {
-        storage::generate_entity(
+    let native_store = stores.native.then(|| {
+        store::generate_entity(
             entity,
             &native,
             &store,
-            &event_storage_ident,
+            &event_index_ident,
             &access,
             &marker,
             &code,
@@ -160,7 +157,7 @@ fn generate_entity(
         pub trait #access: ::quent_store::entity::EntityHandle<Entity = #marker> {
             #(#methods)*
         }
-        #native_storage
+        #native_store
     })
     .map_err(GenerateError::InvalidGeneratedCode)
 }
@@ -178,7 +175,7 @@ fn generate_event(
         variant_pattern,
     } = handles::generate(entity, event, namespace, opts, original)?;
     let accessor = accessors::generate(entity, event, &handle);
-    let storage = storage::generate_event(
+    let store = store::generate_event(
         entity,
         event,
         &handle,
@@ -189,6 +186,6 @@ fn generate_event(
     Ok(EventCode {
         handle_type_def,
         accessor_method_decl: accessor.method_decl,
-        storage,
+        store,
     })
 }

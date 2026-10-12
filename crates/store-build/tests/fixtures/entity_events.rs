@@ -14,8 +14,8 @@ mod model {
 }
 
 #[allow(unused_imports, dead_code)]
-mod access_only {
-    include!("access_only.rs");
+mod events_only {
+    include!("events_only.rs");
 }
 
 use model::{

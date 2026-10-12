@@ -7,12 +7,12 @@ use quent_instrumentation_build::{generated_module_ident, generated_type_ident};
 use quent_schema::Entity;
 use quote::quote;
 
-use crate::{GenerateError, StorageSet};
+use crate::{EntityStoreImplementations, GenerateError};
 
 pub(super) fn generate(
     entity: &Entity,
     events: &mut syn::File,
-    storage: &StorageSet,
+    stores: &EntityStoreImplementations,
 ) -> Result<(), GenerateError> {
     let namespace = entity
         .path()
@@ -37,7 +37,7 @@ pub(super) fn generate(
     let access = quote::format_ident!("{}Events", name);
     let store = quote::format_ident!("{}Store", name);
     let mut exports = vec![access];
-    if storage.native {
+    if stores.native {
         exports.push(store);
     }
     for export in &exports {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generation of event storage across supported storage backends.
+//! Generation of entity stores across supported backends.
 
 use proc_macro2::TokenStream;
 use quent_schema::{Entity, Event};
@@ -10,10 +10,10 @@ use super::EventCode;
 
 mod native;
 
-/// Storage fragments for each supported backend of one schema event.
-pub(super) struct EventStorageCode {
+/// Store fragments for each supported backend of one schema event.
+pub(super) struct EventStoreCode {
     /// Fragments for the native in-memory backend.
-    native: native::NativeEventStorageCode,
+    native: native::NativeEventStoreCode,
 }
 
 pub(super) fn generate_event(
@@ -23,8 +23,8 @@ pub(super) fn generate_event(
     method: &syn::Ident,
     variant_pattern: &TokenStream,
     accessor_method_signature: &TokenStream,
-) -> EventStorageCode {
-    EventStorageCode {
+) -> EventStoreCode {
+    EventStoreCode {
         native: native::generate_event(
             entity,
             event,
@@ -40,7 +40,7 @@ pub(super) fn generate_entity(
     entity: &Entity,
     native: &syn::Ident,
     store: &syn::Ident,
-    event_storage_ident: &syn::Ident,
+    event_index_ident: &syn::Ident,
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
@@ -49,7 +49,7 @@ pub(super) fn generate_entity(
         entity,
         native,
         store,
-        event_storage_ident,
+        event_index_ident,
         access,
         marker,
         events,

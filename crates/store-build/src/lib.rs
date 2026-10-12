@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Generates schema-based typed APIs for retrieving stored events.
+//! Generates typed entity stores and event access from Quent schemas.
 //!
 //! Add `quent-store-build` to `[build-dependencies]`, call [`generate`] from
 //! `build.rs`, and include the generated file from Cargo's `OUT_DIR`.
@@ -67,28 +67,13 @@ pub struct Options {
     /// `quent-store` `io-*` feature.
     pub filesystem: bool,
 
-    /// Generate borrowing event handles, entity access traits, and
-    /// selected storage backends.
+    /// Generate the selected entity stores and typed access to their events.
     ///
-    /// `None` disables generation; an empty [`StorageSet`] generates only
-    /// handles and access traits.
+    /// Defaults to a native in-memory store. Disabling all stores also disables
+    /// typed entity event access.
     ///
-    /// Types are emitted under `entity_events::<namespace>::<entity>`.
-    /// Access traits and store aliases are also re-exported beside entity markers.
-    ///
-    /// Accessors return:
-    ///
-    /// - A handle for an entity's sole `Once` event.
-    /// - `Option<Handle>` for other `Once` events.
-    /// - An iterator of handles for `Multi` events.
-    ///
-    /// Handles expose the recorded timestamp and borrow fields directly.
-    /// Record fields are borrowed as whole records. A payload field named
-    /// `timestamp` uses `field_timestamp()` to avoid the timestamp accessor.
-    ///
-    /// Event names `id`, `type_name`, `earliest_timestamp`, `latest_timestamp`,
-    /// `num_events`, `properties`, `event_sequence`, and `event_index` are reserved.
-    pub entity_storage: Option<StorageSet>,
+    /// Access traits and store aliases can be imported alongside entity markers.
+    pub entity_store: EntityStoreImplementations,
 
     /// Directory the generated file is written into.
     pub out_dir: PathBuf,
@@ -97,12 +82,13 @@ pub struct Options {
     pub file_name: Option<String>,
 }
 
-/// Storage backends to generate alongside entity-specific event access.
+/// Store backends to generate alongside entity-specific event access.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct StorageSet {
-    /// Generate native in-memory storage that consumes owned event sequences.
+pub struct EntityStoreImplementations {
+    /// Generate a Rust-native in-memory store.
     pub native: bool,
-    // TODO(johanpel): Add options for Arrow and possibly other formats to directly query from here.
+    // TODO(johanpel): Add options for Arrow and possibly other formats to
+    // directly query from here.
 }
 
 impl Default for Options {
@@ -113,7 +99,7 @@ impl Default for Options {
             record_derives: Default::default(),
             combined_event: true,
             filesystem: true,
-            entity_storage: None,
+            entity_store: EntityStoreImplementations { native: true },
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
         }
@@ -187,11 +173,16 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
     let mut events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
-    let entity_events = opts
-        .entity_storage
-        .as_ref()
-        .map(|storage| entities::generate(schema, &event_opts, &mut events, storage))
-        .transpose()?;
+    let entity_events = if opts.entity_store.native {
+        Some(entities::generate(
+            schema,
+            &event_opts,
+            &mut events,
+            &opts.entity_store,
+        )?)
+    } else {
+        None
+    };
 
     let loaders = event_loaders::generate(schema, opts.filesystem);
 
