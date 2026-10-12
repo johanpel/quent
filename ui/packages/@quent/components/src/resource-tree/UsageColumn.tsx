@@ -65,7 +65,7 @@ export function UsageColumn({
         resourceId={item.id}
         resourceType={resourceType}
         durationSeconds={durationSeconds}
-        fsmTypeName={fsmTypeName ?? undefined}
+        fsmTypeName={fsmTypeName}
         resourceTypeName={selectedType}
         resourceTypeDecl={resourceTypeDecl}
         quantitySpecs={queryBundle.quantity_specs}

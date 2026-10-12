@@ -49,7 +49,7 @@ type ResourceTimelineProps = {
   resourceId: string;
   resourceType: string;
   durationSeconds: number;
-  fsmTypeName?: string | undefined;
+  fsmTypeName: string | null;
   resourceTypeName?: string;
   instanceName?: string;
   showTooltip?: boolean;
@@ -167,7 +167,7 @@ export function ResourceTimeline({
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
                 long_entities_threshold_s: null,
-                entity_filter: { entity_type_name: fsmTypeName ?? null },
+                entity_filter: { entity_type_name: fsmTypeName },
                 app_params: { operator_ids: [] },
                 config,
               },
@@ -176,7 +176,7 @@ export function ResourceTimeline({
               Resource: {
                 resource_id: resourceId,
                 long_entities_threshold_s: null,
-                entity_filter: { entity_type_name: fsmTypeName ?? null },
+                entity_filter: { entity_type_name: fsmTypeName },
                 application: { operator_ids: [] },
                 config,
               },
