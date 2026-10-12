@@ -22,6 +22,7 @@ mod demo {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Run the instrumentation example to produce some telemetry we can inspect.
     let output = tempfile::tempdir()?;
     let context_id = quent_instrumentation_build_example::run_with_ndjson(output.path())?;
 
@@ -47,7 +48,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // without using an explicit event iterator such as is provided in this
     // example by the [`EventLoader`] above.
     let connections = ConnectionStore::try_from_loader(&loader)?;
-    let servers = ServerStore::try_from_loader(&loader)?;
 
     // Take the ID of the first entity, then look it up and turn it into a
     // handle through which we can access the event data using schema-defined
@@ -83,6 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             // Since the Connection refers to its parent Server, we can try to
             // look the parent up:
+            let servers = ServerStore::try_from_loader(&loader)?;
             if let Some(server) = servers.entity(opened.host())? {
                 println!(
                     "\tOwned by server booted at {} with pid {}",
