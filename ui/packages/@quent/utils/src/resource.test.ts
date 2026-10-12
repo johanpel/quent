@@ -120,6 +120,27 @@ describe('single FSM default', () => {
     ).toBe('task');
   });
 
+  it('does not offer All when only one FSM type is available', () => {
+    expect(resourceFsmChoices({ ...single, display_order: ['All', { Type: 'task' }] })).toEqual([
+      { Type: 'task' },
+    ]);
+    const group: ResourceGroupTypeDecl = {
+      name: 'worker',
+      contains_resource_types: ['thread'],
+      display_order: ['All', { Type: 'unavailable' }, { Type: 'task' }],
+    };
+    expect(resourceFsmChoices(single, group)).toEqual([{ Type: 'task' }]);
+  });
+
+  it('still offers All when several FSM types are available', () => {
+    expect(
+      resourceFsmChoices({
+        ...single,
+        display_order: ['All', { Type: 'task' }, { Type: 'worker' }],
+      })
+    ).toEqual(['All', { Type: 'task' }, { Type: 'worker' }]);
+  });
+
   it('still preserves an explicit All selection', () => {
     expect(
       resolveResourceFsmType({

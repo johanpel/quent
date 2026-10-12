@@ -8,8 +8,8 @@ function hasFsmType(choices: readonly FsmTypeSelection[], type: string): boolean
   return choices.some(choice => choice !== 'All' && choice.Type === type);
 }
 
-/** Return the declared FSM choices available for a resource, in group preference order. */
-export function resourceFsmChoices(
+/** Merge the resource's declared FSM choices with the group's preferred order. */
+function orderedFsmChoices(
   declaration: ResourceTypeDecl | undefined,
   groupDeclaration?: ResourceGroupTypeDecl
 ): FsmTypeSelection[] {
@@ -26,6 +26,19 @@ export function resourceFsmChoices(
   ];
 }
 
+/**
+ * Return the declared FSM choices available for a resource, in group preference order.
+ * With a single FSM, "All" is just that FSM's aggregate, so it is not offered.
+ */
+export function resourceFsmChoices(
+  declaration: ResourceTypeDecl | undefined,
+  groupDeclaration?: ResourceGroupTypeDecl
+): FsmTypeSelection[] {
+  const choices = orderedFsmChoices(declaration, groupDeclaration);
+  const fsmChoices = choices.filter(choice => choice !== 'All');
+  return fsmChoices.length === 1 ? fsmChoices : choices;
+}
+
 /** Resolve the FSM filter, preserving explicit selections including null (all FSMs). */
 export function resolveResourceFsmType({
   resourceType,
@@ -40,11 +53,6 @@ export function resolveResourceFsmType({
     return selectedFsmType;
   }
   const choices = resourceFsmChoices(resourceType, resourceGroupType);
-  const fsmChoices = choices.filter(choice => choice !== 'All');
-  // With a single FSM, "All" is just that FSM's aggregate; show the FSM itself.
-  if (fsmChoices.length === 1) {
-    return fsmChoices[0]!.Type;
-  }
   const initial = choices[0];
   return initial && initial !== 'All' ? initial.Type : null;
 }
