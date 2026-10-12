@@ -3,20 +3,25 @@
 
 //! Filesystem-backed event storage.
 
-use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::{
+    marker::PhantomData,
+    path::{Path, PathBuf},
+};
 
 use quent_build_info::{ArtifactInfo, SIDECAR_FILE_NAME};
 use quent_events::{CombinedEventModel, Event, EventModel, EventPayload};
-use quent_io::ImporterProvider;
-use quent_io::filesystem::{Format, importer};
+use quent_io::{
+    ImporterProvider,
+    filesystem::{Format, importer},
+};
 use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
-use crate::context::ContextSet;
-use crate::{Error, Result};
-
-use super::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader};
+use crate::{
+    Error, Result,
+    context::ContextSet,
+    event::{CombinedEventLoader, EntityMarkerInModel, EventIterator, EventLoader},
+};
 
 /// Associates a generated model with its filesystem event importers.
 ///
@@ -299,13 +304,13 @@ fn format_feature(extension: &str) -> Option<&'static str> {
 mod tests {
     use std::fs;
 
-    use crate::entity::native;
-    use crate::entity::{BorrowedEventSequenceStore, EntityStore};
     use quent_build_info::{BuildInfo, ModelInfo, ModelSource};
     use quent_events::{CombinedEventModel, EntityMarker, Event, EventModel, EventPayload};
     use quent_instrumentation::{ContextExporter, ContextInner};
     use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
     use serde::{Deserialize, Serialize};
+
+    use crate::entity::{BorrowedEventSequenceStore, EntityStore, native};
 
     use super::*;
 

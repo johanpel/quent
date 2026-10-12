@@ -13,7 +13,10 @@ use quent_instrumentation_build::{
 use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
-use crate::{EntityStoreImplementations, GenerateError};
+use crate::{
+    EntityStoreImplementations, GenerateError,
+    entities::{handles::EventHandleCode, namespaces::Module, store::EventStoreCode},
+};
 
 mod accessors;
 mod exports;
@@ -23,10 +26,6 @@ mod store;
 
 #[cfg(test)]
 mod tests;
-
-use handles::EventHandleCode;
-use namespaces::Module;
-use store::EventStoreCode;
 
 /// Backend-independent handle and accessor declarations for one schema event.
 struct EventCode {
@@ -108,7 +107,6 @@ fn generate_entity(
         ),
         ("num_events".to_owned(), "entity event count".to_owned()),
         ("type_name".to_owned(), "entity type name".to_owned()),
-        ("properties".to_owned(), "entity properties".to_owned()),
         (
             "event_sequence".to_owned(),
             "raw event sequence accessor".to_owned(),

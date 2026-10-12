@@ -6,7 +6,7 @@
 use proc_macro2::TokenStream;
 use quent_schema::{Entity, Event};
 
-use super::EventCode;
+use crate::entities::EventCode;
 
 mod native;
 

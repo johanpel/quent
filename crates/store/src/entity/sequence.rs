@@ -3,22 +3,23 @@
 
 //! Typed sequences of stored entity events.
 
-use std::marker::PhantomData;
-use std::num::NonZeroUsize;
+use std::{marker::PhantomData, num::NonZeroUsize};
 
 use quent_events::{EntityMarker, Event};
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 use uuid::Uuid;
 
-// TODO(johanpel): Deduplicate entity ID and timestamp metadata with
-// quent_analyzer::entity::native::AnalyzedEntity as part of rapidsai/quent#516.
+use crate::{EntityHandle, Id};
+
+// TODO(johanpel): Deduplicate with
+//                 quent_analyzer::entity::native::AnalyzedEntity
+//                 as part of rapidsai/quent#516.
 /// A non-empty, timestamp-ordered event sequence for one entity instance.
-/// Equal timestamps retain input order; timestamp order is not causal order across contexts.
 pub struct EventSequence<E: EntityMarker> {
+    /// The ID of entity that emitted these events.
     id: Uuid,
+    /// The ordered events.
     events: Vec<Event<E::Payload>>,
-    earliest_timestamp: TimeUnixNanoSec,
-    latest_timestamp: TimeUnixNanoSec,
     marker: PhantomData<fn() -> E>,
 }
 
@@ -30,8 +31,6 @@ where
         Self {
             id: self.id,
             events: self.events.clone(),
-            earliest_timestamp: self.earliest_timestamp,
-            latest_timestamp: self.latest_timestamp,
             marker: PhantomData,
         }
     }
@@ -43,20 +42,16 @@ impl<E: EntityMarker> EventSequence<E> {
         events: OrderedCollector<Event<E::Payload>>,
     ) -> Self {
         let events = events.into_inner();
-        let earliest_timestamp = events.first().unwrap().timestamp;
-        let latest_timestamp = events.last().unwrap().timestamp;
         Self {
             id,
             events,
-            earliest_timestamp,
-            latest_timestamp,
             marker: PhantomData,
         }
     }
 
     /// Returns the typed entity ID.
-    pub fn id(&self) -> super::Id<E> {
-        super::Id::new(self.id)
+    pub fn id(&self) -> Id<E> {
+        Id::new(self.id)
     }
 
     /// Returns events in timestamp order.
@@ -71,12 +66,14 @@ impl<E: EntityMarker> EventSequence<E> {
 
     /// Returns the first event timestamp.
     pub fn earliest_timestamp(&self) -> TimeUnixNanoSec {
-        self.earliest_timestamp
+        // Self can only be constructed with at least one event so unwrap is fine.
+        self.events.first().unwrap().timestamp
     }
 
     /// Returns the last event timestamp.
     pub fn latest_timestamp(&self) -> TimeUnixNanoSec {
-        self.latest_timestamp
+        // Self can only be constructed with at least one event so unwrap is fine.
+        self.events.last().unwrap().timestamp
     }
 
     /// Consumes the sequence and returns its events in timestamp order.
@@ -85,19 +82,19 @@ impl<E: EntityMarker> EventSequence<E> {
     }
 }
 
-impl<E: EntityMarker> super::EntityHandle for EventSequence<E> {
+impl<E: EntityMarker> EntityHandle for EventSequence<E> {
     type Entity = E;
 
-    fn id(&self) -> super::Id<E> {
-        super::Id::new(self.id)
+    fn id(&self) -> Id<E> {
+        Id::new(self.id)
     }
 
     fn earliest_timestamp(&self) -> TimeUnixNanoSec {
-        self.earliest_timestamp
+        Self::earliest_timestamp(self)
     }
 
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
-        self.latest_timestamp
+        Self::latest_timestamp(self)
     }
 
     fn num_events(&self) -> NonZeroUsize {

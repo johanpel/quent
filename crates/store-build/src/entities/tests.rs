@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::test_utils::{entity, event, event_with, field, schema};
-use quent_schema::{Cardinality, DataType};
+use quent_schema::{
+    Cardinality, DataType,
+    test_utils::{entity, event, event_with, field, schema},
+};
 
 use crate::{EntityStoreImplementations, GenerateError, Options, generate_str};
 
@@ -154,7 +156,6 @@ fn rejects_namespace_and_normalized_name_conflicts() {
         schema("Demo", [entity("Task", [event("num_events", [])])], []),
         schema("Demo", [entity("Task", [event("event_sequence", [])])], []),
         schema("Demo", [entity("Task", [event("event_index", [])])], []),
-        schema("Demo", [entity("Task", [event("properties", [])])], []),
     ];
     for schema in schemas {
         assert!(matches!(

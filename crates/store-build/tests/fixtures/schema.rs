@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_schema::builder::AnnotationsBuilder;
-use quent_schema::test_utils::{entity, event, event_with, field, record, record_type};
-use quent_schema::{Cardinality, DataType, Schema};
+use quent_schema::{
+    Cardinality, DataType, Schema,
+    builder::AnnotationsBuilder,
+    test_utils::{entity, event, event_with, field, record, record_type},
+};
 
 fn reference(data: Option<DataType>) -> DataType {
     DataType::EntityRef {
@@ -45,6 +47,7 @@ pub(super) fn schema() -> Schema {
                         ],
                     ),
                     event("renamed", [field("string", DataType::String)]),
+                    event("properties", []),
                     event(
                         "metadata",
                         [

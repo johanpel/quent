@@ -18,7 +18,7 @@ mod events_only {
     include!("events_only.rs");
 }
 
-use model::{
+use crate::model::{
     EntityRef, Event, Uuid,
     entity_events::nested::r#type::worker::NativeWorkerEvents,
     nested::r#type::{Worker, WorkerEvent, WorkerEvents, WorkerStore},
@@ -62,7 +62,7 @@ fn indexed_store_returns_borrowed_views_and_retains_raw_sequences() {
 
 #[test]
 fn indexed_store_rejects_duplicate_once_events() {
-    use model::{Parent, ParentEvent, ParentStore};
+    use crate::model::{Parent, ParentEvent, ParentStore};
     let id = Uuid::from_u128(10);
     let sequences = Store::<Parent>::new([
         Event::new(id, 1, ParentEvent::Created),
@@ -119,10 +119,9 @@ fn borrows_nested_fields_without_clone_derives() {
     let events = NativeWorkerEvents::try_from(sequence).unwrap();
     assert_eq!(events.event_sequence().events().as_ptr(), sequence_pointer);
     assert_eq!(events.id().uuid(), id);
-    assert_eq!(events.properties().id, id);
-    assert_eq!(events.properties().earliest_timestamp, 10);
-    assert_eq!(events.properties().latest_timestamp, 20);
-    assert_eq!(events.properties().event_count.get(), 2);
+    assert_eq!(events.earliest_timestamp(), 10);
+    assert_eq!(events.latest_timestamp(), 20);
+    assert_eq!(events.num_events().get(), 2);
     let _debug = format!("{events:?}");
     let event = events.r#type().unwrap();
     assert_eq!(event.timestamp(), 10);
@@ -164,10 +163,9 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
         },
     ).into_iter().chain([Event::new(id, 15, WorkerEvent::Renamed { string: "renamed".to_owned() })]));
     let events = NativeWorkerEvents::try_from(store.into_sequences().next().unwrap()).unwrap();
-    assert_eq!(events.properties().id, id);
-    assert_eq!(events.properties().earliest_timestamp, 10);
-    assert_eq!(events.properties().latest_timestamp, 20);
-    assert_eq!(events.properties().event_count.get(), 4);
+    assert_eq!(events.earliest_timestamp(), 10);
+    assert_eq!(events.latest_timestamp(), 20);
+    assert_eq!(events.num_events().get(), 4);
     assert!(events.r#type().is_none());
     assert_eq!(events.renamed().unwrap().timestamp(), 15);
     assert_eq!(events.event_sequence().events().len(), 4);
@@ -182,7 +180,7 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
 
 #[test]
 fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
-    use model::{
+    use crate::model::{
         Parent, ParentEvent,
         entity_events::parent::{NativeParentEvents, ParentEvents},
     };
@@ -207,7 +205,7 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
 
 #[test]
 fn a_sole_multi_event_still_returns_all_occurrences() {
-    use model::{
+    use crate::model::{
         Stream, StreamEvent,
         entity_events::stream::{NativeStreamEvents, StreamEvents},
     };
@@ -247,7 +245,7 @@ fn payload_fields_do_not_shadow_the_recorded_timestamp() {
 
 #[test]
 fn checked_handles_reject_other_variants_and_borrow_valid_events() {
-    use model::entity_events::nested::r#type::worker::RenamedHandle;
+    use crate::model::entity_events::nested::r#type::worker::RenamedHandle;
 
     let id = Uuid::from_u128(5);
     let event = Event::new(id, 30, WorkerEvent::Update { string: "update".to_owned() });

@@ -1,32 +1,23 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Rust-native in-memory entity storage.
+//! Rust-native in-memory entity storage implementation support.
 
-use std::marker::PhantomData;
-use std::num::NonZeroUsize;
+use std::{marker::PhantomData, num::NonZeroUsize};
 
 use quent_events::{EntityMarker, Event};
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
-use super::sequence::EventSequence;
-use super::{BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, OwnedEventSequenceStore};
-use crate::{Error, event::EventLoader};
-
-/// Properties common to all stored entity types.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct EntityProperties {
-    /// Identifies the entit.
-    pub id: Uuid,
-    /// Minimum timestamp across all events for this entity.
-    pub earliest_timestamp: TimeUnixNanoSec,
-    /// Maximum timestamp across all events for this entity.
-    pub latest_timestamp: TimeUnixNanoSec,
-    /// Total number of events this entity emitted.
-    pub event_count: NonZeroUsize,
-}
+use crate::{
+    Error,
+    entity::{
+        BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, OwnedEventSequenceStore,
+        sequence::EventSequence,
+    },
+    event::EventLoader,
+};
 
 /// Stores one entity marker's events in memory, grouped by UUID.
 ///
@@ -203,8 +194,6 @@ pub trait EventIndex<E: EntityMarker>: Default {
 /// Storage for one entity's event sequence and event-type indices.
 #[doc(hidden)]
 pub struct NativeEntity<E: EntityMarker, I: EventIndex<E>> {
-    /// Properties of this entity that apply to every entity type.
-    properties: EntityProperties,
     /// The sequence of events this entity emitted.
     sequence: EventSequence<E>,
     /// Positions in the sequence grouped by entity event type.
@@ -212,11 +201,6 @@ pub struct NativeEntity<E: EntityMarker, I: EventIndex<E>> {
 }
 
 impl<E: EntityMarker, I: EventIndex<E>> NativeEntity<E, I> {
-    /// Returns this entity's type-agnostic properties.
-    pub fn properties(&self) -> &EntityProperties {
-        &self.properties
-    }
-
     /// Borrows the event-type indices.
     #[doc(hidden)]
     pub fn event_index(&self) -> &I {
@@ -233,19 +217,19 @@ impl<E: EntityMarker, I: EventIndex<E>> EntityHandle for NativeEntity<E, I> {
     type Entity = E;
 
     fn id(&self) -> Id<E> {
-        Id::new(self.properties.id)
+        self.sequence.id()
     }
 
     fn earliest_timestamp(&self) -> TimeUnixNanoSec {
-        self.properties.earliest_timestamp
+        self.sequence.earliest_timestamp()
     }
 
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
-        self.properties.latest_timestamp
+        self.sequence.latest_timestamp()
     }
 
     fn num_events(&self) -> NonZeroUsize {
-        self.properties.event_count
+        self.sequence.event_count()
     }
 }
 
@@ -257,12 +241,6 @@ impl<E: EntityMarker, I: EventIndex<E>> TryFrom<EventSequence<E>> for NativeEnti
 
     fn try_from(sequence: EventSequence<E>) -> Result<Self, Self::Error> {
         let mut entity = Self {
-            properties: EntityProperties {
-                id: sequence.id().uuid(),
-                earliest_timestamp: sequence.earliest_timestamp(),
-                latest_timestamp: sequence.latest_timestamp(),
-                event_count: sequence.event_count(),
-            },
             sequence,
             event_index: I::default(),
         };
@@ -276,7 +254,10 @@ impl<E: EntityMarker, I: EventIndex<E>> TryFrom<EventSequence<E>> for NativeEnti
 impl<E: EntityMarker, I: EventIndex<E>> std::fmt::Debug for NativeEntity<E, I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NativeEntity")
-            .field("properties", &self.properties)
+            .field("id", &self.id().uuid())
+            .field("earliest_timestamp", &self.earliest_timestamp())
+            .field("latest_timestamp", &self.latest_timestamp())
+            .field("event_count", &self.num_events())
             .finish_non_exhaustive()
     }
 }
@@ -297,8 +278,7 @@ pub fn insert_once<T>(slot: &mut Option<T>, value: T) -> Result<(), T> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
-    use std::rc::Rc;
+    use std::{cell::Cell, rc::Rc};
 
     use quent_events::{EntityMarker, EventPayload};
 

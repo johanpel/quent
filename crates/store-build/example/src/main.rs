@@ -3,12 +3,13 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{ConnectionEvents, ConnectionStore, Demo, Query, ServerEvents, ServerStore};
 use quent_store::{
     context::ContextSet,
-    entity::EntityStore,
+    entity::{EntityHandle, EntityStore},
     event::{EventLoader, filesystem},
 };
+
+use crate::demo::{ConnectionEvents, ConnectionStore, Demo, Query, ServerEvents, ServerStore};
 
 #[allow(unused_imports, dead_code)]
 mod demo {
@@ -62,9 +63,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Access some properties common to all entities.
         println!(
             "Observed entity {} between {} and {}",
-            entity.properties().id,
-            entity.properties().earliest_timestamp,
-            entity.properties().latest_timestamp
+            entity.id().uuid(),
+            entity.earliest_timestamp(),
+            entity.latest_timestamp()
         );
 
         // Access some entity-specific properties:

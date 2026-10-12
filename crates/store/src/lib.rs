@@ -8,9 +8,12 @@ pub mod entity;
 pub mod error;
 pub mod event;
 
-pub use entity::{EntityHandle, EntityStore, Id};
-pub use error::Error;
 pub use quent_time::TimeUnixNanoSec;
+
+pub use crate::{
+    entity::{EntityHandle, EntityStore, Id},
+    error::Error,
+};
 
 /// Result returned by store operations.
 pub type Result<T> = std::result::Result<T, Error>;

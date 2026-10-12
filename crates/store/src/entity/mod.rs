@@ -8,13 +8,13 @@ use std::num::NonZeroUsize;
 use quent_events::{EntityMarker, EventPayload};
 use quent_time::TimeUnixNanoSec;
 
-use self::sequence::EventSequence;
+use crate::entity::sequence::EventSequence;
 
 mod id;
 pub mod native;
 pub mod sequence;
 
-pub use id::Id;
+pub use crate::entity::id::Id;
 
 // TODO(johanpel): Deduplicate entity identity and timestamp access with quent-analyzer
 // as part of rapidsai/quent#516.

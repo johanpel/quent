@@ -7,7 +7,7 @@ use proc_macro2::TokenStream;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 
-use super::super::EventCode;
+use crate::entities::EventCode;
 
 /// Native index, insertion, and accessor implementation fragments.
 pub(super) struct NativeEventStoreCode {
