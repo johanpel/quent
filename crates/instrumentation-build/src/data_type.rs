@@ -16,8 +16,20 @@ use crate::{GenerateError, Options};
 /// already ruled out by base validation.
 pub(crate) const MAX_TYPE_DEPTH: usize = 64;
 
-/// Map a [`DataType`] to its Rust type tokens.
-pub(crate) fn map_data_type(
+// TODO(johanpel): Extract shared event generation into quent-event-build,
+// allowing store-generated code to use quent-store reexports without a
+// direct quent-events dependency.
+/// Maps a [`DataType`] to Rust type tokens relative to `source_namespace`.
+///
+/// Pass zero for `depth` when mapping a standalone type. Runtime types use
+/// `quent_instrumentation` when [`Options::instrumentation`] is enabled and
+/// `quent_events` otherwise.
+///
+/// # Errors
+///
+/// Returns [`GenerateError::TypeNestingTooDeep`] when the supplied depth plus
+/// nested wrappers exceeds 64.
+pub fn map_data_type(
     ty: &DataType,
     depth: usize,
     source_namespace: &[quent_schema::Identifier],

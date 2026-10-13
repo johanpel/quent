@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quent_instrumentation_build::{
-    Options, generated_entity_event_path, generated_entity_path, generated_module_ident,
-    generated_type_ident,
+    Options,
+    common::{module_ident, relative_type_path, type_ident},
 };
 use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
@@ -60,14 +60,14 @@ fn generate_entity(
     stores: &EntityStoreImplementations,
 ) -> Result<syn::File, GenerateError> {
     let mut namespace = entity.path().namespace().to_vec();
-    let module = generated_module_ident(entity.path().name());
+    let module = module_ident(entity.path().name());
     namespace.push(entity.path().name().clone());
     let parents = vec![quote!(super); namespace.len()];
-    let marker = generated_entity_path(entity);
-    let original = generated_entity_event_path(entity);
+    let marker = relative_type_path(entity.path(), &[], "");
+    let original = relative_type_path(entity.path(), &[], "Event");
     let marker = quote! { #(#parents::)* #marker };
     let original = quote! { #(#parents::)* #original };
-    let entity_name = generated_type_ident(entity.path().name())
+    let entity_name = type_ident(entity.path().name())
         .to_string()
         .trim_start_matches("r#")
         .to_owned();
@@ -98,7 +98,7 @@ fn generate_entity(
     let mut code = Vec::new();
     for event in entity.events() {
         let handle = handles::ident(event);
-        let method = generated_module_ident(event.name());
+        let method = module_ident(event.name());
         let origin = format!("event {}::{}", entity.path(), event.name());
         for (names, name) in [
             (&mut type_names, handle.to_string()),

@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use quent_instrumentation_build::generated_module_ident;
+use quent_instrumentation_build::common::module_ident;
 use quent_schema::Entity;
 
 use crate::GenerateError;
@@ -22,7 +22,7 @@ pub(super) fn for_entity<'a>(
     let mut rust_path = Vec::new();
     let mut schema_path = Vec::new();
     for segment in entity.path().namespace() {
-        let ident = generated_module_ident(segment);
+        let ident = module_ident(segment);
         rust_path.push(ident.to_string());
         schema_path.push(segment.to_string());
         let name = rust_path.join("::");

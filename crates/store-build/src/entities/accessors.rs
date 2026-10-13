@@ -4,7 +4,7 @@
 //! Generation of entity-specific event accessor declarations.
 
 use proc_macro2::TokenStream;
-use quent_instrumentation_build::generated_module_ident;
+use quent_instrumentation_build::common::module_ident;
 use quent_schema::{Cardinality, Entity, Event};
 use quote::quote;
 
@@ -25,7 +25,7 @@ pub(super) struct AccessorCode {
 
 /// Generates the trait method used to access one event type.
 pub(super) fn generate(entity: &Entity, event: &Event, handle: &TokenStream) -> AccessorCode {
-    let method = generated_module_ident(event.name());
+    let method = module_ident(event.name());
     let (return_type, docs) =
         if event.cardinality() == Cardinality::Once && entity.events().count() == 1 {
             (

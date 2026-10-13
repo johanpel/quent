@@ -7,7 +7,9 @@ use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
 use quent_instrumentation_build::{
-    Options, generated_field_type, generated_module_ident, generated_type_ident,
+    Options,
+    common::{module_ident, type_ident},
+    data_type::map_data_type,
 };
 use quent_schema::{Entity, Event, Identifier};
 use quote::quote;
@@ -15,7 +17,7 @@ use quote::quote;
 use crate::GenerateError;
 
 pub(super) fn ident(event: &Event) -> syn::Ident {
-    let variant = generated_type_ident(event.name());
+    let variant = type_ident(event.name());
     quote::format_ident!("{}Handle", variant.to_string().trim_start_matches("r#"))
 }
 
@@ -28,13 +30,13 @@ pub(super) fn generate(
     opts: &Options,
     original: &TokenStream,
 ) -> Result<TokenStream, GenerateError> {
-    let variant = generated_type_ident(event.name());
+    let variant = type_ident(event.name());
     let handle = ident(event);
     let variant_pattern = variant_pattern(event, original);
     let mut names = BTreeMap::from([("timestamp".to_owned(), "event timestamp".to_owned())]);
     let mut methods = Vec::new();
     for field in event.fields() {
-        let field_ident = generated_module_ident(field.name());
+        let field_ident = module_ident(field.name());
         let method = if field_ident == "timestamp" {
             quote::format_ident!("field_timestamp")
         } else {
@@ -47,7 +49,7 @@ pub(super) fn generate(
                 second: field.name().to_string(),
             });
         }
-        let ty = generated_field_type(field, namespace, opts)?;
+        let ty = map_data_type(field.ty(), 0, namespace, opts)?;
         let docs = format!("Borrows the `{}` field.", field.name());
         let mismatch = (entity.events().count() > 1).then(|| {
             quote! {
@@ -106,7 +108,7 @@ pub(super) fn generate(
 
 /// Returns a pattern matching one event type without moving its fields.
 pub(super) fn variant_pattern(event: &Event, original: &TokenStream) -> TokenStream {
-    let variant = generated_type_ident(event.name());
+    let variant = type_ident(event.name());
     if event.fields().count() == 0 {
         quote! { #original::#variant }
     } else {

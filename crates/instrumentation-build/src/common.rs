@@ -113,12 +113,17 @@ pub(crate) fn path_name_pascal(path: &Path) -> String {
 }
 
 /// Return the Rust module name for a path segment.
-pub(crate) fn module_ident(segment: &Identifier) -> Ident {
+pub fn module_ident(segment: &Identifier) -> Ident {
     raw_ident(to_case(segment, Case::Snake))
 }
 
+/// Returns the Rust type or variant identifier for a schema identifier.
+pub fn type_ident(name: &Identifier) -> Ident {
+    raw_ident(to_case(name, Case::Pascal))
+}
+
 /// Return a generated type path relative to `source_namespace`.
-pub(crate) fn relative_type_path(
+pub fn relative_type_path(
     path: &Path,
     source_namespace: &[Identifier],
     suffix: &str,
