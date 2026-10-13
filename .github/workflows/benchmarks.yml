@@ -1,6 +1,21 @@
 name: Benchmarks
 
 on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+    paths:
+      # Cover Rust changes broadly to include instrumentation dependencies and
+      # dependents, plus benchmark/report tooling and the build environment.
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.proto"
+      - "benchmarks/**"
+      - "experimental/vibe/bench-plot/**"
+      - "pixi.toml"
+      - "pixi.lock"
+      - ".github/workflows/benchmarks.yml"
   workflow_call:
 
 permissions:

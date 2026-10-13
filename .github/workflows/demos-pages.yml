@@ -2,9 +2,7 @@ name: Deploy Demos to Pages
 
 on:
   push:
-    branches:
-      - main
-      - "pull-request/[0-9]+"
+    branches: [main]
   pull_request:
     paths:
       - "**/*.rs"
