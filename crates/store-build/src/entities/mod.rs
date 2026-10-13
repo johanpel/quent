@@ -13,13 +13,9 @@ use quent_instrumentation_build::{
 use quent_schema::{Entity, Event, Identifier, Schema};
 use quote::quote;
 
-use crate::{
-    EntityStoreImplementations, GenerateError,
-    entities::{handles::EventHandleCode, namespaces::Module, store::EventStoreCode},
-};
+use crate::{EntityStoreImplementations, GenerateError, entities::store::EventStoreCode};
 
 mod accessors;
-mod exports;
 mod handles;
 mod namespaces;
 mod store;
@@ -41,41 +37,31 @@ struct EventCode {
     store: EventStoreCode,
 }
 
+/// Generates event handles, access traits, and stores in their schema namespaces.
 pub(super) fn generate(
     schema: &Schema,
     opts: &Options,
     events: &mut syn::File,
     stores: &EntityStoreImplementations,
-) -> Result<syn::ItemMod, GenerateError> {
-    if events
-        .items
-        .iter()
-        .any(|item| matches!(item, syn::Item::Mod(module) if module.ident == "entity_events"))
-    {
-        return Err(GenerateError::EntityEventsNameConflict {
-            name: "entity_events".into(),
-            first: "schema namespace".into(),
-            second: "entity event access".into(),
-        });
-    }
-    let root = Identifier::try_new("entity_events").expect("valid identifier");
-    let mut tree = Module::default();
+) -> Result<(), GenerateError> {
+    let mut names = BTreeMap::new();
     for entity in schema.entities() {
-        let (module, namespace) = namespaces::for_entity(&mut tree, entity, &root)?;
-        let items = generate_entity(entity, &namespace, opts, stores, &mut module.type_names)?;
-        module.items.extend(items.items);
-        exports::generate(entity, events, stores)?;
+        let items = namespaces::for_entity(events, entity, &mut names)?;
+        let generated = generate_entity(entity, opts, stores)?;
+        namespaces::extend(items, generated, entity)?;
     }
-    tree.into_item(syn::parse_quote!(entity_events))
+    Ok(())
 }
 
+/// Generates event handles, an access trait, and stores for one entity.
 fn generate_entity(
     entity: &Entity,
-    namespace: &[Identifier],
     opts: &Options,
     stores: &EntityStoreImplementations,
-    type_names: &mut BTreeMap<String, String>,
 ) -> Result<syn::File, GenerateError> {
+    let mut namespace = entity.path().namespace().to_vec();
+    let module = generated_module_ident(entity.path().name());
+    namespace.push(entity.path().name().clone());
     let parents = vec![quote!(super); namespace.len()];
     let marker = generated_entity_path(entity);
     let original = generated_entity_event_path(entity);
@@ -89,12 +75,7 @@ fn generate_entity(
     let native = quote::format_ident!("Native{}Events", entity_name);
     let store = quote::format_ident!("{}Store", entity_name);
     let event_index_ident = quote::format_ident!("{}EventIndex", entity_name);
-    type_names.insert(access.to_string(), "entity access trait".into());
-    if stores.native {
-        type_names.insert(native.to_string(), "native entity view".into());
-        type_names.insert(store.to_string(), "native entity store".into());
-        type_names.insert(event_index_ident.to_string(), "native event indices".into());
-    }
+    let mut type_names = BTreeMap::new();
     let mut method_names = BTreeMap::from([
         ("id".to_owned(), "entity identity".to_owned()),
         (
@@ -122,7 +103,7 @@ fn generate_entity(
         let method = generated_module_ident(event.name());
         let origin = format!("event {}::{}", entity.path(), event.name());
         for (names, name) in [
-            (&mut *type_names, handle.to_string()),
+            (&mut type_names, handle.to_string()),
             (&mut method_names, method.to_string()),
         ] {
             if let Some(first) = names.insert(name.clone(), origin.clone()) {
@@ -133,7 +114,7 @@ fn generate_entity(
                 });
             }
         }
-        code.push(generate_event(entity, event, namespace, opts, &original)?);
+        code.push(generate_event(entity, event, &namespace, opts, &original)?);
     }
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
@@ -150,16 +131,20 @@ fn generate_entity(
     });
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {
-        #(#handles)*
-        #[doc = #docs]
-        pub trait #access: ::quent_store::entity::EntityHandle<Entity = #marker> {
-            #(#methods)*
+        pub mod #module {
+            #(#handles)*
+            #[doc = #docs]
+            pub trait #access: ::quent_store::entity::EntityHandle<Entity = #marker> {
+                #(#methods)*
+            }
+            #native_store
         }
-        #native_store
     })
     .map_err(GenerateError::InvalidGeneratedCode)
 }
 
+/// Generates a borrowing handle, an accessor declaration, and store code for
+/// one event.
 fn generate_event(
     entity: &Entity,
     event: &Event,
@@ -168,10 +153,9 @@ fn generate_event(
     original: &TokenStream,
 ) -> Result<EventCode, GenerateError> {
     let handle = handles::ident(event);
-    let EventHandleCode {
-        handle_type_def,
-        variant_pattern,
-    } = handles::generate(entity, event, namespace, opts, original)?;
+    let handle_type_def = handles::generate(entity, event, namespace, opts, original)?;
+    let variant_pattern = handles::variant_pattern(event, original);
+    let handle = quote! { #handle };
     let accessor = accessors::generate(entity, event, &handle);
     let store = store::generate_event(
         entity,

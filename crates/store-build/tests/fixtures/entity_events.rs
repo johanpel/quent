@@ -20,7 +20,7 @@ mod events_only {
 
 use crate::model::{
     EntityRef, Event, Uuid,
-    nested::r#type::{Worker, WorkerEvent, WorkerEvents, WorkerStore},
+    nested::r#type::{Worker, WorkerEvent, worker::{WorkerEvents, WorkerStore}},
 };
 
 #[test]
@@ -95,7 +95,7 @@ fn indexed_store_returns_borrowed_views_and_retains_raw_sequences() {
 
 #[test]
 fn indexed_store_rejects_duplicate_once_events() {
-    use crate::model::{Parent, ParentEvent, ParentStore};
+    use crate::model::{Parent, ParentEvent, parent::ParentStore};
     let id = Uuid::from_u128(10);
     let sequences = Store::<Parent>::new([
         Event::new(id, 1, ParentEvent::Created),
@@ -225,7 +225,7 @@ fn groups_multi_events_stably_and_leaves_once_events_absent() {
 
 #[test]
 fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
-    use crate::model::{Parent, ParentEvent, ParentEvents, ParentStore};
+    use crate::model::{Parent, ParentEvent, parent::{ParentEvents, ParentStore}};
     let id = Uuid::from_u128(1);
     let single = Store::<Parent>::new([Event::new(id, 10, ParentEvent::Created)]);
     let single = ParentStore::try_from(single).unwrap();
@@ -248,7 +248,7 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
 
 #[test]
 fn a_sole_multi_event_still_returns_all_occurrences() {
-    use crate::model::{Stream, StreamEvent, StreamEvents, StreamStore};
+    use crate::model::{Stream, StreamEvent, stream::{StreamEvents, StreamStore}};
     let id = Uuid::from_u128(4);
     let store = Store::<Stream>::new(
         [20, 10, 10].map(|timestamp| Event::new(id, timestamp, StreamEvent::Tick)),
@@ -293,7 +293,7 @@ fn payload_fields_do_not_shadow_the_recorded_timestamp() {
 
 #[test]
 fn checked_handles_reject_other_variants_and_borrow_valid_events() {
-    use crate::model::entity_events::nested::r#type::worker::RenamedHandle;
+    use crate::model::nested::r#type::worker::RenamedHandle;
 
     let id = Uuid::from_u128(5);
     let event = Event::new(

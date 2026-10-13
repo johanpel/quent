@@ -72,7 +72,8 @@ pub struct Options {
     /// Defaults to a native in-memory store. Disabling all stores also disables
     /// typed entity event access.
     ///
-    /// Access traits and store aliases can be imported alongside entity markers.
+    /// Access traits, event handles, and store aliases are available in each
+    /// entity's module, such as `model::connection`.
     pub entity_store: EntityStoreImplementations,
 
     /// Directory the generated file is written into.
@@ -173,16 +174,9 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
     let mut events =
         syn::parse_str::<syn::File>(&events).map_err(GenerateError::InvalidGeneratedCode)?;
-    let entity_events = if opts.entity_store.native {
-        Some(entities::generate(
-            schema,
-            &event_opts,
-            &mut events,
-            &opts.entity_store,
-        )?)
-    } else {
-        None
-    };
+    if opts.entity_store.native {
+        entities::generate(schema, &event_opts, &mut events, &opts.entity_store)?;
+    }
 
     let loaders = event_loaders::generate(schema, opts.filesystem);
 
@@ -190,8 +184,6 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         #events
 
         #loaders
-
-        #entity_events
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;
 

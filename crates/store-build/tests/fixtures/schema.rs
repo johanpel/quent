@@ -22,6 +22,11 @@ pub(super) fn schema() -> Schema {
         "ScopedEvents",
         [
             entity("Parent", [event("created", [])]),
+            entity(
+                "Worker",
+                [event("renamed", [field("string", DataType::String)])],
+            ),
+            entity("EntityEvents::Legacy", [event("created", [])]),
             entity("Stream", [event_with("tick", Cardinality::Multi, [])]),
             entity(
                 "Nested::type::Worker",

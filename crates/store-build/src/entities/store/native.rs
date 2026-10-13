@@ -19,10 +19,12 @@ pub(super) struct NativeEventStoreCode {
     pub(super) accessor_method_impl: TokenStream,
 }
 
+/// Generates code to index and borrow one event type's occurrences in native
+/// storage.
 pub(super) fn generate_event(
     entity: &Entity,
     event: &Event,
-    handle: &syn::Ident,
+    handle: &TokenStream,
     method: &syn::Ident,
     variant_pattern: &TokenStream,
     accessor_method_signature: &TokenStream,
@@ -65,6 +67,8 @@ pub(super) fn generate_event(
     }
 }
 
+/// Generates a native entity index, event access implementations, and store
+/// aliases.
 pub(super) fn generate_entity(
     entity: &Entity,
     native: &syn::Ident,

@@ -9,6 +9,8 @@ use quote::quote;
 
 mod filesystem;
 
+/// Generates model membership for entity markers and optional filesystem
+/// loading.
 pub(super) fn generate(schema: &Schema, filesystem: bool) -> TokenStream {
     let model = quent_instrumentation_build::generated_model_path(schema);
     let stored_model = filesystem.then(|| filesystem::generate_model_impl(schema));

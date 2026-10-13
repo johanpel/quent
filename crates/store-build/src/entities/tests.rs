@@ -3,7 +3,7 @@
 
 use quent_schema::{
     Cardinality, DataType,
-    test_utils::{entity, event, event_with, field, schema},
+    test_utils::{entity, event, event_with, field, record, schema},
 };
 
 use crate::{EntityStoreImplementations, GenerateError, Options, generate_str};
@@ -32,6 +32,9 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
     };
     let source = generate_str(&schema, &options).unwrap();
     assert!(source.contains("pub type TaskStore"));
+    assert!(source.contains("pub mod task"));
+    assert!(!source.contains("pub mod entity_events"));
+    assert!(!source.contains("pub use self::entity_events"));
     let source = generate_str(
         &schema,
         &Options {
@@ -42,7 +45,7 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
         },
     )
     .unwrap();
-    assert!(!source.contains("pub mod entity_events"));
+    assert!(!source.contains("pub mod task"));
     assert!(!source.contains("pub trait TaskEvents"));
     assert!(!source.contains("pub struct CreatedHandle"));
     assert!(!source.contains("pub type TaskStore"));
@@ -69,27 +72,6 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
 #[test]
 fn rejects_namespace_and_normalized_name_conflicts() {
     let schemas = [
-        schema(
-            "Demo",
-            [
-                entity("Task", [event("created", [])]),
-                entity("TaskEvents", [event("created", [])]),
-            ],
-            [],
-        ),
-        schema(
-            "Demo",
-            [
-                entity("Nested::Task", [event("created", [])]),
-                entity("Nested::TaskStore", [event("created", [])]),
-            ],
-            [],
-        ),
-        schema(
-            "Demo",
-            [entity("EntityEvents::Task", [event("created", [])])],
-            [],
-        ),
         schema(
             "Demo",
             [
@@ -171,4 +153,21 @@ fn rejects_namespace_and_normalized_name_conflicts() {
             Err(GenerateError::EntityEventsNameConflict { .. })
         ));
     }
+}
+
+#[test]
+fn entity_modules_keep_store_types_separate_from_schema_types() {
+    let schema = schema(
+        "Demo",
+        [
+            entity("Task", [event("created", [])]),
+            entity("NativeTask", [event("created", [])]),
+            entity("TaskEvents", [event("created", [])]),
+            entity("Nested::Task", [event("created", [])]),
+            entity("Nested::TaskStore", [event("created", [])]),
+            entity("EntityEvents::Task", [event("created", [])]),
+        ],
+        [record("TaskEventIndex", [])],
+    );
+    generate_str(&schema, &Options::default()).unwrap();
 }

@@ -111,7 +111,7 @@ impl<E: EntityMarker, I: EventIndex<E>> TryFrom<Store<E>> for Store<E, NativeEnt
     }
 }
 
-impl<E: EntityMarker, T: StoredEntity<E>> EntityStore<E> for Store<E, T> {
+impl<E: EntityMarker, T: EntityHandle<Entity = E>> EntityStore<E> for Store<E, T> {
     type Error = Error;
     type Handle<'a>
         = &'a T
@@ -127,39 +127,25 @@ impl<E: EntityMarker, T: StoredEntity<E>> EntityStore<E> for Store<E, T> {
     }
 }
 
-impl<E: EntityMarker, T: StoredEntity<E>> BorrowedEventSequenceStore<E> for Store<E, T> {
+impl<E: EntityMarker, T> BorrowedEventSequenceStore<E> for Store<E, T>
+where
+    T: EntityHandle<Entity = E> + AsRef<EventSequence<E>>,
+{
     fn event_sequence(&self, entity_id: Id<E>) -> Result<&EventSequence<E>, Self::Error> {
         self.entities
             .get(&entity_id.uuid())
-            .map(T::sequence)
+            .map(T::as_ref)
             .ok_or(Error::MissingEntity(entity_id.uuid()))
     }
 }
 
-impl<E: EntityMarker, T: StoredEntity<E>> OwnedEventSequenceStore<E> for Store<E, T>
+impl<E: EntityMarker, T> OwnedEventSequenceStore<E> for Store<E, T>
 where
+    T: EntityHandle<Entity = E> + AsRef<EventSequence<E>>,
     E::Payload: Clone,
 {
     fn event_sequence_owned(&self, entity_id: Id<E>) -> Result<EventSequence<E>, Self::Error> {
         self.event_sequence(entity_id).cloned()
-    }
-}
-
-/// Provides raw sequence access for values held by a native store.
-#[doc(hidden)]
-pub trait StoredEntity<E: EntityMarker>: EntityHandle<Entity = E> {
-    fn sequence(&self) -> &EventSequence<E>;
-}
-
-impl<E: EntityMarker> StoredEntity<E> for EventSequence<E> {
-    fn sequence(&self) -> &EventSequence<E> {
-        self
-    }
-}
-
-impl<E: EntityMarker, I: EventIndex<E>> StoredEntity<E> for NativeEntity<E, I> {
-    fn sequence(&self) -> &EventSequence<E> {
-        &self.sequence
     }
 }
 
@@ -195,6 +181,12 @@ impl<E: EntityMarker, I: EventIndex<E>> NativeEntity<E, I> {
 
     /// Borrows the raw event sequence.
     pub fn event_sequence(&self) -> &EventSequence<E> {
+        &self.sequence
+    }
+}
+
+impl<E: EntityMarker, I: EventIndex<E>> AsRef<EventSequence<E>> for NativeEntity<E, I> {
+    fn as_ref(&self) -> &EventSequence<E> {
         &self.sequence
     }
 }

@@ -1,77 +1,85 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Assembly of generated schema namespaces.
+//! Placement of generated types in schema namespaces.
 
 use std::collections::BTreeMap;
 
 use quent_instrumentation_build::generated_module_ident;
-use quent_schema::{Entity, Identifier};
-use quote::quote;
+use quent_schema::Entity;
 
 use crate::GenerateError;
 
-/// An output module containing generated Rust items and nested modules.
-#[derive(Default)]
-pub(super) struct Module {
-    /// Child modules keyed by Rust name, with their identifier and schema
-    /// origin.
-    children: BTreeMap<String, (syn::Ident, String, Module)>,
-    /// Generated type names mapped to their origins for conflict checking.
-    pub(super) type_names: BTreeMap<String, String>,
-    /// Rust items emitted directly in this module.
-    ///
-    /// For example, `pub struct InitHandle<'a> { event: &'a Event<TaskEvent> }`.
-    pub(super) items: Vec<syn::Item>,
-}
-
-impl Module {
-    fn child(&mut self, ident: syn::Ident, origin: String) -> Result<&mut Self, GenerateError> {
-        let name = ident.to_string();
-        let (_, existing, child) = self
-            .children
-            .entry(name.clone())
-            .or_insert_with(|| (ident, origin.clone(), Self::default()));
-        if *existing != origin {
+/// Finds the schema namespace in which an entity's types belong.
+///
+/// Rejects schema namespaces that normalize to the same Rust name.
+pub(super) fn for_entity<'a>(
+    events: &'a mut syn::File,
+    entity: &Entity,
+    names: &mut BTreeMap<String, String>,
+) -> Result<&'a mut Vec<syn::Item>, GenerateError> {
+    let mut items = &mut events.items;
+    let mut rust_path = Vec::new();
+    let mut schema_path = Vec::new();
+    for segment in entity.path().namespace() {
+        let ident = generated_module_ident(segment);
+        rust_path.push(ident.to_string());
+        schema_path.push(segment.to_string());
+        let name = rust_path.join("::");
+        let origin = schema_path.join("::");
+        if let Some(first) = names.insert(name.clone(), origin.clone())
+            && first != origin
+        {
             return Err(GenerateError::EntityEventsNameConflict {
                 name,
-                first: existing.clone(),
+                first,
                 second: origin,
             });
         }
-        Ok(child)
+        items = items
+            .iter_mut()
+            .find_map(|item| match item {
+                syn::Item::Mod(module) if module.ident == ident => {
+                    module.content.as_mut().map(|(_, items)| items)
+                }
+                _ => None,
+            })
+            .expect("event generation emits schema namespaces");
     }
-
-    pub(super) fn into_item(self, ident: syn::Ident) -> Result<syn::ItemMod, GenerateError> {
-        let mut items = self.items;
-        for (ident, _, child) in self.children.into_values() {
-            items.push(syn::Item::Mod(child.into_item(ident)?));
-        }
-        syn::parse2(quote! { pub mod #ident { #(#items)* } })
-            .map_err(GenerateError::InvalidGeneratedCode)
-    }
+    Ok(items)
 }
 
-pub(super) fn for_entity<'a>(
-    tree: &'a mut Module,
+/// Adds entity types to a namespace, rejecting conflicts with existing names.
+pub(super) fn extend(
+    items: &mut Vec<syn::Item>,
+    generated: syn::File,
     entity: &Entity,
-    root: &Identifier,
-) -> Result<(&'a mut Module, Vec<Identifier>), GenerateError> {
-    let mut namespace = vec![root.clone()];
-    let mut module = tree;
-    for segment in entity.path().namespace() {
-        namespace.push(segment.clone());
-        let path = namespace[1..]
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("::");
-        module = module.child(generated_module_ident(segment), format!("namespace {path}"))?;
+) -> Result<(), GenerateError> {
+    for item in generated.items {
+        if let Some(name) = ident(&item)
+            && items
+                .iter()
+                .filter_map(ident)
+                .any(|existing| existing == name)
+        {
+            return Err(GenerateError::EntityEventsNameConflict {
+                name: name.to_string(),
+                first: "existing generated type or namespace".into(),
+                second: format!("entity access for {}", entity.path()),
+            });
+        }
+        items.push(item);
     }
-    namespace.push(entity.path().name().clone());
-    module = module.child(
-        generated_module_ident(entity.path().name()),
-        format!("entity {}", entity.path()),
-    )?;
-    Ok((module, namespace))
+    Ok(())
+}
+
+fn ident(item: &syn::Item) -> Option<&syn::Ident> {
+    match item {
+        syn::Item::Struct(item) => Some(&item.ident),
+        syn::Item::Enum(item) => Some(&item.ident),
+        syn::Item::Type(item) => Some(&item.ident),
+        syn::Item::Trait(item) => Some(&item.ident),
+        syn::Item::Mod(item) => Some(&item.ident),
+        _ => None,
+    }
 }

@@ -9,7 +9,11 @@ use quent_store::{
     event::{EventLoader, filesystem},
 };
 
-use crate::demo::{ConnectionEvents, ConnectionStore, Demo, Query, ServerEvents, ServerStore};
+use crate::demo::{
+    Demo, Query,
+    connection::{ConnectionEvents, ConnectionStore},
+    server::{ServerEvents, ServerStore},
+};
 
 #[allow(unused_imports, dead_code)]
 mod demo {

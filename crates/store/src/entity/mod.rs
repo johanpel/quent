@@ -41,30 +41,6 @@ pub trait EntityHandle {
     }
 }
 
-impl<T: EntityHandle + ?Sized> EntityHandle for &T {
-    type Entity = T::Entity;
-
-    fn id(&self) -> Id<Self::Entity> {
-        T::id(self)
-    }
-
-    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
-        T::earliest_timestamp(self)
-    }
-
-    fn latest_timestamp(&self) -> TimeUnixNanoSec {
-        T::latest_timestamp(self)
-    }
-
-    fn num_events(&self) -> NonZeroUsize {
-        T::num_events(self)
-    }
-
-    fn type_name() -> &'static str {
-        T::type_name()
-    }
-}
-
 /// Lists typed entity IDs and provides borrowed entity handles.
 pub trait EntityStore<E: EntityMarker> {
     /// Error returned when entity access fails.
@@ -99,4 +75,28 @@ pub trait OwnedEventSequenceStore<E: EntityMarker>: EntityStore<E> {
     ///
     /// Returns an error if the entity ID is absent from this store.
     fn event_sequence_owned(&self, entity_id: Id<E>) -> Result<EventSequence<E>, Self::Error>;
+}
+
+impl<T: EntityHandle + ?Sized> EntityHandle for &T {
+    type Entity = T::Entity;
+
+    fn id(&self) -> Id<Self::Entity> {
+        T::id(self)
+    }
+
+    fn earliest_timestamp(&self) -> TimeUnixNanoSec {
+        T::earliest_timestamp(self)
+    }
+
+    fn latest_timestamp(&self) -> TimeUnixNanoSec {
+        T::latest_timestamp(self)
+    }
+
+    fn num_events(&self) -> NonZeroUsize {
+        T::num_events(self)
+    }
+
+    fn type_name() -> &'static str {
+        T::type_name()
+    }
 }

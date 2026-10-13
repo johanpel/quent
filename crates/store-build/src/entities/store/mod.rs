@@ -16,10 +16,11 @@ pub(super) struct EventStoreCode {
     native: native::NativeEventStoreCode,
 }
 
+/// Generates code to index and access one event type in the supported stores.
 pub(super) fn generate_event(
     entity: &Entity,
     event: &Event,
-    handle: &syn::Ident,
+    handle: &TokenStream,
     method: &syn::Ident,
     variant_pattern: &TokenStream,
     accessor_method_signature: &TokenStream,
@@ -36,6 +37,7 @@ pub(super) fn generate_event(
     }
 }
 
+/// Generates entity indices, event access implementations, and store types.
 pub(super) fn generate_entity(
     entity: &Entity,
     native: &syn::Ident,

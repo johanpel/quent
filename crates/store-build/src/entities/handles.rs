@@ -14,37 +14,23 @@ use quote::quote;
 
 use crate::GenerateError;
 
-/// Handle declarations and the enum variant they borrow.
-pub(super) struct EventHandleCode {
-    /// The handle type and its timestamp and field accessors.
-    ///
-    /// For example, `pub struct CreatedHandle<'a> { event: &'a Event<TaskEvent> }`.
-    pub(super) handle_type_def: TokenStream,
-    /// A variant pattern that leaves the original event intact.
-    ///
-    /// For example, `TaskEvent::Created { .. }`.
-    pub(super) variant_pattern: TokenStream,
-}
-
 pub(super) fn ident(event: &Event) -> syn::Ident {
     let variant = generated_type_ident(event.name());
     quote::format_ident!("{}Handle", variant.to_string().trim_start_matches("r#"))
 }
 
+/// Generates a borrowing event handle with timestamp and field accessors and
+/// checked conversion from a raw event.
 pub(super) fn generate(
     entity: &Entity,
     event: &Event,
     namespace: &[Identifier],
     opts: &Options,
     original: &TokenStream,
-) -> Result<EventHandleCode, GenerateError> {
+) -> Result<TokenStream, GenerateError> {
     let variant = generated_type_ident(event.name());
     let handle = ident(event);
-    let variant_pattern = if event.fields().count() == 0 {
-        quote! { #original::#variant }
-    } else {
-        quote! { #original::#variant { .. } }
-    };
+    let variant_pattern = variant_pattern(event, original);
     let mut names = BTreeMap::from([("timestamp".to_owned(), "event timestamp".to_owned())]);
     let mut methods = Vec::new();
     for field in event.fields() {
@@ -115,8 +101,15 @@ pub(super) fn generate(
             }
         }
     };
-    Ok(EventHandleCode {
-        handle_type_def,
-        variant_pattern,
-    })
+    Ok(handle_type_def)
+}
+
+/// Returns a pattern matching one event type without moving its fields.
+pub(super) fn variant_pattern(event: &Event, original: &TokenStream) -> TokenStream {
+    let variant = generated_type_ident(event.name());
+    if event.fields().count() == 0 {
+        quote! { #original::#variant }
+    } else {
+        quote! { #original::#variant { .. } }
+    }
 }

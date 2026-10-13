@@ -101,3 +101,9 @@ impl<E: EntityMarker> EntityHandle for EventSequence<E> {
         self.event_count()
     }
 }
+
+impl<E: EntityMarker> AsRef<Self> for EventSequence<E> {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
