@@ -5,7 +5,10 @@
 
 use quent_store::{
     Error,
-    entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, native::Store},
+    entity::{
+        BorrowedEventSequenceStore, EntityHandle, EntityStore, Id,
+        native::{NativeEntity, Store},
+    },
 };
 
 #[allow(unused_imports, dead_code)]
@@ -50,7 +53,7 @@ fn indexed_store_returns_borrowed_views_and_retains_raw_sequences() {
     assert!(
         matches!(store.event_sequence(missing), Err(Error::MissingEntity(uuid)) if uuid == missing.uuid())
     );
-    let entity = store.entity(id).unwrap().unwrap();
+    let entity: &NativeEntity<Worker> = store.entity(id).unwrap().unwrap();
     assert_eq!(entity.renamed().unwrap().string(), "name");
     assert_eq!(entity.update().next().unwrap().timestamp(), 20);
     assert!(std::ptr::eq(entity, store.entity(id).unwrap().unwrap()));

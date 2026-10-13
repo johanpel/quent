@@ -61,7 +61,6 @@ impl<M: CombinedEventModel> EventImporter<M> {
     where
         E: EntityMarkerInModel<M>,
         E::Payload: DeserializeOwned + Into<M::CombinedEvent> + 'static,
-        M::CombinedEvent: 'static,
     {
         Self {
             entity: E::Payload::NAME,
@@ -80,7 +79,6 @@ fn import_event_files<M, E>(files: Vec<EventFile>) -> Result<EventIterator<M::Co
 where
     M: CombinedEventModel,
     E: DeserializeOwned + Into<M::CombinedEvent> + 'static,
-    M::CombinedEvent: 'static,
 {
     Ok(Box::new(import_files::<E>(files).map(|event| {
         event.map(|event| Event::new(event.id, event.timestamp, event.data.into()))

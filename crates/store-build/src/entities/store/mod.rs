@@ -40,20 +40,11 @@ pub(super) fn generate_event(
 /// Generates entity indices, event access implementations, and store types.
 pub(super) fn generate_entity(
     entity: &Entity,
-    native: &syn::Ident,
     store: &syn::Ident,
     event_index_ident: &syn::Ident,
     access: &syn::Ident,
     marker: &TokenStream,
     events: &[EventCode],
 ) -> TokenStream {
-    native::generate_entity(
-        entity,
-        native,
-        store,
-        event_index_ident,
-        access,
-        marker,
-        events,
-    )
+    native::generate_entity(entity, store, event_index_ident, access, marker, events)
 }

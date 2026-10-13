@@ -72,7 +72,6 @@ fn generate_entity(
         .trim_start_matches("r#")
         .to_owned();
     let access = quote::format_ident!("{}Events", entity_name);
-    let native = quote::format_ident!("Native{}Events", entity_name);
     let store = quote::format_ident!("{}Store", entity_name);
     let event_index_ident = quote::format_ident!("{}EventIndex", entity_name);
     let mut type_names = BTreeMap::new();
@@ -119,15 +118,7 @@ fn generate_entity(
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
     let native_store = stores.native.then(|| {
-        store::generate_entity(
-            entity,
-            &native,
-            &store,
-            &event_index_ident,
-            &access,
-            &marker,
-            &code,
-        )
+        store::generate_entity(entity, &store, &event_index_ident, &access, &marker, &code)
     });
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {

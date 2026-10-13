@@ -71,7 +71,6 @@ pub(super) fn generate_event(
 /// aliases.
 pub(super) fn generate_entity(
     entity: &Entity,
-    native: &syn::Ident,
     store: &syn::Ident,
     event_index_ident: &syn::Ident,
     access: &syn::Ident,
@@ -89,7 +88,6 @@ pub(super) fn generate_entity(
         .map(|event| &event.store.native.accessor_method_impl)
         .collect::<Vec<_>>();
     let store_docs = format!("Stores indexed events for `{}` entities.", entity.path());
-    let docs = format!("Owns an indexed event sequence for `{}`.", entity.path());
     let index_docs = format!("Event-type indices for `{}`.", entity.path());
     quote! {
         #[doc = #index_docs]
@@ -104,13 +102,19 @@ pub(super) fn generate_entity(
                 Ok(())
             }
         }
-        #[doc = #docs]
-        ///
-        /// Conversion rejects duplicate once-events.
-        pub type #native = ::quent_store::entity::native::NativeEntity<#marker, #event_index_ident>;
-        impl #access for #native { #(#implementations)* }
-        impl #access for &#native { #(#implementations)* }
+        impl ::quent_store::entity::native::NativeEntityMarker for #marker {
+            type Index = #event_index_ident;
+        }
+        impl #access for ::quent_store::entity::native::NativeEntity<#marker> {
+            #(#implementations)*
+        }
+        impl #access for &::quent_store::entity::native::NativeEntity<#marker> {
+            #(#implementations)*
+        }
         #[doc = #store_docs]
-        pub type #store = ::quent_store::entity::native::Store<#marker, #native>;
+        pub type #store = ::quent_store::entity::native::Store<
+            #marker,
+            ::quent_store::entity::native::NativeEntity<#marker>,
+        >;
     }
 }

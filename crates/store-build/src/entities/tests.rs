@@ -59,7 +59,7 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
     )
     .unwrap();
     assert!(source.contains("pub trait TaskEvents"));
-    assert!(source.contains("pub type NativeTaskEvents"));
+    assert!(!source.contains("pub type NativeTaskEvents"));
     assert!(source.contains("pub struct CreatedHandle"));
     assert!(source.contains("pub struct UpdatedHandle"));
     assert!(!source.contains("filesystem::Model"));

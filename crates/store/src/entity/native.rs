@@ -54,7 +54,7 @@ impl<E: EntityMarker> Store<E> {
     /// # Errors
     ///
     /// Returns the first loader error and stops reading events.
-    pub fn try_from_loader<L: EventLoader<E>>(loader: &L) -> Result<Self, L::Error> {
+    pub fn try_from_loader<L: EventLoader<E> + ?Sized>(loader: &L) -> Result<Self, L::Error> {
         let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
         for event in loader.events()? {
             let event = event?;
@@ -77,14 +77,14 @@ impl<E: EntityMarker> Store<E> {
     }
 }
 
-impl<E: EntityMarker, I: EventIndex<E>> Store<E, NativeEntity<E, I>> {
+impl<E: NativeEntityMarker> Store<E, NativeEntity<E>> {
     /// Loads and indexes entity event sequences.
     ///
     /// # Errors
     ///
     /// Returns the first loader or indexing error. Indexing rejects duplicate
     /// once-events.
-    pub fn try_from_loader<L: EventLoader<E>>(loader: &L) -> Result<Self, L::Error>
+    pub fn try_from_loader<L: EventLoader<E> + ?Sized>(loader: &L) -> Result<Self, L::Error>
     where
         L::Error: From<Error>,
     {
@@ -95,7 +95,7 @@ impl<E: EntityMarker, I: EventIndex<E>> Store<E, NativeEntity<E, I>> {
 /// # Errors
 ///
 /// Returns the first error from indexing an entity's sequence.
-impl<E: EntityMarker, I: EventIndex<E>> TryFrom<Store<E>> for Store<E, NativeEntity<E, I>> {
+impl<E: NativeEntityMarker> TryFrom<Store<E>> for Store<E, NativeEntity<E>> {
     type Error = Error;
 
     fn try_from(store: Store<E>) -> Result<Self, Self::Error> {
@@ -149,33 +149,26 @@ where
     }
 }
 
-/// Allows generated indices to record positions in an entity event sequence.
-///
-/// [`Default`] must produce empty indices.
-#[doc(hidden)]
-pub trait EventIndex<E: EntityMarker>: Default {
-    /// Records the position of an event in its matching group.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::DuplicateOnceEvent`] if the corresponding once-event
-    /// group is occupied, leaving the existing index unchanged.
-    fn push(&mut self, event: &Event<E::Payload>, position: usize) -> Result<(), Error>;
+/// Associates an entity marker with its event index type.
+pub trait NativeEntityMarker: EntityMarker + Sized {
+    type Index: EventIndex<Self>;
 }
 
-/// Storage for one entity's event sequence and event-type indices.
-#[doc(hidden)]
-pub struct NativeEntity<E: EntityMarker, I: EventIndex<E>> {
+/// Storage for one entity's event sequence.
+///
+/// The associated E::Index type is a type which allows indexing into events in
+/// the underlying sequence through schema-defined event names. These index
+/// types are typically generated.
+pub struct NativeEntity<E: NativeEntityMarker> {
     /// The sequence of events this entity emitted.
     sequence: EventSequence<E>,
     /// Positions in the sequence grouped by entity event type.
-    event_index: I,
+    event_index: E::Index,
 }
 
-impl<E: EntityMarker, I: EventIndex<E>> NativeEntity<E, I> {
+impl<E: NativeEntityMarker> NativeEntity<E> {
     /// Borrows the event-type indices.
-    #[doc(hidden)]
-    pub fn event_index(&self) -> &I {
+    pub fn event_index(&self) -> &E::Index {
         &self.event_index
     }
 
@@ -185,13 +178,13 @@ impl<E: EntityMarker, I: EventIndex<E>> NativeEntity<E, I> {
     }
 }
 
-impl<E: EntityMarker, I: EventIndex<E>> AsRef<EventSequence<E>> for NativeEntity<E, I> {
+impl<E: NativeEntityMarker> AsRef<EventSequence<E>> for NativeEntity<E> {
     fn as_ref(&self) -> &EventSequence<E> {
         &self.sequence
     }
 }
 
-impl<E: EntityMarker, I: EventIndex<E>> EntityHandle for NativeEntity<E, I> {
+impl<E: NativeEntityMarker> EntityHandle for NativeEntity<E> {
     type Entity = E;
 
     fn id(&self) -> Id<E> {
@@ -214,13 +207,13 @@ impl<E: EntityMarker, I: EventIndex<E>> EntityHandle for NativeEntity<E, I> {
 /// # Errors
 ///
 /// Returns the first error from [`EventIndex::push`].
-impl<E: EntityMarker, I: EventIndex<E>> TryFrom<EventSequence<E>> for NativeEntity<E, I> {
+impl<E: NativeEntityMarker> TryFrom<EventSequence<E>> for NativeEntity<E> {
     type Error = Error;
 
     fn try_from(sequence: EventSequence<E>) -> Result<Self, Self::Error> {
         let mut entity = Self {
             sequence,
-            event_index: I::default(),
+            event_index: E::Index::default(),
         };
         for (position, event) in entity.sequence.events().iter().enumerate() {
             entity.event_index.push(event, position)?;
@@ -229,7 +222,7 @@ impl<E: EntityMarker, I: EventIndex<E>> TryFrom<EventSequence<E>> for NativeEnti
     }
 }
 
-impl<E: EntityMarker, I: EventIndex<E>> std::fmt::Debug for NativeEntity<E, I> {
+impl<E: NativeEntityMarker> std::fmt::Debug for NativeEntity<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NativeEntity")
             .field("id", &self.id().uuid())
@@ -238,6 +231,20 @@ impl<E: EntityMarker, I: EventIndex<E>> std::fmt::Debug for NativeEntity<E, I> {
             .field("event_count", &self.num_events())
             .finish_non_exhaustive()
     }
+}
+
+/// Allows generated indices to record positions in an entity event sequence.
+///
+/// [`Default`] must produce empty indices.
+#[doc(hidden)]
+pub trait EventIndex<E: EntityMarker>: Default {
+    /// Records the position of an event in its matching group.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::DuplicateOnceEvent`] if the corresponding once-event
+    /// group is occupied, leaving the existing index unchanged.
+    fn push(&mut self, event: &Event<E::Payload>, position: usize) -> Result<(), Error>;
 }
 
 /// Inserts a value into an empty once-event slot.
@@ -316,7 +323,8 @@ mod tests {
             fail_read: false,
             reads: Rc::default(),
         };
-        let store = Store::<Task>::try_from_loader(&loader).unwrap();
+        let source: &dyn EventLoader<Task, Error = &'static str> = &loader;
+        let store = Store::<Task>::try_from_loader(source).unwrap();
         assert_eq!(loader.reads.get(), 4);
         assert_eq!(store.entities().unwrap().count(), 2);
         let handle = store.entity(Uuid::from_u128(1)).unwrap().unwrap();
