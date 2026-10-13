@@ -1,0 +1,17 @@
+[package]
+name = "quent-store-build-entity-store-test"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# A separate crate lets build.rs use quent-store-build without a dependency cycle.
+[workspace]
+
+[dependencies]
+quent-events = { path = "../../../events", features = ["serde"] }
+quent-store = { path = "../../../store", default-features = false }
+serde = { version = "1", features = ["derive"] }
+
+[build-dependencies]
+quent-schema = { path = "../../../schema", features = ["test-utils"] }
+quent-store-build = { path = "../.." }
