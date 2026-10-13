@@ -37,7 +37,7 @@ struct EventCode {
     store: EventStoreCode,
 }
 
-/// Generates event handles, access traits, and stores in their schema namespaces.
+/// Generates event handles, access traits, and indices in their schema namespaces.
 pub(super) fn generate(
     schema: &Schema,
     opts: &Options,
@@ -53,7 +53,7 @@ pub(super) fn generate(
     Ok(())
 }
 
-/// Generates event handles, an access trait, and stores for one entity.
+/// Generates event handles, an access trait, and indices for one entity.
 fn generate_entity(
     entity: &Entity,
     opts: &Options,
@@ -72,7 +72,6 @@ fn generate_entity(
         .trim_start_matches("r#")
         .to_owned();
     let access = quote::format_ident!("{}Events", entity_name);
-    let store = quote::format_ident!("{}Store", entity_name);
     let event_index_ident = quote::format_ident!("{}EventIndex", entity_name);
     let mut type_names = BTreeMap::new();
     let mut method_names = BTreeMap::from([
@@ -117,9 +116,9 @@ fn generate_entity(
     }
     let handles = code.iter().map(|event| &event.handle_type_def);
     let methods = code.iter().map(|event| &event.accessor_method_decl);
-    let native_store = stores.native.then(|| {
-        store::generate_entity(entity, &store, &event_index_ident, &access, &marker, &code)
-    });
+    let native_store = stores
+        .native
+        .then(|| store::generate_entity(entity, &event_index_ident, &access, &marker, &code));
     let docs = format!("Provides event-type-scoped access for `{}`.", entity.path());
     syn::parse2(quote! {
         pub mod #module {

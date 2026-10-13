@@ -31,7 +31,7 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
         ..Options::default()
     };
     let source = generate_str(&schema, &options).unwrap();
-    assert!(source.contains("pub type TaskStore"));
+    assert!(!source.contains("pub type TaskStore"));
     assert!(source.contains("pub mod task"));
     assert!(!source.contains("pub mod entity_events"));
     assert!(!source.contains("pub use self::entity_events"));
@@ -69,89 +69,75 @@ fn generation_defaults_to_native_and_is_independent_of_loading() {
     assert!(!source.contains("UpdatedPayload"));
 }
 
+fn assert_name_conflict(schema: quent_schema::Schema) {
+    let result = generate_str(
+        &schema,
+        &Options {
+            filesystem: false,
+            combined_event: false,
+            ..Options::default()
+        },
+    );
+    assert!(
+        matches!(result, Err(GenerateError::EntityEventsNameConflict { .. })),
+        "expected a name conflict, got {result:?}"
+    );
+}
+
 #[test]
-fn rejects_namespace_and_normalized_name_conflicts() {
-    let schemas = [
-        schema(
+fn rejects_namespace_conflicts() {
+    for names in [["Worker", "Worker::Child"], ["Foo::Task", "foo::Worker"]] {
+        assert_name_conflict(schema(
             "Demo",
-            [
-                entity("Worker", [event("created", [])]),
-                entity("Worker::Child", [event("created", [])]),
-            ],
+            names.map(|name| entity(name, [event("created", [])])),
             [],
-        ),
-        schema(
-            "Demo",
-            [
-                entity("Foo::Task", [event("created", [])]),
-                entity("foo::Worker", [event("created", [])]),
-            ],
-            [],
-        ),
-        schema(
-            "Demo",
-            [entity(
-                "Task",
-                [event("first_name", []), event("FirstName", [])],
-            )],
-            [],
-        ),
-        schema(
-            "Demo",
-            [entity(
-                "Task",
-                [event(
-                    "created",
-                    [
-                        field("field_name", DataType::String),
-                        field("FieldName", DataType::String),
-                    ],
-                )],
-            )],
-            [],
-        ),
-        schema(
-            "Demo",
-            [entity(
-                "Task",
-                [event(
-                    "created",
-                    [
-                        field("timestamp", DataType::U64),
-                        field("field_timestamp", DataType::U64),
-                    ],
-                )],
-            )],
-            [],
-        ),
-        schema("Demo", [entity("Task", [event("id", [])])], []),
-        schema(
-            "Demo",
-            [entity("Task", [event("earliest_timestamp", [])])],
-            [],
-        ),
-        schema(
-            "Demo",
-            [entity("Task", [event("latest_timestamp", [])])],
-            [],
-        ),
-        schema("Demo", [entity("Task", [event("num_events", [])])], []),
-        schema("Demo", [entity("Task", [event("event_sequence", [])])], []),
-        schema("Demo", [entity("Task", [event("event_index", [])])], []),
-    ];
-    for schema in schemas {
-        assert!(matches!(
-            generate_str(
-                &schema,
-                &Options {
-                    entity_store: EntityStoreImplementations { native: true },
-                    filesystem: false,
-                    combined_event: false,
-                    ..Options::default()
-                }
-            ),
-            Err(GenerateError::EntityEventsNameConflict { .. })
         ));
+    }
+}
+
+#[test]
+fn rejects_normalized_event_name_conflicts() {
+    assert_name_conflict(schema(
+        "Demo",
+        [entity(
+            "Task",
+            [event("first_name", []), event("FirstName", [])],
+        )],
+        [],
+    ));
+}
+
+#[test]
+fn rejects_field_accessor_name_conflicts() {
+    for (names, data_type) in [
+        (["field_name", "FieldName"], DataType::String),
+        (["timestamp", "field_timestamp"], DataType::U64),
+    ] {
+        assert_name_conflict(schema(
+            "Demo",
+            [entity(
+                "Task",
+                [event(
+                    "created",
+                    names.map(|name| field(name, data_type.clone())),
+                )],
+            )],
+            [],
+        ));
+    }
+}
+
+#[test]
+fn rejects_reserved_event_names() {
+    for name in [
+        "id",
+        "earliest_timestamp",
+        "latest_timestamp",
+        "num_events",
+        "event_sequence",
+        "event_index",
+    ] {
+        assert_name_conflict(schema("Demo", [entity("Task", [event(name, [])])], []));
     }
 }
 

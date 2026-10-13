@@ -19,90 +19,63 @@ use crate::{
     event::EventLoader,
 };
 
-/// Stores one entity marker's events in memory, grouped by UUID.
-///
-/// The default representation holds raw sequences. Generated store aliases
-/// select indexed entities that provide event-type-specific access.
-pub struct Store<E: EntityMarker, T = EventSequence<E>> {
+/// Maps entity IDs to some T.
+pub struct EntityMap<E: EntityMarker, T> {
     entities: HashMap<Uuid, T>,
     marker: PhantomData<fn() -> E>,
 }
 
-impl<E: EntityMarker> Store<E> {
-    /// Groups events by UUID and orders each sequence by timestamp.
+/// Stores indexed entity event sequences in memory.
+pub type NativeStore<E> = EntityMap<E, NativeEntity<E>>;
+
+impl<E: NativeEntityMarker> NativeStore<E> {
+    /// Groups events by UUID, orders each sequence by timestamp, and indexes it.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::DuplicateOnceEvent`] if an entity emits a once-event
+    /// more than once.
     ///
     /// # Performance notes
     ///
-    /// For n input events, construction is O(n) when each entity's events
-    /// arrive in timestamp order. Inserting m out-of-order events for one
-    /// entity can take O(m^2).
-    ///
-    /// Practically speaking, when leveraging Quent's default channels and
-    /// exporters in instrumentation and importers, out-of-order events will
-    /// only occur when entities emit events from multiple contexts.
-    pub fn new(events: impl IntoIterator<Item = Event<E::Payload>>) -> Self {
-        // OrderedCollector appends the common in-order case and inserts late arrivals in order.
-        let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
-        for event in events {
-            entities.entry(event.id).or_default().push(event);
-        }
-        Self::from_time_ordered_collectors(entities)
+    /// Construction is O(n) for n events arriving in timestamp order per entity.
+    /// Inserting m out-of-order events for one entity can take O(m^2).
+    pub fn try_from_events(
+        events: impl IntoIterator<Item = Event<E::Payload>>,
+    ) -> Result<Self, Error> {
+        Self::from_event_results(events.into_iter().map(Ok))
     }
 
-    /// Loads events, grouping them by UUID and ordering each sequence by timestamp.
+    /// Loads events, grouping by UUID and ordering each sequence before indexing.
     ///
     /// # Errors
     ///
-    /// Returns the first loader error and stops reading events.
-    pub fn try_from_loader<L: EventLoader<E> + ?Sized>(loader: &L) -> Result<Self, L::Error> {
+    /// Returns the first loader error and stops reading events. Indexing rejects
+    /// duplicate once-events after all events have been read successfully.
+    pub fn try_from_loader<L>(loader: &L) -> Result<Self, L::Error>
+    where
+        L: EventLoader<E> + ?Sized,
+        L::Error: From<Error>,
+    {
+        Self::from_event_results(loader.events()?)
+    }
+
+    fn from_event_results<F: From<Error>>(
+        events: impl IntoIterator<Item = Result<Event<E::Payload>, F>>,
+    ) -> Result<Self, F> {
         let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
-        for event in loader.events()? {
+        for event in events {
             let event = event?;
             entities.entry(event.id).or_default().push(event);
         }
-        Ok(Self::from_time_ordered_collectors(entities))
-    }
-
-    fn from_time_ordered_collectors(
-        entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>>,
-    ) -> Self {
         let entities = entities
             .into_iter()
-            .map(|(id, events)| (id, EventSequence::from_ordered_events(id, events)))
-            .collect();
-        Self {
-            entities,
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<E: NativeEntityMarker> Store<E, NativeEntity<E>> {
-    /// Loads and indexes entity event sequences.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first loader or indexing error. Indexing rejects duplicate
-    /// once-events.
-    pub fn try_from_loader<L: EventLoader<E> + ?Sized>(loader: &L) -> Result<Self, L::Error>
-    where
-        L::Error: From<Error>,
-    {
-        Self::try_from(Store::<E>::try_from_loader(loader)?).map_err(L::Error::from)
-    }
-}
-
-/// # Errors
-///
-/// Returns the first error from indexing an entity's sequence.
-impl<E: NativeEntityMarker> TryFrom<Store<E>> for Store<E, NativeEntity<E>> {
-    type Error = Error;
-
-    fn try_from(store: Store<E>) -> Result<Self, Self::Error> {
-        let entities = store
-            .entities
-            .into_iter()
-            .map(|(id, sequence)| NativeEntity::try_from(sequence).map(|entity| (id, entity)))
+            .map(|(id, events)| {
+                let sequence = EventSequence::from_ordered_events(id, events);
+                NativeEntity::try_from(sequence)
+                    .map(|entity| (id, entity))
+                    .map_err(F::from)
+            })
             .collect::<Result<_, _>>()?;
         Ok(Self {
             entities,
@@ -111,7 +84,7 @@ impl<E: NativeEntityMarker> TryFrom<Store<E>> for Store<E, NativeEntity<E>> {
     }
 }
 
-impl<E: EntityMarker, T: EntityHandle<Entity = E>> EntityStore<E> for Store<E, T> {
+impl<E: EntityMarker, T: EntityHandle<Entity = E>> EntityStore<E> for EntityMap<E, T> {
     type Error = Error;
     type Handle<'a>
         = &'a T
@@ -127,8 +100,9 @@ impl<E: EntityMarker, T: EntityHandle<Entity = E>> EntityStore<E> for Store<E, T
     }
 }
 
-impl<E: EntityMarker, T> BorrowedEventSequenceStore<E> for Store<E, T>
+impl<E, T> BorrowedEventSequenceStore<E> for EntityMap<E, T>
 where
+    E: EntityMarker,
     T: EntityHandle<Entity = E> + AsRef<EventSequence<E>>,
 {
     fn event_sequence(&self, entity_id: Id<E>) -> Result<&EventSequence<E>, Self::Error> {
@@ -139,8 +113,9 @@ where
     }
 }
 
-impl<E: EntityMarker, T> OwnedEventSequenceStore<E> for Store<E, T>
+impl<E, T> OwnedEventSequenceStore<E> for EntityMap<E, T>
 where
+    E: EntityMarker,
     T: EntityHandle<Entity = E> + AsRef<EventSequence<E>>,
     E::Payload: Clone,
 {
@@ -283,28 +258,63 @@ mod tests {
         const NAME: &'static str = "Task";
     }
 
+    impl NativeEntityMarker for Task {
+        type Index = TaskIndex;
+    }
+
+    #[derive(Default)]
+    struct TaskIndex(Option<usize>);
+
+    impl EventIndex<Task> for TaskIndex {
+        fn push(&mut self, event: &Event<TaskEvent>, position: usize) -> Result<(), Error> {
+            if event.data.0 == "once" {
+                insert_once(&mut self.0, position).map_err(|_| Error::DuplicateOnceEvent {
+                    entity_id: event.id,
+                    event_name: "once",
+                })?;
+            }
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, thiserror::Error)]
+    enum TestError {
+        #[error("open failed")]
+        Open,
+        #[error("read failed")]
+        Read,
+        #[error(transparent)]
+        Index(#[from] Error),
+    }
+
     struct TestLoader {
         fail_open: bool,
         fail_read: bool,
+        duplicate_once: bool,
         reads: Rc<Cell<usize>>,
     }
 
     impl EventLoader<Task> for TestLoader {
-        type Error = &'static str;
+        type Error = TestError;
 
         fn events(
             &self,
         ) -> Result<crate::event::EventIterator<TaskEvent, Self::Error>, Self::Error> {
             if self.fail_open {
-                return Err("open failed");
+                return Err(TestError::Open);
             }
             let id = Uuid::from_u128(1);
+            let payload = if self.duplicate_once { "once" } else { "late" };
             let events = [
-                Ok(Event::new(id, 2, TaskEvent("late"))),
+                Ok(Event::new(id, 2, TaskEvent(payload))),
                 if self.fail_read {
-                    Err("read failed")
+                    Err(TestError::Read)
                 } else {
-                    Ok(Event::new(id, 1, TaskEvent("early")))
+                    Ok(Event::new(
+                        id,
+                        1,
+                        TaskEvent(if self.duplicate_once { "once" } else { "early" }),
+                    ))
                 },
                 Ok(Event::new(id, 1, TaskEvent("equal"))),
                 Ok(Event::new(Uuid::from_u128(2), 3, TaskEvent("other"))),
@@ -321,10 +331,11 @@ mod tests {
         let loader = TestLoader {
             fail_open: false,
             fail_read: false,
+            duplicate_once: false,
             reads: Rc::default(),
         };
-        let source: &dyn EventLoader<Task, Error = &'static str> = &loader;
-        let store = Store::<Task>::try_from_loader(source).unwrap();
+        let source: &dyn EventLoader<Task, Error = TestError> = &loader;
+        let store = NativeStore::<Task>::try_from_loader(source).unwrap();
         assert_eq!(loader.reads.get(), 4);
         assert_eq!(store.entities().unwrap().count(), 2);
         let handle = store.entity(Uuid::from_u128(1)).unwrap().unwrap();
@@ -345,25 +356,45 @@ mod tests {
             let loader = TestLoader {
                 fail_open,
                 fail_read: true,
+                duplicate_once: false,
                 reads: Rc::default(),
             };
             assert!(
-                matches!(Store::<Task>::try_from_loader(&loader), Err(error) if error == expected)
+                matches!(NativeStore::<Task>::try_from_loader(&loader), Err(error) if error.to_string() == expected)
             );
             assert_eq!(loader.reads.get(), reads);
         }
     }
 
     #[test]
+    fn loader_construction_propagates_duplicate_once_errors() {
+        let loader = TestLoader {
+            fail_open: false,
+            fail_read: false,
+            duplicate_once: true,
+            reads: Rc::default(),
+        };
+        assert!(matches!(
+            NativeStore::<Task>::try_from_loader(&loader),
+            Err(TestError::Index(Error::DuplicateOnceEvent {
+                entity_id,
+                event_name: "once",
+            })) if entity_id == Uuid::from_u128(1)
+        ));
+        assert_eq!(loader.reads.get(), 4);
+    }
+
+    #[test]
     fn groups_entities_and_preserves_equal_timestamp_input_order() {
         let first = Uuid::from_u128(1);
         let second = Uuid::from_u128(2);
-        let store = Store::<Task>::new([
+        let store = NativeStore::<Task>::try_from_events([
             Event::new(second, 3, TaskEvent("other")),
             Event::new(first, 2, TaskEvent("late")),
             Event::new(first, 1, TaskEvent("early")),
             Event::new(first, 1, TaskEvent("equal")),
-        ]);
+        ])
+        .unwrap();
 
         let mut ids = store
             .entities()
@@ -399,8 +430,12 @@ mod tests {
             [&TaskEvent("early"), &TaskEvent("equal"), &TaskEvent("late")]
         );
         assert!(store.entity(Uuid::from_u128(3)).unwrap().is_none());
-        let other_store =
-            Store::<Task>::new([Event::new(Uuid::from_u128(3), 4, TaskEvent("foreign"))]);
+        let other_store = NativeStore::<Task>::try_from_events([Event::new(
+            Uuid::from_u128(3),
+            4,
+            TaskEvent("foreign"),
+        )])
+        .unwrap();
         let foreign_handle = other_store.entity(Uuid::from_u128(3)).unwrap().unwrap();
         assert!(
             matches!(store.event_sequence(foreign_handle.id()), Err(Error::MissingEntity(id)) if id == foreign_handle.id().uuid())

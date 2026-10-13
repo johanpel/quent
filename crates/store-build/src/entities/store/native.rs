@@ -67,11 +67,9 @@ pub(super) fn generate_event(
     }
 }
 
-/// Generates a native entity index, event access implementations, and store
-/// aliases.
+/// Generates a native entity index and event access implementations.
 pub(super) fn generate_entity(
     entity: &Entity,
-    store: &syn::Ident,
     event_index_ident: &syn::Ident,
     access: &syn::Ident,
     marker: &TokenStream,
@@ -87,7 +85,6 @@ pub(super) fn generate_entity(
         .iter()
         .map(|event| &event.store.native.accessor_method_impl)
         .collect::<Vec<_>>();
-    let store_docs = format!("Stores indexed events for `{}` entities.", entity.path());
     let index_docs = format!("Event-type indices for `{}`.", entity.path());
     quote! {
         #[doc = #index_docs]
@@ -111,10 +108,6 @@ pub(super) fn generate_entity(
         impl #access for &::quent_store::entity::native::NativeEntity<#marker> {
             #(#implementations)*
         }
-        #[doc = #store_docs]
-        pub type #store = ::quent_store::entity::native::Store<
-            #marker,
-            ::quent_store::entity::native::NativeEntity<#marker>,
-        >;
+
     }
 }

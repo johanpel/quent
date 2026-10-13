@@ -23,8 +23,9 @@ pub struct EventSequence<E: EntityMarker> {
     marker: PhantomData<fn() -> E>,
 }
 
-impl<E: EntityMarker> Clone for EventSequence<E>
+impl<E> Clone for EventSequence<E>
 where
+    E: EntityMarker,
     E::Payload: Clone,
 {
     fn clone(&self) -> Self {

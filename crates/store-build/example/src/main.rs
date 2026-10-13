@@ -5,14 +5,12 @@
 
 use quent_store::{
     context::ContextSet,
-    entity::{EntityHandle, EntityStore},
+    entity::{EntityHandle, EntityStore, native::NativeStore},
     event::{EventLoader, filesystem},
 };
 
 use crate::demo::{
-    Demo, Query,
-    connection::{ConnectionEvents, ConnectionStore},
-    server::{ServerEvents, ServerStore},
+    Connection, Demo, Query, Server, connection::ConnectionEvents, server::ServerEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -46,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Note that [`EntityStore`] implementations may choose to initialize
     // without using an explicit event iterator such as is provided in this
     // example by the [`EventLoader`] above.
-    let connections = ConnectionStore::try_from_loader(&loader)?;
+    let connections = NativeStore::<Connection>::try_from_loader(&loader)?;
 
     // Take the ID of the first entity, then look it up and turn it into a
     // handle through which we can access the event data using schema-defined
@@ -82,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             // Since the Connection refers to its parent Server, we can try to
             // look the parent up:
-            let servers = ServerStore::try_from_loader(&loader)?;
+            let servers = NativeStore::<Server>::try_from_loader(&loader)?;
             if let Some(server) = servers.entity(opened.host())? {
                 println!(
                     "\tOwned by server booted at {} with pid {}",

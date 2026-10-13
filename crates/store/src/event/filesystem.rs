@@ -308,7 +308,7 @@ mod tests {
     use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
     use serde::{Deserialize, Serialize};
 
-    use crate::entity::{BorrowedEventSequenceStore, EntityStore, native};
+    use crate::entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, native};
 
     use super::*;
 
@@ -326,6 +326,19 @@ mod tests {
 
     impl EntityMarker for Alpha {
         type Payload = AlphaEvent;
+    }
+
+    impl native::NativeEntityMarker for Alpha {
+        type Index = AlphaIndex;
+    }
+
+    #[derive(Default)]
+    struct AlphaIndex;
+
+    impl native::EventIndex<Alpha> for AlphaIndex {
+        fn push(&mut self, _: &Event<AlphaEvent>, _: usize) -> Result<()> {
+            Ok(())
+        }
     }
 
     impl EntityMarkerInModel<TestModel> for Alpha {}
@@ -499,11 +512,7 @@ mod tests {
         );
         let contexts = ContextSet::try_new([second_context, first_context]).unwrap();
         let store = Loader::<TestModel>::new(root.path(), contexts);
-        let events = EventLoader::<Alpha>::events(&store)
-            .unwrap()
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-        let entities = native::Store::<Alpha>::new(events);
+        let entities = native::NativeStore::<Alpha>::try_from_loader(&store).unwrap();
 
         let handles = EntityStore::<Alpha>::entities(&entities)
             .unwrap()

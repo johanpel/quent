@@ -72,7 +72,7 @@ pub struct Options {
     /// Defaults to a native in-memory store. Disabling all stores also disables
     /// typed entity event access.
     ///
-    /// Access traits, event handles, and store aliases are available in each
+    /// Access traits and event handles are available in each
     /// entity's module, such as `model::connection`.
     pub entity_store: EntityStoreImplementations,
 
