@@ -7,7 +7,20 @@ use super::*;
 pub(crate) struct EngineAccumulator {
     pub(crate) instance_name: Option<String>,
     pub(crate) implementation: Option<schema::EngineImplementationAttributes>,
+    pub(crate) configuration: Option<schema::EngineConfiguration>,
     pub(crate) exited: bool,
+}
+
+pub(crate) fn engine_custom_attributes(
+    configuration: &schema::EngineConfiguration,
+) -> Vec<DynamicAttribute> {
+    vec![
+        DynamicAttribute::u64("workers", configuration.workers),
+        DynamicAttribute::u64("threads_per_worker", configuration.threads_per_worker),
+        DynamicAttribute::u64("gpus_per_worker", configuration.gpus_per_worker),
+        DynamicAttribute::u64("num_workloads", configuration.num_workloads),
+        DynamicAttribute::u64("num_queries", configuration.num_queries),
+    ]
 }
 
 impl EntityEventAccumulator for EngineAccumulator {
@@ -18,9 +31,11 @@ impl EntityEventAccumulator for EngineAccumulator {
             schema::EngineEvent::Init {
                 implementation,
                 instance_name,
+                configuration,
             } => {
                 self.instance_name = instance_name;
                 self.implementation = Some(implementation);
+                self.configuration = Some(configuration);
             }
             schema::EngineEvent::Exit => self.exited = true,
         }
@@ -81,6 +96,11 @@ impl EngineEntity for Engine {
             start_time_unix_ns: Some(start),
             duration_s,
             instance_name: data.instance_name.clone(),
+            custom_attributes: data
+                .configuration
+                .as_ref()
+                .map(engine_custom_attributes)
+                .unwrap_or_default(),
             implementation: data.implementation.as_ref().map(|implementation| {
                 query_engine_ui::EngineImplementationAttributes {
                     name: implementation.name.clone(),

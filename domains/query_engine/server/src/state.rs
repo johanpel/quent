@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_analyzer::AnalyzerResult;
-use quent_query_engine_analyzer::{
-    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
-};
+use quent_query_engine_analyzer::{EngineEntity, QueryEngineModel, QueryEntity, ui::UiAnalyzer};
 use quent_query_engine_ui::{self as ui, ServerContract};
 use quent_ui::{
     entities::request::EntityListRequest,
@@ -50,17 +47,20 @@ where
 {
     type Error = ServerError;
 
-    async fn list_engines(&self, with_metadata: bool) -> ServerResult<Vec<ui::Engine>> {
-        if with_metadata {
-            self.analyzers.list_with_metadata().await
+    async fn list_engines(&self, with_metadata: bool) -> ServerResult<ui::EngineListResponse> {
+        let items = if with_metadata {
+            self.analyzers.list_with_metadata().await?
         } else {
-            Ok(self
-                .analyzers
+            self.analyzers
                 .list()?
                 .into_iter()
                 .map(ui::Engine::new)
-                .collect())
-        }
+                .collect()
+        };
+        Ok(ui::EngineListResponse {
+            items,
+            initial_group_by_attribute: A::engine_initial_group_by_attribute(),
+        })
     }
 
     async fn engine(&self, engine_id: Uuid) -> ServerResult<ui::Engine> {
@@ -75,24 +75,17 @@ where
         })
     }
 
-    async fn query_groups(&self, engine_id: Uuid) -> ServerResult<Vec<ui::QueryGroup>> {
+    async fn queries(&self, engine_id: Uuid) -> ServerResult<ui::QueryListResponse> {
         let analyzer = self.analyzers.get(engine_id).await?;
-        Ok(analyzer
-            .query_engine_model()
-            .query_groups()
-            .map(QueryGroupEntity::to_ui)
-            .collect())
-    }
-
-    async fn queries(&self, engine_id: Uuid, query_group_id: Uuid) -> ServerResult<Vec<ui::Query>> {
-        let analyzer = self.analyzers.get(engine_id).await?;
-        analyzer
+        let items = analyzer
             .query_engine_model()
             .queries()
-            .filter(|query| query.query_group_id() == Some(query_group_id))
             .map(QueryEntity::to_ui)
-            .collect::<AnalyzerResult<_>>()
-            .map_err(Into::into)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ui::QueryListResponse {
+            items,
+            initial_group_by_attribute: analyzer.query_initial_group_by_attribute(),
+        })
     }
 
     async fn query(&self, engine_id: Uuid, query_id: Uuid) -> ServerResult<ui::QueryBundle> {

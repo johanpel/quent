@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useMemo, useCallback } from 'react';
-import { PivotedStatTable, PivotTableToolbar, getSchemaStatNames } from '@quent/components';
-import { formatStatWithQuantity } from '@quent/utils';
+import {
+  PivotedStatTable,
+  PivotTableToolbar,
+  formatStatValue,
+  getSchemaStatNames,
+} from '@quent/components';
 import type {
   PivotedRow,
   PivotedStatTableSchema,
@@ -20,7 +24,7 @@ import {
   COLOR_REGISTRY_KEYS,
   useColorResolver,
 } from '@quent/hooks';
-import type { QueryBundle, EntityRef } from '@quent/utils';
+import { buildStatisticFieldPresentations, type QueryBundle, type EntityRef } from '@quent/utils';
 import { useTheme, THEME_DARK } from '@/contexts/ThemeContext';
 import {
   DEFAULT_OPERATOR_TABLE_ENABLED,
@@ -122,27 +126,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     [entities, includedPlanIds]
   );
 
-  const statQuantityNames = useMemo(() => {
-    const result: Record<string, string> = {};
-    for (const row of allRows) {
-      for (const [statKey, quantityName] of Object.entries(row.statQuantities)) {
-        if (!(statKey in result)) {
-          result[statKey] = quantityName;
-        }
-      }
-    }
-    return result;
-  }, [allRows]);
-
-  const formatNumericValue = useCallback(
-    (value: number, statName: string) => {
-      const quantityName = statQuantityNames[statName];
-      const spec = quantityName ? quantitySpecs?.[quantityName] : undefined;
-      return formatStatWithQuantity(value, statName, spec);
-    },
-    [statQuantityNames, quantitySpecs]
-  );
-
   // When the DAG has a selection, narrow the table to just the matching
   // operator rows. If the selection is non-empty but matches nothing in the
   // current sibling-plan scope (e.g. a stage node was selected), fall back to
@@ -168,6 +151,10 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   }, [rows]);
 
   const allStatNames = useMemo(() => getSchemaStatNames(rows, OPERATOR_SCHEMA), [rows]);
+  const statMetadata = useMemo(
+    () => buildStatisticFieldPresentations(rows.flatMap(row => row.stats)),
+    [rows]
+  );
   const hasParentItems = useMemo(() => rows.some(r => r.parentItemType !== '-'), [rows]);
   const filterIndexOrder = useCallback(
     (order: OperatorTableIndexKey[]) =>
@@ -197,8 +184,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
     allStatNames,
     defaultStatSelector: stats => {
       const duration = stats.filter(stat => stat === 'duration_s');
-      const inputs = stats.filter(stat => stat.startsWith('input_'));
-      const outputs = stats.filter(stat => stat.startsWith('output_'));
+      const inputs = stats.filter(stat => statMetadata.get(stat)?.fieldName.startsWith('input_'));
+      const outputs = stats.filter(stat => statMetadata.get(stat)?.fieldName.startsWith('output_'));
       return [...duration, ...inputs, ...outputs];
     },
     filterIndexOrder,
@@ -326,8 +313,17 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
   const renderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: getOperatorGroupTypeColor,
+      getStatLabel: stat => statMetadata.get(stat)?.label ?? stat,
+      getStatTitle: stat => statMetadata.get(stat)?.title ?? stat,
+      formatValue: (value, statName, quantity) =>
+        formatStatValue(
+          value,
+          statMetadata.get(statName)?.fieldName ?? statName,
+          quantitySpecs,
+          quantity
+        ),
     }),
-    [getOperatorGroupTypeColor]
+    [getOperatorGroupTypeColor, quantitySpecs, statMetadata]
   );
 
   if (!selectedPlanId) {
@@ -361,6 +357,8 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           onToggleStat={handleToggleStat}
           onSelectAllStats={handleSelectAllStats}
           onSelectNoStats={handleSelectNoStats}
+          getStatLabel={stat => statMetadata.get(stat)?.label ?? stat}
+          getStatTitle={stat => statMetadata.get(stat)?.title ?? stat}
         />
       </div>
       <div className="flex-1 min-h-0">
@@ -378,7 +376,6 @@ export function OperatorTable({ queryBundle }: OperatorTableProps) {
           virtualization={VIRTUALIZATION_CONFIG}
           sorting={sorting}
           onSortingChange={setSorting}
-          formatNumericValue={formatNumericValue}
         />
       </div>
     </div>

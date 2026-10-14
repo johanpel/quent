@@ -4,9 +4,7 @@
 //! Browser-hosted API facade for the simulator analyzer.
 
 use quent_events::Event;
-use quent_query_engine_analyzer::{
-    EngineEntity, QueryEngineModel, QueryEntity, QueryGroupEntity, ui::UiAnalyzer,
-};
+use quent_query_engine_analyzer::{EngineEntity, QueryEngineModel, QueryEntity, ui::UiAnalyzer};
 use quent_query_engine_ui::{
     self as ui, EngineContexts, OperatorFilter, QueryFilter, ServerContract,
 };
@@ -60,21 +58,10 @@ impl DemoServer {
         json_result(ServerContract::engine_contexts(self, engine_id).await)
     }
 
-    #[wasm_bindgen(js_name = queryGroups)]
-    pub async fn query_groups_js(&self, engine_id: &str) -> Result<String, JsValue> {
-        let engine_id = parse_uuid(engine_id).map_err(api_error)?;
-        json_result(ServerContract::query_groups(self, engine_id).await)
-    }
-
     #[wasm_bindgen(js_name = queries)]
-    pub async fn queries_js(
-        &self,
-        engine_id: &str,
-        query_group_id: &str,
-    ) -> Result<String, JsValue> {
+    pub async fn queries_js(&self, engine_id: &str) -> Result<String, JsValue> {
         let engine_id = parse_uuid(engine_id).map_err(api_error)?;
-        let query_group_id = parse_uuid(query_group_id).map_err(api_error)?;
-        json_result(ServerContract::queries(self, engine_id, query_group_id).await)
+        json_result(ServerContract::queries(self, engine_id).await)
     }
 
     #[wasm_bindgen(js_name = query)]
@@ -137,12 +124,16 @@ impl DemoServer {
 impl ServerContract for DemoServer {
     type Error = ApiError;
 
-    async fn list_engines(&self, with_metadata: bool) -> Result<Vec<ui::Engine>, ApiError> {
-        if with_metadata {
-            Ok(vec![self.analyzer.query_engine_model().engine()?.to_ui()?])
+    async fn list_engines(&self, with_metadata: bool) -> Result<ui::EngineListResponse, ApiError> {
+        let items = if with_metadata {
+            vec![self.analyzer.query_engine_model().engine()?.to_ui()?]
         } else {
-            Ok(vec![ui::Engine::new(self.engine_id)])
-        }
+            vec![ui::Engine::new(self.engine_id)]
+        };
+        Ok(ui::EngineListResponse {
+            items,
+            initial_group_by_attribute: SimulatorUiAnalyzer::engine_initial_group_by_attribute(),
+        })
     }
 
     async fn engine(&self, engine_id: Uuid) -> Result<ui::Engine, ApiError> {
@@ -161,27 +152,17 @@ impl ServerContract for DemoServer {
         })
     }
 
-    async fn query_groups(&self, engine_id: Uuid) -> Result<Vec<ui::QueryGroup>, ApiError> {
-        Ok(self
-            .analyzer(engine_id)?
-            .query_engine_model()
-            .query_groups()
-            .map(QueryGroupEntity::to_ui)
-            .collect())
-    }
-
-    async fn queries(
-        &self,
-        engine_id: Uuid,
-        query_group_id: Uuid,
-    ) -> Result<Vec<ui::Query>, ApiError> {
-        self.analyzer(engine_id)?
+    async fn queries(&self, engine_id: Uuid) -> Result<ui::QueryListResponse, ApiError> {
+        let analyzer = self.analyzer(engine_id)?;
+        let items = analyzer
             .query_engine_model()
             .queries()
-            .filter(|query| query.query_group_id() == Some(query_group_id))
             .map(QueryEntity::to_ui)
-            .collect::<Result<_, _>>()
-            .map_err(Into::into)
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(ui::QueryListResponse {
+            items,
+            initial_group_by_attribute: analyzer.query_initial_group_by_attribute(),
+        })
     }
 
     async fn query(&self, engine_id: Uuid, query_id: Uuid) -> Result<ui::QueryBundle, ApiError> {

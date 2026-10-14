@@ -11,7 +11,6 @@ export type { ApiClient } from './client';
 export {
   fetchQueryBundle,
   fetchListEngines,
-  fetchListCoordinators,
   fetchListQueries,
   fetchSingleTimeline,
   fetchBulkTimelines,
@@ -25,7 +24,6 @@ export {
 // queryOptions factories
 export { queryBundleQueryOptions } from './queryBundle';
 export { enginesQueryOptions } from './engines';
-export { queryGroupsQueryOptions } from './queryGroups';
 export { queriesQueryOptions } from './queries';
 export { singleTimelineQueryOptions } from './timeline';
 export { bulkTimelineQueryOptions } from './bulkTimelines';
@@ -45,7 +43,6 @@ export type { NvtxCategoryFilter } from './nvtx';
 // Hooks
 export { useQueryBundle } from './queryBundle';
 export { useEngines } from './engines';
-export { useQueryGroups } from './queryGroups';
 export { useQueries } from './queries';
 export { useTimeline } from './timeline';
 export { useEntities } from './entityList';

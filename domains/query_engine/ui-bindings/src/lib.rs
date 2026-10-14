@@ -7,8 +7,8 @@ use std::path::Path;
 
 use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_query_engine_ui::{
-    DataFlowTimelineBinned, EngineContexts, EntityListResponse, EntityRef, OperatorFilter,
-    QueryBundle, QueryFilter,
+    DataFlowTimelineBinned, EngineContexts, EngineListResponse, EntityListResponse, EntityRef,
+    OperatorFilter, QueryBundle, QueryFilter, QueryListResponse,
 };
 use quent_ui::entities::request::EntityListRequest;
 use quent_ui::timeline::{
@@ -37,6 +37,8 @@ pub fn generate(output_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     <CategoricalTimelineRequest<QueryFilter> as TS>::export_all(&cfg)?;
     <DataFlowTimelineBinned as TS>::export_all(&cfg)?;
     <EngineContexts as TS>::export_all(&cfg)?;
+    <EngineListResponse as TS>::export_all(&cfg)?;
+    <QueryListResponse as TS>::export_all(&cfg)?;
     <NvtxCatalog as TS>::export_all(&cfg)?;
     <NvtxViewportRequest as TS>::export_all(&cfg)?;
     <NvtxViewportResponse as TS>::export_all(&cfg)?;

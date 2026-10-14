@@ -29,11 +29,8 @@ self.onmessage = async ({ data }: MessageEvent<SimulatorWorkerRequest>) => {
       case 'engineContexts':
         response = await server.engineContexts(data.engineId);
         break;
-      case 'listCoordinators':
-        response = await server.queryGroups(data.engineId);
-        break;
       case 'listQueries':
-        response = await server.queries(data.engineId, data.queryGroupId);
+        response = await server.queries(data.engineId);
         break;
       case 'queryBundle':
         response = await server.query(data.engineId, data.queryId);

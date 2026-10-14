@@ -7,8 +7,7 @@ declare module '*quent_simulator_wasm.js' {
     constructor(bytes: Uint8Array);
     listEngines(): Promise<string>;
     engineContexts(engineId: string): Promise<string>;
-    queryGroups(engineId: string): Promise<string>;
-    queries(engineId: string, queryGroupId: string): Promise<string>;
+    queries(engineId: string): Promise<string>;
     query(engineId: string, queryId: string): Promise<string>;
     singleTimeline(engineId: string, request: string): Promise<string>;
     bulkTimelines(engineId: string, request: string): Promise<string>;

@@ -58,14 +58,12 @@ pub enum Error {
 /// `quent_store_build::Options::filesystem` and
 /// `quent_store_build::Options::combined_event` are enabled.
 ///
-/// For example, `impl Model for Demo` includes
-/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
+/// For example, `impl Model for Demo` defines `EVENT_IMPORTERS` with an entry
+/// `EventImporter::<Self>::import_for_entity::<Task>()`.
 #[doc(hidden)]
-pub trait Model: CombinedEventModel {
-    /// Returns the event importers generated from the model schema.
-    fn event_importers() -> &'static [EventImporter<Self>]
-    where
-        Self: Sized;
+pub trait Model: CombinedEventModel + Sized + 'static {
+    /// The event importers generated from the model schema.
+    const EVENT_IMPORTERS: &'static [EventImporter<Self>];
 }
 
 type ImportFn<M> =
@@ -76,7 +74,7 @@ type ImportFn<M> =
 /// # Code generation
 ///
 /// `quent-store-build` emits one importer per entity marker, such as
-/// `EventImporter::<Demo>::import_for_entity::<Task>()`.
+/// `EventImporter::<Self>::import_for_entity::<Task>()`.
 #[doc(hidden)]
 pub struct EventImporter<M: CombinedEventModel> {
     entity: &'static str,
@@ -164,7 +162,7 @@ where
 
 impl<M> CombinedEventLoader<M> for Loader<M>
 where
-    M: EventModel + Model + 'static,
+    M: EventModel + Model,
 {
     type Error = Error;
 
@@ -172,7 +170,7 @@ where
         let mut streams = Vec::new();
         for &context_id in self.contexts.as_slice() {
             let context = self.context(context_id)?;
-            for descriptor in M::event_importers() {
+            for descriptor in M::EVENT_IMPORTERS {
                 let files = event_files(&context, descriptor.entity)?;
                 streams.push((descriptor.import)(files)?);
             }
@@ -412,13 +410,10 @@ mod tests {
     }
 
     impl Model for TestModel {
-        fn event_importers() -> &'static [EventImporter<Self>] {
-            static IMPORTERS: &[EventImporter<TestModel>] = &[
-                EventImporter::import_for_entity::<Alpha>(),
-                EventImporter::import_for_entity::<Beta>(),
-            ];
-            IMPORTERS
-        }
+        const EVENT_IMPORTERS: &'static [EventImporter<Self>] = &[
+            EventImporter::import_for_entity::<Alpha>(),
+            EventImporter::import_for_entity::<Beta>(),
+        ];
     }
 
     fn context<M>(root: &Path, id: Uuid) -> (ContextInner, ExporterOptions)

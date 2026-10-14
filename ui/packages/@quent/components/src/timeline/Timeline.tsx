@@ -66,7 +66,7 @@ export function Timeline({
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
   /** Label describing the Y axis metric (e.g. capacity name). */
-  yAxisLabel?: string;
+  yAxisLabel?: string | null;
   /** Pointer-state callback. */
   onHoverChange?: (position: TimelineHoverPosition | null) => void;
   /** Called when the underlying ECharts instance is ready or recreated. */

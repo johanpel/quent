@@ -32,14 +32,6 @@ entities:
           worker_id: uuid
           config: WorkerConfig
 
-  QueryGroup:
-    events:
-      declared:
-        attributes:
-          parent: { scope-ref: Engine }
-          group_id: uuid
-          label: string
-
   Plan:
     events:
       declared:
@@ -149,9 +141,10 @@ fsms:
       registered:
         initial: true
         attributes:
-          parent: { scope-ref: QueryGroup }
+          parent: { scope-ref: Engine }
           query_id: uuid
           sql: string
+          custom_attributes: dynamic
         to: [planning, cancelled]
       planning:
         attributes:

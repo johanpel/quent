@@ -17,9 +17,9 @@ impl Query {
         self.0.transitions()
     }
 
-    pub(crate) fn query_group_id(&self) -> Option<Uuid> {
+    pub(crate) fn engine_id(&self) -> Option<Uuid> {
         match &self.0.transition(0)?.data {
-            schema::QueryEvent::Init { query_group_id, .. } => Some(query_group_id.target),
+            schema::QueryEvent::Init { engine_id, .. } => Some(engine_id.target),
             _ => None,
         }
     }
@@ -69,15 +69,11 @@ impl Using for Query {
 
 impl RefTreeEntity for Query {
     fn parent_id(&self) -> Option<Uuid> {
-        self.query_group_id()
+        self.engine_id()
     }
 }
 
 impl QueryEntity for Query {
-    fn query_group_id(&self) -> Option<Uuid> {
-        self.query_group_id()
-    }
-
     fn to_ui(&self) -> AnalyzerResult<query_engine_ui::Query> {
         let transitions = self.transitions();
         let epoch = transitions.first().map(Timestamp::timestamp);
@@ -102,15 +98,29 @@ impl QueryEntity for Query {
             }
         }
 
+        let (instance_name, custom_attributes) = match transitions.first() {
+            Some(transition) => match &transition.data {
+                schema::QueryEvent::Init {
+                    instance_name,
+                    workload,
+                    query_index,
+                    ..
+                } => (
+                    Some(instance_name.clone()),
+                    vec![
+                        DynamicAttribute::string("workload", workload.clone()),
+                        DynamicAttribute::u64("query_index", *query_index),
+                    ],
+                ),
+                _ => (None, Vec::new()),
+            },
+            None => (None, Vec::new()),
+        };
+
         Ok(query_engine_ui::Query {
             id: self.id(),
-            query_group_id: self.query_group_id().unwrap_or_default(),
-            instance_name: transitions
-                .first()
-                .and_then(|transition| match &transition.data {
-                    schema::QueryEvent::Init { instance_name, .. } => Some(instance_name.clone()),
-                    _ => None,
-                }),
+            instance_name,
+            custom_attributes,
             start_unix_ns: epoch,
             planning_s,
             executing_s,

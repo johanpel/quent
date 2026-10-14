@@ -5,8 +5,8 @@ import type {
   BulkTimelineRequest,
   BulkTimelinesResponse,
   DataFlowTimelineBinned,
-  Engine,
   EngineContexts,
+  EngineListResponse,
   EntityListRequest,
   EntityListResponse,
   EntityRef,
@@ -14,10 +14,9 @@ import type {
   NvtxViewportRequest,
   NvtxViewportResponse,
   OperatorFilter,
-  Query,
   QueryBundle,
   QueryFilter,
-  QueryGroup,
+  QueryListResponse,
   SingleTimelineRequest,
   SingleTimelineResponse,
   TimelineConfig,
@@ -26,7 +25,7 @@ import type {
 /** Typed operations consumed by the UI, independent of their transport. */
 export interface ApiClient {
   fetchQueryBundle(engineId: string, queryId: string): Promise<QueryBundle<EntityRef>>;
-  fetchListEngines(): Promise<Engine[]>;
+  fetchListEngines(): Promise<EngineListResponse>;
   fetchEngineContexts(engineId: string): Promise<EngineContexts>;
   fetchNvtxCatalog(contextId: string, queryStartUnixNs: bigint): Promise<NvtxCatalog | null>;
   fetchNvtxViewport(
@@ -34,8 +33,7 @@ export interface ApiClient {
     queryStartUnixNs: bigint,
     request: NvtxViewportRequest
   ): Promise<NvtxViewportResponse | null>;
-  fetchListCoordinators(engineId: string): Promise<QueryGroup[]>;
-  fetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]>;
+  fetchListQueries(engineId: string): Promise<QueryListResponse>;
   fetchSingleTimeline(
     engineId: string,
     request: SingleTimelineRequest<QueryFilter, OperatorFilter>,

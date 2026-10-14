@@ -15,10 +15,11 @@ use quent_analyzer::{
     },
     resource::{CapacityDecl, Resource, ResourceTypeDecl, Usage, Using},
 };
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_events::Event;
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, OperatorEntityMut, PlanEntity, PortEntity, QueryEntity,
-    QueryGroupEntity, WorkerEntity,
+    WorkerEntity,
 };
 use quent_query_engine_ui as query_engine_ui;
 use quent_simulator_store as schema;
@@ -36,7 +37,6 @@ mod pcie_channel;
 mod plan;
 mod port;
 mod query;
-mod query_group;
 mod storage;
 mod storage_channel;
 mod task;
@@ -45,6 +45,7 @@ mod task_executor_thread;
 mod worker;
 
 pub use engine::Engine;
+pub(crate) use engine::engine_custom_attributes;
 pub(crate) use gpu::Gpu;
 pub(crate) use gpu_memory::GpuMemory;
 pub(crate) use host_memory::HostMemory;
@@ -56,7 +57,6 @@ pub use plan::Plan;
 pub use port::Port;
 pub use query::Query;
 pub(crate) use query::QueryBuilder;
-pub use query_group::QueryGroup;
 pub(crate) use storage::Storage;
 pub(crate) use storage_channel::StorageChannel;
 pub(crate) use task::TaskBuilder;

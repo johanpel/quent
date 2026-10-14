@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import type { StatValue, ContinuousPaletteName } from '@quent/utils';
+import type { StatValue, Statistic, ContinuousPaletteName, ScaleType } from '@quent/utils';
 import type { AggMode, HoveredStatInfo } from '@quent/hooks';
 
 // Re-exports of pivot-table-related types that originate in @quent/hooks but
@@ -69,6 +69,9 @@ export interface PivotTableInteractionConfig<TRow extends GroupedDataTableRowBas
 
 export interface PivotTableRenderConfig {
   getGroupTypeColor?: (key: string, id: string) => string | undefined;
+  getStatLabel?: (statName: string) => string;
+  getStatTitle?: (statName: string) => string;
+  formatValue?: (value: StatValue, statName: string, quantity?: string) => string;
 }
 
 export interface PivotTableDnDConfig {
@@ -85,9 +88,8 @@ export interface PivotTableDisplayConfig {
   isAggregating: boolean;
   aggMode: AggMode;
   colorPalette: ContinuousPaletteName;
+  scaleType: ScaleType;
   darkMode: boolean;
-  /** Optional formatter for numeric stat values; falls back to inferFieldFormatter when absent. */
-  formatNumericValue?: (value: number, statName: string) => string;
 }
 
 // --- PivotedStatTable types ---
@@ -106,6 +108,7 @@ export interface StatGroupExpandedRow {
   scopeId: string;
   statisticName: string;
   value: StatValue;
+  quantity?: string;
 }
 
 export interface PivotedStatTableSchema<TRow> {
@@ -128,8 +131,8 @@ export interface PivotedStatTableSchema<TRow> {
    * Optional item type fallback. If omitted, uses group "item_type" id, then "item" id.
    */
   itemType?: (row: TRow) => string;
-  /** Stat map for one logical row; keys become table stat columns. */
-  stats: (row: TRow) => Record<string, StatValue>;
+  /** Ordered statistics for one logical row; names become table columns. */
+  stats: (row: TRow) => readonly Statistic[];
 }
 
 export interface GroupKeyEntry {
@@ -146,12 +149,13 @@ export interface PivotedRowAgg {
   stdev: number | null;
   count: number;
   isNumeric: boolean;
+  quantity?: string;
 }
 
 export interface PivotedRow {
   groupKeys: GroupKeyEntry[];
   rowKey: string;
-  values: Map<string, StatValue>;
+  values: Map<string, Statistic[]>;
   aggs: Map<string, PivotedRowAgg>;
   itemIds: Set<string>;
   itemType: string;

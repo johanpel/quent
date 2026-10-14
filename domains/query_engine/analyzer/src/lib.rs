@@ -41,14 +41,8 @@ pub trait WorkerEntity: Entity + Span {
     fn to_ui(&self, epoch: TimeUnixNanoSec) -> qe_ui::Worker;
 }
 
-/// Read-only analyzer API for a query-group entity.
-pub trait QueryGroupEntity: Entity {
-    fn to_ui(&self) -> qe_ui::QueryGroup;
-}
-
 /// Read-only analyzer API for a query entity.
 pub trait QueryEntity: Fsm + Using {
-    fn query_group_id(&self) -> Option<Uuid>;
     fn to_ui(&self) -> AnalyzerResult<qe_ui::Query>;
 }
 
@@ -85,7 +79,6 @@ pub trait PortEntity: Entity {
 pub trait QueryEngineModel: Model {
     type Engine: EngineEntity;
     type Query: QueryEntity;
-    type QueryGroup: QueryGroupEntity;
     type Worker: WorkerEntity;
     type Plan: PlanEntity;
     type Operator: OperatorEntity;
@@ -95,7 +88,6 @@ pub trait QueryEngineModel: Model {
 
     fn engine(&self) -> AnalyzerResult<&Self::Engine>;
     fn query(&self, query_id: Uuid) -> AnalyzerResult<&Self::Query>;
-    fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&Self::QueryGroup>;
     fn worker(&self, worker_id: Uuid) -> AnalyzerResult<&Self::Worker>;
     fn plan(&self, plan_id: Uuid) -> AnalyzerResult<&Self::Plan>;
     fn operator(&self, operator_id: Uuid) -> AnalyzerResult<&Self::Operator>;
@@ -104,7 +96,6 @@ pub trait QueryEngineModel: Model {
     // Entity iterators
 
     fn queries(&self) -> impl Iterator<Item = &Self::Query>;
-    fn query_groups(&self) -> impl Iterator<Item = &Self::QueryGroup>;
     fn workers(&self) -> impl Iterator<Item = &Self::Worker>;
     fn plans(&self) -> impl Iterator<Item = &Self::Plan>;
     fn operators(&self) -> impl Iterator<Item = &Self::Operator>;

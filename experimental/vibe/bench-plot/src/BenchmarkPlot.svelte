@@ -10,7 +10,7 @@
   import type { EChartsType } from 'echarts/core';
   import type { BenchCase, BoxSummary } from './report';
   import type { PlotMode } from './plotPreference.svelte';
-  import { batchAverages, boxSummary, caseAxisLabel, caseLabel, discardedCallCount, frameworkColor, hasDiscardedCalls, isNoopCase } from './report';
+  import { batchAverages, boxSummary, caseAxisLabel, caseLabel, discardedCallCount, frameworkColor, hasDiscardedCalls, implementationName, isNoopCase } from './report';
   import { jitterOffset } from './jitter';
 
   echarts.use([BarChart, BoxplotChart, ScatterChart, GraphicComponent, GridComponent, TooltipComponent, CanvasRenderer]);
@@ -38,7 +38,7 @@
   }
 
   function caseColor(item: BenchCase, colors: ReadonlyMap<string, string>, lightness?: number): string {
-    return frameworkColor(item.implementation, colors, lightness, hasDiscardedCalls(item) ? 0.4 : 1);
+    return frameworkColor(implementationName(item.implementation), colors, lightness, hasDiscardedCalls(item) ? 0.4 : 1);
   }
 
   function render(current: BoxSummary[], samples: number[][], labels: string[], mode: PlotMode,

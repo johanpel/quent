@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-use clap::ValueEnum;
+use quent_bench_types::frameworks::quent::{Channel, Clock, Exporter, variant_label};
 
 use crate::{
     BenchResult, SharedArgs,
@@ -16,50 +16,6 @@ use crate::{
     progress::BuildProgress,
     report::CaseResult,
 };
-
-/// Selects the exporter used by Quent benchmark cases.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum Exporter {
-    Noop,
-    Ndjson,
-    Msgpack,
-    Postcard,
-}
-
-impl Exporter {
-    /// Returns the exporter value accepted by the Quent implementation executable.
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Noop => "noop",
-            Self::Ndjson => "ndjson",
-            Self::Msgpack => "msgpack",
-            Self::Postcard => "postcard",
-        }
-    }
-}
-
-/// Selects the channel used by Quent benchmark cases.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-enum Channel {
-    Tokio,
-    PerThread,
-}
-
-impl Channel {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Tokio => "quent",
-            Self::PerThread => "quent-per-thread",
-        }
-    }
-
-    fn features(self) -> &'static [&'static str] {
-        match self {
-            Self::Tokio => &[],
-            Self::PerThread => &["channel-per-thread"],
-        }
-    }
-}
 
 /// Selects the Quent-specific parameters.
 #[derive(clap::Args)]
@@ -73,6 +29,13 @@ pub(crate) struct Args {
     )]
     channel: Vec<Channel>,
     #[arg(
+        long = "quent-clock",
+        value_enum,
+        value_delimiter = ',',
+        default_value = "std,quanta"
+    )]
+    clock: Vec<Clock>,
+    #[arg(
         long = "quent-exporter",
         value_enum,
         value_delimiter = ',',
@@ -83,7 +46,7 @@ pub(crate) struct Args {
 
 impl Args {
     pub(crate) fn build_count(&self) -> usize {
-        self.channel.len()
+        self.channel.len() * self.clock.len()
     }
 }
 
@@ -96,31 +59,29 @@ pub(crate) fn cases(
 ) -> BenchResult<Vec<Box<dyn CaseRunner>>> {
     let mut cases = Vec::new();
     for channel in &options.channel {
-        let label = format!("quent-bench-rust-{}", channel.label());
-        let executable = rust::binary_with_features(
-            "quent-bench-rust-quent",
-            &label,
-            channel.features(),
-            progress,
-        )?;
-        // Cargo uses the same output path for both feature builds. Keep a
-        // private copy of each binary until all cases have finished.
-        let saved = binaries.join(format!(
-            "{}{}",
-            channel.label(),
-            std::env::consts::EXE_SUFFIX
-        ));
-        std::fs::copy(executable, &saved)?;
-        for exporter in &options.exporter {
-            for event_shape in &shared.event_shape {
-                for threads in &shared.threads {
-                    cases.push(Box::new(QuentCase {
-                        executable: saved.clone(),
-                        channel: *channel,
-                        exporter: *exporter,
-                        event_shape: *event_shape,
-                        threads: *threads,
-                    }) as Box<dyn CaseRunner>);
+        for clock in &options.clock {
+            let variant = variant_label(*channel, *clock);
+            let label = format!("quent-bench-rust-{variant}");
+            let mut features = channel.features().to_vec();
+            features.extend_from_slice(clock.features());
+            let executable =
+                rust::binary_with_features("quent-bench-rust-quent", &label, &features, progress)?;
+            // Cargo uses the same output path for feature builds. Keep a
+            // private copy of each binary until all cases have finished.
+            let saved = binaries.join(format!("{variant}{}", std::env::consts::EXE_SUFFIX));
+            std::fs::copy(executable, &saved)?;
+            for exporter in &options.exporter {
+                for event_shape in &shared.event_shape {
+                    for threads in &shared.threads {
+                        cases.push(Box::new(QuentCase {
+                            executable: saved.clone(),
+                            channel: *channel,
+                            clock: *clock,
+                            exporter: *exporter,
+                            event_shape: *event_shape,
+                            threads: *threads,
+                        }) as Box<dyn CaseRunner>);
+                    }
                 }
             }
         }
@@ -131,6 +92,7 @@ pub(crate) fn cases(
 struct QuentCase {
     executable: PathBuf,
     channel: Channel,
+    clock: Clock,
     exporter: Exporter,
     event_shape: quent_bench_types::EventShape,
     threads: NonZeroUsize,
@@ -140,7 +102,7 @@ impl CaseRunner for QuentCase {
     fn label(&self) -> String {
         format!(
             "{}, {}, {}, threads={}",
-            self.channel.label(),
+            variant_label(self.channel, self.clock),
             self.exporter.as_str(),
             self.event_shape.as_ref(),
             self.threads

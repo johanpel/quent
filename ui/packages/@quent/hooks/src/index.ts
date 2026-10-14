@@ -16,7 +16,11 @@ export type { ColorRegistry, ColorRegistryKey } from './colors/colorRegistry';
 // DAG hooks
 export { useSelectedOperatorIds } from './dag/useSelectedOperatorIds';
 export { useOperatorSelection, useOperatorSelectionActions } from './dag/useOperatorSelection';
-export { useSelectedPlanId, useSetSelectedPlanId } from './dag/useSelectedPlanId';
+export {
+  useHydrateSelectedPlanId,
+  useSelectedPlanId,
+  useSetSelectedPlanId,
+} from './dag/useSelectedPlanId';
 export { useHoveredWorkerId, useSetHoveredWorkerId } from './dag/useHoveredWorkerId';
 
 // Timeline hooks
@@ -89,6 +93,7 @@ export {
   useEdgeColorPalette,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
+  useSelectedScaleType,
   useSelectedOperatorsData,
   useHighlightedNodeIds,
   useSetHighlightedNodeIds,

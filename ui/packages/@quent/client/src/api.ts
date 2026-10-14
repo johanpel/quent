@@ -7,8 +7,7 @@ import { getApiBaseUrl } from './config';
 import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
   QueryBundle,
-  QueryGroup,
-  Query,
+  QueryListResponse,
   BulkTimelinesResponse,
   SingleTimelineRequest,
   SingleTimelineResponse,
@@ -18,7 +17,7 @@ import type {
   QueryFilter,
   OperatorFilter,
   EntityRef,
-  Engine,
+  EngineListResponse,
   TimelineConfig,
   EntityListRequest,
   EntityListResponse,
@@ -88,8 +87,8 @@ async function httpFetchQueryBundle(
   return apiFetch<QueryBundle<EntityRef>>(`/engines/${engineId}/query/${queryId}`);
 }
 
-async function httpFetchListEngines(): Promise<Engine[]> {
-  return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
+async function httpFetchListEngines(): Promise<EngineListResponse> {
+  return apiFetch<EngineListResponse>('/engines', { params: { with_metadata: true } });
 }
 
 async function httpFetchEngineContexts(engineId: string): Promise<EngineContexts> {
@@ -150,12 +149,8 @@ function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResp
   };
 }
 
-async function httpFetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
-  return apiFetch<QueryGroup[]>(`/engines/${engineId}/query-groups`);
-}
-
-async function httpFetchListQueries(engineId: string, coordinatorId: string): Promise<Query[]> {
-  return apiFetch<Query[]>(`/engines/${engineId}/query_group/${coordinatorId}/queries`);
+async function httpFetchListQueries(engineId: string): Promise<QueryListResponse> {
+  return apiFetch<QueryListResponse>(`/engines/${engineId}/queries`);
 }
 
 async function httpFetchSingleTimeline(
@@ -239,7 +234,6 @@ const httpClient: ApiClient = {
   fetchEngineContexts: httpFetchEngineContexts,
   fetchNvtxCatalog: httpFetchNvtxCatalog,
   fetchNvtxViewport: httpFetchNvtxViewport,
-  fetchListCoordinators: httpFetchListCoordinators,
   fetchListQueries: httpFetchListQueries,
   fetchSingleTimeline: httpFetchSingleTimeline,
   fetchBulkTimelines: httpFetchBulkTimelines,
@@ -268,8 +262,6 @@ export const fetchNvtxCatalog = (...args: Parameters<ApiClient['fetchNvtxCatalog
   getApiClient().fetchNvtxCatalog(...args);
 export const fetchNvtxViewport = (...args: Parameters<ApiClient['fetchNvtxViewport']>) =>
   getApiClient().fetchNvtxViewport(...args);
-export const fetchListCoordinators = (...args: Parameters<ApiClient['fetchListCoordinators']>) =>
-  getApiClient().fetchListCoordinators(...args);
 export const fetchListQueries = (...args: Parameters<ApiClient['fetchListQueries']>) =>
   getApiClient().fetchListQueries(...args);
 export const fetchSingleTimeline = (...args: Parameters<ApiClient['fetchSingleTimeline']>) =>

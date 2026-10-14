@@ -13,6 +13,15 @@ records:
       version: { option: string }
       custom_attributes: dynamic
 
+  EngineConfiguration:
+    doc: Configuration of one simulated engine run.
+    fields:
+      workers: u64
+      threads_per_worker: u64
+      gpus_per_worker: u64
+      num_workloads: u64
+      num_queries: u64
+
   Edge:
     doc: A directed edge between two operator ports.
     fields:
@@ -33,15 +42,8 @@ entities:
         attributes:
           implementation: EngineImplementationAttributes
           instance_name: { option: string }
+          configuration: EngineConfiguration
       exit: {}
-
-  QueryGroup:
-    doc: A group of queries submitted to an engine.
-    events:
-      declaration:
-        attributes:
-          instance_name: string
-          engine_id: { scope-ref: Engine }
 
   Worker:
     doc: A worker executing plans for an engine.
@@ -188,7 +190,9 @@ fsms:
         initial: true
         attributes:
           instance_name: string
-          query_group_id: { scope-ref: QueryGroup }
+          engine_id: { scope-ref: Engine }
+          workload: string
+          query_index: u64
         to: [planning]
       planning:
         to: [executing]

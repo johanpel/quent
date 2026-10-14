@@ -8,5 +8,9 @@ export const Route = createFileRoute('/profile')({
 });
 
 function ProfileLayout() {
-  return <Outlet />;
+  return (
+    <div className="h-full overflow-x-hidden overflow-y-auto">
+      <Outlet />
+    </div>
+  );
 }

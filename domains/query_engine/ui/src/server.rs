@@ -14,8 +14,8 @@ use quent_ui::{
 use uuid::Uuid;
 
 use crate::{
-    DataFlowTimelineBinned, Engine, EngineContexts, EntityListResponse, OperatorFilter, Query,
-    QueryBundle, QueryFilter, QueryGroup,
+    DataFlowTimelineBinned, Engine, EngineContexts, EngineListResponse, EntityListResponse,
+    OperatorFilter, QueryBundle, QueryFilter, QueryListResponse,
 };
 
 /// Query-engine service operations shared by native and browser-hosted servers.
@@ -25,19 +25,13 @@ pub trait ServerContract: Sync {
     type Error;
 
     /// List the available engines, optionally including their metadata.
-    async fn list_engines(&self, with_metadata: bool) -> Result<Vec<Engine>, Self::Error>;
+    async fn list_engines(&self, with_metadata: bool) -> Result<EngineListResponse, Self::Error>;
     /// Return one engine and its metadata.
     async fn engine(&self, engine_id: Uuid) -> Result<Engine, Self::Error>;
     /// List the telemetry contexts contributing to an engine.
     async fn engine_contexts(&self, engine_id: Uuid) -> Result<EngineContexts, Self::Error>;
-    /// List the query groups belonging to an engine.
-    async fn query_groups(&self, engine_id: Uuid) -> Result<Vec<QueryGroup>, Self::Error>;
-    /// List the queries belonging to a query group.
-    async fn queries(
-        &self,
-        engine_id: Uuid,
-        query_group_id: Uuid,
-    ) -> Result<Vec<Query>, Self::Error>;
+    /// List the queries belonging to an engine.
+    async fn queries(&self, engine_id: Uuid) -> Result<QueryListResponse, Self::Error>;
     /// Return the entities and execution plan for one query.
     async fn query(&self, engine_id: Uuid, query_id: Uuid) -> Result<QueryBundle, Self::Error>;
     /// Build a timeline for one resource or resource group.

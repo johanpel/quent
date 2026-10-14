@@ -3,25 +3,41 @@
 
 import { http, HttpResponse } from 'msw';
 
-/**
- * Default MSW handlers for mocking API responses
- * Add your API mocks here
- */
 export const handlers = [
-  // Example: List engines
   http.get('/api/engines', () => {
-    return HttpResponse.json(['engine-1', 'engine-2', 'engine-3']);
+    return HttpResponse.json({
+      items: [
+        {
+          id: 'engine-1',
+          instance_name: 'Engine 1',
+          start_time_unix_ns: null,
+          duration_s: null,
+          custom_attributes: [
+            { key: 'num_workloads', value: { U64: 1 } },
+            { key: 'num_queries', value: { U64: 1 } },
+          ],
+          implementation: null,
+        },
+      ],
+      initial_group_by_attribute: null,
+    });
   }),
 
-  // Example: List coordinators for an engine
-  http.get('/api/engines/:engineId/coordinators', ({ params }) => {
-    const { engineId } = params;
-    return HttpResponse.json([`${engineId}-coordinator-1`, `${engineId}-coordinator-2`]);
-  }),
-
-  // Example: List queries
-  http.get('/api/engines/:engineId/coordinators/:coordinatorId/queries', () => {
-    return HttpResponse.json(['query-1', 'query-2', 'query-3']);
+  http.get('/api/engines/:engineId/queries', () => {
+    return HttpResponse.json({
+      items: [
+        {
+          id: 'query-1',
+          instance_name: 'Query 1',
+          custom_attributes: [],
+          start_unix_ns: null,
+          planning_s: null,
+          executing_s: null,
+          completed_s: null,
+        },
+      ],
+      initial_group_by_attribute: null,
+    });
   }),
 
   // Example: Get query details

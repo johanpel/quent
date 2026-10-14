@@ -23,6 +23,7 @@ import type { TimelineHoverPosition } from './Timeline';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { EChartsInstance } from 'echarts-for-react';
 import {
+  ALL_FSMS_COLORS,
   buildBinnedTimelineSeries,
   dimSeries,
   mergeOverlaySeries,
@@ -48,7 +49,7 @@ type ResourceTimelineProps = {
   resourceId: string;
   resourceType: string;
   durationSeconds: number;
-  fsmTypeName?: string | undefined;
+  fsmTypeName: string | null;
   resourceTypeName?: string;
   instanceName?: string;
   showTooltip?: boolean;
@@ -85,7 +86,7 @@ export function ResourceTimeline({
   isDark,
   showPlayheadIndicator = false,
 }: ResourceTimelineProps) {
-  const colorCapacity = useColorResolver(COLOR_REGISTRY_KEYS.CAPACITIES);
+  const allFsmsColor = ALL_FSMS_COLORS[isDark ? 'dark' : 'light'];
   const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
   const deferredReady = useDeferredReady();
   const zoomRange = useDebouncedZoomRange();
@@ -166,7 +167,7 @@ export function ResourceTimeline({
                 resource_group_id: resourceId,
                 resource_type_name: resourceTypeName ?? '',
                 long_entities_threshold_s: null,
-                entity_filter: { entity_type_name: fsmTypeName ?? null },
+                entity_filter: { entity_type_name: fsmTypeName },
                 app_params: { operator_ids: [] },
                 config,
               },
@@ -175,7 +176,7 @@ export function ResourceTimeline({
               Resource: {
                 resource_id: resourceId,
                 long_entities_threshold_s: null,
-                entity_filter: { entity_type_name: fsmTypeName ?? null },
+                entity_filter: { entity_type_name: fsmTypeName },
                 application: { operator_ids: [] },
                 config,
               },
@@ -202,8 +203,8 @@ export function ResourceTimeline({
     const base = buildBinnedTimelineSeries(
       data.data,
       data.config,
-      colorCapacity,
       colorFsmState,
+      allFsmsColor,
       resourceTypeDecl,
       quantitySpecs
     );
@@ -217,8 +218,8 @@ export function ResourceTimeline({
           const opResult = buildBinnedTimelineSeries(
             overlayPreloadedData.data,
             overlayPreloadedData.config,
-            colorCapacity,
             colorFsmState,
+            allFsmsColor,
             resourceTypeDecl,
             quantitySpecs
           );
@@ -249,8 +250,8 @@ export function ResourceTimeline({
     resourceTypeDecl,
     quantitySpecs,
     operatorLabel,
-    colorCapacity,
     colorFsmState,
+    allFsmsColor,
   ]);
 
   // Bridge the chart's atom-unaware `onHoverChange` callback into the shared

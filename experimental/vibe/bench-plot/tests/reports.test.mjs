@@ -7,14 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { readReports, selectLatestReport, validateReport } from '../scripts/reports.mjs';
-import { availableLanguages, batchAverages, boxSummary, caseAxisLabel, caseLabel, discardedCallCount, frameworkColor, frameworkColors, isNoopCase, payloadGroups, sortCasesByAverage } from '../src/report.ts';
+import { availableLanguages, batchAverages, boxSummary, caseAxisLabel, caseLabel, discardedCallCount, frameworkColor, frameworkColors, implementationName, isNoopCase, payloadGroups, sortCasesByAverage } from '../src/report.ts';
 import { jitterOffset } from '../src/jitter.ts';
 
 function report(time, settings = {}) {
   return {
     system: { captured_at_unix_seconds: time, os: 'linux', architecture: 'x86_64',
       cpu_model: 'test CPU', available_cpu_count: 4, build_profile: 'release', ...settings.system },
-    cases: [{ implementation: 'quent', exporter: 'noop', event_shape: 'empty', threads: 2,
+    cases: [{ implementation: { quent: ['tokio', 'std'] }, exporter: 'noop', event_shape: 'empty', threads: 2,
       num_batches: 5, batch_size: 2, num_warmup_batches: 1, batch_pause_interval_us: 10,
       preflight_call: true, total_call_count: 10, discarded_call_count: 10,
       thread_batch_elapsed_ns: [[2, 4, 6, 8, 60], [2, 4, 6, 8, 60]],
@@ -50,6 +50,19 @@ test('event grouping and labels include the implementation', () => {
   assert.deepEqual(payloadGroups(value), [{ name: 'empty', threads: [2] }]);
   assert.equal(caseLabel(value.cases[0]), 'Quent / noop');
   assert.equal(caseLabel(other), 'other-framework / default');
+});
+
+test('Quent implementation names use the derived channel and clock values', () => {
+  for (const [channel, clock, expected] of [
+    ['tokio', 'std', 'quent'],
+    ['per-thread', 'std', 'quent-pt'],
+    ['tokio', 'quanta', 'quent-quanta'],
+    ['per-thread', 'quanta', 'quent-pt-quanta'],
+  ]) {
+    const implementation = { quent: [channel, clock] };
+    assert.equal(implementationName(implementation), expected);
+    assert.equal(validateReport(report(1, { case: { implementation } })).cases[0].implementation, implementation);
+  }
 });
 
 test('language selection separates cases and accepts legacy Rust reports', () => {
@@ -115,7 +128,7 @@ test('cases sort by average and framework colors stay stable', () => {
   assert.equal(new Set(colors.values()).size, names.length);
   assert.equal(frameworkColor('quent', colors), '#76B900');
   assert.equal(frameworkColor('quent', colors, undefined, 0), 'hsl(82, 0%, 36%)');
-  assert.equal(frameworkColor('quent', colors), frameworkColor(slow.implementation, colors));
+  assert.equal(frameworkColor('quent', colors), frameworkColor(implementationName(slow.implementation), colors));
   assert.notEqual(frameworkColor('quent', colors), frameworkColor('fastrace', colors));
   assert.deepEqual([...frameworkColors([...names].reverse())], [...colors]);
 });
@@ -155,4 +168,7 @@ test('invalid timing dimensions and duplicate cases are rejected', () => {
   const invalidLanguage = report(1);
   invalidLanguage.cases[0].language = 'unknown';
   assert.throws(() => validateReport(invalidLanguage), /invalid case/);
+  const invalidQuentOption = report(1);
+  invalidQuentOption.cases[0].implementation.quent[1] = 'unknown';
+  assert.throws(() => validateReport(invalidQuentOption), /invalid case/);
 });

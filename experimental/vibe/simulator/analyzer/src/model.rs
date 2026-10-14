@@ -17,10 +17,10 @@ use quent_query_engine_analyzer::{
 };
 use quent_query_engine_ui::EntityRef;
 use quent_simulator_store::SimulatorEvent;
-use quent_ui::ResourceGroupTypeDecl;
+use quent_ui::{FsmTypeSelection, ResourceGroupTypeDecl};
 use uuid::Uuid;
 
-pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, QueryGroup, Worker};
+pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, Worker};
 
 use crate::{
     boilerplate::{
@@ -30,13 +30,23 @@ use crate::{
     view::SimulatorModelQueryView,
 };
 
+const RESOURCE_TYPE_DISPLAY_ORDER: [&str; 7] = [
+    "task_executor_thread",
+    "host_memory",
+    "gpu_memory",
+    "network_channel",
+    "pcie_channel",
+    "storage_channel",
+    "storage",
+];
+
 fn derive_resource_scope_types(
     model: &SimulatorModel,
 ) -> AnalyzerResult<HashMap<String, ResourceGroupTypeDecl>> {
     fn populate(
         node: &quent_analyzer::resource::tree::ResourceTreeNode,
         model: &SimulatorModel,
-        declarations: &mut HashMap<String, (BTreeSet<String>, BTreeSet<String>)>,
+        declarations: &mut HashMap<String, (Vec<FsmTypeSelection>, BTreeSet<String>)>,
     ) -> AnalyzerResult<()> {
         if !node.is_resource {
             let mut contained_types = Vec::new();
@@ -51,7 +61,12 @@ fn derive_resource_scope_types(
                 let (used_by, contains) = declarations.entry(type_name).or_default();
                 for resource_type in contained_types {
                     contains.insert(resource_type.name.clone());
-                    used_by.extend(resource_type.used_by.iter().cloned());
+                    for entity_type in &resource_type.used_by {
+                        let entity_type = FsmTypeSelection::Type(entity_type.to_string());
+                        if !used_by.contains(&entity_type) {
+                            used_by.push(entity_type);
+                        }
+                    }
                 }
             }
         }
@@ -67,14 +82,21 @@ fn derive_resource_scope_types(
     Ok(declarations
         .into_iter()
         .map(|(name, (used_by_entity_types, contains_resource_types))| {
-            (
-                name.clone(),
-                ResourceGroupTypeDecl {
-                    name,
-                    used_by_entity_types: used_by_entity_types.into_iter().collect(),
-                    contains_resource_types: contains_resource_types.into_iter().collect(),
-                },
-            )
+            let mut resource_type_order: Vec<_> = contains_resource_types.into_iter().collect();
+            resource_type_order.sort_by_key(|name| {
+                RESOURCE_TYPE_DISPLAY_ORDER
+                    .iter()
+                    .position(|&resource_type| resource_type == name)
+                    .unwrap_or(usize::MAX)
+            });
+            let declaration = ResourceGroupTypeDecl {
+                name: name.clone(),
+                display_order: std::iter::once(FsmTypeSelection::All)
+                    .chain(used_by_entity_types)
+                    .collect(),
+                contains_resource_types: resource_type_order,
+            };
+            (name, declaration)
         })
         .collect())
 }
@@ -83,7 +105,6 @@ fn derive_resource_scope_types(
 pub struct SimulatorModel {
     pub(crate) engine: Engine,
     pub(crate) workers: HashMap<Uuid, Worker>,
-    pub(crate) query_groups: HashMap<Uuid, QueryGroup>,
     pub(crate) queries: HashMap<Uuid, Query>,
     pub(crate) plans: HashMap<Uuid, Plan>,
     pub(crate) operators: HashMap<Uuid, Operator>,
@@ -111,8 +132,6 @@ impl Model for SimulatorModel {
             Ok(EntityRef::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(EntityRef::Worker(entity_id))
-        } else if self.query_groups.contains_key(&entity_id) {
-            Ok(EntityRef::QueryGroup(entity_id))
         } else if self.queries.contains_key(&entity_id) {
             Ok(EntityRef::Query(entity_id))
         } else if self.plans.contains_key(&entity_id) {
@@ -143,7 +162,6 @@ impl Model for SimulatorModel {
 impl QueryEngineModel for SimulatorModel {
     type Engine = Engine;
     type Query = Query;
-    type QueryGroup = QueryGroup;
     type Worker = Worker;
     type Plan = Plan;
     type Operator = Operator;
@@ -156,11 +174,6 @@ impl QueryEngineModel for SimulatorModel {
         self.queries
             .get(&query_id)
             .ok_or(AnalyzerError::InvalidId(query_id))
-    }
-    fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&QueryGroup> {
-        self.query_groups
-            .get(&query_group_id)
-            .ok_or(AnalyzerError::InvalidId(query_group_id))
     }
     fn worker(&self, worker_id: Uuid) -> AnalyzerResult<&Worker> {
         self.workers
@@ -184,9 +197,6 @@ impl QueryEngineModel for SimulatorModel {
     }
     fn queries(&self) -> impl Iterator<Item = &Query> {
         self.queries.values()
-    }
-    fn query_groups(&self) -> impl Iterator<Item = &QueryGroup> {
-        self.query_groups.values()
     }
     fn workers(&self) -> impl Iterator<Item = &Worker> {
         self.workers.values()
@@ -348,11 +358,6 @@ impl RefTreeCollection for SimulatorModel {
                     .map(|entity| entity as &dyn RefTreeEntity),
             )
             .chain(
-                self.query_groups
-                    .values()
-                    .map(|entity| entity as &dyn RefTreeEntity),
-            )
-            .chain(
                 self.queries
                     .values()
                     .map(|entity| entity as &dyn RefTreeEntity),
@@ -434,8 +439,6 @@ impl RefTreeCollection for SimulatorModel {
             Ok(&self.engine)
         } else if let Some(entity) = self.workers.get(&entity_id) {
             Ok(entity)
-        } else if let Some(entity) = self.query_groups.get(&entity_id) {
-            Ok(entity)
         } else if let Some(entity) = self.queries.get(&entity_id) {
             Ok(entity)
         } else if let Some(entity) = self.plans.get(&entity_id) {
@@ -497,7 +500,6 @@ pub struct SimulatorModelBuilder {
     engine_id: Uuid,
     engine: Option<Engine>,
     workers: HashMap<Uuid, Worker>,
-    query_groups: HashMap<Uuid, QueryGroup>,
     queries: HashMap<Uuid, QueryBuilder>,
     plans: HashMap<Uuid, Plan>,
     operators: HashMap<Uuid, Operator>,
@@ -526,7 +528,6 @@ impl SimulatorModelBuilder {
             engine_id,
             engine: None,
             workers: HashMap::default(),
-            query_groups: HashMap::default(),
             queries: HashMap::default(),
             plans: HashMap::default(),
             operators: HashMap::default(),
@@ -583,16 +584,6 @@ impl SimulatorModelBuilder {
                         entry.insert(Worker::try_from_event(event)?);
                         Ok(())
                     }
-                }
-            }
-            SimulatorEvent::QueryGroup(event) => {
-                let event = Event::new(id, timestamp, event);
-                if let Some(group) = self.query_groups.get_mut(&id) {
-                    group.push(event)
-                } else {
-                    self.query_groups
-                        .insert(id, QueryGroup::try_from_event(event)?);
-                    Ok(())
                 }
             }
             SimulatorEvent::Query(event) => {
@@ -762,7 +753,6 @@ impl SimulatorModelBuilder {
         let mut model = SimulatorModel {
             engine,
             workers: self.workers,
-            query_groups: self.query_groups,
             queries,
             plans: self.plans,
             operators: self.operators,
@@ -784,18 +774,22 @@ impl SimulatorModelBuilder {
 
         for (task_id, task_builder) in self.tasks.into_iter() {
             let task = Task::from_builder(task_builder)?;
+            let task_type_path = task
+                .type_name()
+                .parse()
+                .map_err(|_| AnalyzerError::InvalidTypeName(task.type_name().to_owned()))?;
             for usage in task.usages() {
                 let resource_type_name = model
                     .resource(usage.resource_id())
                     .map(Entity::type_name)?
                     .to_owned();
-                let set = &mut model
+                let used_by = &mut model
                     .resource_types
                     .get_mut(&resource_type_name)
                     .ok_or_else(|| AnalyzerError::InvalidTypeName(resource_type_name.clone()))?
                     .used_by;
-                if !set.contains(task.type_name()) {
-                    set.insert(task.type_name().to_owned());
+                if !used_by.contains(&task_type_path) {
+                    used_by.push(task_type_path.clone());
                 }
             }
             if let Some(operator_id) = task.operator_id()

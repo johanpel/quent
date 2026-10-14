@@ -50,7 +50,7 @@ function RootErrorComponent({ error }: ErrorComponentProps) {
         <p className="text-sm text-muted-foreground">{message}</p>
       </div>
       <Button variant="outline" size="sm" asChild>
-        <Link to="/profile">Go to profile</Link>
+        <Link to="/">Select an engine</Link>
       </Button>
     </div>
   );
@@ -66,7 +66,7 @@ function RootNotFoundComponent() {
         </p>
       </div>
       <Button variant="outline" size="sm" asChild>
-        <Link to="/profile">Go to profile</Link>
+        <Link to="/">Select an engine</Link>
       </Button>
     </div>
   );
@@ -76,9 +76,9 @@ function RootComponent() {
   return (
     <>
       <ThemeProvider>
-        <div className="min-h-screen flex flex-col bg-background">
+        <div className="flex h-screen flex-col overflow-hidden bg-background">
           <AppNav />
-          <main className="flex-1 w-full">
+          <main className="min-h-0 w-full flex-1">
             <Outlet />
           </main>
         </div>

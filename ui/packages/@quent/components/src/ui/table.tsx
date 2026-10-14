@@ -5,7 +5,7 @@ import * as React from 'react';
 
 import { cn } from '@quent/utils';
 
-interface TableProps extends React.ComponentProps<'table'> {
+export interface TableProps extends React.ComponentProps<'table'> {
   /**
    * Class names applied to the wrapping `<div>` that handles overflow.
    * Defaults to `relative w-full overflow-x-auto` (the shadcn default).
@@ -15,20 +15,22 @@ interface TableProps extends React.ComponentProps<'table'> {
   containerClassName?: string;
 }
 
-function Table({ className, containerClassName, ...props }: TableProps) {
-  return (
+const Table = React.forwardRef<HTMLTableElement, TableProps>(
+  ({ className, containerClassName, ...props }, ref) => (
     <div
       data-slot="table-container"
       className={cn('relative w-full overflow-x-auto', containerClassName)}
     >
       <table
+        ref={ref}
         data-slot="table"
         className={cn('w-full caption-bottom text-sm', className)}
         {...props}
       />
     </div>
-  );
-}
+  )
+);
+Table.displayName = 'Table';
 
 function TableHeader({ className, ...props }: React.ComponentProps<'thead'>) {
   return <thead data-slot="table-header" className={cn('[&_tr]:border-b', className)} {...props} />;

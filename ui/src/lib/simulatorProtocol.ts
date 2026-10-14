@@ -13,8 +13,7 @@ import type {
 export type SimulatorOperation =
   | { operation: 'listEngines' }
   | { operation: 'engineContexts'; engineId: string }
-  | { operation: 'listCoordinators'; engineId: string }
-  | { operation: 'listQueries'; engineId: string; queryGroupId: string }
+  | { operation: 'listQueries'; engineId: string }
   | { operation: 'queryBundle'; engineId: string; queryId: string }
   | {
       operation: 'singleTimeline';

@@ -22,6 +22,9 @@ describe('Test Setup', () => {
     const data = await response.json();
 
     expect(response.ok).toBe(true);
-    expect(data).toEqual(['engine-1', 'engine-2', 'engine-3']);
+    expect(data).toMatchObject({
+      items: [{ id: 'engine-1', instance_name: 'Engine 1' }],
+      initial_group_by_attribute: null,
+    });
   });
 });
