@@ -10,7 +10,6 @@ ANALYZER_URL="${PLAYWRIGHT_API_BASE_URL:-http://127.0.0.1:18080}"
 COLLECTOR_ADDRESS="${PLAYWRIGHT_COLLECTOR_ADDRESS:-127.0.0.1:17836}"
 COLLECTOR_URL="${PLAYWRIGHT_COLLECTOR_URL:-http://$COLLECTOR_ADDRESS}"
 ENGINE_ID="00000000-0000-0000-0000-000000000001"
-QUERY_GROUP_ID="00000000-0000-0000-0000-000000000003"
 QUERY_ID="00000000-0000-0000-0000-000000000004"
 
 read -ra CARGO <<< "${PLAYWRIGHT_CARGO_COMMAND:-cargo}"
@@ -64,5 +63,4 @@ wait_for_url "$ANALYZER_URL/api/engines"
 (cd "$REPO_ROOT" && "${CARGO[@]}" run -p quent-simulator-fixed -- --exporter collector --collector-address "$COLLECTOR_URL")
 
 wait_for_record "$ANALYZER_URL/api/engines?with_metadata=true" "$ENGINE_ID" "test-engine"
-wait_for_record "$ANALYZER_URL/api/engines/$ENGINE_ID/query-groups" "$QUERY_GROUP_ID" "test-group"
-wait_for_record "$ANALYZER_URL/api/engines/$ENGINE_ID/query_group/$QUERY_GROUP_ID/queries" "$QUERY_ID" "test-query"
+wait_for_record "$ANALYZER_URL/api/engines/$ENGINE_ID/queries" "$QUERY_ID" "test-query"

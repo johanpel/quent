@@ -4,7 +4,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import { GroupedDataTable } from './GroupedDataTable';
-import { cn } from '@quent/utils';
+import { cn, computeScaleRange, type ScaleRange, type StatValue } from '@quent/utils';
 import type { AggMode, PivotedRow, HoveredStatInfo, PivotedStatTableSchema } from './types';
 import type {
   DataHeaderProps,
@@ -17,7 +17,6 @@ import {
   buildPivotedRows,
   expandRowsFromSchema,
   formatStatValue,
-  formatNumericStat,
   getSchemaStatNames,
   getSortValue,
   gradientBg,
@@ -29,7 +28,7 @@ import type {
   GroupedDataTableGroupRenderMode,
   GroupedDataTableVirtualizationOptions,
 } from './GroupedDataTable';
-import { useNodeColorPalette, useColumnDragDrop } from '@quent/hooks';
+import { useNodeColorPalette, useColumnDragDrop, useSelectedScaleType } from '@quent/hooks';
 import {
   PivotTableRenderProvider,
   usePivotTableRenderContext,
@@ -39,8 +38,10 @@ import {
 const HIGHLIGHT_WASH = 'inset 0 0 0 999px hsl(var(--primary) / 0.07)';
 
 function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProps) {
-  const { dnd, interaction, derived } = usePivotTableRenderContext();
+  const { dnd, interaction, renderConfig, derived } = usePivotTableRenderContext();
   const hoveredStatName = interaction.hoveredStat?.name;
+  const statLabel = renderConfig.getStatLabel?.(stat) ?? stat;
+  const statTitle = renderConfig.getStatTitle?.(stat) ?? statLabel;
   // While a column is being dragged, show a 3px primary-colored bar on the
   // leading or trailing edge of the column under the cursor to indicate where
   // a drop would insert.
@@ -89,8 +90,8 @@ function DataHeader({ stat, sortInfo, onSort, className, style }: DataHeaderProp
       )}
       style={mergedStyle}
     >
-      <span className="relative z-10">
-        {stat}
+      <span className="relative z-10" title={statTitle}>
+        {statLabel}
         {sortInfo && <span className="ml-1 text-xs">{sortInfo.desc ? '▼' : '▲'}</span>}
       </span>
     </th>
@@ -162,12 +163,12 @@ function GroupCell({
 }
 
 function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
-  const { display, interaction, derived } = usePivotTableRenderContext();
+  const { display, interaction, renderConfig, derived } = usePivotTableRenderContext();
   const numVal = getSortValue(row, stat, display.isAggregating, display.aggMode);
   const range = derived.columnRanges.get(stat);
   const bg =
     numVal !== null && range
-      ? gradientBg(numVal, range.min, range.max, display.colorPalette, display.darkMode)
+      ? gradientBg(numVal, range, display.scaleType, display.colorPalette, display.darkMode)
       : undefined;
   const isStatHovered = interaction.hoveredStat?.name === stat;
   const colHighlight = isStatHovered ? HIGHLIGHT_WASH : undefined;
@@ -184,16 +185,19 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
     onMouseEnter: () => interaction.setHoveredStat(derived.buildHoveredStatInfo(stat)),
     onMouseLeave: () => interaction.setHoveredStat(null),
   };
-  const fmt = display.formatNumericValue;
+  const formatValue = (value: StatValue, statName: string, quantity?: string) =>
+    renderConfig.formatValue?.(value, statName, quantity) ?? formatStatValue(value, statName);
   if (!display.isAggregating) {
-    const val = row.values.get(stat) ?? null;
+    const entries = row.values.get(stat) ?? [];
     return (
       <td
         className="relative z-0 px-3 py-1.5 whitespace-nowrap text-right font-mono"
         style={{ backgroundColor: bg, boxShadow: cellHighlight }}
         {...statCellProps}
       >
-        {typeof val === 'number' && fmt ? fmt(val, stat) : formatStatValue(val, stat)}
+        {entries.length
+          ? entries.map(entry => formatValue(entry.value, entry.key, entry.quantity)).join(', ')
+          : '-'}
       </td>
     );
   }
@@ -216,9 +220,7 @@ function DataCell({ row, stat }: DataCellProps<PivotedRow>) {
       style={{ backgroundColor: bg, boxShadow: cellHighlight }}
       {...statCellProps}
     >
-      {fmt && typeof displayVal === 'number'
-        ? fmt(displayVal, stat)
-        : formatNumericStat(displayVal, stat)}
+      {formatValue(displayVal, stat, agg.quantity)}
     </td>
   );
 }
@@ -253,8 +255,6 @@ interface PivotedStatTableProps<TRow> {
   /** Optional controlled sort state, forwarded to the underlying GroupedDataTable. */
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
-  /** Optional formatter for numeric stat values; falls back to inferFieldFormatter when absent. */
-  formatNumericValue?: (value: number, statName: string) => string;
 }
 
 export function PivotedStatTable<TRow>({
@@ -275,9 +275,9 @@ export function PivotedStatTable<TRow>({
   onReorderStat,
   sorting,
   onSortingChange,
-  formatNumericValue,
 }: PivotedStatTableProps<TRow>) {
   const [nodePalette] = useNodeColorPalette();
+  const [scaleType] = useSelectedScaleType();
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const dragGhostRef = useRef<HTMLElement | null>(null);
   const [hoveredHeaderItemIds, setHoveredHeaderItemIds] = useState<Set<string> | null>(null);
@@ -291,6 +291,9 @@ export function PivotedStatTable<TRow>({
   const effectiveRenderConfig = useMemo(
     (): PivotTableRenderConfig => ({
       getGroupTypeColor: renderConfig?.getGroupTypeColor,
+      getStatLabel: renderConfig?.getStatLabel,
+      getStatTitle: renderConfig?.getStatTitle,
+      formatValue: renderConfig?.formatValue,
     }),
     [renderConfig]
   );
@@ -324,20 +327,25 @@ export function PivotedStatTable<TRow>({
     groupRenderMode ?? (virtualization?.enabled ? 'compact' : 'rowSpan');
 
   const statsByItem = useMemo(() => {
-    const map = new Map<string, Map<string, number>>();
+    const cells = new Map<string, Map<string, number | null>>();
     for (const row of expandedRows) {
-      const v = typeof row.value === 'number' ? row.value : null;
-      if (v === null) {
-        continue;
+      let items = cells.get(row.statisticName);
+      if (!items) {
+        items = new Map();
+        cells.set(row.statisticName, items);
       }
-      let itemMap = map.get(row.statisticName);
-      if (!itemMap) {
-        itemMap = new Map();
-        map.set(row.statisticName, itemMap);
-      }
-      itemMap.set(row.itemId, v);
+      // Repeated names have no single numeric value for hover linkage.
+      items.set(
+        row.itemId,
+        items.has(row.itemId) || typeof row.value !== 'number' ? null : row.value
+      );
     }
-    return map;
+    return new Map(
+      [...cells].map(([name, items]) => [
+        name,
+        new Map([...items].filter((entry): entry is [string, number] => entry[1] !== null)),
+      ])
+    );
   }, [expandedRows]);
 
   const buildHoveredStatInfo = useCallback(
@@ -377,7 +385,7 @@ export function PivotedStatTable<TRow>({
 
   // A pivoted row is "empty" when none of the currently visible stats have a
   // renderable value for it. In non-aggregating mode that means every
-  // `values.get(stat)` is null/undefined; in aggregating mode it means every
+  // each entry in `values.get(stat)` is null/undefined; in aggregating mode it means every
   // `aggs.get(stat)` is missing or non-numeric (i.e. the cell would render '-').
   const visiblePivotedRows = useMemo(() => {
     if (!hideEmptyRows) {
@@ -392,7 +400,7 @@ export function PivotedStatTable<TRow>({
           }
         } else {
           const v = row.values.get(stat);
-          if (v !== null && v !== undefined) {
+          if (v?.some(entry => entry.value !== null && entry.value !== undefined)) {
             return true;
           }
         }
@@ -402,25 +410,18 @@ export function PivotedStatTable<TRow>({
   }, [pivotedRows, hideEmptyRows, effectiveVisibleStats, isAggregating]);
 
   const columnRanges = useMemo(() => {
-    const ranges = new Map<string, { min: number; max: number }>();
+    const ranges = new Map<string, ScaleRange>();
     for (const stat of effectiveVisibleStats) {
-      let min = Infinity;
-      let max = -Infinity;
+      const nums: number[] = [];
       for (const row of visiblePivotedRows) {
         const v = getSortValue(row, stat, isAggregating, aggMode);
         if (v !== null) {
           // Convert to number for gradient color math — precision loss is acceptable here
-          const n = Number(v);
-          if (n < min) {
-            min = n;
-          }
-          if (n > max) {
-            max = n;
-          }
+          nums.push(Number(v));
         }
       }
-      if (min !== Infinity) {
-        ranges.set(stat, { min, max });
+      if (nums.length > 0) {
+        ranges.set(stat, computeScaleRange(nums));
       }
     }
     return ranges;
@@ -565,10 +566,10 @@ export function PivotedStatTable<TRow>({
       isAggregating,
       aggMode,
       colorPalette: nodePalette,
+      scaleType,
       darkMode: isDark,
-      formatNumericValue,
     }),
-    [isAggregating, aggMode, nodePalette, isDark, formatNumericValue]
+    [isAggregating, aggMode, nodePalette, scaleType, isDark]
   );
   const dndContextValue = useMemo(
     () => ({
@@ -615,14 +616,21 @@ export function PivotedStatTable<TRow>({
     }));
     const statCols: GroupedDataTableColumnDef<PivotedRow>[] = effectiveVisibleStats.map(stat => ({
       id: stat,
-      header: stat,
+      header: effectiveRenderConfig.getStatLabel?.(stat) ?? stat,
       enableSorting: true,
       sortUndefined: 'last',
       sortFn: numericSortingFn,
       accessorFn: (row: PivotedRow) => getSortValue(row, stat, isAggregating, aggMode) ?? undefined,
     }));
     return [...groupCols, ...statCols];
-  }, [activeIndices, effectiveVisibleStats, resolvedIndexLabels, isAggregating, aggMode]);
+  }, [
+    activeIndices,
+    effectiveVisibleStats,
+    resolvedIndexLabels,
+    effectiveRenderConfig,
+    isAggregating,
+    aggMode,
+  ]);
 
   const hasSelection = (effectiveSelectedItemIds?.size ?? 0) > 0;
   const isSelected = (row: PivotedRow) =>

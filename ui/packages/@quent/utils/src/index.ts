@@ -3,10 +3,17 @@
 
 // Utilities
 export { cn } from './cn';
-export { clamp } from './math';
+export {
+  clamp,
+  logScaleValueAt,
+  normalizeLinearScale,
+  normalizeLogScale,
+  normalizeLogScale as normalizeEdgeWidth,
+} from './math';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
 export { getFsmTypeName, getResourceTypeName } from './timeline';
 export { workerDisplayName } from './worker';
+export { ALL_FSMS, resolveResourceFsmType, resourceFsmChoices } from './resource';
 
 // Color utilities
 export {
@@ -80,7 +87,9 @@ export { EntityTypeKey, unpackEntityRef } from './entityTypes';
 export type { EntityTypeValue, SingleEntity, EntityRefKey, EntityRefParts } from './entityTypes';
 
 // DAG coloring types (shared between @quent/hooks and @quent/components)
-export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION } from './dagTypes';
+export { NODE_LABEL_FIELD, DAG_LAYOUT_DIRECTION, SCALE_TYPE } from './dagTypes';
+export { computeScaleRange, normalizeScaleValue, scaleColor, scaleMidpoint } from './scale';
+export type { ScaleRange } from './scale';
 export type {
   ContinuousNodeColoring,
   CategoricalNodeColoring,
@@ -91,9 +100,11 @@ export type {
   EdgeColoring,
   NodeLabelField,
   DagLayoutDirection,
+  ScaleType,
   StatValue,
   DAGNode,
   DAGEdge,
+  DAGStatisticSet,
 } from './dagTypes';
 
 // Operator selection types
@@ -129,6 +140,22 @@ export function workerIdFromOperatorTimelineRowId(id: string): string | null {
     ? id.slice(OPERATOR_TIMELINE_ROW_ID_PREFIX.length)
     : null;
 }
+
+export { isStatStruct } from './dagTypes';
+export type { Statistic, StatStruct } from './dagTypes';
+
+export {
+  buildStatisticFieldPresentations,
+  flattenStatistics,
+  statisticFieldId,
+  statisticFieldLabel,
+  statisticFieldName,
+} from './statisticFields';
+export type {
+  StatisticField,
+  StatisticFieldPath,
+  StatisticFieldPresentation,
+} from './statisticFields';
 
 // Long-entities row ID utilities
 export const LONG_ENTITIES_ROW_TYPE = 'long-entities';

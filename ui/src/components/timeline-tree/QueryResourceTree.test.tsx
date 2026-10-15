@@ -149,7 +149,7 @@ vi.mock('@quent/client', async importOriginal => {
 // ---------------------------------------------------------------------------
 
 const DURATION_S = 100;
-const ROOT_GROUP_ID = 'qg-1';
+const ENGINE_ID = 'engine-1';
 const NESTED_GROUP_ID = 'rg-1';
 const RESOURCE_ID = 'res-1';
 const RESOURCE_TYPE = 'GPU';
@@ -159,14 +159,13 @@ const makeBundle = (workerId: string | null = null): QueryBundle<EntityRef> =>
   ({
     query_id: 'test-query',
     entities: {
-      engine: { id: 'engine-1' },
-      query_group: { id: ROOT_GROUP_ID },
+      engine: { id: ENGINE_ID },
       query: { id: 'query-1' },
       workers: {},
       plans: {},
       operators: {},
       ports: {},
-      resource_types: { [RESOURCE_TYPE]: { used_by: ['task'], capacities: [] } },
+      resource_types: { [RESOURCE_TYPE]: { display_order: [{ Type: 'task' }], capacities: [] } },
       resource_group_types: {},
       resources: {
         [RESOURCE_ID]: { id: RESOURCE_ID, instance_name: 'GPU 0', type_name: RESOURCE_TYPE },
@@ -176,7 +175,7 @@ const makeBundle = (workerId: string | null = null): QueryBundle<EntityRef> =>
     },
     resource_tree: {
       ResourceGroup: {
-        id: { QueryGroup: ROOT_GROUP_ID },
+        id: { Engine: ENGINE_ID },
         children: [{ Resource: { Resource: RESOURCE_ID } }],
       },
     },
@@ -193,11 +192,11 @@ const makeNestedBundle = (): QueryBundle<EntityRef> => {
     id: NESTED_GROUP_ID,
     instance_name: 'Worker 0',
     type_name: 'WorkerGroup',
-    parent_group_id: ROOT_GROUP_ID,
+    parent_group_id: ENGINE_ID,
   } satisfies QueryBundle<EntityRef>['entities']['resource_groups'][string];
   const nestedResourceTree = {
     ResourceGroup: {
-      id: { QueryGroup: ROOT_GROUP_ID },
+      id: { Engine: ENGINE_ID },
       children: [
         {
           ResourceGroup: {
@@ -358,7 +357,7 @@ describe('QueryResourceTree — TimelineController always shows full-range data'
       [
         'bulk-id-1',
         {
-          resourceId: ROOT_GROUP_ID,
+          resourceId: ENGINE_ID,
           resourceTypeName: RESOURCE_TYPE,
           operatorIds: [],
           fsmTypeName: null,
@@ -379,7 +378,7 @@ describe('QueryResourceTree — TimelineController always shows full-range data'
 
     // Confirm the atom was indeed overwritten with zoomed data (bug mechanism is intact)
     const cacheKey = timelineCacheKey({
-      resourceId: ROOT_GROUP_ID,
+      resourceId: ENGINE_ID,
       resourceTypeName: RESOURCE_TYPE,
       fsmTypeName: null,
     });
@@ -674,7 +673,7 @@ describe('QueryResourceTree — resource filtering', () => {
       </JotaiProvider>
     );
 
-    await waitFor(() => expect(capturedTreeData[0]?.id).toBe(ROOT_GROUP_ID));
+    await waitFor(() => expect(capturedTreeData[0]?.id).toBe(ENGINE_ID));
     expect(capturedExpandedIds).not.toContain(RESOURCE_ID);
 
     act(() => capturedOnExpandChange?.(RESOURCE_ID, true));
@@ -701,10 +700,10 @@ describe('QueryResourceTree — resource filtering', () => {
 
     await userEvent.click(getByRole('button', { name: 'Resource filters, 1 selected filter' }));
     expect(getByRole('checkbox', { name: 'Show All' })).toBeChecked();
-    await waitFor(() => expect(capturedTreeData[0]?.id).toBe(ROOT_GROUP_ID));
+    await waitFor(() => expect(capturedTreeData[0]?.id).toBe(ENGINE_ID));
     expect(capturedTreeData[0]?.children?.[0]?.id).toBe(RESOURCE_ID);
     expect(capturedHighlightedIds).toContain(RESOURCE_ID);
-    expect(capturedExpandedIds).toContain(ROOT_GROUP_ID);
+    expect(capturedExpandedIds).toContain(ENGINE_ID);
   });
 
   it('auto-expands every ancestor of found resources while Show All is selected', async () => {
@@ -727,7 +726,7 @@ describe('QueryResourceTree — resource filtering', () => {
     );
 
     await waitFor(() => {
-      expect(capturedExpandedIds).toContain(ROOT_GROUP_ID);
+      expect(capturedExpandedIds).toContain(ENGINE_ID);
       expect(capturedExpandedIds).toContain(NESTED_GROUP_ID);
     });
   });
@@ -752,7 +751,7 @@ describe('QueryResourceTree — resource filtering', () => {
     );
 
     await waitFor(() => {
-      expect(capturedExpandedIds).toContain(ROOT_GROUP_ID);
+      expect(capturedExpandedIds).toContain(ENGINE_ID);
       expect(capturedExpandedIds).toContain(NESTED_GROUP_ID);
     });
   });

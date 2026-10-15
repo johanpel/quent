@@ -19,6 +19,7 @@ import {
 import { clamp, formatDuration } from '@quent/utils';
 import type { ZoomRange } from '@quent/utils';
 import {
+  ALL_FSMS_COLORS,
   buildBinnedTimelineSeries,
   getAdaptiveNumBins,
   getTimelineXAxisIntervalMs,
@@ -65,7 +66,7 @@ export function TimelineController({
   isDark,
 }: TimelineControllerProps) {
   const { themeName, controllerGridBackgroundColor } = useTimelineEchartsTheme(isDark);
-  const colorCapacity = useColorResolver(COLOR_REGISTRY_KEYS.CAPACITIES);
+  const allFsmsColor = ALL_FSMS_COLORS[isDark ? 'dark' : 'light'];
   const colorFsmState = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
 
   const { timestamps, seriesData } = useMemo(() => {
@@ -73,8 +74,8 @@ export function TimelineController({
       const { timestamps: ts, series } = buildBinnedTimelineSeries(
         timelineData.data,
         timelineData.config,
-        colorCapacity,
-        colorFsmState
+        colorFsmState,
+        allFsmsColor
       );
       const entries = Object.entries(series);
       const values = entries.length > 0 ? entries[0][1].values : null;
@@ -85,7 +86,7 @@ export function TimelineController({
       const ts = Array.from({ length: numBins }, (_, i) => i * binDurationMs);
       return { timestamps: ts, seriesData: null };
     }
-  }, [timelineData, durationSeconds, colorCapacity, colorFsmState]);
+  }, [timelineData, durationSeconds, colorFsmState, allFsmsColor]);
 
   const hasSeriesData = useMemo(() => Boolean(seriesData && seriesData.length > 0), [seriesData]);
 

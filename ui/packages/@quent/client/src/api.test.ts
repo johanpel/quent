@@ -3,7 +3,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { DataFlowTimelineBinned, TimelineConfig } from '@quent/utils';
-import { fetchDataFlow } from './api';
+import { fetchDataFlow, fetchListEngines, fetchListQueries } from './api';
 
 const CONFIG: TimelineConfig = { start: 0, end: 8, num_bins: 4 };
 
@@ -26,6 +26,34 @@ function stubFetch(response: Response) {
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
+
+describe('catalog fetchers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('fetches the engine catalog with metadata', async () => {
+    const response = { items: [], initial_group_by_attribute: 'frontend' };
+    const fetchMock = stubFetch(new Response(JSON.stringify(response), { status: 200 }));
+
+    await expect(fetchListEngines()).resolves.toEqual(response);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/engines\?with_metadata=true$/),
+      expect.any(Object)
+    );
+  });
+
+  it('fetches every query for an engine without a query-group parameter', async () => {
+    const response = { items: [], initial_group_by_attribute: 'workload' };
+    const fetchMock = stubFetch(new Response(JSON.stringify(response), { status: 200 }));
+
+    await expect(fetchListQueries('engine-1')).resolves.toEqual(response);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/engines\/engine-1\/queries$/),
+      expect.any(Object)
+    );
+  });
+});
 
 describe('fetchDataFlow', () => {
   afterEach(() => {

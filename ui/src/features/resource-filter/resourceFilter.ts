@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { TreeTableItem } from '@quent/components';
-import { EntityTypeKey, type QueryEntities } from '@quent/utils';
+import { ALL_FSMS, EntityTypeKey, type QueryEntities } from '@quent/utils';
 
 export const MAX_RESOURCE_FILTER_QUERY_LENGTH = 512;
 
@@ -44,7 +44,11 @@ function itemMatches(
   const name = 'instance_name' in entity ? (entity.instance_name ?? '') : '';
   const typeName = 'type_name' in entity ? (entity.type_name ?? '') : '';
   const isResource = item.type === EntityTypeKey.Resource;
-  const fsmTypes = isResource ? (entities.resource_types[typeName]?.used_by ?? []) : [];
+  const fsmTypes = isResource
+    ? (entities.resource_types[typeName]?.display_order ?? []).flatMap(selection =>
+        selection === ALL_FSMS ? [] : [selection.Type]
+      )
+    : [];
   const searchTermGroups = filter.search
     .split(',')
     .map(group => group.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean))
@@ -71,7 +75,7 @@ function itemMatches(
     (!isResource ||
       !fsmTypes.some(fsmType =>
         filter.fsmTypes.some(
-          selectedFsmType => fsmType.toLocaleLowerCase() === selectedFsmType.toLocaleLowerCase()
+          selectedFsmType => fsmType?.toLocaleLowerCase() === selectedFsmType.toLocaleLowerCase()
         )
       ))
   ) {

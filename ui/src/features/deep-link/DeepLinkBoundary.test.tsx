@@ -40,6 +40,7 @@ const BOUNDARY_PROPS = {
   engineId: 'e',
   queryId: 'q',
   activeTab: 'timeline' as const,
+  initialPlanId: '',
   durationSeconds: 100,
   isQueryReady: true,
   operators: [],
@@ -54,7 +55,7 @@ const DEEP_LINK_OPERATORS: Operator[] = [
     parent_operator_ids: [],
     instance_name: 'Operator A',
     operator_type_name: null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   },
@@ -64,7 +65,7 @@ const DEEP_LINK_OPERATORS: Operator[] = [
     parent_operator_ids: ['operator-a'],
     instance_name: 'Operator Child',
     operator_type_name: null,
-    custom_attributes: {},
+    custom_attributes: [],
     statistics: null,
     active_span: null,
   },
@@ -304,6 +305,7 @@ describe('DeepLinkBoundary', () => {
         edgeColorPalette: 'purple',
         nodeLabelField: 'type',
         layoutDirection: 'top-to-bottom',
+        scaleType: 'linear',
       },
       dataFlow: {
         enabled: false,
@@ -329,6 +331,7 @@ describe('DeepLinkBoundary', () => {
       <JotaiProvider>
         <DeepLinkBoundary
           {...BOUNDARY_PROPS}
+          initialPlanId="root-plan"
           operators={DEEP_LINK_OPERATORS}
           encodedState={encoded.value}
         >
@@ -353,6 +356,7 @@ describe('DeepLinkBoundary', () => {
           edgeColorPalette: 'purple',
           nodeLabelField: 'type',
           layoutDirection: 'top-to-bottom',
+          scaleType: 'linear',
         },
         dataFlow: {
           enabled: false,

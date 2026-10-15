@@ -8,7 +8,7 @@ pub use data_flow::DataFlowTimelineBinned;
 mod server;
 pub use server::ServerContract;
 
-use quent_dynamic_attributes::{DynamicAttribute, DynamicValue};
+use quent_dynamic_attributes::DynamicAttribute;
 use quent_time::{SpanSec, TimeSec, TimeUnixNanoSec};
 use quent_ui::{
     FiniteStateMachine, Resource, ResourceGroup, ResourceGroupTypeDecl, ResourceTree,
@@ -24,7 +24,6 @@ use uuid::Uuid;
 pub enum EntityRef {
     Engine(Uuid),
     Worker(Uuid),
-    QueryGroup(Uuid),
     Query(Uuid),
     Plan(Uuid),
     Operator(Uuid),
@@ -111,6 +110,9 @@ pub struct Engine {
     /// The name of this [`Engine`] instance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_name: Option<String>,
+    /// Application-specific attributes exposed to the UI.
+    /// Analyzers should convert statically typed values only at this boundary.
+    pub custom_attributes: Vec<DynamicAttribute>,
     /// Details about the Engine implementation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub implementation: Option<EngineImplementationAttributes>,
@@ -123,20 +125,10 @@ impl Engine {
             start_time_unix_ns: None,
             duration_s: None,
             instance_name: None,
+            custom_attributes: Vec::new(),
             implementation: None,
         }
     }
-}
-
-/// A group of [`Query`]s.
-#[derive(TS, Debug, Serialize)]
-pub struct QueryGroup {
-    /// The ID of this query group.
-    pub id: Uuid,
-    /// The name of this query group.
-    pub instance_name: Option<String>,
-    /// The id of the engine this query group was executed on.
-    pub engine_id: Option<Uuid>,
 }
 
 /// A [`Query`] executed by an [`Engine`].
@@ -144,10 +136,11 @@ pub struct QueryGroup {
 pub struct Query {
     /// The ID of this [`Query`].
     pub id: Uuid,
-    /// The ID of the `QueryGroup` this query is part of.
-    pub query_group_id: Uuid,
     /// A name for this [`Query`].
     pub instance_name: Option<String>,
+    /// Application-specific attributes exposed to the UI.
+    /// Analyzers should convert statically typed values only at this boundary.
+    pub custom_attributes: Vec<DynamicAttribute>,
 
     /// The start time of this query, relative to the Unix epoch.
     pub start_unix_ns: Option<TimeUnixNanoSec>,
@@ -161,6 +154,20 @@ pub struct Query {
     /// The time relative to the start time at which the engine started
     /// completed executing this query.
     pub completed_s: Option<TimeSec>,
+}
+
+/// Engines available for selection in the UI.
+#[derive(TS, Debug, Serialize)]
+pub struct EngineListResponse {
+    pub items: Vec<Engine>,
+    pub initial_group_by_attribute: Option<String>,
+}
+
+/// Queries available for selection within an engine.
+#[derive(TS, Debug, Serialize)]
+pub struct QueryListResponse {
+    pub items: Vec<Query>,
+    pub initial_group_by_attribute: Option<String>,
 }
 
 /// A worker that executed a leaf [`Plan`].
@@ -210,8 +217,8 @@ pub struct Plan {
 
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistic {
-    /// The value of this statistic.
-    pub value: Option<DynamicValue>,
+    /// The producer-defined name and optional value of this statistic.
+    pub value: DynamicAttribute,
     /// The key of the [`QuantitySpec`] in [`QueryBundle::quantity_specs`] used
     /// to display this statistic.
     pub quantity: Option<String>,
@@ -219,8 +226,8 @@ pub struct OperatorStatistic {
 
 #[derive(TS, Debug, Serialize)]
 pub struct OperatorStatistics {
-    /// Custom statistics.
-    pub custom_statistics: HashMap<String, OperatorStatistic>,
+    /// Producer-defined statistics in display order.
+    pub custom_statistics: Vec<OperatorStatistic>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -238,7 +245,7 @@ pub struct Operator {
     pub operator_type_name: Option<String>,
 
     /// The dynamic attributes of this [`Operator`].
-    pub custom_attributes: HashMap<String, Option<DynamicValue>>,
+    pub custom_attributes: Vec<DynamicAttribute>,
     /// The statistics of this [`Operator`].
     ///
     /// These are attributes that are typically gathered after the work
@@ -257,8 +264,8 @@ pub struct Operator {
 
 #[derive(TS, Debug, Serialize)]
 pub struct PortStatistics {
-    /// Custom statistics
-    pub custom_statistics: HashMap<String, Option<DynamicValue>>,
+    /// Producer-defined statistics in display order.
+    pub custom_statistics: Vec<DynamicAttribute>,
 }
 
 #[derive(TS, Debug, Serialize)]
@@ -289,10 +296,6 @@ pub struct QueryEntities {
     ///
     /// Is a Resource Group.
     pub engine: Engine,
-    /// The group of this query.
-    ///
-    /// Is a Resource Group.
-    pub query_group: QueryGroup,
     /// The query.
     ///
     /// Is a Resource Group.
@@ -320,7 +323,6 @@ pub struct QueryEntities {
     ///
     /// This includes declarations for:
     /// - [`Engine`]
-    /// - [`QueryGroup`]
     /// - [`Query`]
     /// - [`Worker`]
     /// - [`Plan`]

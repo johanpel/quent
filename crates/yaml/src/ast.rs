@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! The shape a model file deserializes into, format `alpha`.
+//! The shape a YAML model file deserializes into.
 //!
 //! These types mirror the YAML one to one. Names stay as plain strings and are
 //! checked when the schema is built; the ordered maps keep declaration order.
@@ -15,6 +15,7 @@ use indexmap::IndexMap;
 use serde::Deserialize;
 
 use crate::extensions::{
+    dag::{DagEntityDecl, DagRelationField},
     fsm::FsmSpec,
     log::LogSpec,
     os::OsType,
@@ -33,7 +34,7 @@ pub(crate) type AnnotationMap = IndexMap<String, Option<String>>;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Model {
-    /// The format version. Only `alpha` is supported.
+    /// The Quent version used when writing the source or the legacy `alpha` alias.
     pub(crate) quent: String,
     pub(crate) model: String,
     #[serde(default)]
@@ -84,6 +85,8 @@ pub(crate) struct Entity {
     // Built-in extension AST nodes.
     #[serde(default)]
     pub(crate) resource: Option<ResourceDecl>,
+    #[serde(default)]
+    pub(crate) dag: Option<DagEntityDecl>,
 }
 
 /// An entity event.
@@ -114,6 +117,8 @@ pub(crate) enum Field {
     // Built-in extension AST nodes.
     /// An attribute carrying a resource's bounds.
     ResourceBounds(ResourceBoundsField),
+    /// A targeted DAG topology reference.
+    DagRelation(DagRelationField),
 }
 
 /// The mapping form of a field: a type plus annotations.

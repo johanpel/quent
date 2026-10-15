@@ -6,8 +6,8 @@ pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
 use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
 use quent_query_engine_analyzer::{
-    EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities, ui::UiAnalyzer,
+    EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, WorkerEntity, entities,
+    ui::UiAnalyzer,
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -64,6 +64,7 @@ use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanose
 use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
 
+use crate::boilerplate::engine_custom_attributes;
 pub use crate::boilerplate::{Task, TaskExt};
 use crate::model::{SimulatorModel, SimulatorModelBuilder};
 
@@ -264,6 +265,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             if let SimulatorEvent::Engine(schema::EngineEvent::Init {
                 implementation,
                 instance_name,
+                configuration,
             }) = event.data
             {
                 return Ok(quent_query_engine_ui::Engine {
@@ -271,6 +273,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     start_time_unix_ns: Some(event.timestamp),
                     duration_s: None,
                     instance_name,
+                    custom_attributes: engine_custom_attributes(&configuration),
                     implementation: Some(quent_query_engine_ui::EngineImplementationAttributes {
                         name: implementation.name,
                         version: implementation.version,
@@ -280,6 +283,14 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
             }
         }
         Ok(quent_query_engine_ui::Engine::new(engine_id))
+    }
+
+    fn engine_initial_group_by_attribute() -> Option<String> {
+        Some("workers".to_owned())
+    }
+
+    fn query_initial_group_by_attribute(&self) -> Option<String> {
+        Some("workload".to_owned())
     }
 
     fn try_new(
@@ -300,7 +311,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         tracing::info!(
             engines = 1,
-            query_groups = model.query_groups.len(),
             workers = model.workers.len(),
             plans = model.plans.len(),
             operators = model.operators.len(),
@@ -334,14 +344,7 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         let epoch = view.query_epoch(query_id)?;
 
         debug!("converting query engine model entities");
-        let engine = view.engine()?.to_ui()?;
-        let query_group_id = query.query_group_id().ok_or_else(|| {
-            quent_analyzer::AnalyzerError::IncompleteEntity(format!(
-                "query {} has no query_group_id",
-                query_id
-            ))
-        })?;
-        let query_group = view.query_group(query_group_id)?.to_ui();
+        let engine = EngineEntity::to_ui(view.engine()?)?;
         let query = query.to_ui()?;
         let workers = view.workers().map(|w| (w.id(), w.to_ui(epoch))).collect();
         let plans = view.plans().map(|p| (p.id(), p.to_ui())).collect();
@@ -353,11 +356,12 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                     statistics.custom_statistics =
                         std::mem::take(&mut statistics.custom_statistics)
                             .into_iter()
-                            .map(|(name, mut statistic)| {
+                            .map(|mut statistic| {
+                                let name = statistic.value.key.clone();
                                 let name = if let Some(value) =
-                                    scale_operator_statistic(&name, &statistic.value)
+                                    scale_operator_statistic(&name, &statistic.value.value)
                                 {
-                                    statistic.value = Some(value);
+                                    statistic.value.value = Some(value);
                                     statistic.quantity = Some(QUANTITY_SECONDS.to_owned());
                                     scaled_operator_statistic_name(name)
                                 } else {
@@ -365,7 +369,8 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
                                         operator_statistic_quantity(&name).map(str::to_owned);
                                     name
                                 };
-                                (name, statistic)
+                                statistic.value.key = name;
+                                statistic
                             })
                             .collect();
                 }
@@ -455,7 +460,6 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 
         let entities = QueryEntities {
             engine,
-            query_group,
             query,
             workers,
             plans,

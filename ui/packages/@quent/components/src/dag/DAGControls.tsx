@@ -8,6 +8,7 @@ import {
   useSelectedEdgeColorField,
   useSelectedNodeLabelField,
   useSelectedDagLayoutDirection,
+  useSelectedScaleType,
   useNodeColorPalette,
   useEdgeColorPalette,
   useDataFlowEnabled,
@@ -21,19 +22,33 @@ import {
   resolveDataFlowMeasure,
 } from '@quent/hooks';
 import {
+  buildStatisticFieldPresentations,
   NODE_LABEL_FIELD,
   DAG_LAYOUT_DIRECTION,
+  SCALE_TYPE,
   type NodeLabelField,
+  type StatisticField,
   type DagLayoutDirection,
+  type ScaleType,
 } from '@quent/utils';
-import { Palette, Spline, Brush, Type, ArrowUpDown, Gauge, Tags, Layers } from 'lucide-react';
+import {
+  Palette,
+  Spline,
+  Brush,
+  Type,
+  ArrowUpDown,
+  ChartLine,
+  Gauge,
+  Tags,
+  Layers,
+} from 'lucide-react';
 import { PalettePicker } from './PalettePicker';
 import { ControlField, ControlGrid, ControlSection } from '../ui/control-grid';
 import { RequiredMultiSelectField } from '../ui/required-multi-select-field';
 
 interface DAGControlsProps {
-  operatorStatFields: string[];
-  portStatFields: string[];
+  operatorStatFields: StatisticField[];
+  portStatFields: StatisticField[];
   /** Whether dark mode is active. Passed explicitly to decouple from ThemeContext. */
   isDark: boolean;
 }
@@ -46,10 +61,27 @@ const NODE_LABEL_OPTIONS: SelectFieldOption[] = [
   { value: NODE_LABEL_FIELD.TYPE, label: 'Type' },
 ];
 
+const EDGE_SCALE_OPTIONS: SelectFieldOption[] = [
+  { value: SCALE_TYPE.LOG, label: 'Log' },
+  { value: SCALE_TYPE.LINEAR, label: 'Linear' },
+];
+
 const LAYOUT_DIRECTION_OPTIONS: SelectFieldOption[] = [
   { value: DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP, label: 'Bottom to top' },
   { value: DAG_LAYOUT_DIRECTION.TOP_TO_BOTTOM, label: 'Top to bottom' },
 ];
+
+function statisticFieldOptions(fields: StatisticField[]): SelectFieldOption[] {
+  const presentations = buildStatisticFieldPresentations(fields);
+  return fields.map(field => {
+    const presentation = presentations.get(field.key);
+    return {
+      value: field.key,
+      label: presentation?.label ?? field.key,
+      title: presentation?.title,
+    };
+  });
+}
 
 /** DAG visual control toolbar: node color, edge width, edge color, node label field selectors. */
 export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGControlsProps) => {
@@ -57,6 +89,7 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const [edgeWidthField, setEdgeWidthField] = useSelectedEdgeWidthField();
   const [edgeColorField, setEdgeColorField] = useSelectedEdgeColorField();
   const [nodeLabelField, setNodeLabelField] = useSelectedNodeLabelField();
+  const [scaleType, setScaleType] = useSelectedScaleType();
   const [layoutDirection, setLayoutDirection] = useSelectedDagLayoutDirection();
   const [nodePalette, setNodePalette] = useNodeColorPalette();
   const [edgePalette, setEdgePalette] = useEdgeColorPalette();
@@ -69,8 +102,8 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
   const setDataFlowLabelMeasure = useSetDataFlowLabelMeasure();
   const setDataFlowSelectedDimensions = useSetDataFlowSelectedDimensions();
 
-  const operatorOptions: SelectFieldOption[] = operatorStatFields.map(f => ({ value: f }));
-  const portOptions: SelectFieldOption[] = portStatFields.map(f => ({ value: f }));
+  const operatorOptions = statisticFieldOptions(operatorStatFields);
+  const portOptions = statisticFieldOptions(portStatFields);
 
   const measureOptions: SelectFieldOption[] = (dataFlowMeta?.decl.measures ?? []).map(m => ({
     value: m.name,
@@ -153,6 +186,17 @@ export const DAGControls = ({ operatorStatFields, portStatFields, isDark }: DAGC
               value={nodeLabelField}
               onValueChange={v => v && setNodeLabelField(v as NodeLabelField)}
               placeholder="Name"
+              clearable={false}
+              triggerClassName="h-6 text-xs"
+            />
+          </ControlField>
+          <ControlField label="Scale" icon={ChartLine}>
+            <SelectField
+              ariaLabel="Scale"
+              options={EDGE_SCALE_OPTIONS}
+              value={scaleType}
+              onValueChange={v => v && setScaleType(v as ScaleType)}
+              placeholder="Log"
               clearable={false}
               triggerClassName="h-6 text-xs"
             />

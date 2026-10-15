@@ -12,12 +12,13 @@ import {
 } from 'react';
 import { useStore } from 'jotai';
 import {
+  useHydrateSelectedPlanId,
   useReadZoomRange,
   useSerializableViewState,
   useSetDebouncedZoomRange,
   useSetZoomRange,
 } from '@quent/hooks';
-import { DAG_LAYOUT_DIRECTION, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
+import { DAG_LAYOUT_DIRECTION, SCALE_TYPE, NODE_LABEL_FIELD, type Operator } from '@quent/utils';
 import { toast } from '@quent/components';
 import {
   entitiesTableStateAtom,
@@ -69,6 +70,7 @@ interface DeepLinkBoundaryProps {
   engineId: string;
   queryId?: string;
   activeTab?: DeepLinkTab;
+  initialPlanId: string;
   durationSeconds: number;
   defaultRootResourceType?: string | null;
   operators: readonly Operator[];
@@ -162,12 +164,14 @@ export function DeepLinkBoundary({
   engineId,
   queryId,
   activeTab,
+  initialPlanId,
   durationSeconds,
   defaultRootResourceType = null,
   operators,
   encodedState,
   isQueryReady,
 }: DeepLinkBoundaryProps) {
+  useHydrateSelectedPlanId(initialPlanId);
   const store = useStore();
   const readZoomRange = useReadZoomRange();
   const setZoomRange = useSetZoomRange();
@@ -483,6 +487,9 @@ export function DeepLinkBoundary({
     }
     if (sharedView.dag.layoutDirection !== DAG_LAYOUT_DIRECTION.BOTTOM_TO_TOP) {
       dag.layoutDirection = sharedView.dag.layoutDirection;
+    }
+    if (sharedView.dag.scaleType !== SCALE_TYPE.LOG) {
+      dag.scaleType = sharedView.dag.scaleType;
     }
     if (hasKeys(dag)) {
       state.dag = dag;

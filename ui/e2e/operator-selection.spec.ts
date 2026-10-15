@@ -151,6 +151,7 @@ test('Gantt and entity operator selections stay synchronized with the DAG and de
     name: /Operator Gantt chart:.*FinalAggregate/,
   });
   await clickGanttAtSecond(worker0Chart, 3.5);
+  await expectSelectedGanttOperators(page, [PARTIAL_AGGREGATE_W0_ID]);
   await clickGanttAtSecond(worker0Chart, 4.5);
 
   await expectSelectedGanttOperators(page, [PARTIAL_AGGREGATE_W0_ID, FINAL_AGGREGATE_ID]);

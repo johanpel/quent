@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { gunzipSync, gzipSync, strFromU8, strToU8 } from 'fflate';
+import type { ZodError } from 'zod';
 import {
   SUPPORTED_DEEP_LINK_SCHEMAS,
   type DeepLinkVersion,
@@ -34,6 +35,11 @@ function failure(code: DeepLinkErrorCode, message: string): DeepLinkResult<never
   return { ok: false, code, message };
 }
 
+function invalidState(error: ZodError, fallback: string): DeepLinkResult<never> {
+  const limitIssue = error.issues.find(issue => issue.code === 'too_big');
+  return failure('invalid-state', limitIssue?.message ?? fallback);
+}
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (const byte of bytes) {
@@ -58,7 +64,7 @@ function base64UrlToBytes(value: string): Uint8Array | null {
 export function encodeDeepLinkState(state: DeepLinkStateV3): DeepLinkResult<string> {
   const parsed = DeepLinkStateV3Schema.safeParse(state);
   if (!parsed.success) {
-    return failure('invalid-state', 'The current shared view state is invalid.');
+    return invalidState(parsed.error, 'The current shared view state is invalid.');
   }
 
   const json = JSON.stringify(parsed.data);
@@ -102,7 +108,10 @@ export function decodeDeepLinkState(encoded: string): DeepLinkResult<VersionedDe
     const json = JSON.parse(strFromU8(decompressed)) as unknown;
     const parsed = versionedSchema.schema.safeParse(json);
     if (!parsed.success) {
-      return failure('invalid-state', `The deep-link state does not match the ${version} schema.`);
+      return invalidState(
+        parsed.error,
+        `The deep-link state does not match the ${version} schema.`
+      );
     }
     return { ok: true, value: { version: versionedSchema.version, data: parsed.data } };
   } catch {

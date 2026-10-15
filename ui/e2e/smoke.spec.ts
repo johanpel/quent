@@ -16,22 +16,15 @@ test('smoke tests the query profiler routes', async ({ page }) => {
   expect(response?.ok()).toBe(true);
 
   await expect(page).toHaveTitle('Quent UI');
-  await expect(page.getByRole('heading', { name: 'Query Profiler' })).toBeVisible();
-  await expect(page.getByText('Select an engine, coordinator, and query')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Select an engine' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   await expectNoErrors(page, errors, allowedMissingNvtxCatalogErrors);
 
-  await page.getByRole('combobox').first().click();
-  await expect(page.getByRole('option', { name: 'test-engine' })).toBeVisible();
-  await page.getByRole('option', { name: 'test-engine' }).click();
-
-  await page.getByRole('combobox').nth(1).click();
-  await expect(page.getByRole('option', { name: 'test-group' })).toBeVisible();
-  await page.getByRole('option', { name: 'test-group' }).click();
-
-  await page.getByRole('combobox').nth(2).click();
-  await expect(page.getByRole('option', { name: 'test-query' })).toBeVisible();
-  await page.getByRole('option', { name: 'test-query' }).click();
+  await expect(page.getByText('test-engine')).toBeVisible();
+  await page.getByRole('link', { name: 'View queries: test-engine' }).click();
+  await expect(page.getByRole('heading', { name: 'Select a query' })).toBeVisible();
+  await expect(page.getByText('test-query')).toBeVisible();
+  await page.getByRole('link', { name: 'View profile: test-query' }).click();
 
   await expect(page).toHaveURL(new RegExp(`${QUERY_PATH}/timeline$`));
   await expect(page.getByRole('tree').getByText('test-engine', { exact: true })).toBeVisible();

@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export type BenchLanguage = 'rust' | 'cpp' | 'python';
+export type BenchImplementation = string | { quent: ['tokio' | 'per-thread', 'std' | 'quanta'] };
 
 export interface BenchCase {
-  implementation: string;
+  implementation: BenchImplementation;
   language?: BenchLanguage;
   exporter: string | null;
   event_shape: string | null;
@@ -60,9 +61,17 @@ export function availableLanguages(report: BenchReport): BenchLanguage[] {
   return (['rust', 'cpp', 'python'] as BenchLanguage[]).filter((language) => found.has(language));
 }
 
+export function implementationName(value: BenchImplementation): string {
+  if (typeof value === 'string') return value;
+  const [channel, clock] = value.quent;
+  return ['quent', channel === 'per-thread' ? 'pt' : '', clock === 'quanta' ? 'quanta' : '']
+    .filter(Boolean).join('-');
+}
+
 export function caseLabel(value: BenchCase): string {
   if (value.event_shape === null) return `${languageLabel(caseLanguage(value))} / empty loop`;
-  const framework = value.implementation === 'quent' ? 'Quent' : value.implementation;
+  const name = implementationName(value.implementation);
+  const framework = name === 'quent' ? 'Quent' : name;
   return `${framework} / ${value.exporter ?? 'default'}`;
 }
 

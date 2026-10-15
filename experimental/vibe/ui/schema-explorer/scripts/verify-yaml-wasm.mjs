@@ -18,7 +18,7 @@ const examples = [
   ['simple', 3],
   ['hello', 1],
   ['dynamo-inference', 23],
-  ['simulator', 14],
+  ['simulator', 13],
   ['sirius', 16],
 ];
 
@@ -31,10 +31,23 @@ for (const [name, entityCount] of examples) {
   assert.equal(schema.entities.length, entityCount, name);
   assert.equal(typeof schema.entities[0][0].name, 'string', name);
   assert.ok(Array.isArray(schema.entities[0][0].namespace), name);
+  if (name === 'simulator') {
+    assert.ok(!schema.entities.some(([path]) => path.name === 'QueryGroup'));
+    const query = schema.entities.find(([path]) => path.name === 'Query')?.[1];
+    assert.equal(
+      query.events.registered.payload.custom_attributes.ty,
+      'DynamicRecord',
+    );
+    assert.equal(
+      query.events.registered.payload.parent.ty.EntityRef.annotations
+        .constraints['quent.ref-target.v0.1.0'].data,
+      'Engine',
+    );
+  }
 }
 
 const osSchema = JSON.parse(parse_schema_json(`
-quent: alpha
+quent: "0.1.0"
 model: OsRecords
 entities:
   Process:
@@ -48,6 +61,6 @@ assert.ok(osSchema.records.some(([path]) => (
 )));
 
 assert.throws(
-  () => parse_schema_json('quent: alpha\nmodel: broken\nentities: ['),
+  () => parse_schema_json('quent: "0.1.0"\nmodel: broken\nentities: ['),
   /editor\.yaml/,
 );

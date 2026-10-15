@@ -130,6 +130,9 @@ export {
   TableCell,
   TableCaption,
 } from './ui/table';
+export type { TableProps } from './ui/table';
+export { InnerScrollTable } from './ui/inner-scroll-table';
+export type { InnerScrollTableProps } from './ui/inner-scroll-table';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs';
 export {
   Toaster,

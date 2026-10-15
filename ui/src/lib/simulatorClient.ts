@@ -5,12 +5,11 @@ import { setApiClient, type ApiClient } from '@quent/client';
 import { parseJsonWithBigInt } from '@quent/utils';
 import type {
   DataFlowTimelineBinned,
-  Engine,
   EngineContexts,
+  EngineListResponse,
   EntityListResponse,
-  Query,
   QueryBundle,
-  QueryGroup,
+  QueryListResponse,
   SingleTimelineResponse,
   BulkTimelinesResponse,
   EntityRef,
@@ -70,13 +69,10 @@ export async function installSimulatorClient(): Promise<void> {
   await send({ type: 'init', dataUrl });
 
   const client: ApiClient = {
-    fetchListEngines: () => call<Engine[]>({ operation: 'listEngines' }),
+    fetchListEngines: () => call<EngineListResponse>({ operation: 'listEngines' }),
     fetchEngineContexts: engineId =>
       call<EngineContexts>({ operation: 'engineContexts', engineId }),
-    fetchListCoordinators: engineId =>
-      call<QueryGroup[]>({ operation: 'listCoordinators', engineId }),
-    fetchListQueries: (engineId, queryGroupId) =>
-      call<Query[]>({ operation: 'listQueries', engineId, queryGroupId }),
+    fetchListQueries: engineId => call<QueryListResponse>({ operation: 'listQueries', engineId }),
     fetchQueryBundle: (engineId, queryId) =>
       call<QueryBundle<EntityRef>>({ operation: 'queryBundle', engineId, queryId }),
     fetchSingleTimeline: (engineId, request) =>

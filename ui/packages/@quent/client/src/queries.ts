@@ -5,20 +5,13 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 import { fetchListQueries } from './api';
 import { DEFAULT_STALE_TIME } from './constants';
 
-export const queriesQueryOptions = (
-  engineId: string,
-  coordinatorId: string,
-  options?: { staleTime?: number }
-) =>
+export const queriesQueryOptions = (engineId: string, options?: { staleTime?: number }) =>
   queryOptions({
-    queryKey: ['list_queries', engineId, coordinatorId],
-    queryFn: () => fetchListQueries(engineId, coordinatorId),
+    queryKey: ['list_queries', engineId],
+    queryFn: () => fetchListQueries(engineId),
     staleTime: options?.staleTime ?? DEFAULT_STALE_TIME,
-    enabled: !!engineId && !!coordinatorId,
+    enabled: !!engineId,
   });
 
-export const useQueries = (
-  engineId: string,
-  coordinatorId: string,
-  options?: { staleTime?: number }
-) => useQuery(queriesQueryOptions(engineId, coordinatorId, options));
+export const useQueries = (engineId: string, options?: { staleTime?: number }) =>
+  useQuery(queriesQueryOptions(engineId, options));

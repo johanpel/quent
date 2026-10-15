@@ -13,8 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     boilerplate::{
-        Engine, Gpu, Network, Operator, Plan, Port, Query, QueryGroup, Task, TaskExecutor, TaskExt,
-        Worker,
+        Engine, Gpu, Network, Operator, Plan, Port, Query, Task, TaskExecutor, TaskExt, Worker,
     },
     model::SimulatorModel,
 };
@@ -22,12 +21,11 @@ use crate::{
 /// A view of the simulator model filtered to a specific query
 // TODO(johanpel): figure out a better way to construct these views, or to
 // filter the data on a per query basis. This is generally tricky because the
-// state of resources of engines that are shared across query groups or across
-// the entire engine could be modified by other queries.
+// state of resources shared across workloads or the entire engine could be
+// modified by other queries.
 pub(crate) struct SimulatorModelQueryView<'a> {
     resource_types: HashMap<String, &'a ResourceTypeDecl>,
     engine: &'a Engine,
-    query_group: &'a QueryGroup,
     query: &'a Query,
     workers: HashMap<Uuid, &'a Worker>,
     plans: HashMap<Uuid, &'a Plan>,
@@ -47,7 +45,6 @@ impl<'a> SimulatorModelQueryView<'a> {
         query_id: Uuid,
     ) -> AnalyzerResult<SimulatorModelQueryView<'a>> {
         let query = model.query(query_id)?;
-        let query_group = model.query_group(query.query_group_id().unwrap_or_default())?;
         let workers: HashMap<Uuid, &Worker> = model
             .query_workers(query_id)?
             .map(|entity| (entity.id(), entity))
@@ -65,7 +62,6 @@ impl<'a> SimulatorModelQueryView<'a> {
             .map(|entity| (entity.id(), entity))
             .collect();
         let query_engine_group_ids: HashSet<Uuid> = std::iter::once(model.engine.id())
-            .chain(std::iter::once(query_group.id()))
             .chain(std::iter::once(query.id()))
             .chain(workers.keys().copied())
             .chain(plans.keys().copied())
@@ -137,7 +133,6 @@ impl<'a> SimulatorModelQueryView<'a> {
             })
             .collect();
         let scoped_entity_ids = std::iter::once(model.engine.id())
-            .chain(std::iter::once(query_group.id()))
             .chain(std::iter::once(query.id()))
             .chain(workers.keys().copied())
             .chain(plans.keys().copied())
@@ -155,7 +150,6 @@ impl<'a> SimulatorModelQueryView<'a> {
         Ok(SimulatorModelQueryView {
             resource_types,
             engine: &model.engine,
-            query_group,
             query,
             workers,
             plans,
@@ -174,7 +168,6 @@ impl<'a> SimulatorModelQueryView<'a> {
 impl<'a> QueryEngineModel for SimulatorModelQueryView<'a> {
     type Engine = Engine;
     type Query = Query;
-    type QueryGroup = QueryGroup;
     type Worker = Worker;
     type Plan = Plan;
     type Operator = Operator;
@@ -187,11 +180,6 @@ impl<'a> QueryEngineModel for SimulatorModelQueryView<'a> {
         (self.query.id() == query_id)
             .then_some(self.query)
             .ok_or(AnalyzerError::InvalidId(query_id))
-    }
-    fn query_group(&self, query_group_id: Uuid) -> AnalyzerResult<&QueryGroup> {
-        (self.query_group.id() == query_group_id)
-            .then_some(self.query_group)
-            .ok_or(AnalyzerError::InvalidId(query_group_id))
     }
     fn worker(&self, worker_id: Uuid) -> AnalyzerResult<&Worker> {
         self.workers
@@ -220,9 +208,6 @@ impl<'a> QueryEngineModel for SimulatorModelQueryView<'a> {
     fn queries(&self) -> impl Iterator<Item = &Query> {
         std::iter::once(self.query)
     }
-    fn query_groups(&self) -> impl Iterator<Item = &QueryGroup> {
-        std::iter::once(self.query_group)
-    }
     fn workers(&self) -> impl Iterator<Item = &Worker> {
         self.workers.values().copied()
     }
@@ -247,8 +232,6 @@ impl<'a> Model for SimulatorModelQueryView<'a> {
             Ok(EntityRef::Engine(entity_id))
         } else if self.workers.contains_key(&entity_id) {
             Ok(EntityRef::Worker(entity_id))
-        } else if self.query_group.id() == entity_id {
-            Ok(EntityRef::QueryGroup(entity_id))
         } else if self.query.id() == entity_id {
             Ok(EntityRef::Query(entity_id))
         } else if self.plans.contains_key(&entity_id) {

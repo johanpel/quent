@@ -68,14 +68,14 @@ struct ListEnginesQuery {
     path = "/api/engines",
     tag = "engines",
     responses(
-        (status = 200, description = "List of engines, optionally with metadata via ?with_metadata=true", body = [Object])
+        (status = 200, description = "Engine catalog, optionally with metadata via ?with_metadata=true", body = Object)
     )
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn list_engines<A>(
     State(state): State<ServiceState<A>>,
     Query(query): Query<ListEnginesQuery>,
-) -> ServerResult<Json<Vec<ui::Engine>>>
+) -> ServerResult<Json<ui::EngineListResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
@@ -129,52 +129,27 @@ where
 }
 
 // TODO(johanpel): pagination
-/// List all query groups for a given engine.
+/// List all queries for an engine.
 #[cfg_attr(feature = "swagger", utoipa::path(
     get,
-    path = "/api/engines/{engine_id}/query-groups",
+    path = "/api/engines/{engine_id}/queries",
     tag = "engines",
     params(
         ("engine_id" = Uuid, Path, description = "The engine ID")
     ),
     responses(
-        (status = 200, description = "List of query groups for the engine", body = [Object])
-    )
-))]
-#[tracing::instrument(skip_all, err)]
-async fn list_query_groups<A>(
-    State(state): State<ServiceState<A>>,
-    Path(engine_id): Path<Uuid>,
-) -> ServerResult<Json<Vec<ui::QueryGroup>>>
-where
-    A: UiAnalyzer + Send + Sync + 'static,
-{
-    Ok(Json(state.query_groups(engine_id).await?))
-}
-
-// TODO(johanpel): pagination
-/// List all queries for a specific query group.
-#[cfg_attr(feature = "swagger", utoipa::path(
-    get,
-    path = "/api/engines/{engine_id}/query_group/{query_group_id}/queries",
-    tag = "engines",
-    params(
-        ("engine_id" = Uuid, Path, description = "The engine ID"),
-        ("query_group_id" = Uuid, Path, description = "The query group ID")
-    ),
-    responses(
-        (status = 200, description = "List of queries in the query group", body = [Object])
+        (status = 200, description = "List of queries in the engine", body = Object)
     )
 ))]
 #[tracing::instrument(skip_all, err)]
 async fn list_queries<A>(
     State(state): State<ServiceState<A>>,
-    Path((engine_id, query_group_id)): Path<(Uuid, Uuid)>,
-) -> ServerResult<Json<Vec<ui::Query>>>
+    Path(engine_id): Path<Uuid>,
+) -> ServerResult<Json<ui::QueryListResponse>>
 where
     A: UiAnalyzer + Send + Sync + 'static,
 {
-    Ok(Json(state.queries(engine_id, query_group_id).await?))
+    Ok(Json(state.queries(engine_id).await?))
 }
 
 /// Fetch the query plan for a given query.
@@ -312,7 +287,6 @@ where
         list_engines,
         engine,
         engine_contexts,
-        list_query_groups,
         list_queries,
         query,
         single_timeline,
@@ -321,7 +295,7 @@ where
         entities,
     ),
     tags(
-        (name = "engines", description = "Engine, query group, and query management"),
+        (name = "engines", description = "Engine and query management"),
         (name = "timelines", description = "Resource timeline data"),
         (name = "entities", description = "Entity list queries"),
     )
@@ -336,11 +310,7 @@ where
         .route("/", get(list_engines))
         .route("/{engine_id}", get(engine))
         .route("/{engine_id}/contexts", get(engine_contexts))
-        .route("/{engine_id}/query-groups", get(list_query_groups))
-        .route(
-            "/{engine_id}/query_group/{query_group_id}/queries",
-            get(list_queries),
-        )
+        .route("/{engine_id}/queries", get(list_queries))
         .route("/{engine_id}/query/{query_id}", get(query))
         .route("/{engine_id}/timeline/single", post(single_timeline))
         .route("/{engine_id}/timeline/bulk", post(bulk_timelines))

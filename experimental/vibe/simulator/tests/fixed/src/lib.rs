@@ -26,7 +26,6 @@ type SimulatorContext = instr::Context<instr::Simulator>;
 
 // Top-level entities
 pub const ENGINE: Uuid = uuid!("00000000-0000-0000-0000-000000000001");
-pub const QUERY_GROUP: Uuid = uuid!("00000000-0000-0000-0000-000000000003");
 pub const QUERY: Uuid = uuid!("00000000-0000-0000-0000-000000000004");
 
 // Workers
@@ -139,6 +138,13 @@ pub fn emit(ctx: &SimulatorContext) {
                     custom_attributes: Default::default(),
                 },
                 Some("test-engine".into()),
+                instr::EngineConfiguration {
+                    workers: 2,
+                    threads_per_worker: 2,
+                    gpus_per_worker: 0,
+                    num_workloads: 1,
+                    num_queries: 1,
+                },
             )
             .unwrap()
     );
@@ -225,20 +231,16 @@ pub fn emit(ctx: &SimulatorContext) {
             .unwrap()
     );
 
-    // Query group declaration, just before the query starts.
-    ts!(
-        950_000_000,
-        ctx.observer::<instr::QueryGroup>()
-            .handle_with_id(QUERY_GROUP)
-            .declaration("test-group".into(), entity_ref(ENGINE))
-            .unwrap()
-    );
-
     // Query init + planning at 1s; executing at 2s.
     let query = ctx.observer::<instr::Query>().handle_with_id(QUERY);
     let query = ts!(
         1_000_000_000,
-        query.init("test-query".into(), entity_ref(QUERY_GROUP))
+        query.init(
+            "test-query".into(),
+            entity_ref(ENGINE),
+            "test-group".into(),
+            0,
+        )
     );
     let query = ts!(1_000_000_000, query.planning());
 

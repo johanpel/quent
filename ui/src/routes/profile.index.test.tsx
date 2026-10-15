@@ -1,270 +1,154 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/test/mocks/server';
-import { screen, renderWithRouter, waitFor, fireEvent } from '@/test/test-utils';
+import { renderWithRouter, screen, userEvent, waitFor } from '@/test/test-utils';
 
 const API_BASE = 'http://localhost:8000/api';
 
-describe('EngineSelectionPage', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+const enginesResponse = {
+  items: [
+    {
+      id: 'engine-1',
+      instance_name: 'Alpha engine',
+      start_time_unix_ns: null,
+      duration_s: 12,
+      custom_attributes: [
+        { key: 'workers', value: { U64: 2 } },
+        { key: 'frontend', value: { String: 'ray' } },
+        { key: 'num_workloads', value: { U64: 2 } },
+        { key: 'num_queries', value: { U64: 8 } },
+      ],
+      implementation: { name: 'Simulator', version: 'vibe', custom_attributes: [] },
+    },
+    {
+      id: 'engine-2',
+      instance_name: 'Beta engine',
+      start_time_unix_ns: null,
+      duration_s: null,
+      custom_attributes: [
+        { key: 'workers', value: { U64: 4 } },
+        { key: 'frontend', value: { String: 'spmd' } },
+        { key: 'num_workloads', value: { U64: 3 } },
+        { key: 'num_queries', value: { U64: 12 } },
+      ],
+      implementation: null,
+    },
+  ],
+  initial_group_by_attribute: 'workers',
+};
 
+const queriesResponse = {
+  items: [
+    {
+      id: 'query-1',
+      instance_name: 'Q42',
+      custom_attributes: [{ key: 'workload', value: { String: 'nightly' } }],
+      start_unix_ns: 1_000_000_000,
+      planning_s: 0,
+      executing_s: 0.1,
+      completed_s: 1.5,
+    },
+  ],
+  initial_group_by_attribute: 'workload',
+};
+
+describe('EngineSelectionPage', () => {
   beforeEach(() => {
-    // Set up default handlers for the profile page API endpoints
     server.use(
-      http.get(`${API_BASE}/engines`, () => {
-        return HttpResponse.json([
-          { id: 'engine-1', instance_name: 'engine-1' },
-          { id: 'engine-2', instance_name: 'engine-2' },
-          { id: 'engine-3', instance_name: 'engine-3' },
-        ]);
-      }),
-      http.get(`${API_BASE}/engines/:engineId/query-groups`, ({ params }) => {
-        const { engineId } = params;
-        return HttpResponse.json([`${engineId}-coordinator-1`, `${engineId}-coordinator-2`]);
-      }),
-      http.get(`${API_BASE}/engines/:engineId/query-groups/:coordinatorId/queries`, () => {
-        return HttpResponse.json(['query-1', 'query-2', 'query-3']);
-      })
+      http.get(`${API_BASE}/engines`, () => HttpResponse.json(enginesResponse)),
+      http.get(`${API_BASE}/engines/:engineId/queries`, () => HttpResponse.json(queriesResponse))
     );
   });
 
-  describe('Page rendering', () => {
-    it('renders the page title and description', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('renders a searchable, analyzer-grouped engine catalog', async () => {
+    const user = userEvent.setup();
+    renderWithRouter();
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-      expect(screen.getByText(/select an engine, coordinator, and query/i)).toBeInTheDocument();
-    });
+    expect(await screen.findByRole('heading', { name: 'Select an engine' })).toBeInTheDocument();
+    await screen.findByText('Alpha engine');
+    expect(screen.getByText(/Workers: 2/)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Num Workloads' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Num Queries' })).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('Beta engine')).toBeInTheDocument();
 
-    it('renders all three select dropdowns with labels', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+    await user.type(screen.getByRole('textbox', { name: 'Search engine' }), 'ray');
 
-      await waitFor(() => {
-        expect(screen.getByText('Engine')).toBeInTheDocument();
-      });
-      expect(screen.getByText('Query Group')).toBeInTheDocument();
-      expect(screen.getByText('Query')).toBeInTheDocument();
-    });
-
-    it('renders engine select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-    });
-
-    it('renders coordinator select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Query Group')).toBeInTheDocument();
-      });
-    });
-
-    it('renders query select with placeholder', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Query')).toBeInTheDocument();
-      });
-    });
+    expect(screen.getByText('Alpha engine')).toBeInTheDocument();
+    expect(screen.queryByText('Beta engine')).not.toBeInTheDocument();
   });
 
-  describe('Initial visibility state', () => {
-    it('hides coordinator dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('defaults to no grouping without an analyzer hint', async () => {
+    server.use(
+      http.get(`${API_BASE}/engines`, () =>
+        HttpResponse.json({ ...enginesResponse, initial_group_by_attribute: null })
+      )
+    );
+    renderWithRouter();
 
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      // Coordinator section should be invisible
-      const coordinatorLabel = screen.getByText('Query Group');
-      expect(coordinatorLabel.parentElement).toHaveClass('invisible');
-    });
-
-    it('hides query dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      // Query section should be invisible
-      const queryLabel = screen.getByText('Query');
-      expect(queryLabel.parentElement).toHaveClass('invisible');
-    });
-
-    it('shows engine dropdown initially', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      // Engine section should be visible (no invisible class)
-      const engineLabel = screen.getByText('Engine');
-      expect(engineLabel.parentElement).not.toHaveClass('invisible');
-    });
+    await screen.findByText('Alpha engine');
+    expect(screen.getByRole('combobox', { name: 'Group by' })).toHaveTextContent('None');
+    expect(screen.queryByText(/Workers: 2/)).not.toBeInTheDocument();
   });
 
-  describe('API data fetching', () => {
-    it('loads engines from API', async () => {
-      renderWithRouter({ initialPath: '/profile' });
+  it('advances to the query catalog and can return to engines', async () => {
+    const user = userEvent.setup();
+    const { router } = renderWithRouter();
 
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
+    await screen.findByText('Alpha engine');
+    const engineRow = screen.getByText('Alpha engine').closest('tr');
+    if (!engineRow) {
+      throw new Error('Engine row was not rendered');
+    }
+    expect(engineRow.querySelectorAll('td > a')).toHaveLength(
+      engineRow.querySelectorAll('td').length
+    );
+    await user.click(screen.getByRole('link', { name: 'View queries: Alpha engine' }));
 
-      // Open the dropdown using fireEvent
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
+    expect(await screen.findByRole('heading', { name: 'Select a query' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/profile/engine/engine-1');
+    expect(screen.getByText('Q42')).toBeInTheDocument();
+    expect(screen.getByText(/Workload: nightly/)).toBeInTheDocument();
+    expect(screen.getByText('Alpha engine')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View profile: Q42' })).toHaveTextContent('Q42');
 
-      // Verify engines are displayed
-      await waitFor(() => {
-        expect(screen.getByText('engine-1')).toBeInTheDocument();
-      });
-      expect(screen.getByText('engine-2')).toBeInTheDocument();
-      expect(screen.getByText('engine-3')).toBeInTheDocument();
-    });
+    await user.click(screen.getByRole('button', { name: /change engine/i }));
+    expect(await screen.findByRole('heading', { name: 'Select an engine' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/');
+  });
 
-    it('shows empty state when no engines are available', async () => {
-      server.use(
-        http.get(`${API_BASE}/engines`, () => {
-          return HttpResponse.json([]);
-        })
-      );
+  it('shows an empty engine catalog', async () => {
+    server.use(
+      http.get(`${API_BASE}/engines`, () =>
+        HttpResponse.json({ items: [], initial_group_by_attribute: null })
+      )
+    );
+    renderWithRouter();
 
-      renderWithRouter({ initialPath: '/profile' });
+    expect(await screen.findByText('No engines are available.')).toBeInTheDocument();
+  });
 
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
-
-      await waitFor(() => {
-        expect(screen.getByText(/no engines available/i)).toBeInTheDocument();
-      });
-    });
-
-    it('handles API error gracefully when fetching engines fails', async () => {
-      server.use(
-        http.get(`${API_BASE}/engines`, () => {
+  it('shows errors and retries the request', async () => {
+    let requests = 0;
+    server.use(
+      http.get(`${API_BASE}/engines`, () => {
+        requests += 1;
+        if (requests === 1) {
           return new HttpResponse(null, { status: 500, statusText: 'Internal Server Error' });
-        })
-      );
+        }
+        return HttpResponse.json(enginesResponse);
+      })
+    );
+    const user = userEvent.setup();
+    renderWithRouter();
 
-      renderWithRouter({ initialPath: '/profile' });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load this catalog');
+    await user.click(screen.getByRole('button', { name: /retry/i }));
 
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      const trigger = screen.getByText('Select Engine');
-      fireEvent.click(trigger);
-
-      // When API fails, data is undefined so no items are rendered in the dropdown
-      // Note: The component currently doesn't display an error message for API failures
-      await waitFor(() => {
-        // The dropdown should be open but have no engine items
-        expect(screen.queryByText('engine-1')).not.toBeInTheDocument();
-        expect(screen.queryByText('engine-2')).not.toBeInTheDocument();
-        expect(screen.queryByText('engine-3')).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Overflow labels', () => {
-    it('shows item hover cards without opening one when focus returns to the trigger', async () => {
-      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(400);
-      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100);
-
-      renderWithRouter({ initialPath: '/profile' });
-
-      const trigger = await screen.findByText('Select Engine');
-      fireEvent.click(trigger);
-
-      const label = 'engine-1';
-      const item = await screen.findByRole('option', { name: label });
-      expect(item.children[1]).toHaveClass('min-w-0', 'flex-1', 'truncate');
-      fireEvent.pointerEnter(item);
-      expect(screen.getAllByText(label)).toHaveLength(1);
-
-      await waitFor(() => {
-        expect(screen.getAllByText(label)).toHaveLength(2);
-      });
-
-      fireEvent.pointerLeave(item);
-      fireEvent.click(item);
-
-      await waitFor(() => {
-        expect(screen.getAllByText(label)).toHaveLength(1);
-      });
-
-      fireEvent.focus(screen.getAllByRole('combobox')[0]);
-
-      expect(screen.getAllByText(label)).toHaveLength(1);
-    });
-  });
-
-  describe('Accessibility', () => {
-    it('has proper heading hierarchy', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /query profiler/i })).toBeInTheDocument();
-      });
-
-      const heading = screen.getByRole('heading', { name: /query profiler/i });
-      expect(heading.tagName).toBe('H1');
-    });
-
-    it('has labels for each select input', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Engine')).toBeInTheDocument();
-      });
-
-      // Check that labels exist
-      expect(screen.getByText('Engine')).toBeInTheDocument();
-      expect(screen.getByText('Query Group')).toBeInTheDocument();
-      expect(screen.getByText('Query')).toBeInTheDocument();
-
-      // Check labels have proper htmlFor attributes
-      const engineLabel = screen.getByText('Engine');
-      expect(engineLabel.tagName).toBe('LABEL');
-      expect(engineLabel).toHaveAttribute('for', 'engineId');
-
-      const coordinatorLabel = screen.getByText('Query Group');
-      expect(coordinatorLabel.tagName).toBe('LABEL');
-      expect(coordinatorLabel).toHaveAttribute('for', 'coordinatorId');
-
-      const queryLabel = screen.getByText('Query');
-      expect(queryLabel.tagName).toBe('LABEL');
-      expect(queryLabel).toHaveAttribute('for', 'queryId');
-    });
-
-    it('has combobox role on select triggers', async () => {
-      renderWithRouter({ initialPath: '/profile' });
-
-      await waitFor(() => {
-        expect(screen.getByText('Select Engine')).toBeInTheDocument();
-      });
-
-      // Get all comboboxes
-      const comboboxes = screen.getAllByRole('combobox');
-      expect(comboboxes.length).toBe(3);
-    });
+    await waitFor(() => expect(screen.getByText('Alpha engine')).toBeInTheDocument());
   });
 });

@@ -17,6 +17,7 @@ export type { Edge } from '../../../../../generated/ts-bindings/Edge';
 export type { Engine } from '../../../../../generated/ts-bindings/Engine';
 export type { EngineContexts } from '../../../../../generated/ts-bindings/EngineContexts';
 export type { EngineImplementationAttributes } from '../../../../../generated/ts-bindings/EngineImplementationAttributes';
+export type { EngineListResponse } from '../../../../../generated/ts-bindings/EngineListResponse';
 export type { EntityFilter } from '../../../../../generated/ts-bindings/EntityFilter';
 export type { EntityListEntry } from '../../../../../generated/ts-bindings/EntityListEntry';
 export type { EntityListFilter } from '../../../../../generated/ts-bindings/EntityListFilter';
@@ -47,7 +48,7 @@ export type { Query } from '../../../../../generated/ts-bindings/Query';
 export type { QueryBundle } from '../../../../../generated/ts-bindings/QueryBundle';
 export type { QueryEntities } from '../../../../../generated/ts-bindings/QueryEntities';
 export type { QueryFilter } from '../../../../../generated/ts-bindings/QueryFilter';
-export type { QueryGroup } from '../../../../../generated/ts-bindings/QueryGroup';
+export type { QueryListResponse } from '../../../../../generated/ts-bindings/QueryListResponse';
 export type { QueryEngineFsm } from '../../../../../generated/ts-bindings/QueryEngineFsm';
 export type { Resource } from '../../../../../generated/ts-bindings/Resource';
 export type { ResourceGroup } from '../../../../../generated/ts-bindings/ResourceGroup';
@@ -87,3 +88,5 @@ export type { NvtxRangeStatistics } from '../../../../../generated/ts-bindings/N
 export type { NvtxViewportRequest } from '../../../../../generated/ts-bindings/NvtxViewportRequest';
 export type { NvtxViewportResponse } from '../../../../../generated/ts-bindings/NvtxViewportResponse';
 export type { NvtxViewportWindow } from '../../../../../generated/ts-bindings/NvtxViewportWindow';
+
+export type { FsmTypeSelection } from '../../../../../generated/ts-bindings/FsmTypeSelection';

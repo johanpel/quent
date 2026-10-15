@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    fmt,
     num::{NonZeroU64, NonZeroUsize},
     process::Command,
 };
 
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+
+pub mod frameworks;
+
+use frameworks::quent::{Channel, Clock, variant_label};
 
 /// Shared batch settings for benchmark command-line interfaces.
 #[derive(clap::Args, Clone, Copy)]
@@ -87,13 +92,20 @@ pub enum Language {
 }
 
 /// Identifies the implementation that produced a benchmark result.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, strum::AsRefStr)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
-#[strum(serialize_all = "kebab-case")]
 pub enum Implementation {
     EmptyLoopRs,
-    Quent,
-    QuentPerThread,
+    Quent(Channel, Clock),
+}
+
+impl fmt::Display for Implementation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyLoopRs => formatter.write_str("empty-loop-rs"),
+            Self::Quent(channel, clock) => formatter.write_str(&variant_label(*channel, *clock)),
+        }
+    }
 }
 
 /// Selects the explicit attributes of each benchmark event.
@@ -203,5 +215,48 @@ impl<I, E, S> CaseResult<I, E, S> {
             thread_batch_elapsed_ns,
             average_ns_per_iteration,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Channel, Clock, Implementation};
+
+    #[test]
+    fn implementation_round_trips_with_derived_serde() {
+        for (implementation, label, json) in [
+            (
+                Implementation::EmptyLoopRs,
+                "empty-loop-rs",
+                r#""empty-loop-rs""#,
+            ),
+            (
+                Implementation::Quent(Channel::Tokio, Clock::Std),
+                "quent",
+                r#"{"quent":["tokio","std"]}"#,
+            ),
+            (
+                Implementation::Quent(Channel::PerThread, Clock::Std),
+                "quent-pt",
+                r#"{"quent":["per-thread","std"]}"#,
+            ),
+            (
+                Implementation::Quent(Channel::Tokio, Clock::Quanta),
+                "quent-quanta",
+                r#"{"quent":["tokio","quanta"]}"#,
+            ),
+            (
+                Implementation::Quent(Channel::PerThread, Clock::Quanta),
+                "quent-pt-quanta",
+                r#"{"quent":["per-thread","quanta"]}"#,
+            ),
+        ] {
+            assert_eq!(implementation.to_string(), label);
+            assert_eq!(serde_json::to_string(&implementation).unwrap(), json);
+            assert_eq!(
+                serde_json::from_str::<Implementation>(json).unwrap(),
+                implementation
+            );
+        }
     }
 }

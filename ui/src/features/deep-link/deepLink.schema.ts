@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   CONTINUOUS_PALETTES,
   DAG_LAYOUT_DIRECTION,
+  SCALE_TYPE,
   NODE_LABEL_FIELD,
   AGG_MODES,
 } from '@quent/utils';
@@ -14,7 +15,7 @@ import { MAX_RESOURCE_FILTER_QUERY_LENGTH } from '@/features/resource-filter/res
 
 export const MAX_ENCODED_STATE_LENGTH = 4096;
 export const MAX_EXPANDED_RESOURCE_IDS = 50;
-export const MAX_SELECTED_NODE_IDS = 50;
+export const MAX_SELECTED_NODE_IDS = 100;
 export const MAX_RESOURCE_OVERRIDES = 50;
 export const MAX_VISIBLE_STATS = 100;
 export const MAX_TABLE_SORTS = 5;
@@ -23,8 +24,18 @@ const MAX_V1_EXPANDED_RESOURCE_IDS = 100;
 const MAX_ID_LENGTH = 128;
 const MAX_NAME_LENGTH = 256;
 
-const IdSchema = z.string().min(1).max(MAX_ID_LENGTH);
-const NameSchema = z.string().min(1).max(MAX_NAME_LENGTH);
+function limitMessage(subject: string, maximum: number): string {
+  return `Shared links support at most ${maximum} ${subject}.`;
+}
+
+const IdSchema = z
+  .string()
+  .min(1)
+  .max(MAX_ID_LENGTH, `Shared-link identifiers cannot exceed ${MAX_ID_LENGTH} characters.`);
+const NameSchema = z
+  .string()
+  .min(1)
+  .max(MAX_NAME_LENGTH, `Shared-link names cannot exceed ${MAX_NAME_LENGTH} characters.`);
 
 function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort();
@@ -59,8 +70,16 @@ export const DeepLinkStateV1Schema = z
   .object({
     zoomRange: ZoomRangeSchema,
     expandedResourceIds: z
-      .array(z.string().min(1).max(1024))
-      .max(MAX_V1_EXPANDED_RESOURCE_IDS)
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(1024, 'Legacy shared-link resource identifiers cannot exceed 1,024 characters.')
+      )
+      .max(
+        MAX_V1_EXPANDED_RESOURCE_IDS,
+        limitMessage('expanded resources', MAX_V1_EXPANDED_RESOURCE_IDS)
+      )
       .transform(ids => [...new Set(ids)].sort())
       .optional(),
   })
@@ -91,7 +110,7 @@ const SelectionSchema = z
     planId: IdSchema.optional(),
     operatorNodeIds: z
       .array(IdSchema)
-      .max(MAX_SELECTED_NODE_IDS)
+      .max(MAX_SELECTED_NODE_IDS, limitMessage('selected operators', MAX_SELECTED_NODE_IDS))
       .transform(uniqueSorted)
       .optional(),
   })
@@ -113,13 +132,25 @@ const FsmSelectionSchema = z
 
 const ResourceFilterSchema = z
   .object({
-    search: z.string().trim().min(1).max(MAX_RESOURCE_FILTER_QUERY_LENGTH).optional(),
+    search: z
+      .string()
+      .trim()
+      .min(1)
+      .max(
+        MAX_RESOURCE_FILTER_QUERY_LENGTH,
+        `Shared-link resource searches cannot exceed ${MAX_RESOURCE_FILTER_QUERY_LENGTH} characters.`
+      )
+      .optional(),
     resourceTypes: z
       .array(NameSchema)
-      .max(MAX_RESOURCE_OVERRIDES)
+      .max(MAX_RESOURCE_OVERRIDES, limitMessage('resource type filters', MAX_RESOURCE_OVERRIDES))
       .transform(uniqueSorted)
       .optional(),
-    fsmTypes: z.array(NameSchema).max(MAX_RESOURCE_OVERRIDES).transform(uniqueSorted).optional(),
+    fsmTypes: z
+      .array(NameSchema)
+      .max(MAX_RESOURCE_OVERRIDES, limitMessage('FSM type filters', MAX_RESOURCE_OVERRIDES))
+      .transform(uniqueSorted)
+      .optional(),
     showOthers: z.boolean().optional(),
   })
   .strip();
@@ -128,35 +159,37 @@ const ResourceTreeSchema = z
   .object({
     expandedRowIds: z
       .array(IdSchema)
-      .max(MAX_EXPANDED_RESOURCE_IDS)
+      .max(MAX_EXPANDED_RESOURCE_IDS, limitMessage('expanded resources', MAX_EXPANDED_RESOURCE_IDS))
       .transform(uniqueSorted)
       .optional(),
     rootResourceType: NameSchema.optional(),
     resourceFilter: ResourceFilterSchema.optional(),
     resourceTypeSelections: z
       .array(ResourceSelectionSchema)
-      .max(MAX_RESOURCE_OVERRIDES)
+      .max(MAX_RESOURCE_OVERRIDES, limitMessage('resource type overrides', MAX_RESOURCE_OVERRIDES))
       .transform(canonicalSelections)
       .optional(),
     fsmSelections: z
       .array(FsmSelectionSchema)
-      .max(MAX_RESOURCE_OVERRIDES)
+      .max(MAX_RESOURCE_OVERRIDES, limitMessage('FSM type overrides', MAX_RESOURCE_OVERRIDES))
       .transform(canonicalSelections)
       .optional(),
   })
   .strip();
 
 const ContinuousPaletteSchema = z.enum(enumKeys(CONTINUOUS_PALETTES));
+const StatisticFieldSchema = z.string().min(1);
 
 const DagControlsSchema = z
   .object({
-    nodeColorField: NameSchema.optional(),
+    nodeColorField: StatisticFieldSchema.optional(),
     nodeColorPalette: ContinuousPaletteSchema.optional(),
-    edgeWidthField: NameSchema.optional(),
-    edgeColorField: NameSchema.optional(),
+    edgeWidthField: StatisticFieldSchema.optional(),
+    edgeColorField: StatisticFieldSchema.optional(),
     edgeColorPalette: ContinuousPaletteSchema.optional(),
     nodeLabelField: z.enum(NODE_LABEL_FIELD).optional(),
     layoutDirection: z.enum(DAG_LAYOUT_DIRECTION).optional(),
+    scaleType: z.enum(SCALE_TYPE).optional(),
   })
   .strip();
 
@@ -165,7 +198,12 @@ const DataFlowSchema = z
     enabled: z.boolean().optional(),
     measure: NameSchema.optional(),
     labelMeasure: NameSchema.optional(),
-    dimensions: z.array(NameSchema).min(1).max(32).transform(uniqueSorted).optional(),
+    dimensions: z
+      .array(NameSchema)
+      .min(1)
+      .max(32, limitMessage('data-flow dimensions', 32))
+      .transform(uniqueSorted)
+      .optional(),
     playheadS: z.number().finite().nonnegative().optional(),
   })
   .strip();
@@ -176,15 +214,25 @@ const OperatorTableSchema = z
   .object({
     groupingOrder: z
       .array(OperatorGroupSchema)
-      .max(OperatorGroupSchema.options.length)
+      .max(
+        OperatorGroupSchema.options.length,
+        limitMessage('operator table grouping fields', OperatorGroupSchema.options.length)
+      )
       .transform(uniqueInOrder)
       .optional(),
     enabledGroups: z
       .array(OperatorGroupSchema)
-      .max(OperatorGroupSchema.options.length)
+      .max(
+        OperatorGroupSchema.options.length,
+        limitMessage('enabled operator table groups', OperatorGroupSchema.options.length)
+      )
       .transform(uniqueInOrder)
       .optional(),
-    visibleStats: z.array(NameSchema).max(MAX_VISIBLE_STATS).transform(uniqueInOrder).optional(),
+    visibleStats: z
+      .array(NameSchema)
+      .max(MAX_VISIBLE_STATS, limitMessage('visible operator statistics', MAX_VISIBLE_STATS))
+      .transform(uniqueInOrder)
+      .optional(),
     aggregation: z.enum(AGG_MODES).optional(),
     sort: z
       .array(
@@ -195,7 +243,7 @@ const OperatorTableSchema = z
           })
           .strip()
       )
-      .max(MAX_TABLE_SORTS)
+      .max(MAX_TABLE_SORTS, limitMessage('operator table sort fields', MAX_TABLE_SORTS))
       .optional(),
   })
   .strip();
@@ -216,8 +264,18 @@ const EntitiesSchema = z
     minUsageS: z.number().finite().nonnegative().optional(),
     window: EntityWindowSchema.optional(),
     sortDir: z.enum(['Asc', 'Desc']).optional(),
-    pageSize: z.number().int().min(1).max(MAX_PAGE_SIZE).optional(),
-    page: z.number().int().nonnegative().max(1_000_000).optional(),
+    pageSize: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_PAGE_SIZE, `Shared links support entity page sizes up to ${MAX_PAGE_SIZE}.`)
+      .optional(),
+    page: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(1_000_000, 'Shared links support entity page numbers up to 1,000,000.')
+      .optional(),
     selectedEntityId: IdSchema.optional(),
   })
   .strip();

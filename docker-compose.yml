@@ -10,7 +10,7 @@ services:
       - "7836:7836"
     restart: unless-stopped
     volumes:
-      - ./data:/quent/data
+      - ./data/simulator-events:/quent/events
     environment:
       QUENT_ANALYZER_CORS_ADDRESS: "http://localhost:5173,http://localhost:3000"
     command: "/quent/quent-simulator-server --log-level debug --cors-address http://localhost:5173,http://localhost:3000"
@@ -23,4 +23,4 @@ services:
     restart: "no"
     environment:
       QUENT_COLLECTOR_ADDRESS: "http://server:7836"
-    command: "/quent/quent-simulator --num-query-groups 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"
+    command: "/quent/quent-simulator --num-workloads 2 --num-queries 2 --num-workers 2 --num-threads 2 --num-tasks 128"

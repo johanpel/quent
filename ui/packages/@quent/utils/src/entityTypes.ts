@@ -8,7 +8,6 @@ import type {
   Plan,
   Port,
   Query,
-  QueryGroup,
   Resource,
   ResourceGroup,
   ResourceTypeDecl,
@@ -16,18 +15,9 @@ import type {
 } from './types/index';
 
 export type EntityTypeValue =
-  | Engine
-  | Operator
-  | Plan
-  | Port
-  | Query
-  | QueryGroup
-  | Resource
-  | ResourceGroup
-  | ResourceTypeDecl
-  | Worker;
+  Engine | Operator | Plan | Port | Query | Resource | ResourceGroup | ResourceTypeDecl | Worker;
 
-export type SingleEntity = Engine | Query | QueryGroup;
+export type SingleEntity = Engine | Query;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 

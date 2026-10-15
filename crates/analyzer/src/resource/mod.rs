@@ -3,8 +3,7 @@
 
 //! Analysis interfaces for schema-defined resources and their usages.
 
-use std::collections::HashSet;
-
+use quent_schema::Path;
 use quent_time::{SpanNanoSec, span::SpanUnixNanoSec};
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -75,7 +74,7 @@ pub enum CapacityType {
 }
 
 impl CapacityType {
-    /// Interpret a value from a [`CapacityValue`] based on this [`CapacityType`].
+    /// Interpret a capacity value as occupancy or items per nanosecond.
     pub fn reinterpret_capacity_value(&self, value: u64, span: SpanNanoSec) -> f64 {
         match self {
             CapacityType::Occupancy => value as f64,
@@ -123,8 +122,8 @@ pub struct ResourceTypeDecl {
     // The common case is that a resource has one capacity, don't bother going
     // with HashMap here.
     pub capacities: SmallVec<[CapacityDecl; 1]>,
-    /// The unique names of the entities that used this resource.
-    pub used_by: HashSet<String>,
+    /// The unique schema paths of the entities that used this resource.
+    pub used_by: Vec<Path>,
 }
 
 impl ResourceTypeDecl {

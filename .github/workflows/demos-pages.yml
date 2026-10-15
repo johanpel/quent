@@ -34,6 +34,7 @@ concurrency:
 jobs:
   benchmark:
     name: Benchmark
+    if: github.event_name == 'push'
     uses: ./.github/workflows/benchmarks.yml
 
   build:
@@ -69,6 +70,7 @@ jobs:
       - name: Build YAML tutorial
         run: pixi run --frozen bash docs/tutorial/build.sh
       - name: Download benchmark plot
+        if: needs.benchmark.result == 'success'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: benchmark-plot
