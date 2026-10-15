@@ -290,17 +290,14 @@ fn no_root_is_rejected() {
 }
 
 #[test]
-fn multiple_roots_is_rejected() {
+fn multiple_roots_pass() {
     // Req. 1: two entities carry no tree-forming reference.
     let schema = schema_with(vec![
         root("Cluster"),
         root("Other"),
         child("Worker", tree_ref_to("Cluster")),
     ]);
-    assert!(matches!(
-        single_error(&schema),
-        RefTreeError::MultipleRoots { .. }
-    ));
+    assert_valid(&schema);
 }
 
 #[test]
@@ -334,4 +331,57 @@ fn target_cycle_is_unreachable() {
             .iter()
             .any(|e| matches!(e, RefTreeError::Unreachable { entity } if entity == "B")),
     );
+}
+
+#[test]
+fn separate_trees_reach_their_respective_roots() {
+    let schema = schema_with(vec![
+        root("ClusterA"),
+        child("WorkerA", tree_ref_to("ClusterA")),
+        child("TaskA", tree_ref_to("WorkerA")),
+        root("ClusterB"),
+        child("WorkerB", tree_ref_to("ClusterB")),
+        child("TaskB", tree_ref_to("WorkerB")),
+    ]);
+    assert_valid(&schema);
+}
+
+#[test]
+fn multiple_roots_do_not_hide_a_disconnected_cycle() {
+    let schema = schema_with(vec![
+        root("ClusterA"),
+        root("ClusterB"),
+        child("WorkerA", tree_ref_to("ClusterA")),
+        child("WorkerB", tree_ref_to("ClusterB")),
+        child("A", tree_ref_to("B")),
+        child("B", tree_ref_to("A")),
+    ]);
+    let errors = validate(&schema);
+    assert_eq!(errors.len(), 2);
+    for name in ["A", "B"] {
+        assert!(
+            errors.iter().any(
+                |error| matches!(error, RefTreeError::Unreachable { entity } if entity == name)
+            )
+        );
+    }
+}
+
+#[test]
+fn different_roots_across_events_remain_conflicting() {
+    let schema = schema_with(vec![
+        root("ClusterA"),
+        root("ClusterB"),
+        entity(
+            "Task",
+            vec![
+                event("created", vec![field("parent", tree_ref_to("ClusterA"))]),
+                event("moved", vec![field("parent", tree_ref_to("ClusterB"))]),
+            ],
+        ),
+    ]);
+    assert!(matches!(
+        single_error(&schema),
+        RefTreeError::ConflictingParents { .. }
+    ));
 }

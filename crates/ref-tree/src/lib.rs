@@ -20,11 +20,11 @@ use quent_schema::{
 };
 
 /// Constrains the graph of entities (as vertices) and entity references (as
-/// edges) to contain a subgraph that is a tree connecting all entities.
+/// edges) to contain a subgraph that is a forest spanning all entities.
 ///
 /// This constraint can be used for arbitrary purposes. Its canonical purpose
 /// is to provide some "preferred" way of traversing entities and their events
-/// from a single starting point (the root entity).
+/// from a root entity.
 ///
 /// References annotated with this constraint are _typically_ used (but not
 /// limited) to express:
@@ -56,9 +56,8 @@ use quent_schema::{
 ///
 /// ## Requirements
 ///
-/// 1. The schema must have exactly one entity (a.k.a. the root entity) of
-///    which its events do not carry an entity reference annotated with this
-///    constraint.
+/// 1. The schema must have at least one root entity whose events do not carry
+///    an entity reference annotated with this constraint.
 /// 2. Every non-root entity must have _at least one_ event carrying _at most
 ///    one_ entity reference annotated with this constraint, counting references
 ///    reached through record-typed fields. Correspondingly, a record carries
@@ -70,7 +69,7 @@ use quent_schema::{
 ///    constraint (req 2) target (req 3) to _exactly one_ type of parent
 ///    entity.
 /// 5. From every non-root entity, entity references with this constraint can be
-///    followed such that the root is reached.
+///    followed such that a root is reached.
 ///
 /// ## Note on possible parent ambiguity (req. 2)
 ///
@@ -100,7 +99,7 @@ pub struct RefTreeConstraint {
     graph: Graph<Node, ()>,
     // Map of a node to its petgraph index.
     index: FxHashMap<Node, NodeIndex>,
-    // Name of every entity, in schema order, to figure out which one is root.
+    // Name of every entity, in schema order, to identify the roots.
     entities: Vec<Path>,
     // Quick lookup for records that have already declared a parent.
     records_seen: FxHashSet<Path>,
@@ -272,7 +271,7 @@ fn check_tree(
 
         let unique_parents = entity_unique_parents(graph, node);
         match unique_parents.as_slice() {
-            // No parents, it is a (the?) root entity
+            // No parents, it is a root entity
             [] => roots.push(entity),
             // One parent type, non-root.
             [parent] => {
@@ -289,33 +288,25 @@ fn check_tree(
         }
     }
 
-    // Check req 1, one root
-    let root = match roots.len() {
-        0 => {
-            errors.push(RefTreeError::NoRoot);
-            return;
-        }
-        1 => roots[0],
-        _ => {
-            errors.push(RefTreeError::MultipleRoots {
-                roots: roots.iter().map(|r| (*r).clone()).collect(),
-            });
-            return;
-        }
-    };
-
-    // We know:
-    // - there is one root
-    // - each non-root entity refers to exactly one parent type
-    // Now check:
-    // - every entity reaches root (req 5)
-    // If there are no errors afterwards the whole constraint is validated.
-    let mut maybe_tree: DiGraphMap<&Path, ()> = DiGraphMap::new();
-    maybe_tree.add_node(root);
-    for (parent, child) in entity_edges {
-        maybe_tree.add_edge(parent, child, ());
+    // Check req 1, at least one root.
+    if roots.is_empty() {
+        errors.push(RefTreeError::NoRoot);
+        return;
     }
-    let reachable: FxHashSet<&Path> = Bfs::new(&maybe_tree, root).iter(&maybe_tree).collect();
+
+    // Each non-root entity refers to exactly one parent type. Every entity
+    // must be reachable from a root (req 5).
+    let mut maybe_forest: DiGraphMap<&Path, ()> = DiGraphMap::new();
+    for root in &roots {
+        maybe_forest.add_node(*root);
+    }
+    for (parent, child) in entity_edges {
+        maybe_forest.add_edge(parent, child, ());
+    }
+    let mut reachable: FxHashSet<&Path> = FxHashSet::default();
+    for root in roots {
+        reachable.extend(Bfs::new(&maybe_forest, root).iter(&maybe_forest));
+    }
     for entity in non_roots {
         if !reachable.contains(entity) {
             errors.push(RefTreeError::Unreachable {
@@ -415,7 +406,7 @@ pub enum RefTreeError {
     MultipleRoots { roots: Vec<Path> },
     #[error("entity \"{entity}\" declares more than one parent type: {}", join_paths(.parents))]
     ConflictingParents { entity: Path, parents: Vec<Path> },
-    #[error("entity \"{entity}\" has no path to the root through tree-forming references")]
+    #[error("entity \"{entity}\" has no path to a root through tree-forming references")]
     Unreachable { entity: Path },
     #[error("multiple ref-tree violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTreeError>),

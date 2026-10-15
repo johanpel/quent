@@ -145,3 +145,30 @@ entities:
     );
     assert!(annotations.has_constraint(REF_TREE));
 }
+
+#[test]
+fn scope_references_allow_separate_roots() {
+    schema_of(
+        "
+quent: '0.1.0'
+model: multiple_roots
+entities:
+  RootA:
+    events:
+      created: {}
+  RootB:
+    events:
+      created: {}
+  WorkerA:
+    events:
+      created:
+        attributes:
+          parent: { scope-ref: RootA }
+  WorkerB:
+    events:
+      created:
+        attributes:
+          parent: { scope-ref: RootB }
+",
+    );
+}

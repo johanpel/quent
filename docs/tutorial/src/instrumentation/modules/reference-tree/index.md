@@ -3,24 +3,25 @@
 The Reference Tree semantic module marks entity references that form
 parent-child relationships. A `scope-ref` applies both the reference-target and
 reference-tree constraints. The parser validates all scoped references together
-as one tree.
+as one or more trees. Entities without a parent are roots, and each root starts
+a separate tree.
 
 ## Why is a target type required?
 
 A type-erased [`ref`](../../schema/entity-references.md) cannot form part of the
 Reference Tree. A `scope-ref` must name its target entity type so Quent can
-validate the complete tree when it processes the schema.
+validate the parent relationships when it processes the schema.
 
 Without a declared target type, different instances of the same child entity
 type could refer to different parent entity types at runtime. The generated
 instrumentation API could then no longer guarantee that the resulting
-relationships form the tree declared by the schema.
+relationships form the trees declared by the schema.
 
-This gives analysis tools a preferred path from one root entity to every
-related entity and its events. In the model below, a task points to the pipeline
-that contains it. A user interface can open one pipeline and list its tasks,
-while analysis can associate each task's events with that pipeline. Other tools
-can use the same hierarchy for their own purposes.
+This gives analysis tools a preferred path from each root entity to its
+related entities and their events. In the model below, a task points to the
+pipeline that contains it. A user interface can open one pipeline and list its
+tasks, while analysis can associate each task's events with that pipeline.
+Other tools can use the same hierarchy for their own purposes.
 
 ## YAML model
 
@@ -54,6 +55,13 @@ meaning belongs to the model and its constraints.
     <p>A scoped reference defines a parent relationship in a validated entity tree.</p>
   </div>
 </div>
+
+## Analysis
+
+Quent's analysis library provides a tree builder. Given entity instances and
+their parent IDs, it connects them into a tree and checks their relationships.
+The builder requires one root instance per input collection. A model with
+several roots can be analyzed one tree at a time.
 
 <section class="check-yourself" data-lesson="07">
   <h2>Check yourself</h2>
