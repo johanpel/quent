@@ -4,7 +4,7 @@
 #![cfg(test)]
 
 use quent_store::{
-    Error,
+    Error, Timestamped,
     entity::{BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, native::NativeStore},
 };
 
@@ -251,9 +251,7 @@ fn payload_fields_do_not_shadow_the_recorded_timestamp() {
 fn checked_handles_reject_other_variants_and_borrow_valid_events() {
     use crate::model::nested::r#type::worker::RenamedHandle;
 
-    let id = Uuid::from_u128(5);
-    let event = Event::new(
-        id,
+    let event = Timestamped::new(
         30,
         WorkerEvent::Update {
             string: "update".to_owned(),
@@ -262,8 +260,7 @@ fn checked_handles_reject_other_variants_and_borrow_valid_events() {
     let rejected = RenamedHandle::try_from(&event).err().unwrap();
     assert!(std::ptr::eq(rejected, &event));
 
-    let event = Event::new(
-        id,
+    let event = Timestamped::new(
         40,
         WorkerEvent::Renamed {
             string: "renamed".to_owned(),

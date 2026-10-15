@@ -77,7 +77,7 @@ pub(super) fn generate(
         #[derive(Clone, Copy)]
         #debug
         pub struct #handle<'a> {
-            event: &'a ::quent_events::Event<#original>,
+            event: &'a ::quent_store::Timestamped<#original>,
         }
 
         impl<'a> #handle<'a> {
@@ -91,10 +91,10 @@ pub(super) fn generate(
         /// # Errors
         ///
         /// Returns the borrowed event when its variant does not match.
-        impl<'a> ::core::convert::TryFrom<&'a ::quent_events::Event<#original>> for #handle<'a> {
-            type Error = &'a ::quent_events::Event<#original>;
+        impl<'a> ::core::convert::TryFrom<&'a ::quent_store::Timestamped<#original>> for #handle<'a> {
+            type Error = &'a ::quent_store::Timestamped<#original>;
 
-            fn try_from(event: &'a ::quent_events::Event<#original>) -> ::core::result::Result<Self, Self::Error> {
+            fn try_from(event: &'a ::quent_store::Timestamped<#original>) -> ::core::result::Result<Self, Self::Error> {
                 if matches!(&event.data, #variant_pattern) {
                     Ok(Self { event })
                 } else {

@@ -4,6 +4,7 @@
 //! Typed access to fully materialized model events as Rust-native types.
 
 use quent_events::{CombinedEventModel, EntityMarker, Event};
+use quent_time::{OrderKey, TimeUnixNanoSec, Timestamp};
 
 #[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub mod filesystem;
@@ -44,3 +45,30 @@ pub trait CombinedEventLoader<M: CombinedEventModel> {
 /// `quent-store-build` emits `impl EntityMarkerInModel<Demo> for Task {}`.
 #[doc(hidden)]
 pub trait EntityMarkerInModel<M>: EntityMarker {}
+
+/// Data with a timestamp.
+#[derive(Clone, Debug)]
+pub struct Timestamped<P> {
+    pub timestamp: TimeUnixNanoSec,
+    pub data: P,
+}
+
+impl<P> Timestamped<P> {
+    pub fn new(timestamp: TimeUnixNanoSec, data: P) -> Self {
+        Self { timestamp, data }
+    }
+}
+
+impl<P> Timestamp for Timestamped<P> {
+    fn timestamp(&self) -> TimeUnixNanoSec {
+        self.timestamp
+    }
+}
+
+impl<P> OrderKey for Timestamped<P> {
+    type Key = TimeUnixNanoSec;
+
+    fn order_key(&self) -> Self::Key {
+        self.timestamp
+    }
+}

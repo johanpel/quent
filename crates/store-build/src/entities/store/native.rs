@@ -48,7 +48,7 @@ pub(super) fn generate_event(
             conversion_match_arm: quote! { #variant_pattern => {
                 ::quent_store::entity::native::insert_once(&mut self.#slot, position)
                     .map_err(|_| ::quent_store::Error::DuplicateOnceEvent {
-                        entity_id: event.id,
+                        entity_id: entity_id.uuid(),
                         event_name: #event_name,
                     })?;
             } },
@@ -86,6 +86,14 @@ pub(super) fn generate_entity(
         .map(|event| &event.store.native.accessor_method_impl)
         .collect::<Vec<_>>();
     let index_docs = format!("Event-type indices for `{}`.", entity.path());
+    let entity_id = if entity
+        .events()
+        .any(|event| event.cardinality() == Cardinality::Once)
+    {
+        quote::format_ident!("entity_id")
+    } else {
+        quote::format_ident!("_entity_id")
+    };
     quote! {
         #[doc = #index_docs]
         #[doc(hidden)]
@@ -94,7 +102,7 @@ pub(super) fn generate_entity(
             #(#index_fields,)*
         }
         impl ::quent_store::entity::native::EventIndex<#marker> for #event_index_ident {
-            fn push(&mut self, event: &::quent_events::Event<<#marker as ::quent_events::EntityMarker>::Payload>, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
+            fn push(&mut self, #entity_id: ::quent_store::Id<#marker>, event: &::quent_store::Timestamped<<#marker as ::quent_events::EntityMarker>::Payload>, position: usize) -> ::core::result::Result<(), ::quent_store::Error> {
                 match &event.data { #(#arms,)* }
                 Ok(())
             }

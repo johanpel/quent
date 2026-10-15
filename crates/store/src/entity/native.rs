@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap as HashMap;
 use uuid::Uuid;
 
 use crate::{
-    Error,
+    Error, Timestamped,
     entity::{
         BorrowedEventSequenceStore, EntityHandle, EntityStore, Id, OwnedEventSequenceStore,
         sequence::EventSequence,
@@ -63,10 +63,18 @@ impl<E: NativeEntityMarker> NativeStore<E> {
     fn from_event_results<F: From<Error>>(
         events: impl IntoIterator<Item = Result<Event<E::Payload>, F>>,
     ) -> Result<Self, F> {
-        let mut entities: HashMap<Uuid, OrderedCollector<Event<E::Payload>>> = HashMap::default();
+        let mut entities: HashMap<Uuid, OrderedCollector<Timestamped<E::Payload>>> =
+            HashMap::default();
         for event in events {
-            let event = event?;
-            entities.entry(event.id).or_default().push(event);
+            let Event {
+                id,
+                timestamp,
+                data,
+            } = event?;
+            entities
+                .entry(id)
+                .or_default()
+                .push(Timestamped::new(timestamp, data));
         }
         let entities = entities
             .into_iter()
@@ -191,7 +199,9 @@ impl<E: NativeEntityMarker> TryFrom<EventSequence<E>> for NativeEntity<E> {
             event_index: E::Index::default(),
         };
         for (position, event) in entity.sequence.events().iter().enumerate() {
-            entity.event_index.push(event, position)?;
+            entity
+                .event_index
+                .push(entity.sequence.id(), event, position)?;
         }
         Ok(entity)
     }
@@ -219,7 +229,12 @@ pub trait EventIndex<E: EntityMarker>: Default {
     ///
     /// Returns [`Error::DuplicateOnceEvent`] if the corresponding once-event
     /// group is occupied, leaving the existing index unchanged.
-    fn push(&mut self, event: &Event<E::Payload>, position: usize) -> Result<(), Error>;
+    fn push(
+        &mut self,
+        entity_id: Id<E>,
+        event: &Timestamped<E::Payload>,
+        position: usize,
+    ) -> Result<(), Error>;
 }
 
 /// Inserts a value into an empty once-event slot.
@@ -266,10 +281,15 @@ mod tests {
     struct TaskIndex(Option<usize>);
 
     impl EventIndex<Task> for TaskIndex {
-        fn push(&mut self, event: &Event<TaskEvent>, position: usize) -> Result<(), Error> {
+        fn push(
+            &mut self,
+            entity_id: Id<Task>,
+            event: &Timestamped<TaskEvent>,
+            position: usize,
+        ) -> Result<(), Error> {
             if event.data.0 == "once" {
                 insert_once(&mut self.0, position).map_err(|_| Error::DuplicateOnceEvent {
-                    entity_id: event.id,
+                    entity_id: entity_id.uuid(),
                     event_name: "once",
                 })?;
             }

@@ -13,6 +13,7 @@ pub use quent_time::TimeUnixNanoSec;
 pub use crate::{
     entity::{EntityHandle, EntityStore, Id},
     error::Error,
+    event::Timestamped,
 };
 
 /// Result returned by store operations.
