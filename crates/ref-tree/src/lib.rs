@@ -406,7 +406,9 @@ pub enum RefTreeError {
     MultipleRoots { roots: Vec<Path> },
     #[error("entity \"{entity}\" declares more than one parent type: {}", join_paths(.parents))]
     ConflictingParents { entity: Path, parents: Vec<Path> },
-    #[error("entity \"{entity}\" has no path to a root through tree-forming references")]
+    #[error(
+        "entity \"{entity}\" cannot reach a root. Check its parent chain for cycles or conflicting parent types"
+    )]
     Unreachable { entity: Path },
     #[error("multiple ref-tree violations:\n{}", bullet_list(.0))]
     Multiple(Vec<RefTreeError>),
