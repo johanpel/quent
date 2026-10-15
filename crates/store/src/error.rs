@@ -10,6 +10,8 @@ use uuid::Uuid;
 /// An error from selecting contexts, storing entities, or loading events.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("entity {0} has no events")]
+    EmptyEventSequence(Uuid),
     #[error("entity {entity_id} has multiple occurrences of once-event `{event_name}`")]
     DuplicateOnceEvent {
         entity_id: Uuid,

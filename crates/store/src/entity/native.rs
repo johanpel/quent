@@ -71,7 +71,7 @@ impl<E: NativeEntityMarker> NativeStore<E> {
         let entities = entities
             .into_iter()
             .map(|(id, events)| {
-                let sequence = EventSequence::from_ordered_events(id, events);
+                let sequence = EventSequence::try_from_ordered(id, events).map_err(F::from)?;
                 NativeEntity::try_from(sequence)
                     .map(|entity| (id, entity))
                     .map_err(F::from)

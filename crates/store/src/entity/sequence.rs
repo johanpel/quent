@@ -9,7 +9,7 @@ use quent_events::{EntityMarker, Event};
 use quent_time::{OrderedCollector, TimeUnixNanoSec};
 use uuid::Uuid;
 
-use crate::{EntityHandle, Id};
+use crate::{EntityHandle, Error, Id};
 
 // TODO(johanpel): Deduplicate with
 //                 quent_analyzer::entity::native::AnalyzedEntity
@@ -38,16 +38,19 @@ where
 }
 
 impl<E: EntityMarker> EventSequence<E> {
-    pub(crate) fn from_ordered_events(
+    pub(crate) fn try_from_ordered(
         id: Uuid,
         events: OrderedCollector<Event<E::Payload>>,
-    ) -> Self {
+    ) -> Result<Self, Error> {
         let events = events.into_inner();
-        Self {
+        if events.is_empty() {
+            return Err(Error::EmptyEventSequence(id));
+        }
+        Ok(Self {
             id,
             events,
             marker: PhantomData,
-        }
+        })
     }
 
     /// Returns the typed entity ID.
