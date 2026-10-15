@@ -12,10 +12,13 @@ use uuid::Uuid;
 pub enum Error {
     #[error("entity {0} has no events")]
     EmptyEventSequence(Uuid),
-    #[error("entity {entity_id} has multiple occurrences of once-event `{event_name}`")]
-    DuplicateOnceEvent {
+    #[error("multiple occurrences of once-event `{event_name}`")]
+    DuplicateOnceEvent { event_name: &'static str },
+    #[error("failed to index entity {entity_id}: {source}")]
+    EntityIndex {
         entity_id: Uuid,
-        event_name: &'static str,
+        #[source]
+        source: Box<Error>,
     },
     #[error("at least one context is required")]
     EmptyContextSet,

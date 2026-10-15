@@ -336,12 +336,7 @@ mod tests {
     struct AlphaIndex;
 
     impl native::EventIndex<Alpha> for AlphaIndex {
-        fn push(
-            &mut self,
-            _: crate::Id<Alpha>,
-            _: &crate::Timestamped<AlphaEvent>,
-            _: usize,
-        ) -> Result<()> {
+        fn record(&mut self, _: &AlphaEvent, _: usize) -> Result<()> {
             Ok(())
         }
     }

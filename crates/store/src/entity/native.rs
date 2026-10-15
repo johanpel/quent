@@ -33,8 +33,8 @@ impl<E: NativeEntityMarker> NativeStore<E> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::DuplicateOnceEvent`] if an entity emits a once-event
-    /// more than once.
+    /// Returns [`Error::EntityIndex`] with [`Error::DuplicateOnceEvent`] as its
+    /// source if an entity emits a once-event more than once.
     ///
     /// # Performance notes
     ///
@@ -189,7 +189,7 @@ impl<E: NativeEntityMarker> EntityHandle for NativeEntity<E> {
 
 /// # Errors
 ///
-/// Returns the first error from [`EventIndex::push`].
+/// Returns [`Error::EntityIndex`] with the indexing error as its source.
 impl<E: NativeEntityMarker> TryFrom<EventSequence<E>> for NativeEntity<E> {
     type Error = Error;
 
@@ -201,7 +201,11 @@ impl<E: NativeEntityMarker> TryFrom<EventSequence<E>> for NativeEntity<E> {
         for (position, event) in entity.sequence.events().iter().enumerate() {
             entity
                 .event_index
-                .push(entity.sequence.id(), event, position)?;
+                .record(&event.data, position)
+                .map_err(|source| Error::EntityIndex {
+                    entity_id: entity.sequence.id().uuid(),
+                    source: Box::new(source),
+                })?;
         }
         Ok(entity)
     }
@@ -227,14 +231,9 @@ pub trait EventIndex<E: EntityMarker>: Default {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::DuplicateOnceEvent`] if the corresponding once-event
-    /// group is occupied, leaving the existing index unchanged.
-    fn push(
-        &mut self,
-        entity_id: Id<E>,
-        event: &Timestamped<E::Payload>,
-        position: usize,
-    ) -> Result<(), Error>;
+    /// Returns [`Error::DuplicateOnceEvent`] if the corresponding
+    /// once-event group is occupied, leaving the existing index unchanged.
+    fn record(&mut self, payload: &E::Payload, position: usize) -> Result<(), Error>;
 }
 
 /// Inserts a value into an empty once-event slot.
@@ -281,17 +280,10 @@ mod tests {
     struct TaskIndex(Option<usize>);
 
     impl EventIndex<Task> for TaskIndex {
-        fn push(
-            &mut self,
-            entity_id: Id<Task>,
-            event: &Timestamped<TaskEvent>,
-            position: usize,
-        ) -> Result<(), Error> {
-            if event.data.0 == "once" {
-                insert_once(&mut self.0, position).map_err(|_| Error::DuplicateOnceEvent {
-                    entity_id: entity_id.uuid(),
-                    event_name: "once",
-                })?;
+        fn record(&mut self, payload: &TaskEvent, position: usize) -> Result<(), Error> {
+            if payload.0 == "once" {
+                insert_once(&mut self.0, position)
+                    .map_err(|_| Error::DuplicateOnceEvent { event_name: "once" })?;
             }
             Ok(())
         }
@@ -396,10 +388,11 @@ mod tests {
         };
         assert!(matches!(
             NativeStore::<Task>::try_from_loader(&loader),
-            Err(TestError::Index(Error::DuplicateOnceEvent {
+            Err(TestError::Index(Error::EntityIndex {
                 entity_id,
-                event_name: "once",
+                source,
             })) if entity_id == Uuid::from_u128(1)
+                && matches!(*source, Error::DuplicateOnceEvent { event_name: "once" })
         ));
         assert_eq!(loader.reads.get(), 4);
     }

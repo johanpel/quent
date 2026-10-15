@@ -189,10 +189,11 @@ fn rejects_duplicates_including_equal_timestamps_and_empty_payloads() {
         ]);
         assert!(matches!(
             store,
-            Err(Error::DuplicateOnceEvent {
+            Err(Error::EntityIndex {
                 entity_id,
-                event_name: "created"
+                source,
             }) if entity_id == id
+                && matches!(*source, Error::DuplicateOnceEvent { event_name: "created" })
         ));
     }
 }
