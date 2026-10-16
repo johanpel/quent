@@ -17,6 +17,12 @@ fn main() {
     )
     .unwrap();
 
+    let demo_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../instrumentation-build/example/model.yaml");
+    println!("cargo:rerun-if-changed={}", demo_path.display());
+    let demo = quent_yaml::parse_from_file(&demo_path).unwrap();
+    generate(&demo.schema, &Options::default()).unwrap();
+
     let mut modules = String::new();
     // Compile every other combination of native stores and loading options.
     // Filesystem loading requires combined events; the full build is above.

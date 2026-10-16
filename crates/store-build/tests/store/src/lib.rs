@@ -5,3 +5,4 @@
 
 mod compiles;
 mod entity_store;
+mod model_store;
