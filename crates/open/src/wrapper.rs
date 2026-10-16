@@ -134,7 +134,10 @@ fn cargo_toml(
     .chain(mcp_dependency)
     .collect();
 
-    let mut package = Package::new(WRAPPER_PACKAGE.to_string(), "0.0.0".to_string());
+    let mut package = Package::new(
+        WRAPPER_PACKAGE.to_string(),
+        env!("CARGO_PKG_VERSION").to_string(),
+    );
     package.edition = Some(MaybeInherited::Local(Edition::E2024));
     package.publish = Some(MaybeInherited::Local(Publish::Flag(false)));
 
