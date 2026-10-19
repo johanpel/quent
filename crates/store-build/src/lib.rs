@@ -7,7 +7,7 @@
 //! - **Event loaders** read entity-scoped events as Rust types. Some store
 //!   implementations use them to load events.
 //! - **Entity stores** provide entity listing, lookup, and schema-defined
-//!   accessors, such as `my_entity.my_event().my_attribute`.
+//!   accessors, such as `my_entity.my_event().my_attribute()`.
 //!
 //! The crate including the generated code must depend on `quent-store`. Add
 //! `quent-store-build` as a build dependency of that crate.
