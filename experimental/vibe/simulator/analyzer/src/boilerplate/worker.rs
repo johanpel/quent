@@ -5,7 +5,7 @@ use quent_simulator_store::worker::WorkerEvents;
 
 use super::*;
 
-pub type Worker = EntityAnalysis<schema::Worker>;
+pub type Worker = AnalyzerEntity<schema::Worker>;
 
 impl RefTreeEntity for Worker {
     fn parent_id(&self) -> Option<Uuid> {

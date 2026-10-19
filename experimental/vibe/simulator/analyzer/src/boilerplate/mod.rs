@@ -58,7 +58,7 @@ pub use worker::Worker;
 // generate entity parent relationships and resource declarations.
 macro_rules! entity {
     ($name:ident, $parent:ident) => {
-        pub(crate) type $name = EntityAnalysis<schema::$name>;
+        pub(crate) type $name = AnalyzerEntity<schema::$name>;
 
         impl RefTreeEntity for $name {
             fn parent_id(&self) -> Option<Uuid> {
@@ -97,23 +97,21 @@ resource!(StorageChannel, worker_id, CapacityDecl::new_rate("bytes"));
 resource!(TaskExecutorThread, task_executor_id, CapacityDecl::unit());
 
 /// Adapts indexed entity events to the simulator analyzer interfaces.
-// TODO(johanpel): Remove this local newtype once store-build supports placing
-// analyzer trait implementations on generated entity types. Both NativeEntity
-// and the analyzer traits are external here, so Rust forbids direct impls.
+// TODO(johanpel): Remove this adapter as analyzer traits move to quent-store
+// and store-build can generate the remaining implementations. Orphan rules
+// currently prevent implementing external traits for NativeEntity here.
 #[derive(Debug)]
-pub struct EntityAnalysis<E: NativeEntityMarker> {
-    events: NativeEntity<E>,
-}
+pub struct AnalyzerEntity<E: NativeEntityMarker>(NativeEntity<E>);
 
-impl<E: NativeEntityMarker> EntityAnalysis<E> {
+impl<E: NativeEntityMarker> AnalyzerEntity<E> {
     pub(crate) fn new(events: NativeEntity<E>) -> Self {
-        Self { events }
+        Self(events)
     }
 }
 
-impl<E: NativeEntityMarker> Entity for EntityAnalysis<E> {
+impl<E: NativeEntityMarker> Entity for AnalyzerEntity<E> {
     fn id(&self) -> Uuid {
-        self.events.id().uuid()
+        self.0.id().uuid()
     }
 
     fn type_name(&self) -> &str {
@@ -121,18 +119,18 @@ impl<E: NativeEntityMarker> Entity for EntityAnalysis<E> {
     }
 
     fn earliest_timestamp(&self) -> TimeUnixNanoSec {
-        self.events.earliest_timestamp()
+        self.0.earliest_timestamp()
     }
 
     fn latest_timestamp(&self) -> TimeUnixNanoSec {
-        self.events.latest_timestamp()
+        self.0.latest_timestamp()
     }
 }
 
-impl<E: NativeEntityMarker> Deref for EntityAnalysis<E> {
+impl<E: NativeEntityMarker> Deref for AnalyzerEntity<E> {
     type Target = NativeEntity<E>;
 
     fn deref(&self) -> &Self::Target {
-        &self.events
+        &self.0
     }
 }

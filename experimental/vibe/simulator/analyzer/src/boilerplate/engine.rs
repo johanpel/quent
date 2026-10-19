@@ -5,7 +5,7 @@ use quent_simulator_store::engine::EngineEvents;
 
 use super::*;
 
-pub type Engine = EntityAnalysis<schema::Engine>;
+pub type Engine = AnalyzerEntity<schema::Engine>;
 
 pub(crate) fn engine_custom_attributes(
     configuration: &schema::EngineConfiguration,

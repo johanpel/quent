@@ -7,12 +7,12 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Operator {
-    events: EntityAnalysis<schema::Operator>,
+    events: AnalyzerEntity<schema::Operator>,
     active_span: Option<SpanUnixNanoSec>,
 }
 
 impl Operator {
-    pub(crate) fn new(events: EntityAnalysis<schema::Operator>) -> Self {
+    pub(crate) fn new(events: AnalyzerEntity<schema::Operator>) -> Self {
         Self {
             events,
             active_span: None,
@@ -21,7 +21,7 @@ impl Operator {
 }
 
 impl Deref for Operator {
-    type Target = EntityAnalysis<schema::Operator>;
+    type Target = AnalyzerEntity<schema::Operator>;
 
     fn deref(&self) -> &Self::Target {
         &self.events
@@ -140,7 +140,7 @@ mod tests {
             },
         )])
         .unwrap();
-        let operator = events.map_entities(|events| Operator::new(EntityAnalysis::new(events)));
+        let operator = events.map_entities(|events| Operator::new(AnalyzerEntity::new(events)));
         let operator = operator.get(Uuid::from_u128(1)).unwrap();
         let ui = operator.to_ui(TimeUnixNanoSec::default());
         let statistics = ui.statistics.unwrap().custom_statistics;

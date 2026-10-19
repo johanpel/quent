@@ -5,7 +5,7 @@ use quent_simulator_store::plan::PlanEvents;
 
 use super::*;
 
-pub type Plan = EntityAnalysis<schema::Plan>;
+pub type Plan = AnalyzerEntity<schema::Plan>;
 
 impl RefTreeEntity for Plan {
     fn parent_id(&self) -> Option<Uuid> {

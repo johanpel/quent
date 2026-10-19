@@ -33,7 +33,7 @@ pub use crate::boilerplate::{Engine, Operator, Plan, Port, Query, Worker};
 
 use crate::{
     boilerplate::{
-        EntityAnalysis, Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel,
+        AnalyzerEntity, Gpu, GpuMemory, HostMemory, Network, NetworkChannel, PcieChannel,
         QueryBuilder, Storage, StorageChannel, Task, TaskBuilder, TaskExecutor, TaskExecutorThread,
         TaskExt,
     },
@@ -525,14 +525,14 @@ impl Using for SimulatorModel {
 
 fn build_entities<E>(
     builder: NativeStoreBuilder<E>,
-) -> AnalyzerResult<NativeStore<E, EntityAnalysis<E>>>
+) -> AnalyzerResult<NativeStore<E, AnalyzerEntity<E>>>
 where
     E: NativeEntityMarker,
 {
     Ok(builder
         .try_build()
         .map_err(|error| AnalyzerError::Validation(error.to_string()))?
-        .map_entities(EntityAnalysis::new))
+        .map_entities(AnalyzerEntity::new))
 }
 
 pub struct SimulatorModelBuilder {

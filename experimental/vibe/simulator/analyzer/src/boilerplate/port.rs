@@ -5,7 +5,7 @@ use quent_simulator_store::port::PortEvents;
 
 use super::*;
 
-pub type Port = EntityAnalysis<schema::Port>;
+pub type Port = AnalyzerEntity<schema::Port>;
 
 impl RefTreeEntity for Port {
     fn parent_id(&self) -> Option<Uuid> {
