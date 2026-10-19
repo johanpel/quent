@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use quent_store_build::{EntityStoreImplementations, Options, generate};
+use quent_store_build::{EntityStoreImplementations, EventOptions, Options, generate};
 
 mod schema;
 
@@ -29,10 +29,10 @@ fn main() {
             generate(
                 &schema,
                 &Options {
-                    events: quent_store_build::EventOptions {
+                    events: EventOptions {
                         debug: true,
                         combined_event,
-                        ..quent_store_build::Options::default().events
+                        ..Options::default().events
                     },
                     entity_store: EntityStoreImplementations { native },
                     filesystem,
