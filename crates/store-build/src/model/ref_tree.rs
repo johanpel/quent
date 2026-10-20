@@ -35,7 +35,13 @@ pub(super) fn generate(schema: &Schema, events: &syn::File) -> Result<TokenStrea
         }
     }
     let entities = schema.entities().collect::<Vec<_>>();
-    let methods = super::entity_names(schema, &["visit"]);
+    let methods = super::entity_names(schema)
+        .iter()
+        .map(|name| {
+            let name = name.to_string();
+            quote::format_ident!("visit_{}", name.trim_start_matches("r#"))
+        })
+        .collect::<Vec<_>>();
     let markers = entities
         .iter()
         .map(|entity| relative_type_path(entity.path(), &[], ""))

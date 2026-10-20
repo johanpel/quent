@@ -41,7 +41,7 @@ pub(super) fn generate(
         .map(|entity| relative_type_path(entity.path(), &[], ""))
         .collect::<Vec<_>>();
     let generate_ref_tree = crate::entities::ref_tree::uses_constraint(schema);
-    let fields = crate::model::entity_names(schema, &[]);
+    let fields = crate::model::entity_names(schema);
     let build_ref_tree_index = generate_ref_tree.then(|| {
         quote! {
             /// Builds a relationship index from the loaded entities.

@@ -149,7 +149,7 @@ fn walks_child_types_in_schema_order_with_typed_callbacks() {
             self.left.push(node.entity_id().uuid());
         }
 
-        fn branch(&mut self, node: RefTreeNode<'_, Branch>) {
+        fn visit_branch(&mut self, node: RefTreeNode<'_, Branch>) {
             let entity = self.store.entity(node.entity_id()).unwrap().unwrap();
             self.parents.push(entity.parent_id().unwrap());
             self.visit(node);

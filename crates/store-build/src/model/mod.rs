@@ -25,12 +25,9 @@ pub(super) fn generate(schema: &Schema, events: &syn::File) -> Result<TokenStrea
     Ok(quote::quote! { #store #tree })
 }
 
-/// Returns distinct Rust names for schema entities, avoiding reserved names.
-fn entity_names(schema: &Schema, reserved: &[&str]) -> Vec<syn::Ident> {
-    let mut field_names = reserved
-        .iter()
-        .map(|name| (*name).to_owned())
-        .collect::<BTreeSet<_>>();
+/// Returns distinct Rust names for schema entities.
+fn entity_names(schema: &Schema) -> Vec<syn::Ident> {
+    let mut field_names = BTreeSet::new();
     schema
         .entities()
         .map(|entity| {
