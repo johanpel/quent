@@ -42,7 +42,7 @@ fn main() {
         )
         .unwrap();
         modules.push_str(&format!(
-            "#[allow(dead_code, unused_imports)]\nmod {name} {{ include!(concat!(env!(\"OUT_DIR\"), \"/{name}.rs\")); }}\n"
+            "mod {name} {{ include!(concat!(env!(\"OUT_DIR\"), \"/{name}.rs\")); }}\n"
         ));
     }
     std::fs::write(

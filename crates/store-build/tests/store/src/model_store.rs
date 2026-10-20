@@ -10,9 +10,7 @@ use quent_store::{
     event::filesystem,
 };
 
-use demo::{
-    Connection, Demo, DemoStore, Query, connection::ConnectionEvents,
-};
+use demo::{Connection, Demo, DemoStore, Query, connection::ConnectionEvents};
 
 #[allow(unused_imports, dead_code)]
 mod demo {
