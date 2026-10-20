@@ -2509,11 +2509,9 @@ dependencies = [
 name = "quent-instrumentation-build-example"
 version = "0.2.0"
 dependencies = [
- "libc",
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

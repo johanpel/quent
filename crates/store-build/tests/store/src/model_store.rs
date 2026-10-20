@@ -11,7 +11,7 @@ use quent_store::{
 };
 
 use demo::{
-    Connection, Demo, DemoStore, Query, connection::ConnectionEvents, server::ServerEvents,
+    Connection, Demo, DemoStore, Query, connection::ConnectionEvents,
 };
 
 #[allow(unused_imports, dead_code)]
@@ -48,7 +48,6 @@ fn loads_example_events_into_the_model_store() {
     );
     let server_ref = connection.opened().unwrap().host();
     let server = store.entity(server_ref).unwrap().unwrap();
-    assert_eq!(server.booted().process().native_id, std::process::id());
     assert!(std::ptr::eq(
         server,
         store.entity(server.id()).unwrap().unwrap()

@@ -1,10 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#![cfg(test)]
+
 #[allow(unused)]
 mod demo {
     include!(concat!(env!("OUT_DIR"), "/demo.rs"));
 }
+
+mod compiles;
 
 use demo::{Connection, Context, Demo, Noop, Query, query_state};
 

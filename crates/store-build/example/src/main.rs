@@ -81,9 +81,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // look the parent up:
             if let Some(server) = store.entity(opened.host())? {
                 println!(
-                    "\tOwned by server booted at {} with pid {}",
-                    server.booted().timestamp(),
-                    server.booted().process().native_id
+                    "\tOwned by server booted at {}",
+                    server.booted().timestamp()
                 );
             }
         }

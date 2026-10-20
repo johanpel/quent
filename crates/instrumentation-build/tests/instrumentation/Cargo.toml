@@ -1,0 +1,15 @@
+[package]
+name = "quent-instrumentation-build-test"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+# A separate crate lets build.rs use quent-instrumentation-build without a dependency cycle.
+[workspace]
+
+[dependencies]
+quent-instrumentation = { path = "../../../instrumentation", features = ["serde"] }
+
+[build-dependencies]
+quent-instrumentation-build = { path = "../.." }
+quent-yaml = { path = "../../../yaml" }

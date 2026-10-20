@@ -5,5 +5,4 @@
 
 mod compiles;
 mod entity_store;
-#[cfg(feature = "serde")]
 mod model_store;

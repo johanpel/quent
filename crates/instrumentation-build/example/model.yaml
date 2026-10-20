@@ -23,9 +23,7 @@ entities:
   Server:
     doc: A server that accepts connections.
     events:
-      booted:
-        attributes:
-          process: { os: process }
+      booted: {}
 
   ThreadPool:
     doc: A pool of threads owned by the server process.
@@ -35,12 +33,11 @@ entities:
           process: { scope-ref: Server }
 
   Thread:
-    doc: An abstraction over an operating-system thread on which queries can run.
+    doc: A worker thread on which queries can run.
     resource: true
     events:
       started:
         attributes:
-          thread: { os: thread }
           pool: { scope-ref: ThreadPool }
 
   Connection:
