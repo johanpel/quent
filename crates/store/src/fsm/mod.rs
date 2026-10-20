@@ -7,13 +7,18 @@ use quent_time::{Timestamp, span::SpanUnixNanoSec};
 
 use crate::entity::EntityHandle;
 
+pub mod native;
+
+/// Provides an event sequence number.
+pub trait Sequence {
+    /// Returns the wrapping sequence number used to order events with equal timestamps.
+    fn sequence(&self) -> u16;
+}
+
 /// Provides access to a recorded [`FsmHandle`] state transition.
-pub trait Transition: Timestamp {
+pub trait Transition: Timestamp + Sequence {
     /// Return the unique name of the state this transition leads to.
     fn name(&self) -> &str;
-
-    /// Returns the per-FSM wrapping sequence number assigned in transition order.
-    fn sequence(&self) -> u16;
 
     /// Returns whether this transition ends the FSM's dynamic lifetime.
     fn is_final(&self) -> bool;
@@ -38,6 +43,9 @@ pub trait FsmHandle: EntityHandle {
     }
 
     /// Returns whether this FSM has no delimited states.
+    ///
+    /// Returns `true` when only one transition event was recorded, since a
+    /// state requires two consecutive transitions.
     fn is_empty(&self) -> bool {
         self.num_states() == 0
     }
@@ -77,6 +85,17 @@ pub trait FsmHandle: EntityHandle {
         self.num_states()
             .checked_sub(1)
             .and_then(|index| self.state(index))
+    }
+}
+
+impl<T: FsmHandle + ?Sized> FsmHandle for &T {
+    type Transition<'a>
+        = T::Transition<'a>
+    where
+        Self: 'a;
+
+    fn transition(&self, index: usize) -> Option<Self::Transition<'_>> {
+        T::transition(self, index)
     }
 }
 
