@@ -7,6 +7,7 @@ pub mod context;
 pub mod entity;
 pub mod error;
 pub mod event;
+pub mod fsm;
 
 /// Event types and traits used by generated stores and event loaders.
 pub use quent_events as events;
